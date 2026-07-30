@@ -1,0 +1,11 @@
+{
+  "source": "SIMULATION (2).xlsx",
+  "sheet": "Enveloppes",
+  "envelopes": [
+    "Traite maison", "Traite normale", "TSC", "Syndic", "Eau elec abonnement",
+    "Mouton", "Ecole Niece", "Parrents", "Parrents Nora", "Traite voiture",
+    "Wifi", "Besoin perso", "Nourriture", "Habits", "Imprevus", "Voyages",
+    "Sorties WE", "Fetes religieuses", "Navette", "Epargne",
+    "Reste epargne (primes Ibrahim et Nora)", "Vidange", "Entretien", "Assurance", "Vignette"
+  ]
+}

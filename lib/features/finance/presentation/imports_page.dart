@@ -1,0 +1,120 @@
+import 'package:flutter/material.dart';
+import '../application/accounts_template_download.dart';
+import '../application/csv_import_templates.dart';
+
+class ImportsPage extends StatefulWidget {
+  const ImportsPage({super.key, this.downloader = downloadCsvTemplate});
+  final Future<void> Function(CsvImportTemplateDefinition) downloader;
+  @override
+  State<ImportsPage> createState() => _ImportsPageState();
+}
+
+class _ImportsPageState extends State<ImportsPage> {
+  var _downloading = false;
+  var _selectedType = ImportTemplateType.accounts;
+
+  @override
+  Widget build(BuildContext context) {
+    final template = byType(_selectedType);
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(
+            'Import des comptes',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 20),
+          const Text('Type d’import'),
+          DropdownButtonFormField<ImportTemplateType>(
+            initialValue: _selectedType,
+            items: csvImportTemplates
+                .map(
+                  (item) => DropdownMenuItem(
+                    value: item.type,
+                    child: Text(item.label),
+                  ),
+                )
+                .toList(),
+            onChanged: _downloading
+                ? null
+                : (value) => setState(() => _selectedType = value!),
+          ),
+          const SizedBox(height: 12),
+          Text(template.description),
+          Text('Fichier : ${template.fileName}'),
+          const Text('Séparateur : point-virgule'),
+          const Text('Encodage : UTF-8'),
+          const Text('Dates : YYYY-MM-DD'),
+          const Text('Montants : centimes entiers'),
+          SelectableText(template.header),
+          SelectableText(template.exampleRow),
+          const Text('La ligne EXEMPLE-001 est une ligne d’exemple.'),
+          if (_selectedType == ImportTemplateType.expenses)
+            const Text(
+              'Le compte de paiement peut rester vide pour un historique non rapproché.',
+            ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _downloading ? null : () => _downloadTemplate(template),
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Télécharger le template'),
+          ),
+          if (_downloading) ...[
+            const SizedBox(height: 12),
+            const Center(
+              child: CircularProgressIndicator(
+                key: Key('template-download-progress'),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.upload_file_outlined),
+            label: const Text('Sélectionner un fichier CSV'),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(onPressed: null, child: const Text('Analyser')),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () =>
+                setState(() => _selectedType = ImportTemplateType.accounts),
+            child: const Text('Réinitialiser'),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: null,
+            child: const Text('Injection disponible dans l’étape suivante'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadTemplate(CsvImportTemplateDefinition template) async {
+    setState(() => _downloading = true);
+    try {
+      await widget.downloader(template);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${template.fileName} a été téléchargé avec succès'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Téléchargement de ${template.fileName} impossible. Réessayez.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _downloading = false);
+      }
+    }
+  }
+}
