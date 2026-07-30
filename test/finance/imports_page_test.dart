@@ -135,4 +135,67 @@ void main() {
     expect(csvPickerConfiguration.type, FileType.custom);
     expect(csvPickerConfiguration.allowedExtensions, const ['csv']);
   });
+  testWidgets('sélection CSV lit le fichier avec le chemin exact', (t) async {
+    const path = r'C:\imports\comptes.csv';
+    String? readPath;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ImportsPage(
+            pickCsvFile: () async => FilePickerResult([
+              PlatformFile(name: 'comptes.csv', path: path, size: 1),
+            ]),
+            readCsvText: (value) async {
+              readPath = value;
+              return 'nom,type\nCash,CASH';
+            },
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byIcon(Icons.upload_file_outlined));
+    await t.pumpAndSettle();
+    expect(readPath, path);
+    expect(find.text('Fichier lu avec succès.'), findsOneWidget);
+  });
+  testWidgets('annulation CSV ne lit pas le fichier', (t) async {
+    var reads = 0;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ImportsPage(
+            pickCsvFile: () async => null,
+            readCsvText: (_) async {
+              reads++;
+              return '';
+            },
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byIcon(Icons.upload_file_outlined));
+    await t.pumpAndSettle();
+    expect(reads, 0);
+    expect(find.text('Sélection annulée.'), findsOneWidget);
+  });
+  testWidgets('erreur de lecture CSV affiche un message sans planter', (
+    t,
+  ) async {
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ImportsPage(
+            pickCsvFile: () async => FilePickerResult([
+              PlatformFile(name: 'comptes.csv', path: 'x.csv', size: 1),
+            ]),
+            readCsvText: (_) async => throw Exception('lecture impossible'),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byIcon(Icons.upload_file_outlined));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Erreur de lecture :'), findsOneWidget);
+    expect(find.byType(ImportsPage), findsOneWidget);
+  });
 }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../application/accounts_template_download.dart';
 import '../application/csv_import_templates.dart';
+import '../application/csv_text_reader.dart';
 
 typedef CsvFilePicker = Future<FilePickerResult?> Function();
+typedef CsvTextLoader = Future<String> Function(String path);
 
 class CsvPickerConfiguration {
   const CsvPickerConfiguration(this.type, this.allowedExtensions);
@@ -19,10 +21,12 @@ class ImportsPage extends StatefulWidget {
     this.downloader = downloadCsvTemplate,
     this.onCsvFileSelected,
     this.pickCsvFile,
+    this.readCsvText,
   });
   final Future<void> Function(CsvImportTemplateDefinition) downloader;
   final ValueChanged<String>? onCsvFileSelected;
   final CsvFilePicker? pickCsvFile;
+  final CsvTextLoader? readCsvText;
   @override
   State<ImportsPage> createState() => _ImportsPageState();
 }
@@ -32,6 +36,7 @@ class _ImportsPageState extends State<ImportsPage> {
   var _selectedType = ImportTemplateType.accounts;
   String? _selectedFilePath;
   String? _selectionMessage;
+  String? _selectedCsvText;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +165,18 @@ class _ImportsPageState extends State<ImportsPage> {
       _selectionMessage = null;
     });
     widget.onCsvFileSelected?.call(path);
+    try {
+      final loader = widget.readCsvText ?? CsvTextReader().readCsvFileAsUtf8;
+      final content = await loader(path);
+      if (!mounted) return;
+      setState(() {
+        _selectedCsvText = content;
+        _selectionMessage = 'Fichier lu avec succès.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _selectionMessage = 'Erreur de lecture : $error');
+    }
   }
 
   Future<FilePickerResult?> _pickCsvFile() => FilePicker.platform.pickFiles(
