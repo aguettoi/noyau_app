@@ -3,9 +3,11 @@ import 'package:file_picker/file_picker.dart';
 import '../application/accounts_template_download.dart';
 import '../application/csv_import_templates.dart';
 import '../application/csv_text_reader.dart';
+import '../application/csv_text_parser.dart';
 
 typedef CsvFilePicker = Future<FilePickerResult?> Function();
 typedef CsvTextLoader = Future<String> Function(String path);
+typedef CsvTextParse = List<List<String>> Function(String csvText);
 
 class CsvPickerConfiguration {
   const CsvPickerConfiguration(this.type, this.allowedExtensions);
@@ -22,11 +24,13 @@ class ImportsPage extends StatefulWidget {
     this.onCsvFileSelected,
     this.pickCsvFile,
     this.readCsvText,
+    this.parseCsvText,
   });
   final Future<void> Function(CsvImportTemplateDefinition) downloader;
   final ValueChanged<String>? onCsvFileSelected;
   final CsvFilePicker? pickCsvFile;
   final CsvTextLoader? readCsvText;
+  final CsvTextParse? parseCsvText;
   @override
   State<ImportsPage> createState() => _ImportsPageState();
 }
@@ -37,6 +41,7 @@ class _ImportsPageState extends State<ImportsPage> {
   String? _selectedFilePath;
   String? _selectionMessage;
   String? _selectedCsvText;
+  List<List<String>>? _parsedCsvRows;
 
   @override
   Widget build(BuildContext context) {
@@ -103,8 +108,9 @@ class _ImportsPageState extends State<ImportsPage> {
             Text(
               'Fichier sélectionné : ${_selectedFilePath!.split(RegExp(r'[\\/]')).last}',
             ),
-          if (_selectedCsvText != null)
-            const Text('Fichier lu avec succès.')
+          if (_selectedCsvText != null) const Text('Fichier lu avec succès.'),
+          if (_parsedCsvRows != null)
+            const Text('CSV analysé avec succès.')
           else if (_selectionMessage != null)
             Text(_selectionMessage!),
           const SizedBox(height: 12),
@@ -155,7 +161,11 @@ class _ImportsPageState extends State<ImportsPage> {
     final selection = await (widget.pickCsvFile?.call() ?? _pickCsvFile());
     if (!mounted) return;
     if (selection == null) {
-      setState(() => _selectionMessage = 'Sélection annulée.');
+      setState(() {
+        _selectedCsvText = null;
+        _parsedCsvRows = null;
+        _selectionMessage = 'Sélection annulée.';
+      });
       return;
     }
     final path = selection.files.single.path;
@@ -165,6 +175,8 @@ class _ImportsPageState extends State<ImportsPage> {
     }
     setState(() {
       _selectedFilePath = path;
+      _selectedCsvText = null;
+      _parsedCsvRows = null;
       _selectionMessage = null;
     });
     widget.onCsvFileSelected?.call(path);
@@ -176,6 +188,17 @@ class _ImportsPageState extends State<ImportsPage> {
         _selectedCsvText = content;
         _selectionMessage = null;
       });
+      try {
+        final parser = widget.parseCsvText ?? CsvTextParser().parse;
+        final rows = parser(content);
+        if (!mounted) return;
+        setState(() {
+          _parsedCsvRows = rows;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _selectionMessage = 'Erreur de parsing : $error');
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _selectionMessage = 'Erreur de lecture : $error');
