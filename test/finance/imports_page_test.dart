@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
@@ -86,5 +87,52 @@ void main() {
     await t.tap(download);
     await t.pump();
     expect(calls, 2);
+  });
+  testWidgets('sélection CSV affiche le nom et transmet le chemin', (t) async {
+    const path = r'C:\imports\comptes.csv';
+    var received = <String>[];
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ImportsPage(
+            pickCsvFile: () async => FilePickerResult([
+              PlatformFile(name: 'comptes.csv', path: path, size: 123),
+            ]),
+            onCsvFileSelected: received.add,
+          ),
+        ),
+      ),
+    );
+    final select = find.byIcon(Icons.upload_file_outlined);
+    expect(select, findsOneWidget);
+    await t.ensureVisible(select);
+    await t.tap(select);
+    await t.pumpAndSettle();
+    expect(find.text('Fichier sélectionné : comptes.csv'), findsOneWidget);
+    expect(received, [path]);
+  });
+  testWidgets('annulation CSV affiche le message sans callback', (t) async {
+    var calls = 0;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ImportsPage(
+            pickCsvFile: () async => null,
+            onCsvFileSelected: (_) => calls++,
+          ),
+        ),
+      ),
+    );
+    final select = find.byIcon(Icons.upload_file_outlined);
+    expect(select, findsOneWidget);
+    await t.ensureVisible(select);
+    await t.tap(select);
+    await t.pumpAndSettle();
+    expect(find.text('Sélection annulée.'), findsOneWidget);
+    expect(calls, 0);
+  });
+  test('configuration du sélecteur limite aux fichiers csv', () {
+    expect(csvPickerConfiguration.type, FileType.custom);
+    expect(csvPickerConfiguration.allowedExtensions, const ['csv']);
   });
 }

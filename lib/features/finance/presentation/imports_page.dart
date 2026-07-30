@@ -1,10 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../application/accounts_template_download.dart';
 import '../application/csv_import_templates.dart';
 
+typedef CsvFilePicker = Future<FilePickerResult?> Function();
+
+class CsvPickerConfiguration {
+  const CsvPickerConfiguration(this.type, this.allowedExtensions);
+  final FileType type;
+  final List<String> allowedExtensions;
+}
+
+const csvPickerConfiguration = CsvPickerConfiguration(FileType.custom, ['csv']);
+
 class ImportsPage extends StatefulWidget {
-  const ImportsPage({super.key, this.downloader = downloadCsvTemplate});
+  const ImportsPage({
+    super.key,
+    this.downloader = downloadCsvTemplate,
+    this.onCsvFileSelected,
+    this.pickCsvFile,
+  });
   final Future<void> Function(CsvImportTemplateDefinition) downloader;
+  final ValueChanged<String>? onCsvFileSelected;
+  final CsvFilePicker? pickCsvFile;
   @override
   State<ImportsPage> createState() => _ImportsPageState();
 }
@@ -12,6 +30,8 @@ class ImportsPage extends StatefulWidget {
 class _ImportsPageState extends State<ImportsPage> {
   var _downloading = false;
   var _selectedType = ImportTemplateType.accounts;
+  String? _selectedFilePath;
+  String? _selectionMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -70,10 +90,15 @@ class _ImportsPageState extends State<ImportsPage> {
           ],
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: _downloading ? null : _selectCsv,
             icon: const Icon(Icons.upload_file_outlined),
             label: const Text('Sélectionner un fichier CSV'),
           ),
+          if (_selectedFilePath != null)
+            Text(
+              'Fichier sélectionné : ${_selectedFilePath!.split(RegExp(r'[\\/]')).last}',
+            ),
+          if (_selectionMessage != null) Text(_selectionMessage!),
           const SizedBox(height: 12),
           FilledButton(onPressed: null, child: const Text('Analyser')),
           const SizedBox(height: 12),
@@ -117,4 +142,28 @@ class _ImportsPageState extends State<ImportsPage> {
       }
     }
   }
+
+  Future<void> _selectCsv() async {
+    final selection = await (widget.pickCsvFile?.call() ?? _pickCsvFile());
+    if (!mounted) return;
+    if (selection == null) {
+      setState(() => _selectionMessage = 'Sélection annulée.');
+      return;
+    }
+    final path = selection.files.single.path;
+    if (path == null || !path.toLowerCase().endsWith('.csv')) {
+      setState(() => _selectionMessage = 'Choisissez un fichier CSV valide.');
+      return;
+    }
+    setState(() {
+      _selectedFilePath = path;
+      _selectionMessage = null;
+    });
+    widget.onCsvFileSelected?.call(path);
+  }
+
+  Future<FilePickerResult?> _pickCsvFile() => FilePicker.platform.pickFiles(
+    type: csvPickerConfiguration.type,
+    allowedExtensions: csvPickerConfiguration.allowedExtensions,
+  );
 }
