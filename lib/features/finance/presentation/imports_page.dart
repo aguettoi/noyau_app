@@ -103,7 +103,10 @@ class _ImportsPageState extends State<ImportsPage> {
             Text(
               'Fichier sélectionné : ${_selectedFilePath!.split(RegExp(r'[\\/]')).last}',
             ),
-          if (_selectionMessage != null) Text(_selectionMessage!),
+          if (_selectedCsvText != null)
+            const Text('Fichier lu avec succès.')
+          else if (_selectionMessage != null)
+            Text(_selectionMessage!),
           const SizedBox(height: 12),
           FilledButton(onPressed: null, child: const Text('Analyser')),
           const SizedBox(height: 12),
@@ -171,7 +174,7 @@ class _ImportsPageState extends State<ImportsPage> {
       if (!mounted) return;
       setState(() {
         _selectedCsvText = content;
-        _selectionMessage = 'Fichier lu avec succès.';
+        _selectionMessage = null;
       });
     } catch (error) {
       if (!mounted) return;
