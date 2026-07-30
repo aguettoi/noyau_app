@@ -23,6 +23,9 @@ class CsvImportTemplateDefinition {
   final String id, label, description, fileName, exampleRow;
   final List<String> columns;
   final int order;
+  List<String> get optionalColumns => type == ImportTemplateType.accounts
+      ? const ['solde_initial_centimes']
+      : const [];
   String get header => columns.join(';');
   String get csvContent => '$header\n$exampleRow\n';
 }
