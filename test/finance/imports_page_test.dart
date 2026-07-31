@@ -1,314 +1,389 @@
 import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
+import 'package:noyau_app/features/finance/application/csv_import_validation_pipeline.dart';
 import 'package:noyau_app/features/finance/presentation/imports_page.dart';
 
 void main() {
+  final accounts = byType(ImportTemplateType.accounts);
+
   Future<void> mount(
-    WidgetTester t, {
+    WidgetTester tester, {
     Future<void> Function(CsvImportTemplateDefinition)? downloader,
     CsvFilePicker? pickCsvFile,
     CsvTextLoader? readCsvText,
-    CsvTextParse? parseCsvText,
+    CsvImportValidation? validateCsvImport,
     ValueChanged<String>? onCsvFileSelected,
-  }) => t.pumpWidget(
+  }) => tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: ImportsPage(
           downloader: downloader ?? (_) async {},
           pickCsvFile: pickCsvFile,
           readCsvText: readCsvText,
-          parseCsvText: parseCsvText,
+          validateCsvImport: validateCsvImport,
           onCsvFileSelected: onCsvFileSelected,
         ),
       ),
     ),
   );
-  testWidgets('sept templates', (t) async {
-    for (final x in csvImportTemplates) {
-      CsvImportTemplateDefinition? got;
-      var calls = 0;
-      Future<void> fake(CsvImportTemplateDefinition v) async {
-        calls++;
-        got = v;
-      }
 
-      await mount(t, downloader: fake);
-      await t.pumpAndSettle();
-      final dropdown = find.byType(DropdownButtonFormField<ImportTemplateType>);
-      expect(dropdown, findsOneWidget, reason: x.type.name);
-      if (x.type != ImportTemplateType.accounts) {
-        await t.ensureVisible(dropdown);
-        await t.tap(dropdown);
-        await t.pumpAndSettle();
-        final option = find.text(x.label).last;
-        expect(option, findsOneWidget, reason: x.id);
-        await t.tap(option);
-        await t.pumpAndSettle();
-      }
+  FilePickerResult csvFile(String path) => FilePickerResult([
+    PlatformFile(name: path.split(RegExp(r'[\\/]')).last, path: path, size: 1),
+  ]);
+
+  CsvImportValidationResult result(
+    CsvImportValidationStage stage, {
+    bool isValid = false,
+    List<String> errors = const [],
+  }) =>
+      CsvImportValidationResult(stage: stage, isValid: isValid, errors: errors);
+
+  Future<void> selectTemplate(
+    WidgetTester tester,
+    CsvImportTemplateDefinition template,
+  ) async {
+    if (template.type == ImportTemplateType.accounts) {
+      return;
+    }
+    final dropdown = find.byType(DropdownButtonFormField<ImportTemplateType>);
+    expect(dropdown, findsOneWidget);
+    await tester.ensureVisible(dropdown);
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    final option = find.text(template.label).last;
+    expect(option, findsOneWidget);
+    await tester.tap(option);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> selectCsv(WidgetTester tester) async {
+    final button = find.byIcon(Icons.upload_file_outlined);
+    expect(button, findsOneWidget);
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('sept templates', (tester) async {
+    for (final template in csvImportTemplates) {
+      CsvImportTemplateDefinition? received;
+      var calls = 0;
+      await mount(
+        tester,
+        downloader: (value) async {
+          calls++;
+          received = value;
+        },
+      );
+      await tester.pumpAndSettle();
+      await selectTemplate(tester, template);
       final download = find.byIcon(Icons.download_outlined);
-      expect(download, findsOneWidget, reason: x.id);
-      await t.ensureVisible(download);
-      await t.tap(download);
-      await t.pumpAndSettle();
-      expect(calls, 1);
-      expect(got, same(x));
-      expect(got!.fileName, x.fileName);
-      expect(got!.csvContent, x.csvContent);
-      await t.pumpWidget(const SizedBox.shrink());
-      await t.pumpAndSettle();
+      expect(download, findsOneWidget, reason: template.id);
+      await tester.ensureVisible(download);
+      await tester.tap(download);
+      await tester.pumpAndSettle();
+      expect(calls, 1, reason: template.id);
+      expect(received, same(template));
+      expect(received!.fileName, template.fileName);
+      expect(received!.csvContent, template.csvContent);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
     }
   });
+
   testWidgets('téléchargement asynchrone bloque puis réactive les contrôles', (
-    t,
+    tester,
   ) async {
     final pending = Completer<void>();
     var calls = 0;
-    Future<void> fake(CsvImportTemplateDefinition _) {
-      calls++;
-      return calls == 1 ? pending.future : Future.value();
-    }
-
-    await mount(t, downloader: fake);
-    final dropdown = find.byType(DropdownButtonFormField<ImportTemplateType>);
-    await t.ensureVisible(dropdown);
-    await t.tap(dropdown);
-    await t.pumpAndSettle();
-    await t.tap(find.text(byType(ImportTemplateType.envelopes).label).last);
-    await t.pumpAndSettle();
+    await mount(
+      tester,
+      downloader: (_) {
+        calls++;
+        return calls == 1 ? pending.future : Future.value();
+      },
+    );
+    await selectTemplate(tester, byType(ImportTemplateType.envelopes));
     final download = find.byIcon(Icons.download_outlined);
-    await t.ensureVisible(download);
-    await t.tap(download);
-    await t.pump();
+    await tester.ensureVisible(download);
+    await tester.tap(download);
+    await tester.pump();
     expect(find.byKey(const Key('template-download-progress')), findsOneWidget);
     expect(calls, 1);
+    final dropdown = find.byType(DropdownButtonFormField<ImportTemplateType>);
     expect(
-      t.widget<DropdownButtonFormField<ImportTemplateType>>(dropdown).onChanged,
+      tester
+          .widget<DropdownButtonFormField<ImportTemplateType>>(dropdown)
+          .onChanged,
       isNull,
     );
     pending.complete();
-    await t.pump();
-    await t.pumpAndSettle();
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('template-download-progress')), findsNothing);
     expect(
-      t.widget<DropdownButtonFormField<ImportTemplateType>>(dropdown).onChanged,
+      tester
+          .widget<DropdownButtonFormField<ImportTemplateType>>(dropdown)
+          .onChanged,
       isNotNull,
     );
-    await t.tap(download);
-    await t.pump();
+    await tester.tap(download);
+    await tester.pump();
     expect(calls, 2);
   });
-  testWidgets('sélection CSV affiche le nom et transmet le chemin', (t) async {
+
+  testWidgets('sélection CSV affiche le nom et transmet le chemin', (
+    tester,
+  ) async {
     const path = r'C:\imports\comptes.csv';
-    var received = <String>[];
-    await t.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ImportsPage(
-            pickCsvFile: () async => FilePickerResult([
-              PlatformFile(name: 'comptes.csv', path: path, size: 123),
-            ]),
-            onCsvFileSelected: received.add,
-          ),
-        ),
-      ),
+    final selected = <String>[];
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile(path),
+      onCsvFileSelected: selected.add,
     );
-    final select = find.byIcon(Icons.upload_file_outlined);
-    expect(select, findsOneWidget);
-    await t.ensureVisible(select);
-    await t.tap(select);
-    await t.pumpAndSettle();
+    await selectCsv(tester);
     expect(find.text('Fichier sélectionné : comptes.csv'), findsOneWidget);
-    expect(received, [path]);
+    expect(selected, [path]);
   });
-  testWidgets('annulation CSV affiche le message sans callback', (t) async {
-    var calls = 0;
-    await t.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ImportsPage(
-            pickCsvFile: () async => null,
-            onCsvFileSelected: (_) => calls++,
-          ),
-        ),
-      ),
+
+  testWidgets('annulation CSV affiche le message sans callback', (
+    tester,
+  ) async {
+    var callbacks = 0;
+    await mount(
+      tester,
+      pickCsvFile: () async => null,
+      onCsvFileSelected: (_) => callbacks++,
     );
-    final select = find.byIcon(Icons.upload_file_outlined);
-    expect(select, findsOneWidget);
-    await t.ensureVisible(select);
-    await t.tap(select);
-    await t.pumpAndSettle();
+    await selectCsv(tester);
     expect(find.text('Sélection annulée.'), findsOneWidget);
-    expect(calls, 0);
+    expect(callbacks, 0);
   });
+
   test('configuration du sélecteur limite aux fichiers csv', () {
     expect(csvPickerConfiguration.type, FileType.custom);
     expect(csvPickerConfiguration.allowedExtensions, const ['csv']);
   });
-  testWidgets('sélection CSV lit le fichier avec le chemin exact', (t) async {
+
+  testWidgets('sélection CSV lit le fichier avec le chemin exact', (
+    tester,
+  ) async {
     const path = r'C:\imports\comptes.csv';
     String? readPath;
-    await t.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ImportsPage(
-            pickCsvFile: () async => FilePickerResult([
-              PlatformFile(name: 'comptes.csv', path: path, size: 1),
-            ]),
-            readCsvText: (value) async {
-              readPath = value;
-              return 'nom,type\nCash,CASH';
-            },
-          ),
-        ),
-      ),
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile(path),
+      readCsvText: (value) async {
+        readPath = value;
+        return 'nom,type\nCompte courant,bank';
+      },
+      validateCsvImport: ({required csvText, required template}) =>
+          result(CsvImportValidationStage.valid, isValid: true),
     );
-    await t.tap(find.byIcon(Icons.upload_file_outlined));
-    await t.pumpAndSettle();
+    await selectCsv(tester);
     expect(readPath, path);
     expect(find.text('Fichier lu avec succès.'), findsOneWidget);
   });
-  testWidgets('annulation CSV ne lit pas le fichier', (t) async {
+
+  testWidgets('annulation CSV ne lit pas le fichier', (tester) async {
     var reads = 0;
-    await t.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ImportsPage(
-            pickCsvFile: () async => null,
-            readCsvText: (_) async {
-              reads++;
-              return '';
-            },
-          ),
-        ),
-      ),
-    );
-    await t.tap(find.byIcon(Icons.upload_file_outlined));
-    await t.pumpAndSettle();
-    expect(reads, 0);
-    expect(find.text('Sélection annulée.'), findsOneWidget);
-  });
-  testWidgets('erreur de lecture CSV affiche un message sans planter', (
-    t,
-  ) async {
-    await t.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ImportsPage(
-            pickCsvFile: () async => FilePickerResult([
-              PlatformFile(name: 'comptes.csv', path: 'x.csv', size: 1),
-            ]),
-            readCsvText: (_) async => throw Exception('lecture impossible'),
-          ),
-        ),
-      ),
-    );
-    await t.tap(find.byIcon(Icons.upload_file_outlined));
-    await t.pumpAndSettle();
-    expect(find.textContaining('Erreur de lecture :'), findsOneWidget);
-    expect(find.byType(ImportsPage), findsOneWidget);
-  });
-
-  testWidgets('lecture réussie parse le contenu exact', (t) async {
-    const path = r'C:\imports\comptes.csv';
-    const csvText = 'nom,type\nCash,CASH';
-    String? parsedText;
-
     await mount(
-      t,
-      pickCsvFile: () async => FilePickerResult([
-        PlatformFile(name: 'comptes.csv', path: path, size: 1),
-      ]),
-      readCsvText: (_) async => csvText,
-      parseCsvText: (text) {
-        parsedText = text;
-        return const [
-          ['nom', 'type'],
-          ['Cash', 'CASH'],
-        ];
-      },
-    );
-
-    final select = find.byIcon(Icons.upload_file_outlined);
-    expect(select, findsOneWidget);
-    await t.ensureVisible(select);
-    await t.tap(select);
-    await t.pumpAndSettle();
-
-    expect(parsedText, csvText);
-    expect(find.text('Fichier lu avec succès.'), findsOneWidget);
-    expect(find.text('CSV analysé avec succès.'), findsOneWidget);
-  });
-
-  testWidgets('annulation CSV ne lance pas le parsing', (t) async {
-    var parserCalls = 0;
-
-    await mount(
-      t,
+      tester,
       pickCsvFile: () async => null,
-      readCsvText: (_) async => '',
-      parseCsvText: (_) {
-        parserCalls++;
-        return const [];
+      readCsvText: (_) async {
+        reads++;
+        return '';
       },
     );
-
-    final select = find.byIcon(Icons.upload_file_outlined);
-    expect(select, findsOneWidget);
-    await t.ensureVisible(select);
-    await t.tap(select);
-    await t.pumpAndSettle();
-
-    expect(parserCalls, 0);
-    expect(find.text('Sélection annulée.'), findsOneWidget);
+    await selectCsv(tester);
+    expect(reads, 0);
   });
 
-  testWidgets('erreur de lecture CSV ne lance pas le parsing', (t) async {
-    var parserCalls = 0;
-
-    await mount(
-      t,
-      pickCsvFile: () async => FilePickerResult([
-        PlatformFile(name: 'comptes.csv', path: 'comptes.csv', size: 1),
-      ]),
-      readCsvText: (_) async => throw Exception('lecture impossible'),
-      parseCsvText: (_) {
-        parserCalls++;
-        return const [];
-      },
-    );
-
-    final select = find.byIcon(Icons.upload_file_outlined);
-    expect(select, findsOneWidget);
-    await t.ensureVisible(select);
-    await t.tap(select);
-    await t.pumpAndSettle();
-
-    expect(parserCalls, 0);
-    expect(find.textContaining('Erreur de lecture :'), findsOneWidget);
-  });
-
-  testWidgets('erreur de parsing CSV affiche un message sans planter', (
-    t,
+  testWidgets('erreur de lecture CSV affiche un message sans planter', (
+    tester,
   ) async {
     await mount(
-      t,
-      pickCsvFile: () async => FilePickerResult([
-        PlatformFile(name: 'comptes.csv', path: 'comptes.csv', size: 1),
-      ]),
-      readCsvText: (_) async => 'nom,type\nCash,CASH',
-      parseCsvText: (_) => throw const FormatException('CSV invalide'),
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => throw Exception('lecture impossible'),
     );
-
-    final select = find.byIcon(Icons.upload_file_outlined);
-    expect(select, findsOneWidget);
-    await t.ensureVisible(select);
-    await t.tap(select);
-    await t.pumpAndSettle();
-
-    expect(find.textContaining('Erreur de parsing :'), findsOneWidget);
+    await selectCsv(tester);
+    expect(find.textContaining('Erreur de lecture :'), findsOneWidget);
     expect(find.byType(ImportsPage), findsOneWidget);
+  });
+
+  testWidgets(
+    'ImportsPage transmet le texte et le template exacts au pipeline',
+    (tester) async {
+      String? receivedText;
+      CsvImportTemplateDefinition? receivedTemplate;
+      await mount(
+        tester,
+        pickCsvFile: () async => csvFile('comptes.csv'),
+        readCsvText: (_) async => 'texte CSV exact',
+        validateCsvImport: ({required csvText, required template}) {
+          receivedText = csvText;
+          receivedTemplate = template;
+          return result(CsvImportValidationStage.valid, isValid: true);
+        },
+      );
+      await selectCsv(tester);
+      expect(receivedText, 'texte CSV exact');
+      expect(receivedTemplate, same(accounts));
+    },
+  );
+
+  testWidgets('pipeline valide affiche Données métier valides', (tester) async {
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          result(CsvImportValidationStage.valid, isValid: true),
+    );
+    await selectCsv(tester);
+    expect(find.text('Données métier valides.'), findsOneWidget);
+  });
+
+  testWidgets('parsing échoué affiche les erreurs de parsing', (tester) async {
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) => result(
+        CsvImportValidationStage.parsingFailed,
+        errors: ['Erreur de parsing : CSV non fermé'],
+      ),
+    );
+    await selectCsv(tester);
+    expect(find.text('Erreur de parsing :'), findsOneWidget);
+    expect(find.text('CSV non fermé'), findsOneWidget);
+  });
+
+  testWidgets('structure invalide affiche toutes les erreurs structurelles', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) => result(
+        CsvImportValidationStage.structureInvalid,
+        errors: ['Colonne Nom absente.', 'Ligne 3 incorrecte.'],
+      ),
+    );
+    await selectCsv(tester);
+    expect(find.text('Erreurs de structure :'), findsOneWidget);
+    expect(find.text('Colonne Nom absente.'), findsOneWidget);
+    expect(find.text('Ligne 3 incorrecte.'), findsOneWidget);
+  });
+
+  testWidgets('données métier invalides affiche toutes les erreurs métier', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) => result(
+        CsvImportValidationStage.businessInvalid,
+        errors: ['Nom obligatoire.', 'Type invalide.'],
+      ),
+    );
+    await selectCsv(tester);
+    expect(find.text('Erreurs métier :'), findsOneWidget);
+    expect(find.text('Nom obligatoire.'), findsOneWidget);
+    expect(find.text('Type invalide.'), findsOneWidget);
+  });
+
+  testWidgets(
+    'template non pris en charge affiche Validation métier indisponible',
+    (tester) async {
+      await mount(
+        tester,
+        pickCsvFile: () async => csvFile('enveloppes.csv'),
+        readCsvText: (_) async => 'x',
+        validateCsvImport: ({required csvText, required template}) => result(
+          CsvImportValidationStage.unsupportedTemplate,
+          errors: ['Validation absente.'],
+        ),
+      );
+      await selectTemplate(tester, byType(ImportTemplateType.envelopes));
+      await selectCsv(tester);
+      expect(find.text('Validation métier indisponible.'), findsOneWidget);
+      expect(find.text('Validation absente.'), findsOneWidget);
+    },
+  );
+
+  testWidgets('annulation ne lance pas le pipeline', (tester) async {
+    var calls = 0;
+    await mount(
+      tester,
+      pickCsvFile: () async => null,
+      validateCsvImport: ({required csvText, required template}) {
+        calls++;
+        return result(CsvImportValidationStage.valid, isValid: true);
+      },
+    );
+    await selectCsv(tester);
+    expect(calls, 0);
+  });
+
+  testWidgets('erreur de lecture ne lance pas le pipeline', (tester) async {
+    var calls = 0;
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => throw Exception('lecture impossible'),
+      validateCsvImport: ({required csvText, required template}) {
+        calls++;
+        return result(CsvImportValidationStage.valid, isValid: true);
+      },
+    );
+    await selectCsv(tester);
+    expect(calls, 0);
+  });
+
+  testWidgets(
+    'exception du pipeline affiche Erreur de validation sans planter',
+    (tester) async {
+      await mount(
+        tester,
+        pickCsvFile: () async => csvFile('comptes.csv'),
+        readCsvText: (_) async => 'x',
+        validateCsvImport: ({required csvText, required template}) =>
+            throw StateError('indisponible'),
+      );
+      await selectCsv(tester);
+      expect(find.textContaining('Erreur de validation :'), findsOneWidget);
+      expect(find.byType(ImportsPage), findsOneWidget);
+    },
+  );
+
+  testWidgets('nouvelle sélection remplace l’ancien résultat', (tester) async {
+    var attempts = 0;
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) {
+        attempts++;
+        return attempts == 1
+            ? result(
+                CsvImportValidationStage.businessInvalid,
+                errors: ['Ancienne erreur.'],
+              )
+            : result(CsvImportValidationStage.valid, isValid: true);
+      },
+    );
+    await selectCsv(tester);
+    expect(find.text('Ancienne erreur.'), findsOneWidget);
+    await selectCsv(tester);
+    expect(find.text('Ancienne erreur.'), findsNothing);
+    expect(find.text('Données métier valides.'), findsOneWidget);
   });
 }

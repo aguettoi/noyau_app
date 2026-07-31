@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../application/accounts_template_download.dart';
 import '../application/csv_import_templates.dart';
+import '../application/csv_import_validation_pipeline.dart';
 import '../application/csv_text_reader.dart';
-import '../application/csv_text_parser.dart';
 
 typedef CsvFilePicker = Future<FilePickerResult?> Function();
 typedef CsvTextLoader = Future<String> Function(String path);
-typedef CsvTextParse = List<List<String>> Function(String csvText);
+typedef CsvImportValidation =
+    CsvImportValidationResult Function({
+      required String csvText,
+      required CsvImportTemplateDefinition template,
+    });
 
 class CsvPickerConfiguration {
   const CsvPickerConfiguration(this.type, this.allowedExtensions);
@@ -24,13 +28,13 @@ class ImportsPage extends StatefulWidget {
     this.onCsvFileSelected,
     this.pickCsvFile,
     this.readCsvText,
-    this.parseCsvText,
+    this.validateCsvImport,
   });
   final Future<void> Function(CsvImportTemplateDefinition) downloader;
   final ValueChanged<String>? onCsvFileSelected;
   final CsvFilePicker? pickCsvFile;
   final CsvTextLoader? readCsvText;
-  final CsvTextParse? parseCsvText;
+  final CsvImportValidation? validateCsvImport;
   @override
   State<ImportsPage> createState() => _ImportsPageState();
 }
@@ -41,7 +45,7 @@ class _ImportsPageState extends State<ImportsPage> {
   String? _selectedFilePath;
   String? _selectionMessage;
   String? _selectedCsvText;
-  List<List<String>>? _parsedCsvRows;
+  CsvImportValidationResult? _validationResult;
 
   @override
   Widget build(BuildContext context) {
@@ -109,9 +113,8 @@ class _ImportsPageState extends State<ImportsPage> {
               'Fichier sélectionné : ${_selectedFilePath!.split(RegExp(r'[\\/]')).last}',
             ),
           if (_selectedCsvText != null) const Text('Fichier lu avec succès.'),
-          if (_parsedCsvRows != null)
-            const Text('CSV analysé avec succès.')
-          else if (_selectionMessage != null)
+          ..._validationMessages(),
+          if (_validationResult == null && _selectionMessage != null)
             Text(_selectionMessage!),
           const SizedBox(height: 12),
           FilledButton(onPressed: null, child: const Text('Analyser')),
@@ -163,7 +166,7 @@ class _ImportsPageState extends State<ImportsPage> {
     if (selection == null) {
       setState(() {
         _selectedCsvText = null;
-        _parsedCsvRows = null;
+        _validationResult = null;
         _selectionMessage = 'Sélection annulée.';
       });
       return;
@@ -176,7 +179,7 @@ class _ImportsPageState extends State<ImportsPage> {
     setState(() {
       _selectedFilePath = path;
       _selectedCsvText = null;
-      _parsedCsvRows = null;
+      _validationResult = null;
       _selectionMessage = null;
     });
     widget.onCsvFileSelected?.call(path);
@@ -189,15 +192,19 @@ class _ImportsPageState extends State<ImportsPage> {
         _selectionMessage = null;
       });
       try {
-        final parser = widget.parseCsvText ?? CsvTextParser().parse;
-        final rows = parser(content);
+        final validator =
+            widget.validateCsvImport ?? CsvImportValidationPipeline().validate;
+        final result = validator(
+          csvText: content,
+          template: byType(_selectedType),
+        );
         if (!mounted) return;
         setState(() {
-          _parsedCsvRows = rows;
+          _validationResult = result;
         });
       } catch (error) {
         if (!mounted) return;
-        setState(() => _selectionMessage = 'Erreur de parsing : $error');
+        setState(() => _selectionMessage = 'Erreur de validation : $error');
       }
     } catch (error) {
       if (!mounted) return;
@@ -209,4 +216,40 @@ class _ImportsPageState extends State<ImportsPage> {
     type: csvPickerConfiguration.type,
     allowedExtensions: csvPickerConfiguration.allowedExtensions,
   );
+
+  List<Widget> _validationMessages() {
+    final result = _validationResult;
+    if (result == null) {
+      return const [];
+    }
+    switch (result.stage) {
+      case CsvImportValidationStage.parsingFailed:
+        return [
+          const Text('Erreur de parsing :'),
+          ...result.errors.map(
+            (error) => Text(
+              error.startsWith('Erreur de parsing :')
+                  ? error.substring('Erreur de parsing :'.length).trim()
+                  : error,
+            ),
+          ),
+        ];
+      case CsvImportValidationStage.structureInvalid:
+        return [
+          const Text('Erreurs de structure :'),
+          ...result.errors.map(Text.new),
+        ];
+      case CsvImportValidationStage.businessInvalid:
+        return [const Text('Erreurs métier :'), ...result.errors.map(Text.new)];
+      case CsvImportValidationStage.unsupportedTemplate:
+        return [
+          const Text('Validation métier indisponible.'),
+          ...result.errors.map(Text.new),
+        ];
+      case CsvImportValidationStage.valid:
+        return result.isValid
+            ? const [Text('Données métier valides.')]
+            : const [];
+    }
+  }
 }
