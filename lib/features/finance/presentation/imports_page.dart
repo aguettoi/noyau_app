@@ -114,6 +114,7 @@ class _ImportsPageState extends State<ImportsPage> {
             ),
           if (_selectedCsvText != null) const Text('Fichier lu avec succès.'),
           ..._validationMessages(),
+          ..._accountsPreview(),
           if (_validationResult == null && _selectionMessage != null)
             Text(_selectionMessage!),
           const SizedBox(height: 12),
@@ -251,5 +252,70 @@ class _ImportsPageState extends State<ImportsPage> {
             ? const [Text('Données métier valides.')]
             : const [];
     }
+  }
+
+  List<Widget> _accountsPreview() {
+    final result = _validationResult;
+    final businessResult = result?.accountsBusinessResult;
+    final parsedRows = result?.parsedRows;
+    if (result?.stage != CsvImportValidationStage.valid ||
+        result?.isValid != true ||
+        businessResult == null ||
+        parsedRows == null ||
+        parsedRows.isEmpty) {
+      return const [];
+    }
+
+    final indexes = <String, int>{
+      for (var index = 0; index < parsedRows.first.length; index++)
+        parsedRows.first[index].trim().toLowerCase(): index,
+    };
+    return [
+      const Divider(),
+      const Text("Aperçu de l'import"),
+      Text('Nombre de comptes : ${businessResult.rows.length}'),
+      const Divider(),
+      ...businessResult.rows.map((rowResult) {
+        final sourceIndex = rowResult.lineNumber - 1;
+        final sourceRow = sourceIndex >= 0 && sourceIndex < parsedRows.length
+            ? parsedRows[sourceIndex]
+            : const <String>[];
+        final name = _previewValue(sourceRow, indexes, 'nom');
+        final type = _previewValue(sourceRow, indexes, 'type');
+        final balance = rowResult.initialBalanceCents == null
+            ? '—'
+            : _formatMad(rowResult.initialBalanceCents!);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [Text(name), Text(type.toUpperCase()), Text(balance)],
+          ),
+        );
+      }),
+    ];
+  }
+
+  static String _previewValue(
+    List<String> row,
+    Map<String, int> indexes,
+    String column,
+  ) {
+    final index = indexes[column];
+    if (index == null || index >= row.length) {
+      return '';
+    }
+    return row[index].trim();
+  }
+
+  static String _formatMad(int cents) {
+    final sign = cents < 0 ? '-' : '';
+    final absolute = cents.abs();
+    final dirhams = (absolute ~/ 100).toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ' ',
+    );
+    final centimes = (absolute % 100).toString().padLeft(2, '0');
+    return '$sign$dirhams,$centimes MAD';
   }
 }

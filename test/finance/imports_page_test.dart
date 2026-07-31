@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:noyau_app/features/finance/application/accounts_csv_business_validator.dart';
 import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
 import 'package:noyau_app/features/finance/application/csv_import_validation_pipeline.dart';
 import 'package:noyau_app/features/finance/presentation/imports_page.dart';
@@ -39,8 +40,35 @@ void main() {
     CsvImportValidationStage stage, {
     bool isValid = false,
     List<String> errors = const [],
-  }) =>
-      CsvImportValidationResult(stage: stage, isValid: isValid, errors: errors);
+    List<List<String>>? parsedRows,
+    AccountsCsvBusinessValidationResult? accountsBusinessResult,
+  }) => CsvImportValidationResult(
+    stage: stage,
+    isValid: isValid,
+    errors: errors,
+    parsedRows: parsedRows,
+    accountsBusinessResult: accountsBusinessResult,
+  );
+
+  CsvImportValidationResult validAccountsResult({
+    required List<List<String>> rows,
+    required List<int?> balances,
+  }) => result(
+    CsvImportValidationStage.valid,
+    isValid: true,
+    parsedRows: rows,
+    accountsBusinessResult: AccountsCsvBusinessValidationResult(
+      rows: List.generate(
+        balances.length,
+        (index) => AccountsCsvRowValidationResult(
+          lineNumber: index + 2,
+          errors: const [],
+          initialBalanceCents: balances[index],
+        ),
+      ),
+      errors: const [],
+    ),
+  );
 
   Future<void> selectTemplate(
     WidgetTester tester,
@@ -385,5 +413,156 @@ void main() {
     await selectCsv(tester);
     expect(find.text('Ancienne erreur.'), findsNothing);
     expect(find.text('Données métier valides.'), findsOneWidget);
+  });
+
+  testWidgets("validation réussie affiche le titre Aperçu de l'import", (
+    tester,
+  ) async {
+    final rows = [
+      accounts.columns,
+      ['', 'Compte courant', 'bank', '', 'actif', '0', ''],
+    ];
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          validAccountsResult(rows: rows, balances: [0]),
+    );
+    await selectCsv(tester);
+    expect(find.text("Aperçu de l'import"), findsOneWidget);
+  });
+
+  testWidgets("l'aperçu affiche le nombre exact de comptes", (tester) async {
+    final rows = [
+      accounts.columns,
+      ['', 'Compte courant', 'bank', '', 'actif', '0', ''],
+      ['', 'Épargne', 'savings', '', 'actif', '2500', ''],
+    ];
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          validAccountsResult(rows: rows, balances: [0, 250000]),
+    );
+    await selectCsv(tester);
+    expect(find.text('Nombre de comptes : 2'), findsOneWidget);
+  });
+
+  testWidgets("l'aperçu affiche tous les comptes validés", (tester) async {
+    final rows = [
+      accounts.columns,
+      ['', 'Compte courant', 'bank', '', 'actif', '0', ''],
+      ['', 'Épargne', 'savings', '', 'actif', '2500', ''],
+    ];
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          validAccountsResult(rows: rows, balances: [0, 250000]),
+    );
+    await selectCsv(tester);
+    expect(find.text('Compte courant'), findsOneWidget);
+    expect(find.text('Épargne'), findsOneWidget);
+  });
+
+  testWidgets("l'aperçu affiche le type de chaque compte", (tester) async {
+    final rows = [
+      accounts.columns,
+      ['', 'Compte courant', 'bank', '', 'actif', '0', ''],
+      ['', 'Épargne', 'savings', '', 'actif', '2500', ''],
+    ];
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          validAccountsResult(rows: rows, balances: [0, 250000]),
+    );
+    await selectCsv(tester);
+    expect(find.text('BANK'), findsOneWidget);
+    expect(find.text('SAVINGS'), findsOneWidget);
+  });
+
+  testWidgets("l'aperçu affiche le solde interprété", (tester) async {
+    final rows = [
+      accounts.columns,
+      ['', 'Épargne', 'savings', '', 'actif', '2500', ''],
+    ];
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          validAccountsResult(rows: rows, balances: [250000]),
+    );
+    await selectCsv(tester);
+    expect(find.text('2 500,00 MAD'), findsOneWidget);
+  });
+
+  testWidgets("l'aperçu affiche — lorsque le solde est absent", (tester) async {
+    final rows = [
+      accounts.columns,
+      ['', 'Compte courant', 'bank', '', 'actif', '', ''],
+    ];
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          validAccountsResult(rows: rows, balances: [null]),
+    );
+    await selectCsv(tester);
+    expect(find.text('—'), findsOneWidget);
+  });
+
+  for (final stage in [
+    CsvImportValidationStage.parsingFailed,
+    CsvImportValidationStage.structureInvalid,
+    CsvImportValidationStage.businessInvalid,
+  ]) {
+    testWidgets("l'aperçu est absent lorsque $stage", (tester) async {
+      await mount(
+        tester,
+        pickCsvFile: () async => csvFile('comptes.csv'),
+        readCsvText: (_) async => 'x',
+        validateCsvImport: ({required csvText, required template}) =>
+            result(stage, errors: ['Erreur']),
+      );
+      await selectCsv(tester);
+      expect(find.text("Aperçu de l'import"), findsNothing);
+    });
+  }
+
+  testWidgets("un nouveau fichier remplace complètement l'ancien aperçu", (
+    tester,
+  ) async {
+    var attempts = 0;
+    final firstRows = [
+      accounts.columns,
+      ['', 'Ancien compte', 'bank', '', 'actif', '0', ''],
+    ];
+    final secondRows = [
+      accounts.columns,
+      ['', 'Nouveau compte', 'cash', '', 'actif', '0', ''],
+    ];
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) {
+        attempts++;
+        return attempts == 1
+            ? validAccountsResult(rows: firstRows, balances: [0])
+            : validAccountsResult(rows: secondRows, balances: [0]);
+      },
+    );
+    await selectCsv(tester);
+    expect(find.text('Ancien compte'), findsOneWidget);
+    await selectCsv(tester);
+    expect(find.text('Ancien compte'), findsNothing);
+    expect(find.text('Nouveau compte'), findsOneWidget);
   });
 }
