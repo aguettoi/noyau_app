@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/accounts_csv_business_validator.dart';
 import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
 import 'package:noyau_app/features/finance/application/csv_import_validation_pipeline.dart';
+import 'package:noyau_app/features/finance/application/import_models/accounts_import_plan.dart';
+import 'package:noyau_app/features/finance/application/import_models/import_account.dart';
+import 'package:noyau_app/features/finance/domain/financial_account.dart';
 import 'package:noyau_app/features/finance/presentation/imports_page.dart';
 
 void main() {
@@ -17,6 +20,7 @@ void main() {
     CsvFilePicker? pickCsvFile,
     CsvTextLoader? readCsvText,
     CsvImportValidation? validateCsvImport,
+    AccountsImportPlanBuilder? buildAccountsImportPlan,
     ValueChanged<String>? onCsvFileSelected,
   }) => tester.pumpWidget(
     MaterialApp(
@@ -26,6 +30,9 @@ void main() {
           pickCsvFile: pickCsvFile,
           readCsvText: readCsvText,
           validateCsvImport: validateCsvImport,
+          buildAccountsImportPlan:
+              buildAccountsImportPlan ??
+              (_) => AccountsImportPlan(decisions: []),
           onCsvFileSelected: onCsvFileSelected,
         ),
       ),
@@ -70,6 +77,19 @@ void main() {
     ),
   );
 
+  AccountsImportPlan importPlan(List<AccountImportDecision> decisions) =>
+      AccountsImportPlan(decisions: decisions);
+
+  AccountImportDecision decision(String name, AccountImportAction action) =>
+      AccountImportDecision(
+        account: ImportAccount(
+          name: name,
+          type: FinancialAccountType.bank,
+          openingBalanceCents: null,
+        ),
+        action: action,
+      );
+
   Future<void> selectTemplate(
     WidgetTester tester,
     CsvImportTemplateDefinition template,
@@ -88,13 +108,39 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> reveal(WidgetTester tester, Finder target) async {
+    final importsList = find.byType(ListView);
+    expect(importsList, findsOneWidget);
+    final importsScrollable = find.descendant(
+      of: importsList,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable &&
+            widget.physics is AlwaysScrollableScrollPhysics,
+      ),
+    );
+    expect(importsScrollable, findsOneWidget);
+    await tester.scrollUntilVisible(target, 200, scrollable: importsScrollable);
+    await tester.ensureVisible(target);
+    expect(target, findsOneWidget);
+  }
+
   Future<void> selectCsv(WidgetTester tester) async {
     final button = find.byIcon(Icons.upload_file_outlined);
-    expect(button, findsOneWidget);
-    await tester.ensureVisible(button);
+    await reveal(tester, button);
     await tester.tap(button);
     await tester.pumpAndSettle();
   }
+
+  Future<void> mountWithPlan(WidgetTester tester, AccountsImportPlan plan) =>
+      mount(
+        tester,
+        pickCsvFile: () async => csvFile('comptes.csv'),
+        readCsvText: (_) async => 'x',
+        validateCsvImport: ({required csvText, required template}) =>
+            result(CsvImportValidationStage.valid, isValid: true),
+        buildAccountsImportPlan: (_) => plan,
+      );
 
   testWidgets('sept templates', (tester) async {
     for (final template in csvImportTemplates) {
@@ -564,5 +610,220 @@ void main() {
     await selectCsv(tester);
     expect(find.text('Ancien compte'), findsNothing);
     expect(find.text('Nouveau compte'), findsOneWidget);
+  });
+
+  testWidgets("plan valide affiché", (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Compte courant', AccountImportAction.create)]),
+    );
+    await selectCsv(tester);
+    expect(find.text("Plan d'import"), findsOneWidget);
+  });
+
+  testWidgets('nombre de créations affiché', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Nouveau', AccountImportAction.create)]),
+    );
+    await selectCsv(tester);
+    expect(find.text('Comptes à créer : 1'), findsOneWidget);
+  });
+
+  testWidgets('nombre de comptes existants affiché', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
+    );
+    await selectCsv(tester);
+    expect(find.text('Comptes déjà existants : 1'), findsOneWidget);
+  });
+
+  testWidgets('total affiché', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([
+        decision('Nouveau', AccountImportAction.create),
+        decision('Existant', AccountImportAction.alreadyExists),
+      ]),
+    );
+    await selectCsv(tester);
+    expect(find.text('Total : 2'), findsOneWidget);
+  });
+
+  testWidgets('aucun conflit affiché', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Nouveau', AccountImportAction.create)]),
+    );
+    await selectCsv(tester);
+    expect(find.text('Aucun conflit détecté.'), findsOneWidget);
+  });
+
+  testWidgets('conflit affiché', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
+    );
+    await selectCsv(tester);
+    expect(find.text('Des comptes existent déjà.'), findsOneWidget);
+  });
+
+  testWidgets('liste des décisions affichée', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([
+        decision('Nouveau', AccountImportAction.create),
+        decision('Existant', AccountImportAction.alreadyExists),
+      ]),
+    );
+    await selectCsv(tester);
+    expect(find.text('Nouveau'), findsOneWidget);
+    expect(find.text('Existant'), findsOneWidget);
+    expect(find.text('À créer'), findsOneWidget);
+    expect(find.text('Existe déjà'), findsOneWidget);
+  });
+
+  testWidgets('ordre des décisions conservé', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([
+        decision('Premier', AccountImportAction.create),
+        decision('Second', AccountImportAction.create),
+      ]),
+    );
+    await selectCsv(tester);
+    final planList = find.byKey(const Key('accounts-import-plan-list'));
+    expect(planList, findsOneWidget);
+    await tester.ensureVisible(planList);
+    final names = find.descendant(
+      of: planList,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            (widget.data == 'Premier' || widget.data == 'Second'),
+      ),
+    );
+    expect(names, findsNWidgets(2));
+    expect(tester.widgetList<Text>(names).map((widget) => widget.data), [
+      'Premier',
+      'Second',
+    ]);
+  });
+
+  testWidgets('radio Ignorer sélectionnée par défaut', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
+    );
+    await selectCsv(tester);
+    final ignore = find.byKey(const Key('opening-balance-ignore-option'));
+    await reveal(tester, ignore);
+    final radioGroup = find.byType(RadioGroup<OpeningBalanceConflictChoice>);
+    expect(radioGroup, findsOneWidget);
+    expect(
+      tester
+          .widget<RadioGroup<OpeningBalanceConflictChoice>>(radioGroup)
+          .groupValue,
+      OpeningBalanceConflictChoice.ignoreFileBalance,
+    );
+  });
+
+  testWidgets('sélection de Remplacer fonctionne', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
+    );
+    await selectCsv(tester);
+    final replace = find.byKey(const Key('opening-balance-replace-option'));
+    await reveal(tester, replace);
+    await tester.tap(replace);
+    await tester.pumpAndSettle();
+    final radioGroup = find.byType(RadioGroup<OpeningBalanceConflictChoice>);
+    expect(radioGroup, findsOneWidget);
+    expect(
+      tester
+          .widget<RadioGroup<OpeningBalanceConflictChoice>>(radioGroup)
+          .groupValue,
+      OpeningBalanceConflictChoice.replaceOpeningBalance,
+    );
+  });
+
+  testWidgets('bouton Importer présent', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Nouveau', AccountImportAction.create)]),
+    );
+    await selectCsv(tester);
+    final importer = find.byKey(const Key('accounts-import-button'));
+    await reveal(tester, importer);
+  });
+
+  testWidgets('bouton Importer désactivé', (tester) async {
+    await mountWithPlan(
+      tester,
+      importPlan([decision('Nouveau', AccountImportAction.create)]),
+    );
+    await selectCsv(tester);
+    final importer = find.byKey(const Key('accounts-import-button'));
+    await reveal(tester, importer);
+    final button = tester.widget<FilledButton>(importer);
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('aucun plan affiché si validation échoue', (tester) async {
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          result(CsvImportValidationStage.businessInvalid, errors: ['Erreur']),
+    );
+    await selectCsv(tester);
+    expect(find.text("Plan d'import"), findsNothing);
+    expect(find.byKey(const Key('accounts-import-button')), findsNothing);
+  });
+
+  testWidgets('nouveau fichier réinitialise le plan et le choix utilisateur', (
+    tester,
+  ) async {
+    var attempts = 0;
+    final conflictPlan = importPlan([
+      decision('Existant', AccountImportAction.alreadyExists),
+    ]);
+    final cleanPlan = importPlan([
+      decision('Nouveau', AccountImportAction.create),
+    ]);
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('comptes.csv'),
+      readCsvText: (_) async => 'x',
+      validateCsvImport: ({required csvText, required template}) =>
+          result(CsvImportValidationStage.valid, isValid: true),
+      buildAccountsImportPlan: (_) {
+        attempts++;
+        return attempts == 1 ? conflictPlan : cleanPlan;
+      },
+    );
+    await selectCsv(tester);
+    final replace = find.byKey(const Key('opening-balance-replace-option'));
+    await reveal(tester, replace);
+    await tester.tap(replace);
+    await tester.pumpAndSettle();
+    final importsScrollable = find.byWidgetPredicate(
+      (widget) =>
+          widget is Scrollable &&
+          widget.physics is AlwaysScrollableScrollPhysics,
+    );
+    expect(importsScrollable, findsOneWidget);
+    await tester.drag(importsScrollable, const Offset(0, 1000));
+    await tester.pumpAndSettle();
+    await selectCsv(tester);
+    expect(find.text('Existant'), findsNothing);
+    expect(find.text('Nouveau'), findsOneWidget);
+    expect(
+      find.byKey(const Key('opening-balance-ignore-option')),
+      findsNothing,
+    );
   });
 }

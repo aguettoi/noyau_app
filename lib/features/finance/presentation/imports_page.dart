@@ -4,6 +4,9 @@ import '../application/accounts_template_download.dart';
 import '../application/csv_import_templates.dart';
 import '../application/csv_import_validation_pipeline.dart';
 import '../application/csv_text_reader.dart';
+import '../application/import_models/accounts_import_plan.dart';
+import '../application/import_models/accounts_import_model_builder.dart';
+import '../application/import_models/accounts_import_planner.dart';
 
 typedef CsvFilePicker = Future<FilePickerResult?> Function();
 typedef CsvTextLoader = Future<String> Function(String path);
@@ -12,6 +15,10 @@ typedef CsvImportValidation =
       required String csvText,
       required CsvImportTemplateDefinition template,
     });
+typedef AccountsImportPlanBuilder =
+    AccountsImportPlan Function(CsvImportValidationResult validationResult);
+
+enum OpeningBalanceConflictChoice { ignoreFileBalance, replaceOpeningBalance }
 
 class CsvPickerConfiguration {
   const CsvPickerConfiguration(this.type, this.allowedExtensions);
@@ -29,12 +36,14 @@ class ImportsPage extends StatefulWidget {
     this.pickCsvFile,
     this.readCsvText,
     this.validateCsvImport,
+    this.buildAccountsImportPlan,
   });
   final Future<void> Function(CsvImportTemplateDefinition) downloader;
   final ValueChanged<String>? onCsvFileSelected;
   final CsvFilePicker? pickCsvFile;
   final CsvTextLoader? readCsvText;
   final CsvImportValidation? validateCsvImport;
+  final AccountsImportPlanBuilder? buildAccountsImportPlan;
   @override
   State<ImportsPage> createState() => _ImportsPageState();
 }
@@ -46,6 +55,8 @@ class _ImportsPageState extends State<ImportsPage> {
   String? _selectionMessage;
   String? _selectedCsvText;
   CsvImportValidationResult? _validationResult;
+  AccountsImportPlan? _importPlan;
+  var _openingBalanceChoice = OpeningBalanceConflictChoice.ignoreFileBalance;
 
   @override
   Widget build(BuildContext context) {
@@ -115,6 +126,7 @@ class _ImportsPageState extends State<ImportsPage> {
           if (_selectedCsvText != null) const Text('Fichier lu avec succès.'),
           ..._validationMessages(),
           ..._accountsPreview(),
+          ..._importPlanSection(),
           if (_validationResult == null && _selectionMessage != null)
             Text(_selectionMessage!),
           const SizedBox(height: 12),
@@ -168,6 +180,8 @@ class _ImportsPageState extends State<ImportsPage> {
       setState(() {
         _selectedCsvText = null;
         _validationResult = null;
+        _importPlan = null;
+        _openingBalanceChoice = OpeningBalanceConflictChoice.ignoreFileBalance;
         _selectionMessage = 'Sélection annulée.';
       });
       return;
@@ -181,6 +195,8 @@ class _ImportsPageState extends State<ImportsPage> {
       _selectedFilePath = path;
       _selectedCsvText = null;
       _validationResult = null;
+      _importPlan = null;
+      _openingBalanceChoice = OpeningBalanceConflictChoice.ignoreFileBalance;
       _selectionMessage = null;
     });
     widget.onCsvFileSelected?.call(path);
@@ -199,9 +215,14 @@ class _ImportsPageState extends State<ImportsPage> {
           csvText: content,
           template: byType(_selectedType),
         );
+        final plan =
+            result.stage == CsvImportValidationStage.valid && result.isValid
+            ? (widget.buildAccountsImportPlan ?? _buildImportPlan)(result)
+            : null;
         if (!mounted) return;
         setState(() {
           _validationResult = result;
+          _importPlan = plan;
         });
       } catch (error) {
         if (!mounted) return;
@@ -317,5 +338,85 @@ class _ImportsPageState extends State<ImportsPage> {
     );
     final centimes = (absolute % 100).toString().padLeft(2, '0');
     return '$sign$dirhams,$centimes MAD';
+  }
+
+  AccountsImportPlan _buildImportPlan(
+    CsvImportValidationResult validationResult,
+  ) => AccountsImportPlanner().plan(
+    importedAccounts: AccountsImportModelBuilder().build(validationResult),
+    existingAccounts: const [],
+  );
+
+  List<Widget> _importPlanSection() {
+    final plan = _importPlan;
+    if (plan == null) {
+      return const [];
+    }
+    return [
+      const Divider(),
+      const Text("Plan d'import"),
+      Text('Comptes à créer : ${plan.createCount}'),
+      Text('Comptes déjà existants : ${plan.alreadyExistsCount}'),
+      Text('Total : ${plan.decisions.length}'),
+      Text(
+        plan.hasConflicts
+            ? 'Des comptes existent déjà.'
+            : 'Aucun conflit détecté.',
+      ),
+      const Divider(),
+      Column(
+        key: const Key('accounts-import-plan-list'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: plan.decisions
+            .map(
+              (decision) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(decision.account.name),
+                    Text(decision.account.type.name.toUpperCase()),
+                    Text(
+                      decision.action == AccountImportAction.create
+                          ? 'À créer'
+                          : 'Existe déjà',
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      ),
+      if (plan.alreadyExistsCount > 0) ...[
+        const Text('Comptes existants'),
+        RadioGroup<OpeningBalanceConflictChoice>(
+          groupValue: _openingBalanceChoice,
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _openingBalanceChoice = value);
+            }
+          },
+          child: Column(
+            children: [
+              RadioListTile<OpeningBalanceConflictChoice>(
+                key: const Key('opening-balance-ignore-option'),
+                title: const Text('Ignorer le solde initial du fichier'),
+                value: OpeningBalanceConflictChoice.ignoreFileBalance,
+              ),
+              RadioListTile<OpeningBalanceConflictChoice>(
+                key: const Key('opening-balance-replace-option'),
+                title: const Text('Remplacer le solde initial existant'),
+                value: OpeningBalanceConflictChoice.replaceOpeningBalance,
+              ),
+            ],
+          ),
+        ),
+      ],
+      FilledButton(
+        key: const Key('accounts-import-button'),
+        onPressed: null,
+        child: const Text('Importer'),
+      ),
+    ];
   }
 }
