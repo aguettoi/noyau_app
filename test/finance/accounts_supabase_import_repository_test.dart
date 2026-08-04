@@ -40,6 +40,8 @@ void main() {
           'name': 'Compte CIH',
           'kind': 'savings',
           'opening_balance_cents': 12345,
+          'ownership_type': 'household',
+          'holder_user_ids': [],
         },
       ]);
     },

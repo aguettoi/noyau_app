@@ -16,7 +16,9 @@ import '../application/import_execution/accounts_import_executor.dart';
 import '../application/providers/accounts_import_executor_provider.dart';
 import '../application/providers/active_household_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
+import '../application/providers/remote_household_members_provider.dart';
 import '../domain/financial_account.dart';
+import '../domain/household_member.dart';
 
 typedef CsvFilePicker = Future<FilePickerResult?> Function();
 typedef CsvTextLoader = Future<String> Function(String path);
@@ -106,7 +108,12 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             activeHousehold?.hasActiveHousehold == true
         ? ref.watch(remoteAccountsProvider)
         : null;
-    _scheduleRemotePlan(remoteAccountsAsync);
+    final remoteMembersAsync =
+        widget.buildAccountsImportPlan == null &&
+            activeHousehold?.hasActiveHousehold == true
+        ? ref.watch(remoteHouseholdMembersProvider)
+        : null;
+    _scheduleRemotePlan(remoteAccountsAsync, remoteMembersAsync);
     return SafeArea(
       child: ListView(
         padding: AppSpacing.page,
@@ -207,7 +214,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
           if (_selectedCsvText != null) const Text('Fichier lu avec succès.'),
           ..._validationMessages(),
           ..._accountsPreview(),
-          ..._remoteAccountsState(remoteAccountsAsync),
+          ..._remoteAccountsState(remoteAccountsAsync, remoteMembersAsync),
           ..._importPlanSection(activeHousehold, remoteAccountsAsync),
           if (_validationResult == null && _selectionMessage != null)
             Text(_selectionMessage!),
@@ -378,7 +385,10 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
     });
   }
 
-  void _scheduleRemotePlan(AsyncValue<List<FinancialAccount>>? accountsAsync) {
+  void _scheduleRemotePlan(
+    AsyncValue<List<FinancialAccount>>? accountsAsync,
+    AsyncValue<List<HouseholdMember>>? membersAsync,
+  ) {
     final validation = _validationResult;
     if (validation == null ||
         validation.stage != CsvImportValidationStage.valid ||
@@ -388,7 +398,8 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       return;
     }
     final accounts = accountsAsync.valueOrNull;
-    if (accounts == null) {
+    final members = membersAsync?.valueOrNull;
+    if (accounts == null || members == null) {
       if (_importPlan != null && !_planningRemotePlan) {
         _planningRemotePlan = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -415,11 +426,16 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
         return;
       }
       setState(() {
-        _importPlan = _buildImportPlan(validation, accounts);
+        try {
+          _importPlan = _buildImportPlan(validation, accounts, members);
+          _accountsImportMessage = null;
+        } on StateError catch (error) {
+          _importPlan = null;
+          _accountsImportMessage = error.message.toString();
+        }
         _plannedAgainstRemoteAccounts = accounts;
         _importExecutionId ??= widget.importExecutionIdGenerator();
         _accountsImportState = AccountsImportUiState.idle;
-        _accountsImportMessage = null;
         _planningRemotePlan = false;
       });
     });
@@ -427,6 +443,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
 
   List<Widget> _remoteAccountsState(
     AsyncValue<List<FinancialAccount>>? accountsAsync,
+    AsyncValue<List<HouseholdMember>>? membersAsync,
   ) {
     if (_validationResult?.isValid != true || accountsAsync == null) {
       return const [];
@@ -447,6 +464,12 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
           child: const Text('Réessayer'),
         ),
       ];
+    }
+    if (membersAsync?.isLoading == true) {
+      return const [Text('Chargement des titulaires du foyer...')];
+    }
+    if (membersAsync?.hasError == true) {
+      return const [Text('Impossible de lire les titulaires du foyer.')];
     }
     return const [];
   }
@@ -605,8 +628,12 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
   AccountsImportPlan _buildImportPlan(
     CsvImportValidationResult validationResult,
     Iterable<FinancialAccount> existingAccounts,
+    Iterable<HouseholdMember> householdMembers,
   ) => AccountsImportPlanner().plan(
-    importedAccounts: AccountsImportModelBuilder().build(validationResult),
+    importedAccounts: AccountsImportModelBuilder().build(
+      validationResult,
+      householdMembers: householdMembers,
+    ),
     existingAccounts: existingAccounts,
   );
 

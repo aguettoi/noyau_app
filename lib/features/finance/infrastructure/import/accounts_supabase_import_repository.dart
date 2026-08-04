@@ -85,6 +85,8 @@ class _QueuedAccountsImportTransaction implements AccountsImportTransaction {
       'name': account.name,
       'kind': _accountKind(account.type),
       'opening_balance_cents': account.openingBalanceCents,
+      'ownership_type': account.ownershipType.name,
+      'holder_user_ids': account.holderUserIds,
     });
   }
 

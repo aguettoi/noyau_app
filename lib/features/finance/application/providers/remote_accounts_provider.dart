@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/financial_account.dart';
+import '../../domain/account_ownership.dart';
 import '../../infrastructure/accounts_supabase_repository.dart';
 import 'active_household_provider.dart';
 import 'supabase_client_provider.dart';
@@ -17,7 +18,7 @@ class SupabaseAccountsGateway implements AccountsSupabaseGateway {
       final response = await _client
           .from('accounts')
           .select(
-            'id, household_id, name, kind, opening_balance, archived_at, created_at, updated_at',
+            'id, household_id, name, kind, ownership_type, opening_balance, archived_at, created_at, updated_at, account_holders(user_id, household_members(user_id))',
           )
           .eq('household_id', householdId)
           .order('created_at');
@@ -28,7 +29,45 @@ class SupabaseAccountsGateway implements AccountsSupabaseGateway {
       throw Exception('Impossible de charger les comptes : $error');
     }
   }
+
+  @override
+  Future<void> createAccount({
+    required String householdId,
+    required Map<String, Object?> values,
+    required AccountOwnershipType ownershipType,
+    required List<String> holderUserIds,
+  }) async {
+    try {
+      final payload = createAccountWithHoldersRpcParameters(
+        householdId: householdId,
+        values: values,
+        ownershipType: ownershipType,
+        holderUserIds: holderUserIds,
+      );
+      await _client.rpc('create_account_with_holders', params: payload);
+    } on Exception catch (error) {
+      if (error.toString().contains('23505')) {
+        throw Exception('Un compte portant ce nom existe déjà dans le foyer.');
+      }
+      throw Exception('Impossible de créer le compte : $error');
+    }
+  }
 }
+
+Map<String, Object?> createAccountWithHoldersRpcParameters({
+  required String householdId,
+  required Map<String, Object?> values,
+  required AccountOwnershipType ownershipType,
+  required List<String> holderUserIds,
+}) => {
+  'p_household_id': householdId,
+  'p_name': values['name'],
+  'p_kind': values['kind'],
+  'p_opening_balance': values['opening_balance'],
+  'p_archived_at': values['archived_at'],
+  'p_ownership_type': ownershipType.name,
+  'p_holder_user_ids': List<String>.unmodifiable(holderUserIds),
+};
 
 final supabaseAccountsGatewayProvider = Provider<AccountsSupabaseGateway>(
   (ref) => SupabaseAccountsGateway(ref.watch(supabaseClientProvider)),

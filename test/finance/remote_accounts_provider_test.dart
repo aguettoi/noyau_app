@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_accounts_provider.dart';
+import 'package:noyau_app/features/finance/domain/account_ownership.dart';
 import 'package:noyau_app/features/finance/infrastructure/accounts_supabase_repository.dart';
 
 void main() {
@@ -44,6 +45,28 @@ void main() {
     expect(gateway.calls, 2);
   });
 
+  test('la RPC recoit les parametres de titularite exacts', () {
+    final parameters = createAccountWithHoldersRpcParameters(
+      householdId: 'household-1',
+      values: {
+        'name': 'Compte partage',
+        'kind': 'bank',
+        'opening_balance': '120.00',
+        'archived_at': null,
+      },
+      ownershipType: AccountOwnershipType.shared,
+      holderUserIds: const ['ibrahim-id', 'nora-id'],
+    );
+
+    expect(parameters['p_household_id'], 'household-1');
+    expect(parameters['p_ownership_type'], 'shared');
+    expect(parameters['p_holder_user_ids'], ['ibrahim-id', 'nora-id']);
+    expect(
+      parameters.keys,
+      containsAll(['p_name', 'p_kind', 'p_opening_balance', 'p_archived_at']),
+    );
+  });
+
   test(
     'absence de foyer actif ne bascule pas silencieusement vers le local',
     () async {
@@ -83,4 +106,12 @@ class _Gateway implements AccountsSupabaseGateway {
       },
     ];
   }
+
+  @override
+  Future<void> createAccount({
+    required String householdId,
+    required Map<String, Object?> values,
+    required dynamic ownershipType,
+    required List<String> holderUserIds,
+  }) async {}
 }

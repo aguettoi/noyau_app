@@ -61,8 +61,8 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
   @override
   Widget build(BuildContext context) {
     const pages = [
-      FinanceOverviewPage(),
       AccountsPage(),
+      FinanceOverviewPage(),
       EnvelopeDashboardPage(),
       ImportsPage(),
     ];

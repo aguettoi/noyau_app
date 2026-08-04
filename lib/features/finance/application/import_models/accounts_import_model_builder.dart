@@ -1,9 +1,14 @@
 import '../accounts_csv_business_validator.dart';
 import '../csv_import_validation_pipeline.dart';
+import '../../domain/household_member.dart';
+import 'account_ownership_resolver.dart';
 import 'import_account.dart';
 
 class AccountsImportModelBuilder {
-  List<ImportAccount> build(CsvImportValidationResult validationResult) {
+  List<ImportAccount> build(
+    CsvImportValidationResult validationResult, {
+    Iterable<HouseholdMember> householdMembers = const [],
+  }) {
     if (!validationResult.isValid ||
         validationResult.stage != CsvImportValidationStage.valid) {
       throw StateError(
@@ -36,10 +41,16 @@ class AccountsImportModelBuilder {
       if (type == null) {
         throw StateError('Le type de compte validé est indisponible.');
       }
+      final ownership = const AccountOwnershipResolver().resolve(
+        rawValue: _value(row, indexes, 'titulaire'),
+        members: householdMembers,
+      );
       return ImportAccount(
         name: name,
         type: type,
         openingBalanceCents: rowResult.initialBalanceCents,
+        ownershipType: ownership.ownershipType,
+        holderUserIds: ownership.holderUserIds,
       );
     });
     return List.unmodifiable(accounts);
