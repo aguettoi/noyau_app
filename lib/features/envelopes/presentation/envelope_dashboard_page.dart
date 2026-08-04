@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_design_system.dart';
 import '../../finance/application/workbook_import.dart';
 import '../application/envelope_imported_data.dart';
 
@@ -20,14 +21,14 @@ class EnvelopeDashboardPage extends ConsumerWidget {
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: AppSpacing.page,
         children: [
           Text('Enveloppes', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.xs),
           const Text(
             'Soldes calcules a partir du Journal importe. Aucun montant n est saisi ici.',
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.md),
           if (data == null)
             const Card(
               child: ListTile(
@@ -47,10 +48,10 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                 trailing: Text('${data.importedMovements} mouvements'),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
             ...data.balances.map(
               (envelope) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
                 child: Card(
                   child: ListTile(
                     title: Text(envelope.name),

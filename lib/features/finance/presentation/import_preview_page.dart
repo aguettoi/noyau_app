@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_design_system.dart';
 import '../application/workbook_import.dart';
 
 class ImportPreviewPage extends ConsumerStatefulWidget {
@@ -45,17 +46,22 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.xl,
+        ),
         children: [
           Text(
             'Importer mon fichier Excel',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.xs),
           const Text(
             'Cet assistant vous guide pas a pas. Vous ne pouvez rien casser : chaque import reste traçable et peut etre annule.',
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.md),
           _ProgressCard(currentStep: currentStep),
           if (state.loadingProgress case final progress?) ...[
             const SizedBox(height: 12),
@@ -313,7 +319,7 @@ class _ProblemsForSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final problems = preview.problems;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -336,7 +342,7 @@ class _ProblemsForSheet extends StatelessWidget {
               (problem) => Card(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: AppSpacing.card,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -368,7 +374,7 @@ class _ProgressCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
     color: Theme.of(context).colorScheme.secondaryContainer,
     child: Padding(
-      padding: const EdgeInsets.all(16),
+      padding: AppSpacing.card,
       child: Row(
         children: [
           _ProgressStep(
@@ -443,7 +449,7 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(
-      padding: const EdgeInsets.all(16),
+      padding: AppSpacing.card,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -484,7 +490,7 @@ class _NoticeCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
     color: color,
     child: Padding(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

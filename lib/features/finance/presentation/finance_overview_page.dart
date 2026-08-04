@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_design_system.dart';
 import '../application/finance_workspace.dart';
 
 class FinanceOverviewPage extends ConsumerWidget {
@@ -15,15 +16,15 @@ class FinanceOverviewPage extends ConsumerWidget {
           Center(child: Text('Lecture des donnees source impossible : $error')),
       data: (workspace) => SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: AppSpacing.page,
           children: [
             Text(
               'Fondation financiere',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.xs),
             const Text('Aucune donnee du foyer n est encore importee.'),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.lg),
             Card(
               child: ListTile(
                 leading: const Icon(Icons.upload_file_outlined),
@@ -34,7 +35,7 @@ class FinanceOverviewPage extends ConsumerWidget {
                 trailing: const Icon(Icons.chevron_right),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
             const Card(
               child: ListTile(
                 leading: Icon(Icons.account_balance_outlined),
@@ -42,7 +43,7 @@ class FinanceOverviewPage extends ConsumerWidget {
                 subtitle: Text('A creer lors de l import valide'),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
             const Card(
               child: ListTile(
                 leading: Icon(Icons.receipt_long_outlined),
