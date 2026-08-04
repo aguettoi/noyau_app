@@ -1,5 +1,12 @@
 class CsvTextParser {
-  List<List<String>> parse(String text) {
+  List<List<String>> parse(String text, {String separator = ';'}) {
+    if (separator.length != 1) {
+      throw ArgumentError.value(
+        separator,
+        'separator',
+        'Le séparateur CSV doit contenir un seul caractère.',
+      );
+    }
     if (text.isEmpty) return const [];
     final rows = <List<String>>[];
     var row = <String>[];
@@ -23,7 +30,7 @@ class CsvTextParser {
           throw const FormatException('Guillemet inattendu dans un champ CSV.');
         }
         quoted = true;
-      } else if (c == ',') {
+      } else if (c == separator) {
         row.add(field.toString());
         field = StringBuffer();
       } else if (c == '\n') {

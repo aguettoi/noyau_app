@@ -5,27 +5,27 @@ void main() {
   final p = CsvTextParser();
   test(
     'parse un CSV simple',
-    () => expect(p.parse('a,b\n1,2'), [
+    () => expect(p.parse('a;b\n1;2'), [
       ['a', 'b'],
       ['1', '2'],
     ]),
   );
   test(
     'gère les fins de ligne CRLF',
-    () => expect(p.parse('a,b\r\n1,2'), [
+    () => expect(p.parse('a;b\r\n1;2'), [
       ['a', 'b'],
       ['1', '2'],
     ]),
   );
   test(
     'gère la dernière ligne sans retour',
-    () => expect(p.parse('a,b'), [
+    () => expect(p.parse('a;b'), [
       ['a', 'b'],
     ]),
   );
   test(
     'gère une virgule dans un champ entre guillemets',
-    () => expect(p.parse('"a,b",c'), [
+    () => expect(p.parse('"a,b";c'), [
       ['a,b', 'c'],
     ]),
   );
@@ -37,7 +37,7 @@ void main() {
   );
   test(
     'gère les champs vides',
-    () => expect(p.parse('a,,c'), [
+    () => expect(p.parse('a;;c'), [
       ['a', '', 'c'],
     ]),
   );

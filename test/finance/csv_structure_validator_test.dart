@@ -44,6 +44,18 @@ void main() {
     expect(result.errors, contains("La colonne 'Type' est manquante."));
   });
 
+  test('external_id absent est acceptÃ© pour Comptes', () {
+    final headerWithoutExternalId = header
+        .where((column) => column != 'external_id')
+        .toList();
+    final result = validate([
+      headerWithoutExternalId,
+      ['Compte courant', 'bank', '', 'actif', '0', '2026-01-01'],
+    ]);
+
+    expect(result.isValid, isTrue);
+  });
+
   test('colonne dupliquée', () {
     final duplicateName = [...header, 'nom'];
     final result = validate([duplicateName]);

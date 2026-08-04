@@ -33,7 +33,7 @@ class AccountsCsvParser {
     'type',
     'titulaire',
     'statut',
-    'solde_initial_centimes',
+    'solde_initial_mad',
     'date_solde_initial',
   ];
   AccountCsvAnalysis parse(List<int> bytes) {
@@ -119,12 +119,12 @@ class AccountsCsvParser {
         issue('statut', 'invalid_status', 'Statut attendu : actif ou archive.');
       }
       m['statut'] = status;
-      final amount = m['solde_initial_centimes'] ?? '';
-      if (amount.isNotEmpty && int.tryParse(amount) == null) {
+      final amount = m['solde_initial_mad'] ?? '';
+      if (amount.isNotEmpty && !_isMadAmount(amount)) {
         issue(
-          'solde_initial_centimes',
+          'solde_initial_mad',
           'invalid_integer',
-          'Montant entier en centimes attendu.',
+          'Montant MAD valide attendu.',
         );
       }
       final date = m['date_solde_initial'] ?? '';
@@ -168,14 +168,16 @@ class AccountsCsvParser {
 }
 
 bool _isStrictDate(String value) {
-  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
+  final iso = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
+  final french = RegExp(r'^(\d{2})/(\d{2})/(\d{4})$').firstMatch(value);
+  final match = iso ?? french;
   if (match == null) return false;
-  final year = int.parse(match.group(1)!);
+  final year = int.parse(iso == null ? match.group(3)! : match.group(1)!);
   final month = int.parse(match.group(2)!);
-  final day = int.parse(match.group(3)!);
-  final parsed = DateTime.tryParse(value);
-  return parsed != null &&
-      parsed.year == year &&
-      parsed.month == month &&
-      parsed.day == day;
+  final day = int.parse(iso == null ? match.group(1)! : match.group(3)!);
+  final parsed = DateTime(year, month, day);
+  return parsed.year == year && parsed.month == month && parsed.day == day;
 }
+
+bool _isMadAmount(String value) =>
+    RegExp(r'^-?\d+(?:[.,]\d{1,2})?$').hasMatch(value);

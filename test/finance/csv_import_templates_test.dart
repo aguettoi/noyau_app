@@ -7,8 +7,8 @@ void main() {
       'accounts',
       'Comptes',
       'template_comptes.csv',
-      'external_id;nom;type;titulaire;statut;solde_initial_centimes;date_solde_initial',
-      'EXEMPLE-001;Compte courant;banque;Ibrahim;actif;0;2026-01-01',
+      'external_id;nom;type;titulaire;statut;solde_initial_mad;date_solde_initial',
+      '',
     ),
     (
       'envelopes',
@@ -67,7 +67,12 @@ void main() {
       expect(t.columns.toSet(), hasLength(t.columns.length));
       expect(t.columns.every((x) => x.isNotEmpty), isTrue);
       expect(t.header, t.columns.join(';'));
-      expect(t.csvContent, '${t.header}\n${t.exampleRow}\n');
+      expect(
+        t.csvContent,
+        t.exampleRow.isEmpty
+            ? '${t.header}\n'
+            : '${t.header}\n${t.exampleRow}\n',
+      );
       expect(byType(t.type), same(t));
       expect(byId(t.id), same(t));
     }

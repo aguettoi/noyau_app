@@ -5,7 +5,7 @@ import 'package:noyau_app/features/finance/application/accounts_csv_parser.dart'
 void main() {
   final p = AccountsCsvParser();
   const h =
-      'external_id;nom;type;titulaire;statut;solde_initial_centimes;date_solde_initial';
+      'external_id;nom;type;titulaire;statut;solde_initial_mad;date_solde_initial';
   test('CSV valide et BOM', () {
     final r = p.parse(
       utf8.encode('\uFEFF$h\n1;Compte;banque;Ibrahim;;0;2026-01-01'),
@@ -38,7 +38,7 @@ void main() {
     );
     expect(
       r.issues.where((issue) => issue.code == 'invalid_date'),
-      hasLength(2),
+      hasLength(1),
     );
   });
 }

@@ -24,10 +24,11 @@ class CsvImportTemplateDefinition {
   final List<String> columns;
   final int order;
   List<String> get optionalColumns => type == ImportTemplateType.accounts
-      ? const ['solde_initial_centimes']
+      ? const ['external_id', 'solde_initial_mad']
       : const [];
   String get header => columns.join(';');
-  String get csvContent => '$header\n$exampleRow\n';
+  String get csvContent =>
+      exampleRow.isEmpty ? '$header\n' : '$header\n$exampleRow\n';
 }
 
 const csvImportTemplates = <CsvImportTemplateDefinition>[
@@ -35,7 +36,7 @@ const csvImportTemplates = <CsvImportTemplateDefinition>[
     ImportTemplateType.accounts,
     'accounts',
     'Comptes',
-    'Importer les comptes bancaires et espèces.',
+    'Import initial : crée les comptes absents et définit leur solde d’ouverture.',
     'template_comptes.csv',
     [
       'external_id',
@@ -43,10 +44,10 @@ const csvImportTemplates = <CsvImportTemplateDefinition>[
       'type',
       'titulaire',
       'statut',
-      'solde_initial_centimes',
+      'solde_initial_mad',
       'date_solde_initial',
     ],
-    'EXEMPLE-001;Compte courant;banque;Ibrahim;actif;0;2026-01-01',
+    '',
     1,
   ),
   CsvImportTemplateDefinition(

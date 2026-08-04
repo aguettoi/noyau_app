@@ -1,4 +1,4 @@
-import '../../domain/financial_account.dart';
+import '../accounts_csv_business_validator.dart';
 import '../csv_import_validation_pipeline.dart';
 import 'import_account.dart';
 
@@ -30,9 +30,12 @@ class AccountsImportModelBuilder {
       }
       final row = parsedRows[sourceIndex];
       final name = _value(row, indexes, 'nom');
-      final type = FinancialAccountType.values.byName(
-        _value(row, indexes, 'type').toLowerCase(),
+      final type = AccountsCsvBusinessValidator.accountTypeFromCsv(
+        _value(row, indexes, 'type'),
       );
+      if (type == null) {
+        throw StateError('Le type de compte validé est indisponible.');
+      }
       return ImportAccount(
         name: name,
         type: type,

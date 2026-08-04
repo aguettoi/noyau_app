@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/accounts_csv_business_validator.dart';
 import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
+import 'package:noyau_app/features/finance/domain/financial_account.dart';
 
 void main() {
   final validator = AccountsCsvBusinessValidator();
@@ -21,7 +22,11 @@ void main() {
   });
 
   test('solde initial est optionnel dans le template Comptes', () {
-    expect(template.optionalColumns, contains('solde_initial_centimes'));
+    expect(template.optionalColumns, contains('solde_initial_mad'));
+  });
+
+  test('external_id est optionnel dans le template Comptes', () {
+    expect(template.optionalColumns, contains('external_id'));
   });
 
   test('nom vide refusé', () {
@@ -42,24 +47,47 @@ void main() {
     expect(validate([account(type: '  BANK  ')]).isValid, isTrue);
   });
 
-  test('solde entier valide et converti en centimes', () {
+  test('alias français et anglais des types sont acceptés', () {
     expect(
-      validate([account(balance: '125')]).rows.single.initialBalanceCents,
-      12500,
+      AccountsCsvBusinessValidator.accountTypeFromCsv('banque'),
+      FinancialAccountType.bank,
+    );
+    expect(
+      AccountsCsvBusinessValidator.accountTypeFromCsv('espèces'),
+      FinancialAccountType.cash,
+    );
+    expect(
+      AccountsCsvBusinessValidator.accountTypeFromCsv('epargne'),
+      FinancialAccountType.savings,
+    );
+    expect(
+      AccountsCsvBusinessValidator.accountTypeFromCsv('emprunt'),
+      FinancialAccountType.debt,
+    );
+    expect(
+      AccountsCsvBusinessValidator.accountTypeFromCsv('loan'),
+      FinancialAccountType.debt,
     );
   });
 
-  test('solde avec point valide et converti en centimes', () {
+  test('1000 MAD est converti en 100000 centimes', () {
     expect(
-      validate([account(balance: '125.50')]).rows.single.initialBalanceCents,
-      12550,
+      validate([account(balance: '1000')]).rows.single.initialBalanceCents,
+      100000,
     );
   });
 
-  test('solde avec virgule valide et converti en centimes', () {
+  test('1000.50 MAD est converti en 100050 centimes', () {
     expect(
-      validate([account(balance: '125,50')]).rows.single.initialBalanceCents,
-      12550,
+      validate([account(balance: '1000.50')]).rows.single.initialBalanceCents,
+      100050,
+    );
+  });
+
+  test('1000,50 MAD est converti en 100050 centimes', () {
+    expect(
+      validate([account(balance: '1000,50')]).rows.single.initialBalanceCents,
+      100050,
     );
   });
 
@@ -93,6 +121,28 @@ void main() {
     final row = validate([account()]).rows.single;
     expect(row.isValid, isTrue);
     expect(row.initialBalanceCents, isNull);
+  });
+
+  test('dates ISO et franÃ§aise valides produisent la mÃªme date mÃ©tier', () {
+    final iso = account();
+    iso[6] = '2026-01-01';
+    final french = account();
+    french[6] = ' 01/01/2026 ';
+
+    expect(
+      validate([iso]).rows.single.openingBalanceDate,
+      DateTime(2026, 1, 1),
+    );
+    expect(
+      validate([iso]).rows.single.openingBalanceDate,
+      validate([french]).rows.single.openingBalanceDate,
+    );
+  });
+
+  test('date impossible refusÃ©e', () {
+    final row = account();
+    row[6] = '31/02/2026';
+    expect(validate([row]).isValid, isFalse);
   });
 
   test('initialBalanceCents vaut null lorsque le solde est invalide', () {

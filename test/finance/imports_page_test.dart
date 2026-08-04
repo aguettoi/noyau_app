@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/accounts_csv_business_validator.dart';
 import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
 import 'package:noyau_app/features/finance/application/csv_import_validation_pipeline.dart';
 import 'package:noyau_app/features/finance/application/import_models/accounts_import_plan.dart';
 import 'package:noyau_app/features/finance/application/import_models/import_account.dart';
+import 'package:noyau_app/features/finance/application/providers/supabase_client_provider.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
 import 'package:noyau_app/features/finance/presentation/imports_page.dart';
 
@@ -22,22 +24,31 @@ void main() {
     CsvImportValidation? validateCsvImport,
     AccountsImportPlanBuilder? buildAccountsImportPlan,
     ValueChanged<String>? onCsvFileSelected,
-  }) => tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: ImportsPage(
-          downloader: downloader ?? (_) async {},
-          pickCsvFile: pickCsvFile,
-          readCsvText: readCsvText,
-          validateCsvImport: validateCsvImport,
-          buildAccountsImportPlan:
-              buildAccountsImportPlan ??
-              (_) => AccountsImportPlan(decisions: []),
-          onCsvFileSelected: onCsvFileSelected,
+  }) {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    return tester.pumpWidget(
+      ProviderScope(
+        overrides: [currentUserIdProvider.overrideWithValue(null)],
+        child: MaterialApp(
+          home: Scaffold(
+            body: ImportsPage(
+              downloader: downloader ?? (_) async {},
+              pickCsvFile: pickCsvFile,
+              readCsvText: readCsvText,
+              validateCsvImport: validateCsvImport,
+              buildAccountsImportPlan:
+                  buildAccountsImportPlan ??
+                  (_) => AccountsImportPlan(decisions: []),
+              onCsvFileSelected: onCsvFileSelected,
+            ),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   FilePickerResult csvFile(String path) => FilePickerResult([
     PlatformFile(name: path.split(RegExp(r'[\\/]')).last, path: path, size: 1),
@@ -109,24 +120,28 @@ void main() {
   }
 
   Future<void> reveal(WidgetTester tester, Finder target) async {
-    final importsList = find.byType(ListView);
-    expect(importsList, findsOneWidget);
-    final importsScrollable = find.descendant(
-      of: importsList,
-      matching: find.byWidgetPredicate(
-        (widget) =>
-            widget is Scrollable &&
-            widget.physics is AlwaysScrollableScrollPhysics,
-      ),
-    );
-    expect(importsScrollable, findsOneWidget);
-    await tester.scrollUntilVisible(target, 200, scrollable: importsScrollable);
-    await tester.ensureVisible(target);
     expect(target, findsOneWidget);
+    final scrollable = find.ancestor(
+      of: target,
+      matching: find.byType(Scrollable),
+    );
+    expect(scrollable, findsOneWidget);
+    await tester.drag(scrollable, const Offset(0, 10000));
+    await tester.pumpAndSettle();
+    for (var attempt = 0; attempt < 10; attempt++) {
+      final rect = tester.getRect(target);
+      final height = tester.getRect(find.byType(MaterialApp)).height;
+      if (rect.top >= 0 && rect.bottom <= height) {
+        break;
+      }
+      await tester.drag(scrollable, Offset(0, rect.top > 0 ? -200 : 200));
+      await tester.pumpAndSettle();
+    }
+    await tester.ensureVisible(target);
   }
 
   Future<void> selectCsv(WidgetTester tester) async {
-    final button = find.byIcon(Icons.upload_file_outlined);
+    final button = find.byIcon(Icons.upload_file_outlined, skipOffstage: false);
     await reveal(tester, button);
     await tester.tap(button);
     await tester.pumpAndSettle();
@@ -188,7 +203,10 @@ void main() {
     await tester.pump();
     expect(find.byKey(const Key('template-download-progress')), findsOneWidget);
     expect(calls, 1);
+    await tester.drag(find.byType(ListView), const Offset(0, 800));
+    await tester.pump();
     final dropdown = find.byType(DropdownButtonFormField<ImportTemplateType>);
+    expect(dropdown, findsOneWidget);
     expect(
       tester
           .widget<DropdownButtonFormField<ImportTemplateType>>(dropdown)
@@ -217,6 +235,7 @@ void main() {
     await mount(
       tester,
       pickCsvFile: () async => csvFile(path),
+      readCsvText: (_) async => '',
       onCsvFileSelected: selected.add,
     );
     await selectCsv(tester);
@@ -241,6 +260,31 @@ void main() {
   test('configuration du sélecteur limite aux fichiers csv', () {
     expect(csvPickerConfiguration.type, FileType.custom);
     expect(csvPickerConfiguration.allowedExtensions, const ['csv']);
+  });
+
+  testWidgets('description Comptes explique le format d’import initial', (
+    tester,
+  ) async {
+    await mount(tester);
+
+    expect(find.text('Import initial des comptes.'), findsOneWidget);
+    expect(
+      find.textContaining('Crée les comptes absents et définit leur solde'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Montants saisis en MAD : 1000, 1000,50 ou 1000.50.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Dates acceptées : JJ/MM/AAAA ou AAAA-MM-JJ'),
+      findsOneWidget,
+    );
+    expect(find.text('external_id : facultatif.'), findsOneWidget);
+    expect(
+      find.textContaining('banque, espèces, épargne, emprunt'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('sélection CSV lit le fichier avec le chemin exact', (
@@ -657,7 +701,10 @@ void main() {
       importPlan([decision('Nouveau', AccountImportAction.create)]),
     );
     await selectCsv(tester);
-    expect(find.text('Aucun conflit détecté.'), findsOneWidget);
+    expect(
+      find.text('Aucun conflit détecté.', skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('conflit affiché', (tester) async {
@@ -666,7 +713,10 @@ void main() {
       importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
     );
     await selectCsv(tester);
-    expect(find.text('Des comptes existent déjà.'), findsOneWidget);
+    expect(
+      find.text('Des comptes existent déjà.', skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('liste des décisions affichée', (tester) async {
@@ -678,10 +728,10 @@ void main() {
       ]),
     );
     await selectCsv(tester);
-    expect(find.text('Nouveau'), findsOneWidget);
-    expect(find.text('Existant'), findsOneWidget);
-    expect(find.text('À créer'), findsOneWidget);
-    expect(find.text('Existe déjà'), findsOneWidget);
+    expect(find.text('Nouveau', skipOffstage: false), findsOneWidget);
+    expect(find.text('Existant', skipOffstage: false), findsOneWidget);
+    expect(find.text('À créer', skipOffstage: false), findsOneWidget);
+    expect(find.text('Existe déjà', skipOffstage: false), findsOneWidget);
   });
 
   testWidgets('ordre des décisions conservé', (tester) async {
@@ -693,7 +743,10 @@ void main() {
       ]),
     );
     await selectCsv(tester);
-    final planList = find.byKey(const Key('accounts-import-plan-list'));
+    final planList = find.byKey(
+      const Key('accounts-import-plan-list'),
+      skipOffstage: false,
+    );
     expect(planList, findsOneWidget);
     await tester.ensureVisible(planList);
     final names = find.descendant(
@@ -717,7 +770,10 @@ void main() {
       importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
     );
     await selectCsv(tester);
-    final ignore = find.byKey(const Key('opening-balance-ignore-option'));
+    final ignore = find.byKey(
+      const Key('opening-balance-ignore-option'),
+      skipOffstage: false,
+    );
     await reveal(tester, ignore);
     final radioGroup = find.byType(RadioGroup<OpeningBalanceConflictChoice>);
     expect(radioGroup, findsOneWidget);
@@ -735,7 +791,10 @@ void main() {
       importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
     );
     await selectCsv(tester);
-    final replace = find.byKey(const Key('opening-balance-replace-option'));
+    final replace = find.byKey(
+      const Key('opening-balance-replace-option'),
+      skipOffstage: false,
+    );
     await reveal(tester, replace);
     await tester.tap(replace);
     await tester.pumpAndSettle();
@@ -755,7 +814,10 @@ void main() {
       importPlan([decision('Nouveau', AccountImportAction.create)]),
     );
     await selectCsv(tester);
-    final importer = find.byKey(const Key('accounts-import-button'));
+    final importer = find.byKey(
+      const Key('accounts-import-button'),
+      skipOffstage: false,
+    );
     await reveal(tester, importer);
   });
 
@@ -765,7 +827,10 @@ void main() {
       importPlan([decision('Nouveau', AccountImportAction.create)]),
     );
     await selectCsv(tester);
-    final importer = find.byKey(const Key('accounts-import-button'));
+    final importer = find.byKey(
+      const Key('accounts-import-button'),
+      skipOffstage: false,
+    );
     await reveal(tester, importer);
     final button = tester.widget<FilledButton>(importer);
     expect(button.onPressed, isNull);
@@ -781,7 +846,12 @@ void main() {
     );
     await selectCsv(tester);
     expect(find.text("Plan d'import"), findsNothing);
-    expect(find.byKey(const Key('accounts-import-button')), findsNothing);
+    final importButton = find.byKey(
+      const Key('accounts-import-button'),
+      skipOffstage: false,
+    );
+    expect(importButton, findsOneWidget);
+    expect(tester.widget<FilledButton>(importButton).onPressed, isNull);
   });
 
   testWidgets('nouveau fichier réinitialise le plan et le choix utilisateur', (
@@ -806,7 +876,10 @@ void main() {
       },
     );
     await selectCsv(tester);
-    final replace = find.byKey(const Key('opening-balance-replace-option'));
+    final replace = find.byKey(
+      const Key('opening-balance-replace-option'),
+      skipOffstage: false,
+    );
     await reveal(tester, replace);
     await tester.tap(replace);
     await tester.pumpAndSettle();
@@ -822,7 +895,10 @@ void main() {
     expect(find.text('Existant'), findsNothing);
     expect(find.text('Nouveau'), findsOneWidget);
     expect(
-      find.byKey(const Key('opening-balance-ignore-option')),
+      find.byKey(
+        const Key('opening-balance-ignore-option'),
+        skipOffstage: false,
+      ),
       findsNothing,
     );
   });

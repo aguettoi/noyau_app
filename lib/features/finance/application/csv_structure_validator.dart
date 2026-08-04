@@ -38,6 +38,11 @@ class CsvStructureValidator {
     }
 
     for (final expectedColumn in template.columns) {
+      if (template.optionalColumns
+          .map(_normalizeColumnName)
+          .contains(_normalizeColumnName(expectedColumn))) {
+        continue;
+      }
       if (!seenColumns.contains(_normalizeColumnName(expectedColumn))) {
         errors.add(
           "La colonne '${_displayColumnName(expectedColumn)}' est manquante.",

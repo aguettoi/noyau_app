@@ -1,159 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/money/money.dart';
-import '../application/accounts_controller.dart';
-import '../domain/financial_account.dart';
 
+import '../../../core/theme/app_design_system.dart';
+import '../application/providers/remote_accounts_provider.dart';
+
+/// Shows only accounts persisted in the active Supabase household.
 class AccountsPage extends ConsumerWidget {
   const AccountsPage({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
     appBar: AppBar(title: const Text('Comptes')),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: () => _form(context, ref),
-      icon: const Icon(Icons.add),
-      label: const Text('Ajouter'),
+    floatingActionButton: const FloatingActionButton.extended(
+      onPressed: null,
+      icon: Icon(Icons.add),
+      label: Text('Ajouter'),
     ),
     body: ref
-        .watch(accountsProvider)
+        .watch(remoteAccountsProvider)
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) =>
-              Center(child: Text('Impossible de lire les comptes : $e')),
+          error: (error, _) => Center(
+            child: Padding(
+              padding: AppSpacing.page,
+              child: Text('Impossible de lire les comptes distants : $error'),
+            ),
+          ),
           data: (items) => ListView(
-            padding: const EdgeInsets.all(16),
-            children: items
-                .map(
-                  (a) => Card(
-                    child: ListTile(
-                      title: Text(a.name),
-                      subtitle: Text(
-                        '${a.type.name} • ${a.holder ?? 'Foyer'} • ${a.isArchived ? 'Archivé' : 'Actif'}',
-                      ),
-                      trailing: Text(
-                        '${a.openingBalance.dirhams.toStringAsFixed(2)} MAD',
-                      ),
-                      onTap: () => _actions(context, ref, a),
+            padding: AppSpacing.page,
+            children: [
+              const Text(
+                'La création manuelle distante sera disponible prochainement.',
+              ),
+              const SizedBox(height: AppSpacing.md),
+              if (items.isEmpty)
+                const Card(
+                  child: ListTile(
+                    leading: Icon(Icons.account_balance_outlined),
+                    title: Text('Aucun compte distant'),
+                    subtitle: Text(
+                      'Importez vos comptes initiaux pour les afficher ici.',
                     ),
                   ),
-                )
-                .toList(),
+                ),
+              ...items.map(
+                (account) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: Card(
+                    child: ListTile(
+                      title: Text(account.name),
+                      subtitle: Text(
+                        '${account.type.name} • ${account.holder ?? 'Foyer'} • '
+                        '${account.isArchived ? 'Archivé' : 'Actif'}',
+                      ),
+                      trailing: Text(
+                        '${account.openingBalance.dirhams.toStringAsFixed(2)} MAD',
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
   );
-  Future<void> _actions(BuildContext c, WidgetRef r, FinancialAccount a) =>
-      showDialog<void>(
-        context: c,
-        builder: (d) => AlertDialog(
-          title: Text(a.name),
-          content: Text(
-            a.isArchived
-                ? 'Compte archivé : il reste dans l’historique.'
-                : 'Compte actif.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(d);
-                _form(c, r, a);
-              },
-              child: const Text('Modifier'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                await r
-                    .read(accountsProvider.notifier)
-                    .save(
-                      a.copyWith(
-                        archivedAt: a.isArchived ? null : DateTime.now(),
-                        clearArchivedAt: a.isArchived,
-                      ),
-                    );
-                if (d.mounted) Navigator.pop(d);
-              },
-              child: Text(a.isArchived ? 'Réactiver' : 'Archiver'),
-            ),
-          ],
-        ),
-      );
-  Future<void> _form(BuildContext c, WidgetRef r, [FinancialAccount? a]) async {
-    final key = GlobalKey<FormState>();
-    final name = TextEditingController(text: a?.name ?? '');
-    final holder = TextEditingController(text: a?.holder ?? '');
-    FinancialAccountType? type = a?.type;
-    await showDialog<void>(
-      context: c,
-      builder: (d) => StatefulBuilder(
-        builder: (c, set) => AlertDialog(
-          title: Text(a == null ? 'Créer un compte' : 'Modifier le compte'),
-          content: Form(
-            key: key,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Nom'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Le nom est obligatoire.'
-                      : null,
-                ),
-                DropdownButtonFormField(
-                  initialValue: type,
-                  decoration: const InputDecoration(labelText: 'Type'),
-                  items: FinancialAccountType.values
-                      .map(
-                        (v) => DropdownMenuItem(value: v, child: Text(v.name)),
-                      )
-                      .toList(),
-                  onChanged: (v) => set(() => type = v),
-                  validator: (v) => v == null ? 'Choisissez un type.' : null,
-                ),
-                TextFormField(
-                  controller: holder,
-                  decoration: const InputDecoration(
-                    labelText: 'Titulaire (facultatif)',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(d),
-              child: const Text('Annuler'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                if (!key.currentState!.validate()) return;
-                await r
-                    .read(accountsProvider.notifier)
-                    .save(
-                      a == null
-                          ? FinancialAccount(
-                              id: 'account-${DateTime.now().microsecondsSinceEpoch}',
-                              name: name.text.trim(),
-                              type: type!,
-                              holder: holder.text.trim().isEmpty
-                                  ? null
-                                  : holder.text.trim(),
-                              openingBalance: const Money.fromMinorUnits(0),
-                            )
-                          : a.copyWith(
-                              name: name.text.trim(),
-                              type: type!,
-                              holder: holder.text.trim().isEmpty
-                                  ? null
-                                  : holder.text.trim(),
-                            ),
-                    );
-                if (d.mounted) Navigator.pop(d);
-              },
-              child: const Text('Enregistrer'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/theme/noyau_theme.dart';
 import '../features/finance/presentation/finance_overview_page.dart';
 import '../features/finance/presentation/imports_page.dart';
 import '../features/finance/presentation/accounts_page.dart';
+import '../features/finance/presentation/supabase_auth_page.dart';
+import '../features/finance/application/providers/active_household_provider.dart';
+import '../features/finance/application/providers/remote_accounts_provider.dart';
+import '../features/finance/application/providers/supabase_client_provider.dart';
 import '../features/envelopes/presentation/envelope_dashboard_page.dart';
 
 class NoyauApp extends StatelessWidget {
@@ -23,18 +28,34 @@ class NoyauApp extends StatelessWidget {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
-    home: const FinanceShell(),
+    home: const _AuthenticationGate(),
   );
 }
 
-class FinanceShell extends StatefulWidget {
+class _AuthenticationGate extends ConsumerWidget {
+  const _AuthenticationGate();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userId = ref.watch(supabaseUserIdProvider);
+    return userId.when(
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, _) => const SupabaseAuthPage(),
+      data: (id) =>
+          id == null ? const SupabaseAuthPage() : const FinanceShell(),
+    );
+  }
+}
+
+class FinanceShell extends ConsumerStatefulWidget {
   const FinanceShell({super.key});
 
   @override
-  State<FinanceShell> createState() => _FinanceShellState();
+  ConsumerState<FinanceShell> createState() => _FinanceShellState();
 }
 
-class _FinanceShellState extends State<FinanceShell> {
+class _FinanceShellState extends ConsumerState<FinanceShell> {
   var _selectedIndex = 0;
 
   @override
@@ -46,7 +67,25 @@ class _FinanceShellState extends State<FinanceShell> {
       ImportsPage(),
     ];
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: pages),
+      body: Stack(
+        children: [
+          IndexedStack(index: _selectedIndex, children: pages),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: IconButton(
+                tooltip: 'Se déconnecter',
+                onPressed: () async {
+                  await ref.read(supabaseAuthGatewayProvider).signOut();
+                  ref.invalidate(activeHouseholdProvider);
+                  ref.invalidate(remoteAccountsProvider);
+                },
+                icon: const Icon(Icons.logout_outlined),
+              ),
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) =>
