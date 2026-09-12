@@ -95,7 +95,7 @@ begin
   -- 3 through 7 and 8 atomicity: invalid destinations and amounts leave no event.
   begin
     perform public.distribute_to_allocate_envelope_event(v_household_id, now(), v_tag || '_OVER',
-      jsonb_build_array(jsonb_build_object('envelope_id', v_food_id, 'amount', 30)), null,
+      jsonb_build_array(jsonb_build_object('envelope_id', v_food_id, 'amount', v_before + 1)), null,
       '30000000-0000-0000-0000-000000000003'::uuid);
     raise exception 'Over-distribution should fail';
   exception when others then if position('exceeds available' in sqlerrm) = 0 then raise; end if; end;
