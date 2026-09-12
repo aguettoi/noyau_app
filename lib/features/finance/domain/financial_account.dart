@@ -12,6 +12,7 @@ class FinancialAccount {
     this.holder,
     this.ownershipType = AccountOwnershipType.household,
     this.holders = const [],
+    this.isSystem = false,
     this.archivedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -25,6 +26,7 @@ class FinancialAccount {
   final String? holder;
   final AccountOwnershipType ownershipType;
   final List<AccountHolder> holders;
+  final bool isSystem;
   final DateTime? archivedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -37,6 +39,7 @@ class FinancialAccount {
     String? holder,
     AccountOwnershipType? ownershipType,
     List<AccountHolder>? holders,
+    bool? isSystem,
     DateTime? archivedAt,
     bool clearArchivedAt = false,
   }) => FinancialAccount(
@@ -47,6 +50,7 @@ class FinancialAccount {
     holder: holder ?? this.holder,
     ownershipType: ownershipType ?? this.ownershipType,
     holders: holders ?? this.holders,
+    isSystem: isSystem ?? this.isSystem,
     archivedAt: clearArchivedAt ? null : (archivedAt ?? this.archivedAt),
     createdAt: createdAt,
     updatedAt: DateTime.now(),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/theme/noyau_theme.dart';
+import '../core/theme/app_design_system.dart';
 import '../features/finance/presentation/finance_overview_page.dart';
 import '../features/finance/presentation/imports_page.dart';
 import '../features/finance/presentation/accounts_page.dart';
@@ -66,53 +67,146 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
       EnvelopeDashboardPage(),
       ImportsPage(),
     ];
-    return Scaffold(
-      body: Stack(
-        children: [
-          IndexedStack(index: _selectedIndex, children: pages),
+    final desktop = AppLayout.isDesktop(MediaQuery.sizeOf(context).width);
+    final navigation = desktop
+        ? Container(
+            width: 116,
+            color: AppColors.primary,
+            child: NavigationRail(
+              backgroundColor: Colors.transparent,
+              selectedIndex: _selectedIndex,
+              labelType: NavigationRailLabelType.all,
+              indicatorColor: AppColors.secondary,
+              selectedIconTheme: const IconThemeData(color: Colors.white),
+              unselectedIconTheme: const IconThemeData(
+                color: AppColors.darkTextSecondary,
+              ),
+              selectedLabelTextStyle: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+              unselectedLabelTextStyle: const TextStyle(
+                color: AppColors.darkTextSecondary,
+                fontSize: 12,
+              ),
+              onDestinationSelected: (index) =>
+                  setState(() => _selectedIndex = index),
+              leading: Padding(
+                padding: const EdgeInsets.only(
+                  top: AppSpacing.md,
+                  bottom: AppSpacing.lg,
+                ),
+                child: Tooltip(
+                  message: 'FINANCIEL PILOTE',
+                  child: ClipRRect(
+                    borderRadius: AppRadius.button,
+                    child: Image.asset(
+                      AppAssets.financialPiloteLogo,
+                      width: 58,
+                      height: 58,
+                      fit: BoxFit.cover,
+                      semanticLabel: 'FINANCIEL PILOTE',
+                    ),
+                  ),
+                ),
+              ),
+              trailing: Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: IconButton(
+                    tooltip: 'Se déconnecter',
+                    onPressed: _signOut,
+                    icon: const Icon(Icons.logout_outlined),
+                  ),
+                ),
+              ),
+              destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.account_balance_outlined),
+                  selectedIcon: Icon(Icons.account_balance),
+                  label: Text('Comptes'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: Text('Fondation'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.account_balance_wallet_outlined),
+                  selectedIcon: Icon(Icons.account_balance_wallet),
+                  label: Text('Enveloppes'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.upload_file_outlined),
+                  selectedIcon: Icon(Icons.upload_file),
+                  label: Text('Import'),
+                ),
+              ],
+            ),
+          )
+        : null;
+    final content = Stack(
+      children: [
+        IndexedStack(index: _selectedIndex, children: pages),
+        if (!desktop)
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
               child: IconButton(
                 tooltip: 'Se déconnecter',
-                onPressed: () async {
-                  await ref.read(supabaseAuthGatewayProvider).signOut();
-                  ref.invalidate(activeHouseholdProvider);
-                  ref.invalidate(remoteAccountsProvider);
-                },
+                onPressed: _signOut,
                 icon: const Icon(Icons.logout_outlined),
               ),
             ),
           ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) =>
-            setState(() => _selectedIndex = index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_outlined),
-            selectedIcon: Icon(Icons.account_balance),
-            label: 'Comptes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_outlined),
-            selectedIcon: Icon(Icons.account_balance),
-            label: 'Fondation',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: 'Enveloppes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.upload_file_outlined),
-            selectedIcon: Icon(Icons.upload_file),
-            label: 'Import',
-          ),
-        ],
-      ),
+      ],
     );
+    return Scaffold(
+      body: desktop
+          ? Row(
+              children: [
+                navigation!,
+                const VerticalDivider(width: 1),
+                Expanded(child: content),
+              ],
+            )
+          : content,
+      bottomNavigationBar: desktop
+          ? null
+          : NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) =>
+                  setState(() => _selectedIndex = index),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.account_balance_outlined),
+                  selectedIcon: Icon(Icons.account_balance),
+                  label: 'Comptes',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: 'Fondation',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.account_balance_wallet_outlined),
+                  selectedIcon: Icon(Icons.account_balance_wallet),
+                  label: 'Enveloppes',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.upload_file_outlined),
+                  selectedIcon: Icon(Icons.upload_file),
+                  label: 'Import',
+                ),
+              ],
+            ),
+    );
+  }
+
+  Future<void> _signOut() async {
+    await ref.read(supabaseAuthGatewayProvider).signOut();
+    ref.invalidate(activeHouseholdProvider);
+    ref.invalidate(remoteAccountsProvider);
   }
 }

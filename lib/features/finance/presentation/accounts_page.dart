@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
+import '../application/providers/remote_account_balances_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
+import '../application/providers/remote_transactions_provider.dart';
 import '../domain/account_ownership.dart';
 import '../domain/household_member.dart';
 import '../domain/financial_account.dart';
@@ -58,6 +61,7 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
   @override
   Widget build(BuildContext context) {
     final accountsAsync = ref.watch(remoteAccountsProvider);
+    final balancesAsync = ref.watch(remoteAccountBalancesProvider);
     final membersAsync = ref.watch(remoteHouseholdMembersProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Comptes')),
@@ -83,34 +87,82 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
           ),
         ),
         data: (items) => ListView(
-          padding: AppSpacing.page,
           children: [
-            if (items.isEmpty)
-              const Card(
-                child: ListTile(
-                  leading: Icon(Icons.account_balance_outlined),
-                  title: Text('Aucun compte distant'),
-                  subtitle: Text(
-                    'Ajoutez un compte ou importez vos comptes initiaux.',
-                  ),
-                ),
-              ),
-            ...items.map(
-              (account) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: Card(
-                  child: ListTile(
-                    title: Text(account.name),
-                    subtitle: Text(
-                      '${_accountTypeLabel(account.type)} • '
-                      '${_holdersLabel(account, membersAsync.valueOrNull ?? const [])} • '
-                      '${account.isArchived ? 'Archivé' : 'Actif'}',
-                    ),
-                    trailing: Text(
-                      '${account.openingBalance.dirhams.toStringAsFixed(2)} MAD',
+            DesktopPageContainer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _AccountsHero(
+                    accountCount: items.length,
+                    totalBalance: items.fold<Money>(
+                      const Money.fromMinorUnits(0),
+                      (total, account) =>
+                          total +
+                          (balancesAsync.valueOrNull?[account.id] ??
+                              account.openingBalance),
                     ),
                   ),
-                ),
+                  const SizedBox(height: AppSpacing.md),
+                  DesktopSection(
+                    title: 'Vos comptes',
+                    subtitle: items.isEmpty
+                        ? 'Ajoutez un compte ou importez vos comptes initiaux.'
+                        : '${items.length} compte${items.length > 1 ? 's' : ''} suivi${items.length > 1 ? 's' : ''}',
+                    child: items.isEmpty
+                        ? const CompactListRow(
+                            title: 'Aucun compte distant',
+                            subtitle:
+                                'La liste apparaîtra ici après création ou import.',
+                            leading: Icon(Icons.account_balance_outlined),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final grid = constraints.maxWidth >= 900;
+                              return grid
+                                  ? ResponsiveGrid(
+                                      minItemWidth: 390,
+                                      children: items
+                                          .map(
+                                            (account) => _AccountRow(
+                                              account: account,
+                                              balance:
+                                                  balancesAsync
+                                                      .valueOrNull?[account
+                                                      .id] ??
+                                                  account.openingBalance,
+                                              members:
+                                                  membersAsync.valueOrNull ??
+                                                  const [],
+                                            ),
+                                          )
+                                          .toList(growable: false),
+                                    )
+                                  : Column(
+                                      children: items
+                                          .map(
+                                            (account) => Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: AppSpacing.xs,
+                                              ),
+                                              child: _AccountRow(
+                                                account: account,
+                                                balance:
+                                                    balancesAsync
+                                                        .valueOrNull?[account
+                                                        .id] ??
+                                                    account.openingBalance,
+                                                members:
+                                                    membersAsync.valueOrNull ??
+                                                    const [],
+                                              ),
+                                            ),
+                                          )
+                                          .toList(growable: false),
+                                    );
+                            },
+                          ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -119,6 +171,134 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
     );
   }
 }
+
+class _AccountsHero extends StatelessWidget {
+  const _AccountsHero({required this.accountCount, required this.totalBalance});
+  final int accountCount;
+  final Money totalBalance;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: Theme.of(context).colorScheme.primaryContainer,
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: AppSpacing.sm,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Vue des comptes',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                '$accountCount compte${accountCount > 1 ? 's' : ''} relié${accountCount > 1 ? 's' : ''} à votre foyer.',
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Solde total', style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                '${totalBalance.dirhams.toStringAsFixed(2)} MAD',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({
+    required this.account,
+    required this.balance,
+    required this.members,
+  });
+  final FinancialAccount account;
+  final Money balance;
+  final List<HouseholdMember> members;
+
+  @override
+  Widget build(BuildContext context) => CompactListRow(
+    leading: Icon(_accountIcon(account.type), color: AppColors.secondary),
+    title: account.name,
+    subtitle:
+        '${_accountTypeLabel(account.type)} • ${_holdersLabel(account, members)} • ${account.isArchived ? 'Archivé' : 'Actif'}',
+    trailing: Text(
+      '${balance.dirhams.toStringAsFixed(2)} MAD',
+      style: Theme.of(context).textTheme.labelLarge,
+    ),
+    onTap: () => Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _AccountDetailPage(account: account, balance: balance),
+      ),
+    ),
+  );
+}
+
+IconData _accountIcon(FinancialAccountType type) => switch (type) {
+  FinancialAccountType.bank => Icons.account_balance_outlined,
+  FinancialAccountType.cash => Icons.payments_outlined,
+  FinancialAccountType.savings => Icons.savings_outlined,
+  FinancialAccountType.debt => Icons.credit_score_outlined,
+};
+
+class _AccountDetailPage extends ConsumerWidget {
+  const _AccountDetailPage({required this.account, required this.balance});
+  final FinancialAccount account;
+  final Money balance;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(accountTransactionHistoryProvider(account.id));
+    return Scaffold(
+      appBar: AppBar(title: Text(account.name)),
+      body: ListView(
+        padding: AppSpacing.page,
+        children: [
+          Text(account.name, style: Theme.of(context).textTheme.headlineSmall),
+          Text('Solde actuel : ${balance.dirhams.toStringAsFixed(2)} MAD'),
+          const SizedBox(height: AppSpacing.md),
+          Text('Opérations', style: Theme.of(context).textTheme.titleMedium),
+          ...history.when(
+            loading: () => const [Center(child: CircularProgressIndicator())],
+            error: (_, _) => const [
+              Text('Impossible de charger l’historique du compte.'),
+            ],
+            data: (items) => items.isEmpty
+                ? const [Text('Aucune opération pour ce compte.')]
+                : items
+                      .map(
+                        (item) => ListTile(
+                          title: Text(item.description),
+                          subtitle: Text(_accountHistoryLabel(item.type)),
+                          trailing: Text(
+                            '${item.amount.dirhams.toStringAsFixed(2)} MAD',
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _accountHistoryLabel(Object type) => switch (type.toString()) {
+  'LedgerTransactionType.expense' => 'Dépense',
+  'LedgerTransactionType.debtSettlement' => 'Paiement d’une dette',
+  'LedgerTransactionType.accountTransfer' => 'Virement entre comptes',
+  _ => 'Opération',
+};
 
 String _accountTypeLabel(FinancialAccountType type) => switch (type) {
   FinancialAccountType.bank => 'Banque',

@@ -57,6 +57,16 @@ void main() {
     expect((await repository.all()).single.openingBalance.minorUnits, 4431170);
   });
 
+  test('un compte système distant conserve son statut interne', () async {
+    final systemRow = row()..['is_system'] = true;
+    final repository = AccountsSupabaseRepository(
+      gateway: _Gateway(rows: [systemRow]),
+      householdId: 'household-1',
+    );
+
+    expect((await repository.all()).single.isSystem, isTrue);
+  });
+
   test('les comptes hors foyer sont refuses', () async {
     final invalid = row()..['household_id'] = 'another-household';
     final repository = AccountsSupabaseRepository(

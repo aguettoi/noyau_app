@@ -6,8 +6,11 @@ import 'package:noyau_app/features/finance/application/finance_workspace.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_accounts_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_household_members_provider.dart';
+import 'package:noyau_app/features/finance/application/providers/remote_transactions_provider.dart';
+import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
 import 'package:noyau_app/features/finance/domain/household_member.dart';
+import 'package:noyau_app/features/finance/domain/transaction_history_item.dart';
 import 'package:noyau_app/features/finance/application/providers/supabase_client_provider.dart';
 
 void main() {
@@ -31,6 +34,15 @@ void main() {
           ),
           remoteHouseholdMembersProvider.overrideWith(
             (ref) async => const <HouseholdMember>[],
+          ),
+          remoteTransactionsProvider.overrideWith(
+            (ref) async => const <TransactionHistoryItem>[],
+          ),
+          remoteEnvelopeBalancesProvider.overrideWith(
+            (ref) async => const <RemoteEnvelopeBalance>[],
+          ),
+          remoteEnvelopeHistoryProvider.overrideWith(
+            (ref) async => const <RemoteEnvelopeBalance>[],
           ),
         ],
         child: const NoyauApp(),
@@ -56,7 +68,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.widget<NavigationBar>(navigation).selectedIndex, 1);
-    expect(find.text('Fondation financiere'), findsOneWidget);
+    expect(find.text('Fondation financière'), findsOneWidget);
     expect(
       find.text('Aucune donnee du foyer n est encore importee.'),
       findsOneWidget,
@@ -70,10 +82,22 @@ void main() {
     expect(tester.widget<NavigationBar>(navigation).selectedIndex, 2);
     expect(
       find.text(
-        'Soldes calcules a partir du Journal importe. Aucun montant n est saisi ici.',
+        'Soldes calculés exclusivement depuis le journal des enveloppes.',
       ),
       findsOneWidget,
     );
+    final importEnvelopes = find.byKey(const Key('envelope-import-csv-cta'));
+    expect(importEnvelopes, findsOneWidget);
+    await tester.tap(importEnvelopes);
+    await tester.pumpAndSettle();
+    expect(find.text('Import des enveloppes'), findsNWidgets(2));
+    expect(
+      find.textContaining('référentiel des enveloppes du foyer'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('00000000-'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
 
     await tester.tap(
       find.descendant(of: navigation, matching: find.text('Import')),
@@ -92,6 +116,42 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(FloatingActionButton), findsOneWidget);
+  });
+
+  testWidgets(
+    'le Grand Livre est accessible et prêt à saisir une transaction',
+    (tester) async {
+      await pumpApp(tester);
+
+      await tester.tap(find.text('Fondation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Grand livre'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Transactions'), findsOneWidget);
+      expect(find.text('Grand Livre'), findsOneWidget);
+      expect(find.text('Aucune transaction'), findsOneWidget);
+      expect(find.byKey(const Key('add-transaction-button')), findsOneWidget);
+    },
+  );
+
+  testWidgets('la navigation desktop utilise un rail sans modifier le mobile', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await pumpApp(tester);
+
+    final rail = find.byType(NavigationRail);
+    expect(rail, findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    await tester.tap(
+      find.descendant(of: rail, matching: find.text('Fondation')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Fondation financière'), findsOneWidget);
   });
 }
 

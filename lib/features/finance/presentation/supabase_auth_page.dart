@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_design_system.dart';
 import '../application/providers/supabase_client_provider.dart';
@@ -40,7 +42,8 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
-    } catch (_) {
+    } catch (error) {
+      _debugAuthFailure(error);
       if (!mounted) {
         return;
       }
@@ -53,6 +56,33 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
         setState(() => _submitting = false);
       }
     }
+  }
+
+  void _debugAuthFailure(Object error) {
+    if (!kDebugMode) return;
+    if (error case AuthException authError) {
+      debugPrint(
+        'Supabase Auth sign-in failure: '
+        'type=${authError.runtimeType}; '
+        'statusCode=${authError.statusCode ?? 'none'}; '
+        'code=${authError.code ?? 'none'}; '
+        'message=${authError.message}',
+      );
+      return;
+    }
+    if (error is AssertionError) {
+      debugPrint(
+        'Supabase Auth sign-in failure: '
+        'type=AssertionError; statusCode=none; code=none; '
+        'message=Supabase client was not initialized before the request.',
+      );
+      return;
+    }
+    debugPrint(
+      'Supabase Auth sign-in failure: '
+      'type=${error.runtimeType}; statusCode=none; code=none; '
+      'message=non-Auth client exception.',
+    );
   }
 
   @override

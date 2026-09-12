@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../core/theme/app_design_system.dart';
+import '../../envelopes/application/envelope_business_import.dart';
+import '../../envelopes/application/envelope_csv_business_validator.dart';
+import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/accounts_template_download.dart';
 import '../application/csv_import_templates.dart';
 import '../application/csv_import_validation_pipeline.dart';
@@ -29,6 +32,11 @@ typedef CsvImportValidation =
     });
 typedef AccountsImportPlanBuilder =
     AccountsImportPlan Function(CsvImportValidationResult validationResult);
+typedef EnvelopeImportExecutor =
+    Future<EnvelopeBusinessImportResult> Function({
+      required Iterable<String> names,
+      String? importSessionId,
+    });
 
 enum OpeningBalanceConflictChoice { ignoreFileBalance, replaceOpeningBalance }
 
@@ -54,7 +62,9 @@ class ImportsPage extends ConsumerStatefulWidget {
     this.validateCsvImport,
     this.buildAccountsImportPlan,
     this.importExecutor,
+    this.importEnvelopes,
     this.activeHousehold,
+    this.initialTemplateType = ImportTemplateType.accounts,
     this.importExecutionIdGenerator = _generateImportExecutionId,
   });
   final Future<void> Function(CsvImportTemplateDefinition) downloader;
@@ -64,7 +74,9 @@ class ImportsPage extends ConsumerStatefulWidget {
   final CsvImportValidation? validateCsvImport;
   final AccountsImportPlanBuilder? buildAccountsImportPlan;
   final AccountsImportExecutor? importExecutor;
+  final EnvelopeImportExecutor? importEnvelopes;
   final ActiveHouseholdState? activeHousehold;
+  final ImportTemplateType initialTemplateType;
   final String Function() importExecutionIdGenerator;
   @override
   ConsumerState<ImportsPage> createState() => _ImportsPageState();
@@ -74,7 +86,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
   var _downloading = false;
   var _analyzing = false;
   var _mode = AccountsImportMode.initialImport;
-  var _selectedType = ImportTemplateType.accounts;
+  late ImportTemplateType _selectedType;
   String? _selectedFilePath;
   String? _selectionMessage;
   String? _selectedCsvText;
@@ -86,6 +98,17 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
   String? _importExecutionId;
   var _accountsImportState = AccountsImportUiState.idle;
   String? _accountsImportMessage;
+  List<EnvelopeImportCandidate>? _validatedEnvelopes;
+  String? _envelopeImportSessionId;
+  EnvelopeBusinessImportResult? _envelopeImportResult;
+  String? _envelopeImportError;
+  var _importingEnvelopes = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedType = widget.initialTemplateType;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,23 +126,31 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
     if (_mode == AccountsImportMode.accountFunding) {
       return _buildFundingUnavailablePage(context);
     }
+    final isAccountsImport = _selectedType == ImportTemplateType.accounts;
     final remoteAccountsAsync =
-        widget.buildAccountsImportPlan == null &&
+        isAccountsImport &&
+            widget.buildAccountsImportPlan == null &&
             activeHousehold?.hasActiveHousehold == true
         ? ref.watch(remoteAccountsProvider)
         : null;
     final remoteMembersAsync =
-        widget.buildAccountsImportPlan == null &&
+        isAccountsImport &&
+            widget.buildAccountsImportPlan == null &&
             activeHousehold?.hasActiveHousehold == true
         ? ref.watch(remoteHouseholdMembersProvider)
         : null;
-    _scheduleRemotePlan(remoteAccountsAsync, remoteMembersAsync);
+    if (isAccountsImport) {
+      _scheduleRemotePlan(remoteAccountsAsync, remoteMembersAsync);
+    }
+    if (_selectedType == ImportTemplateType.envelopes) {
+      ref.watch(remoteEnvelopeBalancesProvider);
+    }
     return SafeArea(
       child: ListView(
         padding: AppSpacing.page,
         children: [
           Text(
-            'Import des comptes',
+            'Import des ${template.label.toLowerCase()}',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -164,24 +195,8 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
                 : (value) => setState(() => _selectedType = value!),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const Text('Import initial des comptes.'),
-          const Text(
-            'Crée les comptes absents et définit leur solde d’ouverture. '
-            'Les comptes déjà existants sont détectés avant l’import.',
-          ),
+          ..._templateHelp(template),
           Text('Fichier : ${template.fileName}'),
-          const Text('Séparateur : point-virgule'),
-          const Text('Encodage : UTF-8'),
-          const Text('Dates acceptées : JJ/MM/AAAA ou AAAA-MM-JJ'),
-          const Text('Montants saisis en MAD : 1000, 1000,50 ou 1000.50.'),
-          const Text(
-            'Les montants sont convertis automatiquement en centimes.',
-          ),
-          const Text('external_id : facultatif.'),
-          const Text(
-            'Types acceptés : banque, espèces, épargne, emprunt ; '
-            'ou bank, cash, savings, loan.',
-          ),
           SelectableText(template.header),
           if (_selectedType == ImportTemplateType.expenses)
             const Text(
@@ -213,9 +228,13 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             ),
           if (_selectedCsvText != null) const Text('Fichier lu avec succès.'),
           ..._validationMessages(),
-          ..._accountsPreview(),
-          ..._remoteAccountsState(remoteAccountsAsync, remoteMembersAsync),
-          ..._importPlanSection(activeHousehold, remoteAccountsAsync),
+          if (isAccountsImport) ...[
+            ..._accountsPreview(),
+            ..._remoteAccountsState(remoteAccountsAsync, remoteMembersAsync),
+            ..._importPlanSection(activeHousehold, remoteAccountsAsync),
+          ] else if (_selectedType == ImportTemplateType.envelopes) ...[
+            ..._envelopeImportSection(),
+          ],
           if (_validationResult == null && _selectionMessage != null)
             Text(_selectionMessage!),
           const SizedBox(height: AppSpacing.sm),
@@ -285,6 +304,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
         _accountsImportState = AccountsImportUiState.idle;
         _accountsImportMessage = null;
         _openingBalanceChoice = OpeningBalanceConflictChoice.ignoreFileBalance;
+        _clearEnvelopeImportPreparation();
         _selectionMessage = 'Sélection annulée.';
       });
       return;
@@ -304,6 +324,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       _accountsImportState = AccountsImportUiState.idle;
       _accountsImportMessage = null;
       _openingBalanceChoice = OpeningBalanceConflictChoice.ignoreFileBalance;
+      _clearEnvelopeImportPreparation();
       _selectionMessage = null;
       _analyzing = true;
     });
@@ -319,10 +340,8 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       try {
         final validator =
             widget.validateCsvImport ?? CsvImportValidationPipeline().validate;
-        final result = validator(
-          csvText: content,
-          template: byType(_selectedType),
-        );
+        final selectedTemplate = byType(_selectedType);
+        final result = validator(csvText: content, template: selectedTemplate);
         final plan =
             result.stage == CsvImportValidationStage.valid &&
                 result.isValid &&
@@ -339,6 +358,12 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
               : widget.importExecutionIdGenerator();
           _accountsImportState = AccountsImportUiState.idle;
           _accountsImportMessage = null;
+          if (selectedTemplate.type == ImportTemplateType.envelopes &&
+              result.stage == CsvImportValidationStage.valid &&
+              result.isValid) {
+            _validatedEnvelopes = result.envelopeBusinessResult?.rows;
+            _envelopeImportSessionId = _generateImportExecutionId();
+          }
           _analyzing = false;
         });
       } catch (error) {
@@ -362,6 +387,39 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
     allowedExtensions: csvPickerConfiguration.allowedExtensions,
   );
 
+  List<Widget> _templateHelp(CsvImportTemplateDefinition template) {
+    if (template.type == ImportTemplateType.envelopes) {
+      return const [
+        Text('Import initial des enveloppes.'),
+        Text(
+          'Cet import crée le référentiel des enveloppes du foyer et enregistre '
+          'chaque solde initial comme mouvement d’ouverture immuable.',
+        ),
+        Text('Séparateur : point-virgule'),
+        Text('Encodage : UTF-8'),
+        Text('Colonnes : nom, solde_initial, statut, notes.'),
+      ];
+    }
+
+    return const [
+      Text('Import initial des comptes.'),
+      Text(
+        'Crée les comptes absents et définit leur solde d’ouverture. '
+        'Les comptes déjà existants sont détectés avant l’import.',
+      ),
+      Text('Séparateur : point-virgule'),
+      Text('Encodage : UTF-8'),
+      Text('Dates acceptées : JJ/MM/AAAA ou AAAA-MM-JJ'),
+      Text('Montants saisis en MAD : 1000, 1000,50 ou 1000.50.'),
+      Text('Les montants sont convertis automatiquement en centimes.'),
+      Text('external_id : facultatif.'),
+      Text(
+        'Types acceptés : banque, espèces, épargne, emprunt ; '
+        'ou bank, cash, savings, loan.',
+      ),
+    ];
+  }
+
   void _clearImportPreparation() {
     _selectedType = ImportTemplateType.accounts;
     _selectedFilePath = null;
@@ -374,8 +432,118 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
     _accountsImportState = AccountsImportUiState.idle;
     _accountsImportMessage = null;
     _openingBalanceChoice = OpeningBalanceConflictChoice.ignoreFileBalance;
+    _clearEnvelopeImportPreparation();
     _selectionMessage = null;
     _analyzing = false;
+  }
+
+  void _clearEnvelopeImportPreparation() {
+    _validatedEnvelopes = null;
+    _envelopeImportSessionId = null;
+    _envelopeImportResult = null;
+    _envelopeImportError = null;
+    _importingEnvelopes = false;
+  }
+
+  List<Widget> _envelopeImportSection() {
+    final envelopes = _validatedEnvelopes;
+    if (envelopes == null) {
+      return const [];
+    }
+    return [
+      const Divider(),
+      const Text("Import des enveloppes"),
+      Text('${envelopes.length} enveloppes détectées'),
+      const Text(
+        'Les soldes initiaux deviennent des mouvements d’ouverture immuables.',
+      ),
+      if (_envelopeImportResult != null)
+        Text(
+          '${_envelopeImportResult!.created} créées • '
+          '${_envelopeImportResult!.initializedExisting} initialisées • '
+          '${_envelopeImportResult!.existing} déjà existantes • '
+          '${_envelopeImportResult!.ignored} ignorées.',
+        ),
+      if (_envelopeImportError != null) Text(_envelopeImportError!),
+      FilledButton(
+        key: const Key('envelope-csv-import-button'),
+        onPressed: envelopes.isEmpty || _importingEnvelopes
+            ? null
+            : _confirmEnvelopeImport,
+        child: Text(
+          _importingEnvelopes
+              ? 'Import des enveloppes en cours...'
+              : 'Importer les enveloppes',
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _confirmEnvelopeImport() async {
+    final envelopes = _validatedEnvelopes;
+    if (envelopes == null || envelopes.isEmpty || _importingEnvelopes) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Importer les enveloppes'),
+        content: Text(
+          '${envelopes.length} enveloppes détectées. Les soldes initiaux '
+          'seront enregistrés dans le journal des enveloppes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Importer les enveloppes'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() {
+      _importingEnvelopes = true;
+      _envelopeImportError = null;
+    });
+    try {
+      final importer = widget.importEnvelopes;
+      final EnvelopeBusinessImportResult result;
+      if (importer != null) {
+        result = await importer(
+          names: envelopes.map((envelope) => envelope.name),
+          importSessionId: _envelopeImportSessionId,
+        );
+      } else {
+        result = await ref.read(importHouseholdEnvelopesProvider)(
+          names: envelopes.map((envelope) => envelope.name),
+          candidates: envelopes,
+          importSessionId: _envelopeImportSessionId,
+        );
+      }
+      if (!mounted) {
+        return;
+      }
+      ref.invalidate(remoteEnvelopeBalancesProvider);
+      setState(() => _envelopeImportResult = result);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(
+        () => _envelopeImportError =
+            'L’import des enveloppes a échoué. Réessayez.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _importingEnvelopes = false);
+      }
+    }
   }
 
   void _reset() {

@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:noyau_app/features/envelopes/application/envelope_business_import.dart';
+import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
 import 'package:noyau_app/features/finance/application/accounts_csv_business_validator.dart';
 import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
 import 'package:noyau_app/features/finance/application/csv_import_validation_pipeline.dart';
@@ -23,7 +25,9 @@ void main() {
     CsvTextLoader? readCsvText,
     CsvImportValidation? validateCsvImport,
     AccountsImportPlanBuilder? buildAccountsImportPlan,
+    EnvelopeImportExecutor? importEnvelopes,
     ValueChanged<String>? onCsvFileSelected,
+    List<Override> providerOverrides = const [],
   }) {
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1;
@@ -31,7 +35,10 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     return tester.pumpWidget(
       ProviderScope(
-        overrides: [currentUserIdProvider.overrideWithValue(null)],
+        overrides: [
+          currentUserIdProvider.overrideWithValue(null),
+          ...providerOverrides,
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: ImportsPage(
@@ -42,6 +49,7 @@ void main() {
               buildAccountsImportPlan:
                   buildAccountsImportPlan ??
                   (_) => AccountsImportPlan(decisions: []),
+              importEnvelopes: importEnvelopes,
               onCsvFileSelected: onCsvFileSelected,
             ),
           ),
@@ -283,6 +291,184 @@ void main() {
     expect(find.text('external_id : facultatif.'), findsOneWidget);
     expect(
       find.textContaining('banque, espèces, épargne, emprunt'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('description Enveloppes utilise uniquement son format métier', (
+    tester,
+  ) async {
+    await mount(tester);
+    await selectTemplate(tester, byType(ImportTemplateType.envelopes));
+
+    expect(find.text('Import initial des enveloppes.'), findsOneWidget);
+    expect(
+      find.textContaining('crée le référentiel des enveloppes du foyer'),
+      findsOneWidget,
+    );
+    expect(find.text('Import des enveloppes'), findsOneWidget);
+    expect(
+      find.text('Colonnes : nom, solde_initial, statut, notes.'),
+      findsOneWidget,
+    );
+    expect(find.text('external_id : facultatif.'), findsNothing);
+    expect(
+      find.textContaining('banque, espèces, épargne, emprunt'),
+      findsNothing,
+    );
+    expect(find.text('nom;solde_initial;statut;notes'), findsOneWidget);
+  });
+
+  testWidgets(
+    'CSV Enveloppes confirme puis transmet uniquement les noms distincts',
+    (tester) async {
+      Iterable<String>? receivedNames;
+      String? receivedSessionId;
+      await mount(
+        tester,
+        pickCsvFile: () async => csvFile('enveloppes.csv'),
+        readCsvText: (_) async =>
+            'nom;solde_initial;statut;notes\nCourses;60;actif;A\n Courses ;40,00;actif;B\nMaison;;inactif;C\n',
+        importEnvelopes: ({required names, importSessionId}) async {
+          receivedNames = names;
+          receivedSessionId = importSessionId;
+          return const EnvelopeBusinessImportResult(
+            created: 2,
+            existing: 0,
+            ignored: 0,
+          );
+        },
+      );
+
+      await selectTemplate(tester, byType(ImportTemplateType.envelopes));
+      await selectCsv(tester);
+      expect(find.text('2 enveloppes détectées'), findsOneWidget);
+      expect(
+        find.text(
+          'Les soldes initiaux deviennent des mouvements d’ouverture immuables.',
+        ),
+        findsOneWidget,
+      );
+      final button = find.byKey(const Key('envelope-csv-import-button'));
+      await reveal(tester, button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(receivedNames, isNull);
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Importer les enveloppes').last,
+      );
+      await tester.pumpAndSettle();
+
+      expect(receivedNames, ['Courses', 'Maison']);
+      expect(receivedSessionId, isNotEmpty);
+      expect(
+        find.text(
+          '2 créées • 0 initialisées • 0 déjà existantes • 0 ignorées.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('00000000-'), findsNothing);
+    },
+  );
+
+  testWidgets('annulation de confirmation Enveloppes ne lance aucune RPC', (
+    tester,
+  ) async {
+    var calls = 0;
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('enveloppes.csv'),
+      readCsvText: (_) async =>
+          'nom;solde_initial;statut;notes\nCourses;0;actif;\n',
+      importEnvelopes: ({required names, importSessionId}) async {
+        calls++;
+        return const EnvelopeBusinessImportResult(
+          created: 1,
+          existing: 0,
+          ignored: 0,
+        );
+      },
+    );
+
+    await selectTemplate(tester, byType(ImportTemplateType.envelopes));
+    await selectCsv(tester);
+    final button = find.byKey(const Key('envelope-csv-import-button'));
+    await reveal(tester, button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Annuler'));
+    await tester.pumpAndSettle();
+
+    expect(calls, 0);
+  });
+
+  testWidgets('CSV Enveloppes invalide ne lance aucune RPC', (tester) async {
+    var calls = 0;
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('enveloppes.csv'),
+      readCsvText: (_) async =>
+          'nom;solde_initial;statut;notes\nCourses;0;actif;\n',
+      validateCsvImport: ({required csvText, required template}) => result(
+        CsvImportValidationStage.structureInvalid,
+        errors: const ['Colonne Nom absente.'],
+      ),
+      importEnvelopes: ({required names, importSessionId}) async {
+        calls++;
+        return const EnvelopeBusinessImportResult(
+          created: 1,
+          existing: 0,
+          ignored: 0,
+        );
+      },
+    );
+
+    await selectTemplate(tester, byType(ImportTemplateType.envelopes));
+    await selectCsv(tester);
+
+    expect(find.byKey(const Key('envelope-csv-import-button')), findsNothing);
+    expect(calls, 0);
+  });
+
+  testWidgets('succès Enveloppes invalide réellement les soldes distants', (
+    tester,
+  ) async {
+    var balanceLoads = 0;
+    await mount(
+      tester,
+      pickCsvFile: () async => csvFile('enveloppes.csv'),
+      readCsvText: (_) async =>
+          'nom;solde_initial;statut;notes\nCourses;0;actif;\n',
+      importEnvelopes: ({required names, importSessionId}) async =>
+          const EnvelopeBusinessImportResult(
+            created: 0,
+            existing: 1,
+            ignored: 0,
+          ),
+      providerOverrides: [
+        remoteEnvelopeBalancesProvider.overrideWith((ref) async {
+          balanceLoads++;
+          return const [];
+        }),
+      ],
+    );
+
+    await selectTemplate(tester, byType(ImportTemplateType.envelopes));
+    await tester.pumpAndSettle();
+    expect(balanceLoads, 1);
+    await selectCsv(tester);
+    final button = find.byKey(const Key('envelope-csv-import-button'));
+    await reveal(tester, button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Importer les enveloppes').last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(balanceLoads, 2);
+    expect(
+      find.text('0 créées • 0 initialisées • 1 déjà existantes • 0 ignorées.'),
       findsOneWidget,
     );
   });

@@ -68,6 +68,7 @@ class AccountsSupabaseRepository {
     final name = _requiredString(row, 'name');
     final kind = _requiredString(row, 'kind');
     final openingBalance = _moneyFromSql(row['opening_balance']);
+    final isSystem = row['is_system'] as bool? ?? false;
     final ownershipType = _ownershipType(
       (row['ownership_type'] as String?) ?? 'household',
     );
@@ -79,6 +80,7 @@ class AccountsSupabaseRepository {
       openingBalance: openingBalance,
       ownershipType: ownershipType,
       holders: holders,
+      isSystem: isSystem,
       archivedAt: _nullableDateTime(row['archived_at']),
       createdAt: _requiredDateTime(row, 'created_at'),
       updatedAt: _requiredDateTime(row, 'updated_at'),

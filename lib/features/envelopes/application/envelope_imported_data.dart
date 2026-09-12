@@ -80,7 +80,7 @@ class EnvelopeImportedDataReader {
     return names;
   }
 
-  List<EnvelopeMovement> _readJournalMovements(
+  List<ImportedEnvelopeMovement> _readJournalMovements(
     SourceSheetSnapshot sheet,
     List<String> envelopeNames,
   ) {
@@ -112,7 +112,7 @@ class EnvelopeImportedDataReader {
     final dateColumn = _columnFor(headers, 'date');
     if (envelopeColumn == null || amountColumn == null) return const [];
 
-    final movements = <EnvelopeMovement>[];
+    final movements = <ImportedEnvelopeMovement>[];
     for (final entry in rows.entries) {
       if (entry.key <= headerRow) continue;
       final rawEnvelope = entry.value[envelopeColumn];
@@ -122,7 +122,7 @@ class EnvelopeImportedDataReader {
           : knownNames[_forComparison(rawEnvelope)];
       if (canonicalName == null || amount == null) continue;
       movements.add(
-        EnvelopeMovement(
+        ImportedEnvelopeMovement(
           envelopeId: _normalize(canonicalName),
           occurredAt: _parseDate(entry.value[dateColumn]) ?? DateTime(1970),
           amount: amount,

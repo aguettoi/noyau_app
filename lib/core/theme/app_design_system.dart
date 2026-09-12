@@ -10,15 +10,17 @@ abstract final class AppColors {
   static const surface = Color(0xFFEEF1F4);
   static const surfaceSecondary = Color(0xFFFFFFFF);
   static const textPrimary = Color(0xFF1E2329);
-  static const textSecondary = Color(0xFF69707A);
+  static const textSecondary = Color(0xFF68707A);
   static const divider = Color(0xFFD9DEE4);
   static const border = Color(0xFFD0D6DC);
   static const success = Color(0xFF2E7D32);
   static const warning = Color(0xFFF59E0B);
   static const danger = Color(0xFFD32F2F);
   static const info = Color(0xFF2C7FB8);
-  static const primaryContainer = Color(0xFFDCE8F3);
-  static const secondaryContainer = Color(0xFFDDEADF);
+  // Les surfaces de contenu restent neutres : le bleu pétrole structure la
+  // navigation et les CTA, sans créer de grands aplats bleu pastel.
+  static const primaryContainer = Color(0xFFEEF1F4);
+  static const secondaryContainer = Color(0xFFE6EEE6);
   static const accentContainer = Color(0xFFF5E8C8);
   static const accentContainerText = Color(0xFF5B430E);
   static const dangerContainer = Color(0xFFFBE9E8);
@@ -57,10 +59,178 @@ abstract final class AppSpacing {
   static const dialog = EdgeInsets.all(lg);
 }
 
+/// Contraintes de lecture partagées pour éviter que les écrans desktop
+/// deviennent des formulaires étirés. Les pages restent fluides sur les
+/// formats intermédiaires et reprennent toute la largeur utile sur mobile.
+abstract final class AppLayout {
+  static const contentMaxWidth = 1360.0;
+  static const formMaxWidth = 1180.0;
+  static const wideDialogMaxWidth = 1240.0;
+
+  static EdgeInsets pagePaddingFor(double width) {
+    if (width < 700) return const EdgeInsets.all(AppSpacing.md);
+    if (width < 1200) return const EdgeInsets.all(AppSpacing.lg);
+    return const EdgeInsets.symmetric(
+      horizontal: AppSpacing.xl,
+      vertical: AppSpacing.lg,
+    );
+  }
+
+  static bool isCompact(double width) => width < 700;
+  static bool isDesktop(double width) => width >= 1200;
+}
+
+/// Composition partagée des écrans desktop. Elle évite que les listes et les
+/// formulaires issus du mobile s'étirent sur toute la fenêtre Windows.
+class DesktopPageContainer extends StatelessWidget {
+  const DesktopPageContainer({
+    super.key,
+    required this.child,
+    this.maxWidth = AppLayout.contentMaxWidth,
+  });
+
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Padding(
+          padding: AppLayout.pagePaddingFor(constraints.maxWidth),
+          child: child,
+        ),
+      ),
+    ),
+  );
+}
+
+class DesktopSection extends StatelessWidget {
+  const DesktopSection({
+    super.key,
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.action,
+    this.padding = AppSpacing.md,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget child;
+  final Widget? action;
+  final double padding;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: EdgeInsets.all(padding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        subtitle!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              ?action,
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          child,
+        ],
+      ),
+    ),
+  );
+}
+
+class ResponsiveGrid extends StatelessWidget {
+  const ResponsiveGrid({
+    super.key,
+    required this.children,
+    this.minItemWidth = 300,
+    this.spacing = AppSpacing.md,
+    this.runSpacing = AppSpacing.md,
+  });
+
+  final List<Widget> children;
+  final double minItemWidth;
+  final double spacing;
+  final double runSpacing;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final columns = (constraints.maxWidth / minItemWidth).floor().clamp(1, 4);
+      final itemWidth =
+          (constraints.maxWidth - spacing * (columns - 1)) / columns;
+      return Wrap(
+        spacing: spacing,
+        runSpacing: runSpacing,
+        children: [
+          for (final child in children)
+            SizedBox(width: itemWidth, child: child),
+        ],
+      );
+    },
+  );
+}
+
+class CompactListRow extends StatelessWidget {
+  const CompactListRow({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.trailing,
+    this.onTap,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(
+      context,
+    ).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+    borderRadius: AppRadius.input,
+    child: ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      minVerticalPadding: AppSpacing.xs,
+      leading: leading,
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing: trailing,
+      onTap: onTap,
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.input),
+    ),
+  );
+}
+
 abstract final class AppRadius {
-  static const button = BorderRadius.all(Radius.circular(14));
-  static const input = BorderRadius.all(Radius.circular(14));
-  static const card = BorderRadius.all(Radius.circular(18));
+  static const small = BorderRadius.all(Radius.circular(8));
+  static const button = BorderRadius.all(Radius.circular(12));
+  static const input = BorderRadius.all(Radius.circular(12));
+  static const card = BorderRadius.all(Radius.circular(16));
   static const dialog = BorderRadius.all(Radius.circular(20));
   static const navigation = BorderRadius.all(Radius.circular(16));
 }
@@ -83,6 +253,11 @@ abstract final class AppIcons {
   static const import = Icons.upload_file_outlined;
   static const add = Icons.add;
   static const download = Icons.download_outlined;
+}
+
+abstract final class AppAssets {
+  static const financialPiloteLogo =
+      'assets/branding/financial_pilote_logo.png';
 }
 
 abstract final class AppTypography {

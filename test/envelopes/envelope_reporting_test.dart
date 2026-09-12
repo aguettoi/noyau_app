@@ -5,23 +5,23 @@ import 'package:noyau_app/features/envelopes/domain/envelope_reporting.dart';
 void main() {
   const calculator = EnvelopeReportCalculator();
 
-  final movements = <EnvelopeMovement>[
-    EnvelopeMovement(
+  final movements = <ImportedEnvelopeMovement>[
+    ImportedEnvelopeMovement(
       envelopeId: 'nourriture',
       occurredAt: DateTime(2026, 4, 2),
       amount: Money.fromDirhams(3000),
     ),
-    EnvelopeMovement(
+    ImportedEnvelopeMovement(
       envelopeId: 'nourriture',
       occurredAt: DateTime(2026, 4, 8),
       amount: Money.fromDirhams(-450.25),
     ),
-    EnvelopeMovement(
+    ImportedEnvelopeMovement(
       envelopeId: 'nourriture',
       occurredAt: DateTime(2026, 5, 1),
       amount: Money.fromDirhams(1500),
     ),
-    EnvelopeMovement(
+    ImportedEnvelopeMovement(
       envelopeId: 'wifi',
       occurredAt: DateTime(2026, 4, 4),
       amount: Money.fromDirhams(350),

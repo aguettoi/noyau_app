@@ -141,7 +141,7 @@ void main() {
     expect(result.errors, isEmpty);
   });
 
-  test('un template non pris en charge ne lance pas le validateur Comptes', () {
+  test('un template Enveloppes valide ne lance pas le validateur Comptes', () {
     var businessCalls = 0;
     final result = pipeline(
       business: ({required rows, required template}) {
@@ -150,14 +150,12 @@ void main() {
       },
     ).validate(csvText: 'x', template: envelopes);
 
-    expect(result.stage, CsvImportValidationStage.unsupportedTemplate);
-    expect(result.isValid, isFalse);
+    expect(result.stage, CsvImportValidationStage.valid);
+    expect(result.isValid, isTrue);
     expect(result.parsedRows, same(parsedRows));
     expect(result.structureResult, same(validStructure));
     expect(result.accountsBusinessResult, isNull);
-    expect(result.errors, const [
-      'La validation métier de ce template n’est pas encore disponible.',
-    ]);
+    expect(result.errors, isEmpty);
     expect(businessCalls, 0);
   });
 

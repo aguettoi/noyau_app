@@ -1,0 +1,14 @@
+-- DO NOT EXECUTE until the precheck is green and an authenticated test session
+-- is available. SQL Editor as postgres does not prove auth.uid()/RLS behavior.
+-- Run this script through a Supabase authenticated client/test harness, using
+-- selected_household_id and selected_actor_id from the PRECHECK, then preserve
+-- all TEST FE rows for POSTCHECK. It must call these RPCs in order:
+-- create_cash_expense_event (twice, same key), create_debt_expense_event,
+-- settle_debt_event twice, create_income_receivable_event,
+-- settle_receivable_event twice, create_recovery_receivable_event,
+-- settle_recovery_event(refund=true), allocate_budget_event,
+-- create_account_transfer_event, create_envelope_transfer_event.
+-- Use the descriptions listed in SANDBOX_FINANCIAL_EVENTS_BUSINESS_TEST_PLAN.md.
+-- Deliberately submit one invalid split after its event is created logically,
+-- then verify the unchanged counts; test cross-household with a second
+-- authenticated user; attempt UPDATE on financial_events to prove immutability.

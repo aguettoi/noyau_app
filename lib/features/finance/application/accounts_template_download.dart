@@ -10,7 +10,10 @@ String get accountsTemplateFileName => _accounts.fileName;
 String accountsTemplateCsv() => _accounts.csvContent;
 List<int> accountsTemplateUtf8() => utf8.encode(accountsTemplateCsv());
 
+List<int> csvTemplateUtf8(CsvImportTemplateDefinition template) =>
+    utf8.encode('\uFEFF${template.csvContent}');
+
 Future<void> downloadCsvTemplate(CsvImportTemplateDefinition template) =>
-    platform.download(utf8.encode(template.csvContent), template.fileName);
+    platform.download(csvTemplateUtf8(template), template.fileName);
 
 Future<void> downloadAccountsTemplate() => downloadCsvTemplate(_accounts);

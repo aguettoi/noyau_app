@@ -15,7 +15,8 @@ class CsvTextReader {
       throw const FormatException('Fichier CSV introuvable ou inaccessible.');
     } on FormatException {
       throw const FormatException(
-        'Le fichier CSV doit être encodé en UTF-8 valide.',
+        'Le fichier CSV doit être encodé en UTF-8 valide. Dans Excel, '
+        'enregistrez-le au format « CSV UTF-8 » avant de le sélectionner.',
       );
     } catch (_) {
       throw const FormatException('Lecture du fichier CSV impossible.');

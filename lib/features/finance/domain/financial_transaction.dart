@@ -4,9 +4,12 @@ import 'ledger_line.dart';
 enum FinancialTransactionType {
   allocation,
   expense,
+  income,
   transfer,
   adjustment,
   recovery,
+  openingBalance,
+  correction,
 }
 
 class FinancialTransaction {

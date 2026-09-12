@@ -5,8 +5,8 @@ import '../../../core/money/money.dart';
 /// Positive amounts feed an envelope; negative amounts spend from it.  This is
 /// deliberately the same convention as `SUMIF(Journal!C:C; envelope;
 /// Journal!D:D)` in the source workbook.
-class EnvelopeMovement {
-  const EnvelopeMovement({
+class ImportedEnvelopeMovement {
+  const ImportedEnvelopeMovement({
     required this.envelopeId,
     required this.occurredAt,
     required this.amount,
@@ -22,7 +22,9 @@ class EnvelopeReportCalculator {
 
   /// Current theoretical balance for each envelope (the source column
   /// “Reste enveloppe”).
-  Map<String, Money> balancesByEnvelope(Iterable<EnvelopeMovement> movements) {
+  Map<String, Money> balancesByEnvelope(
+    Iterable<ImportedEnvelopeMovement> movements,
+  ) {
     final balances = <String, Money>{};
     for (final movement in movements) {
       balances.update(
@@ -37,7 +39,7 @@ class EnvelopeReportCalculator {
   /// Signed net movements per calendar month, matching the source `SUMIFS`
   /// monthly columns. This is not an end-of-month balance.
   Map<DateTime, Money> monthlyNetForEnvelope(
-    Iterable<EnvelopeMovement> movements,
+    Iterable<ImportedEnvelopeMovement> movements,
     String envelopeId,
   ) {
     final totals = <DateTime, Money>{};
@@ -57,7 +59,7 @@ class EnvelopeReportCalculator {
     return totals;
   }
 
-  Money totalEnvelopeFunds(Iterable<EnvelopeMovement> movements) =>
+  Money totalEnvelopeFunds(Iterable<ImportedEnvelopeMovement> movements) =>
       balancesByEnvelope(movements).values.fold(
         const Money.fromMinorUnits(0),
         (total, amount) => total + amount,

@@ -14,8 +14,8 @@ void main() {
       'envelopes',
       'Enveloppes',
       'template_enveloppes.csv',
-      'external_id;nom;categorie;periode;montant_initial_centimes;statut',
-      'EXEMPLE-001;Courses;Alimentation;mensuelle;300000;actif',
+      'nom;solde_initial;statut;notes',
+      'Courses;2500,00;actif;Budget courses initial',
     ),
     (
       'expenses',

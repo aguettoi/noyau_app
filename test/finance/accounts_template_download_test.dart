@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/accounts_template_download.dart';
 import 'package:noyau_app/features/finance/application/accounts_template_download_stub.dart';
+import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
+import 'package:noyau_app/features/finance/application/csv_text_reader.dart';
 
 void main() {
   test('génère le template Comptes exact en UTF-8', () {
@@ -62,6 +64,29 @@ void main() {
       utf8.decode(await File(path).readAsBytes()),
       'nom;libellé\n1;Épargne\n',
     );
+  });
+
+  test('le template Enveloppes généré est relu en UTF-8 sans erreur', () async {
+    final directory = await Directory.systemTemp.createTemp('noyau-envelope-');
+    addTearDown(() => directory.delete(recursive: true));
+    final template = byType(ImportTemplateType.envelopes);
+    final path =
+        '${directory.path}${Platform.pathSeparator}${template.fileName}';
+    final saver = NativeTemplateFileSaver(
+      saveFile:
+          ({
+            required dialogTitle,
+            required fileName,
+            required type,
+            required allowedExtensions,
+          }) async => path,
+    );
+
+    final bytes = csvTemplateUtf8(template);
+    await saver.save(bytes, template.fileName);
+
+    expect(bytes.take(3), [0xef, 0xbb, 0xbf]);
+    expect(await CsvTextReader().readCsvFileAsUtf8(path), template.csvContent);
   });
 
   test('transmet le nom et le filtre CSV au sélecteur natif', () async {

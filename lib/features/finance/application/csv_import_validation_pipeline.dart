@@ -1,4 +1,5 @@
 import 'accounts_csv_business_validator.dart';
+import '../../envelopes/application/envelope_csv_business_validator.dart';
 import 'csv_import_templates.dart';
 import 'csv_structure_validator.dart';
 import 'csv_text_parser.dart';
@@ -11,6 +12,11 @@ typedef CsvStructureValidation =
     });
 typedef AccountsCsvBusinessValidation =
     AccountsCsvBusinessValidationResult Function({
+      required List<List<String>> rows,
+      required CsvImportTemplateDefinition template,
+    });
+typedef EnvelopeCsvBusinessValidation =
+    EnvelopeCsvBusinessValidationResult Function({
       required List<List<String>> rows,
       required CsvImportTemplateDefinition template,
     });
@@ -31,6 +37,7 @@ class CsvImportValidationResult {
     this.parsedRows,
     this.structureResult,
     this.accountsBusinessResult,
+    this.envelopeBusinessResult,
   });
 
   final CsvImportValidationStage stage;
@@ -38,6 +45,7 @@ class CsvImportValidationResult {
   final List<List<String>>? parsedRows;
   final CsvStructureValidationResult? structureResult;
   final AccountsCsvBusinessValidationResult? accountsBusinessResult;
+  final EnvelopeCsvBusinessValidationResult? envelopeBusinessResult;
   final List<String> errors;
 }
 
@@ -46,15 +54,19 @@ class CsvImportValidationPipeline {
     CsvTextParse? parseCsvText,
     CsvStructureValidation? validateStructure,
     AccountsCsvBusinessValidation? validateAccountsBusiness,
+    EnvelopeCsvBusinessValidation? validateEnvelopesBusiness,
   }) : _parseCsvText = parseCsvText ?? CsvTextParser().parse,
        _validateStructure =
            validateStructure ?? CsvStructureValidator().validate,
        _validateAccountsBusiness =
-           validateAccountsBusiness ?? AccountsCsvBusinessValidator().validate;
+           validateAccountsBusiness ?? AccountsCsvBusinessValidator().validate,
+       _validateEnvelopesBusiness =
+           validateEnvelopesBusiness ?? EnvelopeCsvBusinessValidator().validate;
 
   final CsvTextParse _parseCsvText;
   final CsvStructureValidation _validateStructure;
   final AccountsCsvBusinessValidation _validateAccountsBusiness;
+  final EnvelopeCsvBusinessValidation _validateEnvelopesBusiness;
 
   CsvImportValidationResult validate({
     required String csvText,
@@ -90,6 +102,23 @@ class CsvImportValidationPipeline {
         parsedRows: parsedRows,
         structureResult: structureResult,
         errors: structureResult.errors,
+      );
+    }
+
+    if (template.type == ImportTemplateType.envelopes) {
+      final envelopeResult = _validateEnvelopesBusiness(
+        rows: parsedRows,
+        template: template,
+      );
+      return CsvImportValidationResult(
+        stage: envelopeResult.isValid
+            ? CsvImportValidationStage.valid
+            : CsvImportValidationStage.businessInvalid,
+        isValid: envelopeResult.isValid,
+        parsedRows: parsedRows,
+        structureResult: structureResult,
+        envelopeBusinessResult: envelopeResult,
+        errors: envelopeResult.errors,
       );
     }
 
