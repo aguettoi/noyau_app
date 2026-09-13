@@ -34,8 +34,8 @@ void main() {
     expect(state.householdId, isNull);
   });
 
-  test('un seul foyer est selectionne automatiquement', () async {
-    final gateway = _Gateway(ids: const ['household-1']);
+  test('un seul foyer operationnel est selectionne automatiquement', () async {
+    final gateway = _Gateway(memberships: const [_Membership('household-1')]);
     final scope = container(userId: 'user-1', gateway: gateway);
     addTearDown(scope.dispose);
 
@@ -46,10 +46,59 @@ void main() {
     expect(state.householdId, 'household-1');
   });
 
-  test('plusieurs foyers restent ambigus', () async {
+  test(
+    'un foyer operationnel et un foyer technique resolvent le foyer operationnel',
+    () async {
+      final scope = container(
+        userId: 'user-1',
+        gateway: _Gateway(
+          memberships: const [
+            _Membership('household-operational'),
+            _Membership('household-technical', technical: true),
+          ],
+        ),
+      );
+      addTearDown(scope.dispose);
+
+      final state = await scope.read(activeHouseholdProvider.future);
+
+      expect(state.status, ActiveHouseholdStatus.singleHousehold);
+      expect(state.householdId, 'household-operational');
+      expect(state.householdIds, ['household-operational']);
+    },
+  );
+
+  test(
+    'un foyer operationnel et plusieurs foyers techniques restent non ambigus',
+    () async {
+      final scope = container(
+        userId: 'user-1',
+        gateway: _Gateway(
+          memberships: const [
+            _Membership('household-operational'),
+            _Membership('household-technical-1', technical: true),
+            _Membership('household-technical-2', technical: true),
+          ],
+        ),
+      );
+      addTearDown(scope.dispose);
+
+      final state = await scope.read(activeHouseholdProvider.future);
+
+      expect(state.status, ActiveHouseholdStatus.singleHousehold);
+      expect(state.householdId, 'household-operational');
+    },
+  );
+
+  test('plusieurs foyers operationnels restent ambigus', () async {
     final scope = container(
       userId: 'user-1',
-      gateway: _Gateway(ids: const ['household-1', 'household-2']),
+      gateway: _Gateway(
+        memberships: const [
+          _Membership('household-1'),
+          _Membership('household-2'),
+        ],
+      ),
     );
     addTearDown(scope.dispose);
 
@@ -59,6 +108,27 @@ void main() {
     expect(state.householdId, isNull);
     expect(state.householdIds, ['household-1', 'household-2']);
   });
+
+  test(
+    'uniquement des foyers techniques ne donnent aucun foyer actif',
+    () async {
+      final scope = container(
+        userId: 'user-1',
+        gateway: _Gateway(
+          memberships: const [
+            _Membership('household-technical-1', technical: true),
+            _Membership('household-technical-2', technical: true),
+          ],
+        ),
+      );
+      addTearDown(scope.dispose);
+
+      final state = await scope.read(activeHouseholdProvider.future);
+
+      expect(state.status, ActiveHouseholdStatus.noHousehold);
+      expect(state.householdId, isNull);
+    },
+  );
 
   test('erreur de chargement retournee sous forme detat', () async {
     final scope = container(userId: 'user-1', gateway: _Gateway(error: true));
@@ -72,18 +142,34 @@ void main() {
 }
 
 class _Gateway implements HouseholdMembershipGateway {
-  _Gateway({this.ids = const [], this.error = false});
+  _Gateway({this.memberships = const [], this.error = false});
 
-  final List<String> ids;
+  final List<_Membership> memberships;
   final bool error;
   String? userId;
 
   @override
-  Future<List<String>> householdIdsForUser(String value) async {
+  Future<List<HouseholdMembership>> householdsForUser(String value) async {
     userId = value;
     if (error) {
       throw Exception('reseau indisponible');
     }
-    return ids;
+    return memberships
+        .map(
+          (membership) => HouseholdMembership(
+            householdId: membership.id,
+            classification: membership.technical
+                ? HouseholdClassification.technical
+                : HouseholdClassification.operational,
+          ),
+        )
+        .toList(growable: false);
   }
+}
+
+class _Membership {
+  const _Membership(this.id, {this.technical = false});
+
+  final String id;
+  final bool technical;
 }

@@ -28,8 +28,20 @@ class ActiveHouseholdState {
       status == ActiveHouseholdStatus.singleHousehold && householdId != null;
 }
 
+enum HouseholdClassification { operational, technical }
+
+class HouseholdMembership {
+  const HouseholdMembership({
+    required this.householdId,
+    required this.classification,
+  });
+
+  final String householdId;
+  final HouseholdClassification classification;
+}
+
 abstract interface class HouseholdMembershipGateway {
-  Future<List<String>> householdIdsForUser(String userId);
+  Future<List<HouseholdMembership>> householdsForUser(String userId);
 }
 
 class SupabaseHouseholdMembershipGateway implements HouseholdMembershipGateway {
@@ -38,16 +50,33 @@ class SupabaseHouseholdMembershipGateway implements HouseholdMembershipGateway {
   final SupabaseClient _client;
 
   @override
-  Future<List<String>> householdIdsForUser(String userId) async {
+  Future<List<HouseholdMembership>> householdsForUser(String userId) async {
     try {
       final response = await _client
           .from('household_members')
-          .select('household_id')
+          .select('household_id, households!inner(classification)')
           .eq('user_id', userId);
       return (response as List<dynamic>)
           .map((item) => Map<String, dynamic>.from(item as Map))
-          .map((item) => item['household_id'])
-          .whereType<String>()
+          .map((item) {
+            final household = item['households'];
+            final householdMap = household is Map
+                ? Map<String, dynamic>.from(household)
+                : const <String, dynamic>{};
+            final householdId = item['household_id'];
+            final classification = householdMap['classification'];
+            if (householdId is! String ||
+                (classification != 'operational' &&
+                    classification != 'technical')) {
+              throw StateError('Un foyer accessible est incomplet.');
+            }
+            return HouseholdMembership(
+              householdId: householdId,
+              classification: classification == 'technical'
+                  ? HouseholdClassification.technical
+                  : HouseholdClassification.operational,
+            );
+          })
           .toList(growable: false);
     } on Exception catch (error) {
       throw Exception('Impossible de charger les foyers : $error');
@@ -71,9 +100,16 @@ final activeHouseholdProvider = FutureProvider<ActiveHouseholdState>((
   }
 
   try {
-    final householdIds = await ref
+    final memberships = await ref
         .watch(householdMembershipGatewayProvider)
-        .householdIdsForUser(userId);
+        .householdsForUser(userId);
+    final householdIds = memberships
+        .where(
+          (membership) =>
+              membership.classification == HouseholdClassification.operational,
+        )
+        .map((membership) => membership.householdId)
+        .toList(growable: false);
     if (householdIds.isEmpty) {
       return const ActiveHouseholdState(
         status: ActiveHouseholdStatus.noHousehold,
