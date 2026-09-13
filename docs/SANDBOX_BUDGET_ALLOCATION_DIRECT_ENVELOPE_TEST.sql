@@ -106,7 +106,7 @@ begin
   where envelopes.household_id = v_household_id
     and envelopes.system_code = 'to_allocate';
   if (select theoretical_balance from public.account_ledger_balances where account_id = v_account_a_id)
-      <> v_before_account_a - 3900
+      <> v_before_account_a - 4200
     or (select theoretical_balance from public.account_ledger_balances where account_id = v_account_b_id)
       <> v_before_account_b - 800
     or (select coalesce(sum(amount), 0) from public.envelope_movements
