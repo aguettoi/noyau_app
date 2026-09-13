@@ -281,6 +281,83 @@ class FinancialEventSupabaseRepository {
     notes: notes,
   );
 
+  Future<String> reverseDebtWriteoff({
+    required String sourceAdjustmentId,
+    required DateTime occurredAt,
+    required Money amount,
+    required String reason,
+    required String idempotencyKey,
+    String? notes,
+  }) => _reverseWriteoff(
+    function: 'reverse_debt_writeoff_event',
+    sourceAdjustmentId: sourceAdjustmentId,
+    occurredAt: occurredAt,
+    amount: amount,
+    reason: reason,
+    idempotencyKey: idempotencyKey,
+    notes: notes,
+  );
+
+  Future<String> reverseIncomeReceivableWriteoff({
+    required String sourceAdjustmentId,
+    required DateTime occurredAt,
+    required Money amount,
+    required String reason,
+    required String idempotencyKey,
+    String? notes,
+  }) => _reverseWriteoff(
+    function: 'reverse_income_receivable_writeoff_event',
+    sourceAdjustmentId: sourceAdjustmentId,
+    occurredAt: occurredAt,
+    amount: amount,
+    reason: reason,
+    idempotencyKey: idempotencyKey,
+    notes: notes,
+  );
+
+  Future<String> reverseRecoveryWriteoff({
+    required String sourceAdjustmentId,
+    required DateTime occurredAt,
+    required Money amount,
+    required String reason,
+    required String idempotencyKey,
+    String? notes,
+  }) => _reverseWriteoff(
+    function: 'reverse_recovery_writeoff_event',
+    sourceAdjustmentId: sourceAdjustmentId,
+    occurredAt: occurredAt,
+    amount: amount,
+    reason: reason,
+    idempotencyKey: idempotencyKey,
+    notes: notes,
+  );
+
+  Future<String> _reverseWriteoff({
+    required String function,
+    required String sourceAdjustmentId,
+    required DateTime occurredAt,
+    required Money amount,
+    required String reason,
+    required String idempotencyKey,
+    required String? notes,
+  }) {
+    FinancialEventContract.validatePositiveAmount(amount.dirhams);
+    if (sourceAdjustmentId.trim().isEmpty || reason.trim().isEmpty) {
+      return Future.error(
+        StateError('Un abandon d’origine et un motif sont requis.'),
+      );
+    }
+    return _call(function, {
+      'p_household_id': householdId,
+      'p_source_adjustment_id': sourceAdjustmentId,
+      'p_occurred_at': occurredAt.toUtc().toIso8601String(),
+      'p_amount': _mad(amount),
+      'p_reason': reason.trim(),
+      'p_notes': _nullable(notes),
+      'p_idempotency_key': idempotencyKey,
+    });
+  }
+
   Future<String> _writeOff({
     required String function,
     required String obligationId,

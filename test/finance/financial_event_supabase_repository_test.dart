@@ -284,6 +284,75 @@ void main() {
     },
   );
 
+  test(
+    'les annulations d’abandon appellent les trois RPC Phase 2A avec la source exacte',
+    () async {
+      final gateway = _Gateway();
+      final subject = repository(gateway);
+      final occurredAt = DateTime.utc(2026, 9, 13, 9, 42);
+
+      await subject.reverseDebtWriteoff(
+        sourceAdjustmentId: 'debt-writeoff-1',
+        occurredAt: occurredAt,
+        amount: Money.fromMinorUnits(2000),
+        reason: 'Erreur de montant',
+        notes: 'Première correction',
+        idempotencyKey: '00000000-0000-4000-8000-000000000041',
+      );
+      expect(gateway.function, 'reverse_debt_writeoff_event');
+      expect(gateway.parameters, {
+        'p_household_id': 'home-1',
+        'p_source_adjustment_id': 'debt-writeoff-1',
+        'p_occurred_at': '2026-09-13T09:42:00.000Z',
+        'p_amount': '20.00',
+        'p_reason': 'Erreur de montant',
+        'p_notes': 'Première correction',
+        'p_idempotency_key': '00000000-0000-4000-8000-000000000041',
+      });
+
+      await subject.reverseIncomeReceivableWriteoff(
+        sourceAdjustmentId: 'income-writeoff-1',
+        occurredAt: occurredAt,
+        amount: Money.fromMinorUnits(1000),
+        reason: 'Erreur de saisie',
+        idempotencyKey: '00000000-0000-4000-8000-000000000042',
+      );
+      expect(gateway.function, 'reverse_income_receivable_writeoff_event');
+      expect(
+        gateway.parameters!['p_source_adjustment_id'],
+        'income-writeoff-1',
+      );
+
+      await subject.reverseRecoveryWriteoff(
+        sourceAdjustmentId: 'recovery-writeoff-1',
+        occurredAt: occurredAt,
+        amount: Money.fromMinorUnits(500),
+        reason: 'Justificatif rétabli',
+        idempotencyKey: '00000000-0000-4000-8000-000000000043',
+      );
+      expect(gateway.function, 'reverse_recovery_writeoff_event');
+      expect(
+        gateway.parameters!['p_source_adjustment_id'],
+        'recovery-writeoff-1',
+      );
+    },
+  );
+
+  test('une annulation d’abandon invalide ne déclenche aucune RPC', () {
+    final gateway = _Gateway();
+    expect(
+      () => repository(gateway).reverseDebtWriteoff(
+        sourceAdjustmentId: '',
+        occurredAt: DateTime.utc(2026, 9, 13),
+        amount: Money.fromMinorUnits(0),
+        reason: '',
+        idempotencyKey: '00000000-0000-4000-8000-000000000044',
+      ),
+      throwsStateError,
+    );
+    expect(gateway.callCount, 0);
+  });
+
   test('settle_receivable_event bloque doublon et dépassement avant RPC', () {
     final gateway = _Gateway();
     expect(

@@ -196,6 +196,33 @@ class RemoteObligationWriteoffHistoryItem {
     required this.reason,
     required this.notes,
     required this.actor,
+    this.reversals = const [],
+  });
+
+  final String id;
+  final DateTime recordedAt;
+  final Money amount;
+  final String reason;
+  final String? notes;
+  final RemoteHistoryActor actor;
+  final List<RemoteObligationWriteoffReversal> reversals;
+
+  Money get reversedAmount => Money.fromMinorUnits(
+    reversals.fold(0, (total, reversal) => total + reversal.amount.minorUnits),
+  );
+
+  Money get reversibleAmount =>
+      Money.fromMinorUnits(amount.minorUnits - reversedAmount.minorUnits);
+}
+
+class RemoteObligationWriteoffReversal {
+  const RemoteObligationWriteoffReversal({
+    required this.id,
+    required this.recordedAt,
+    required this.amount,
+    required this.reason,
+    required this.notes,
+    required this.actor,
   });
 
   final String id;
@@ -280,6 +307,15 @@ final obligationSettlementHistoryProvider =
           .eq('obligation_id', obligationId)
           .eq('adjustment_kind', 'writeoff')
           .order('occurred_at');
+      final writeoffReversalRows = await client
+          .from('obligation_adjustments')
+          .select(
+            'id, financial_event_id, amount, occurred_at, reason, notes, reverses_adjustment_id',
+          )
+          .eq('household_id', householdId)
+          .eq('obligation_id', obligationId)
+          .eq('adjustment_kind', 'reversal')
+          .order('occurred_at');
       final reversalsBySettlement = <String, int>{};
       final reversalRowsBySettlement = <String, List<Map<String, Object?>>>{};
       for (final raw in reversalRows as List<dynamic>) {
@@ -288,6 +324,17 @@ final obligationSettlementHistoryProvider =
         reversalsBySettlement[id] =
             (reversalsBySettlement[id] ?? 0) + _money(row['amount']).minorUnits;
         reversalRowsBySettlement.putIfAbsent(id, () => []).add(row);
+      }
+      final writeoffReversalRowsByWriteoff =
+          <String, List<Map<String, Object?>>>{};
+      for (final raw in writeoffReversalRows as List<dynamic>) {
+        final row = Map<String, Object?>.from(raw as Map);
+        final sourceId = row['reverses_adjustment_id'] as String?;
+        if (sourceId != null) {
+          writeoffReversalRowsByWriteoff
+              .putIfAbsent(sourceId, () => [])
+              .add(row);
+        }
       }
       final movementRows = await client
           .from('envelope_movements')
@@ -405,6 +452,8 @@ final obligationSettlementHistoryProvider =
           (raw as Map)['financial_event_id'] as String,
         for (final raw in writeoffRows as List<dynamic>)
           (raw as Map)['financial_event_id'] as String,
+        for (final raw in writeoffReversalRows as List<dynamic>)
+          (raw as Map)['financial_event_id'] as String,
       };
       final eventRows = await client
           .from('financial_events')
@@ -514,6 +563,22 @@ final obligationSettlementHistoryProvider =
             reason: row['reason'] as String,
             notes: row['notes'] as String?,
             actor: actorFor(eventId),
+            reversals: List.unmodifiable([
+              for (final reversal
+                  in writeoffReversalRowsByWriteoff[row['id'] as String] ??
+                      const <Map<String, Object?>>[])
+                RemoteObligationWriteoffReversal(
+                  id: reversal['id'] as String,
+                  recordedAt: recordedAtFor(
+                    reversal['financial_event_id'] as String,
+                    reversal['occurred_at'],
+                  ),
+                  amount: _money(reversal['amount']),
+                  reason: reversal['reason'] as String,
+                  notes: reversal['notes'] as String?,
+                  actor: actorFor(reversal['financial_event_id'] as String),
+                ),
+            ]),
           );
         }),
       );

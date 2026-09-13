@@ -2166,10 +2166,60 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                           if (writeoff.notes != null &&
                               writeoff.notes!.trim().isNotEmpty)
                             Text('Notes : ${writeoff.notes}'),
+                          if (writeoff.reversals.isNotEmpty)
+                            Text(
+                              'Déjà annulé : ${_formatFrenchMoney(writeoff.reversedAmount)} • Encore annulable : ${_formatFrenchMoney(writeoff.reversibleAmount)}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          if (writeoff.reversibleAmount.minorUnits > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: AppSpacing.xs,
+                              ),
+                              child: OutlinedButton(
+                                key: Key('reverse-writeoff-${writeoff.id}'),
+                                onPressed: () => _openWriteoffReversal(
+                                  context,
+                                  ref,
+                                  writeoff,
+                                ),
+                                child: const Text('Annuler l’abandon'),
+                              ),
+                            ),
                         ],
                       ),
                     ),
                   ),
+                  for (final reversal in writeoff.reversals) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Card(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Annulation de l’abandon',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(_formatDateTime(reversal.recordedAt)),
+                            Text(
+                              'Montant annulé : ${_formatFrenchMoney(reversal.amount)}',
+                            ),
+                            Text(
+                              'Effectuée par : ${reversal.actor.displayName}',
+                            ),
+                            Text('Motif : ${reversal.reason}'),
+                            if (reversal.notes != null &&
+                                reversal.notes!.trim().isNotEmpty)
+                              Text('Notes : ${reversal.notes}'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.xs),
                 ],
               ],
@@ -2196,6 +2246,33 @@ class _SettlementHistoryDialog extends ConsumerWidget {
       context: context,
       builder: (_) =>
           _SettlementReversalDialog(item: item, kind: kind, isFull: isFull),
+    );
+    if (changed == true) {
+      ref.invalidate(obligationSettlementHistoryProvider(obligationId));
+      ref.invalidate(remoteDebtBalancesProvider);
+      ref.invalidate(remoteReceivableBalancesProvider);
+      ref.invalidate(remoteTransactionsProvider);
+      ref.invalidate(remoteAccountBalancesProvider);
+      ref.invalidate(remoteEnvelopeBalancesProvider);
+      ref.invalidate(remoteEnvelopeHistoryProvider);
+    }
+  }
+
+  Future<void> _openWriteoffReversal(
+    BuildContext context,
+    WidgetRef ref,
+    RemoteObligationWriteoffHistoryItem writeoff,
+  ) async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _WriteoffReversalDialog(
+        kind: switch (kind) {
+          _SettlementHistoryKind.debt => _WriteoffKind.debt,
+          _SettlementHistoryKind.income => _WriteoffKind.income,
+          _SettlementHistoryKind.recovery => _WriteoffKind.recovery,
+        },
+        writeoff: writeoff,
+      ),
     );
     if (changed == true) {
       ref.invalidate(obligationSettlementHistoryProvider(obligationId));
@@ -2443,6 +2520,177 @@ class _SettlementReversalDialogState
 }
 
 enum _WriteoffKind { debt, income, recovery }
+
+class _WriteoffReversalDialog extends ConsumerStatefulWidget {
+  const _WriteoffReversalDialog({required this.kind, required this.writeoff});
+
+  final _WriteoffKind kind;
+  final RemoteObligationWriteoffHistoryItem writeoff;
+
+  @override
+  ConsumerState<_WriteoffReversalDialog> createState() =>
+      _WriteoffReversalDialogState();
+}
+
+class _WriteoffReversalDialogState
+    extends ConsumerState<_WriteoffReversalDialog> {
+  late final TextEditingController _amount;
+  final _reason = TextEditingController();
+  final _notes = TextEditingController();
+  final _idempotencyKey = _newIdempotencyKey();
+  String? _error;
+  var _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _amount = TextEditingController(
+      text: widget.writeoff.reversibleAmount.dirhams.toStringAsFixed(2),
+    );
+  }
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _reason.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  int get _amountCents => _madToCents(_amount.text) ?? 0;
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    final amount = Money.fromMinorUnits(_amountCents);
+    if (amount.minorUnits <= 0 ||
+        amount.minorUnits > widget.writeoff.reversibleAmount.minorUnits) {
+      setState(
+        () => _error =
+            'Le montant doit être positif et ne pas dépasser le reliquat annulable.',
+      );
+      return;
+    }
+    if (_reason.text.trim().isEmpty) {
+      setState(() => _error = 'Le motif est obligatoire.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final repository = await ref.read(
+        financialEventRepositoryProvider.future,
+      );
+      switch (widget.kind) {
+        case _WriteoffKind.debt:
+          await repository.reverseDebtWriteoff(
+            sourceAdjustmentId: widget.writeoff.id,
+            occurredAt: DateTime.now(),
+            amount: amount,
+            reason: _reason.text,
+            notes: _notes.text,
+            idempotencyKey: _idempotencyKey,
+          );
+        case _WriteoffKind.income:
+          await repository.reverseIncomeReceivableWriteoff(
+            sourceAdjustmentId: widget.writeoff.id,
+            occurredAt: DateTime.now(),
+            amount: amount,
+            reason: _reason.text,
+            notes: _notes.text,
+            idempotencyKey: _idempotencyKey,
+          );
+        case _WriteoffKind.recovery:
+          await repository.reverseRecoveryWriteoff(
+            sourceAdjustmentId: widget.writeoff.id,
+            occurredAt: DateTime.now(),
+            amount: amount,
+            reason: _reason.text,
+            notes: _notes.text,
+            idempotencyKey: _idempotencyKey,
+          );
+      }
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) setState(() => _error = _financialErrorMessage(error));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Annuler l’abandon'),
+    content: SizedBox(
+      width: 500,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Abandon concerné : ${_formatFrenchMoney(widget.writeoff.amount)}',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            Text(
+              'Déjà annulé : ${_formatFrenchMoney(widget.writeoff.reversedAmount)}',
+            ),
+            Text(
+              'Encore annulable : ${_formatFrenchMoney(widget.writeoff.reversibleAmount)}',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextFormField(
+              key: const Key('writeoff-reversal-amount-field'),
+              controller: _amount,
+              enabled: !_submitting,
+              onChanged: (_) => setState(() => _error = null),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Montant à annuler (MAD) *',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextFormField(
+              key: const Key('writeoff-reversal-reason-field'),
+              controller: _reason,
+              enabled: !_submitting,
+              decoration: const InputDecoration(labelText: 'Motif *'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextFormField(
+              key: const Key('writeoff-reversal-notes-field'),
+              controller: _notes,
+              enabled: !_submitting,
+              decoration: const InputDecoration(labelText: 'Notes'),
+              maxLines: 2,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+        child: const Text('Annuler'),
+      ),
+      FilledButton(
+        key: const Key('writeoff-reversal-submit-button'),
+        onPressed: _submitting ? null : _submit,
+        child: Text(_submitting ? 'Validation…' : 'Valider'),
+      ),
+    ],
+  );
+}
 
 class _WriteoffDialog extends ConsumerStatefulWidget {
   const _WriteoffDialog({
@@ -3297,6 +3545,15 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
 
 String _financialErrorMessage(Object error) {
   final value = error.toString().toLowerCase();
+  if (value.contains('write-off reversal') ||
+      value.contains('writeoff reversal') ||
+      value.contains('still reversible')) {
+    return 'Cet abandon est déjà totalement annulé ou le montant dépasse le reliquat annulable.';
+  }
+  if (value.contains('write-off source') ||
+      value.contains('source adjustment')) {
+    return 'L’abandon sélectionné n’est plus disponible.';
+  }
   if (value.contains('remaining') || value.contains('dépasse')) {
     return 'Le règlement dépasse le montant restant.';
   }
