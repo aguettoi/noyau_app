@@ -56,7 +56,34 @@ begin
     or (select count(*) from public.financial_events where notes='Cutover B1 ' || v_cutover_id::text) <> 3
   then raise exception 'B1 replay is not globally idempotent'; end if;
 
-  -- 14-18 invalid source/amount/duplicate/non-member plans do not survive.
+  -- 14-16 stable lookup restores the completed plan/result without relying on
+  -- the technical cutover UUID, and reconciliation reports persisted facts.
+  if (public.get_cutover_opening_run(v_household_id,v_fingerprint,'2026-09-14')->>'id')::uuid <> v_cutover_id
+    or public.get_cutover_opening_run(v_household_id,v_fingerprint,'2026-09-14')->'plan' <> v_plan
+    or public.get_cutover_opening_run(v_household_id,v_fingerprint,'2026-09-14')->'result'->>'status' <> 'RECONCILED'
+    or coalesce((v_result->'accounts'->0->>'actual')::numeric,0) <> 1000
+    or coalesce((v_result->'envelopes'->0->>'actual')::numeric,0) <> 500
+  then raise exception 'Completed B1 run is not recoverable from its logical identity'; end if;
+
+  begin
+    perform public.execute_cutover_opening_import(
+      v_household_id,v_cutover_id,v_fingerprint,'2026-09-14',
+      jsonb_set(v_plan,'{accounts,0,opening_amount}','1001'::jsonb)
+    );
+    raise exception 'An existing immutable run must reject a substituted plan';
+  exception when others then
+    if position('immutable different cutover plan' in sqlerrm)=0 then raise; end if;
+  end;
+
+  -- A deliberately mismatched expected value proves reconciliation reads the
+  -- canonical persisted postings/movements and never auto-corrects them.
+  update public.cutover_opening_runs
+    set result=jsonb_set(result,'{accounts,0,expected}','999'::jsonb)
+    where id=v_cutover_id;
+  if public.reconcile_cutover_opening_run(v_cutover_id)->>'status' <> 'NOT_RECONCILED'
+  then raise exception 'Reconciliation did not report a persisted mismatch'; end if;
+
+  -- 17-21 invalid source/amount/duplicate/non-member plans do not survive.
   begin
     perform public.execute_cutover_opening_import(v_household_id,gen_random_uuid(),repeat('b',64),'2026-09-14',v_plan);
     raise exception 'Fingerprint mismatch should fail';
@@ -91,4 +118,4 @@ $$;
 
 rollback;
 
-select 18 as total,18 as passed,0 as failed,true as transactional_rollback_confirmed;
+select 22 as total,22 as passed,0 as failed,true as transactional_rollback_confirmed;

@@ -78,4 +78,40 @@ void main() {
       expect(plan.blockingErrors, isNotEmpty);
     },
   );
+
+  test('un plan complété peut être restauré pour reprendre le même run', () {
+    final plan = CutoverOpeningPlan(
+      cutoverId: '11111111-1111-4111-8111-111111111111',
+      householdId: 'household',
+      sourceFingerprint: fingerprint,
+      effectiveDate: DateTime(2026, 9, 14),
+      accounts: const [
+        CutoverOpeningAccount(
+          sourceLabel: 'A2',
+          name: 'Banque A',
+          kind: 'bank',
+          openingAmount: 1000,
+        ),
+      ],
+      envelopes: const [
+        CutoverOpeningEnvelope(
+          sourceLabel: 'A3',
+          name: 'Nourriture',
+          openingAmount: 500,
+          isToAllocate: false,
+        ),
+      ],
+    ).confirm(DateTime(2026, 9, 14, 9, 42));
+
+    final restored = CutoverOpeningPlan.fromJson(
+      Map<String, dynamic>.from(plan.toJson()),
+    );
+
+    expect(restored.cutoverId, plan.cutoverId);
+    expect(restored.sourceFingerprint, plan.sourceFingerprint);
+    expect(restored.effectiveDate, plan.effectiveDate);
+    expect(restored.confirmedAt, plan.confirmedAt);
+    expect(restored.accounts.single.openingAmount, 1000);
+    expect(restored.envelopes.single.name, 'Nourriture');
+  });
 }

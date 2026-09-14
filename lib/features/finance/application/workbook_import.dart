@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -14,6 +15,71 @@ final workbookImportProvider =
     );
 
 enum ImportIssueSeverity { information, warning, blocking }
+
+enum WorkbookSourceKind { localFile, googleSheet }
+
+/// Keeps only the rereadable source descriptor. The bytes used for preview are
+/// never treated as proof at execution time.
+class WorkbookSource {
+  const WorkbookSource.local({required this.fileName, required this.path})
+    : kind = WorkbookSourceKind.localFile,
+      googleUrl = null,
+      rereader = null;
+
+  const WorkbookSource.google({required this.fileName, required this.googleUrl})
+    : kind = WorkbookSourceKind.googleSheet,
+      path = null,
+      rereader = null;
+
+  /// Test seam only: production sources always use their native reread path.
+  const WorkbookSource.forTesting({
+    required this.kind,
+    required this.fileName,
+    required Future<Uint8List> Function() this.rereader,
+  }) : path = null,
+       googleUrl = null;
+
+  final WorkbookSourceKind kind;
+  final String fileName;
+  final String? path;
+  final String? googleUrl;
+  final Future<Uint8List> Function()? rereader;
+
+  Future<Uint8List> reread() async {
+    final override = rereader;
+    if (override != null) return override();
+    return switch (kind) {
+      WorkbookSourceKind.localFile => _rereadLocal(),
+      WorkbookSourceKind.googleSheet => _rereadGoogle(),
+    };
+  }
+
+  Future<Uint8List> _rereadLocal() async {
+    final localPath = path;
+    if (localPath == null || localPath.isEmpty) {
+      throw const FormatException('La source locale ne peut plus être relue.');
+    }
+    return File(localPath).readAsBytes();
+  }
+
+  Future<Uint8List> _rereadGoogle() async {
+    final url = googleUrl;
+    if (url == null || url.isEmpty) {
+      throw const FormatException(
+        'La source Google Sheets ne peut plus être relue.',
+      );
+    }
+    return (await GoogleSheetsWorkbookLoader().download(url)).bytes;
+  }
+}
+
+class SourceFingerprintCheck {
+  const SourceFingerprintCheck._(this.isMatch, this.error);
+  const SourceFingerprintCheck.match() : this._(true, null);
+  const SourceFingerprintCheck.blocked(String error) : this._(false, error);
+  final bool isMatch;
+  final String? error;
+}
 
 class ImportIssue {
   const ImportIssue({required this.severity, required this.message});
@@ -1059,6 +1125,7 @@ class WorkbookImportState {
     this.loadingProgress,
     this.error,
     this.analysis,
+    this.source,
     this.selectedImporterIds = const {},
     this.isConfirmed = false,
     this.lastImportSessionId,
@@ -1070,6 +1137,7 @@ class WorkbookImportState {
   final double? loadingProgress;
   final String? error;
   final WorkbookImportAnalysis? analysis;
+  final WorkbookSource? source;
   final Set<String> selectedImporterIds;
   final bool isConfirmed;
   final String? lastImportSessionId;
@@ -1081,6 +1149,7 @@ class WorkbookImportState {
     double? loadingProgress,
     String? error,
     WorkbookImportAnalysis? analysis,
+    WorkbookSource? source,
     Set<String>? selectedImporterIds,
     bool? isConfirmed,
     String? lastImportSessionId,
@@ -1091,6 +1160,7 @@ class WorkbookImportState {
     loadingProgress: loadingProgress,
     error: error,
     analysis: analysis ?? this.analysis,
+    source: source ?? this.source,
     selectedImporterIds: selectedImporterIds ?? this.selectedImporterIds,
     isConfirmed: isConfirmed ?? this.isConfirmed,
     lastImportSessionId: lastImportSessionId ?? this.lastImportSessionId,
@@ -1119,7 +1189,11 @@ class WorkbookImportController extends Notifier<WorkbookImportState> {
           'Le fichier selectionne ne peut pas etre lu.',
         );
       }
-      await _analyzeWorkbook(file.name, file.bytes!);
+      await _analyzeWorkbook(
+        file.name,
+        file.bytes!,
+        source: WorkbookSource.local(fileName: file.name, path: file.path),
+      );
     } on FormatException catch (error) {
       state = WorkbookImportState(error: error.message);
     } catch (_) {
@@ -1155,7 +1229,14 @@ class WorkbookImportController extends Notifier<WorkbookImportState> {
         loadingMessage: 'Fichier recu. Analyse des onglets en cours...',
         loadingProgress: null,
       );
-      await _analyzeWorkbook(workbook.fileName, workbook.bytes);
+      await _analyzeWorkbook(
+        workbook.fileName,
+        workbook.bytes,
+        source: WorkbookSource.google(
+          fileName: workbook.fileName,
+          googleUrl: source,
+        ),
+      );
     } on FormatException catch (error) {
       state = WorkbookImportState(error: error.message);
     } catch (_) {
@@ -1166,7 +1247,11 @@ class WorkbookImportController extends Notifier<WorkbookImportState> {
     }
   }
 
-  Future<void> _analyzeWorkbook(String fileName, Uint8List bytes) async {
+  Future<void> _analyzeWorkbook(
+    String fileName,
+    Uint8List bytes, {
+    required WorkbookSource source,
+  }) async {
     final expectedEnvelopes = await SourceEnvelopeImport.loadEnvelopeNames();
     final analysis =
         await WorkbookImportEngine(
@@ -1181,7 +1266,45 @@ class WorkbookImportController extends Notifier<WorkbookImportState> {
             );
           },
         );
-    state = WorkbookImportState(analysis: analysis);
+    state = WorkbookImportState(analysis: analysis, source: source);
+  }
+
+  /// Re-reads the exact source immediately before execution. Google Sheets is
+  /// downloaded again; a source which cannot be reread is intentionally
+  /// blocked rather than guessed from preview bytes.
+  Future<SourceFingerprintCheck> verifyConfirmedSource(String fingerprint) =>
+      checkSource(state.source, fingerprint);
+
+  static Future<SourceFingerprintCheck> checkSource(
+    WorkbookSource? source,
+    String fingerprint,
+  ) async {
+    if (source == null) {
+      return const SourceFingerprintCheck.blocked(
+        'SOURCE INACCESSIBLE — nouvelle analyse nécessaire.',
+      );
+    }
+    try {
+      final bytes = await source.reread();
+      return fingerprintCheck(bytes, fingerprint);
+    } on Object {
+      return const SourceFingerprintCheck.blocked(
+        'SOURCE INACCESSIBLE — nouvelle analyse nécessaire.',
+      );
+    }
+  }
+
+  static SourceFingerprintCheck fingerprintCheck(
+    Uint8List bytes,
+    String confirmedFingerprint,
+  ) {
+    final current = sha256.convert(bytes).toString();
+    if (current != confirmedFingerprint) {
+      return const SourceFingerprintCheck.blocked(
+        'SOURCE MODIFIÉE DEPUIS LA CONFIRMATION — nouvelle analyse nécessaire.',
+      );
+    }
+    return const SourceFingerprintCheck.match();
   }
 
   void confirmAnalysis() {

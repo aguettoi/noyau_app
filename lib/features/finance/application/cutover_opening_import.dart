@@ -105,6 +105,50 @@ class CutoverOpeningPlan {
     if (confirmedAt != null) 'confirmed_at': confirmedAt!.toIso8601String(),
   };
 
+  factory CutoverOpeningPlan.fromJson(Map<String, dynamic> json) {
+    final accountRows = (json['accounts'] as List<dynamic>? ?? const []);
+    final envelopeRows = (json['envelopes'] as List<dynamic>? ?? const []);
+    return CutoverOpeningPlan(
+      cutoverId: json['cutover_id'] as String,
+      householdId: json['household_id'] as String,
+      sourceFingerprint: json['source_fingerprint'] as String,
+      effectiveDate: DateTime.parse(json['effective_date'] as String),
+      accounts: accountRows
+          .map((row) {
+            final value = Map<String, dynamic>.from(row as Map);
+            return CutoverOpeningAccount(
+              sourceLabel: value['source_label'] as String? ?? '',
+              name: value['name'] as String,
+              kind: value['kind'] as String,
+              openingAmount: value['opening_amount'] as num,
+              conflictDecision:
+                  value['conflict_decision'] as String? ?? 'create',
+            );
+          })
+          .toList(growable: false),
+      envelopes: envelopeRows
+          .map((row) {
+            final value = Map<String, dynamic>.from(row as Map);
+            return CutoverOpeningEnvelope(
+              sourceLabel: value['source_label'] as String? ?? '',
+              name: value['name'] as String,
+              openingAmount: value['opening_amount'] as num,
+              isToAllocate: value['is_to_allocate'] as bool? ?? false,
+              conflictDecision:
+                  value['conflict_decision'] as String? ?? 'create',
+            );
+          })
+          .toList(growable: false),
+      blockingErrors: List<String>.from(
+        json['blocking_errors'] as List? ?? const [],
+      ),
+      warnings: List<String>.from(json['warnings'] as List? ?? const []),
+      confirmedAt: json['confirmed_at'] == null
+          ? null
+          : DateTime.parse(json['confirmed_at'] as String),
+    );
+  }
+
   static String formatDate(DateTime date) =>
       '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }
@@ -258,6 +302,22 @@ class CutoverOpeningImportRepository {
       },
     );
     return Map<String, dynamic>.from(response as Map);
+  }
+
+  Future<Map<String, dynamic>?> findExisting({
+    required String householdId,
+    required String sourceFingerprint,
+    required DateTime effectiveDate,
+  }) async {
+    final response = await _client.rpc(
+      'get_cutover_opening_run',
+      params: {
+        'p_household_id': householdId,
+        'p_source_fingerprint': sourceFingerprint,
+        'p_effective_date': CutoverOpeningPlan.formatDate(effectiveDate),
+      },
+    );
+    return response == null ? null : Map<String, dynamic>.from(response as Map);
   }
 }
 

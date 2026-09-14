@@ -18,6 +18,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
   Map<String, dynamic>? _cutoverResult;
   String? _cutoverError;
   var _executingCutover = false;
+  var _preparingCutover = false;
 
   @override
   void initState() {
@@ -279,19 +280,16 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
           const SizedBox(height: 8),
           OutlinedButton.icon(
             key: const Key('cutover-plan-button'),
-            onPressed: !hasOpeningSheet || !targetHousehold.hasValue
+            onPressed:
+                !hasOpeningSheet ||
+                    !targetHousehold.hasValue ||
+                    _preparingCutover
                 ? null
-                : () => setState(() {
-                    _cutoverError = null;
-                    _cutoverResult = null;
-                    _cutoverPlan = CutoverOpeningPlanBuilder().build(
-                      analysis: analysis,
-                      householdId: targetHousehold.value!,
-                      effectiveDate: DateTime.now(),
-                    );
-                  }),
+                : () => _prepareCutover(analysis, targetHousehold.value!),
             icon: const Icon(Icons.preview_outlined),
-            label: const Text('Préparer le plan B1'),
+            label: Text(
+              _preparingCutover ? 'Recherche du run...' : 'Préparer le plan B1',
+            ),
           ),
           if (plan != null) ...[
             const SizedBox(height: 10),
@@ -382,13 +380,13 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     WorkbookImportAnalysis analysis,
     CutoverOpeningPlan plan,
   ) async {
-    // The preview fingerprint is rechecked before touching Supabase. A changed
-    // source must be analysed and explicitly confirmed again.
-    if (analysis.sourceFingerprint != plan.sourceFingerprint) {
-      setState(
-        () => _cutoverError =
-            'La source a changé : relancez l’analyse et confirmez un nouveau plan.',
-      );
+    // The source is re-read here; Google Sheets is downloaded again. Preview
+    // bytes are never accepted as execution proof.
+    final sourceCheck = await ref
+        .read(workbookImportProvider.notifier)
+        .verifyConfirmedSource(plan.sourceFingerprint);
+    if (!sourceCheck.isMatch) {
+      setState(() => _cutoverError = sourceCheck.error);
       return;
     }
     setState(() {
@@ -406,6 +404,49 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       setState(() => _cutoverError = 'Exécution B1 refusée : $error');
     } finally {
       if (mounted) setState(() => _executingCutover = false);
+    }
+  }
+
+  Future<void> _prepareCutover(
+    WorkbookImportAnalysis analysis,
+    String householdId,
+  ) async {
+    setState(() {
+      _preparingCutover = true;
+      _cutoverError = null;
+      _cutoverResult = null;
+    });
+    try {
+      final effectiveDate = DateTime.now();
+      final existing = await ref
+          .read(cutoverOpeningImportRepositoryProvider)
+          .findExisting(
+            householdId: householdId,
+            sourceFingerprint: analysis.sourceFingerprint,
+            effectiveDate: effectiveDate,
+          );
+      if (!mounted) return;
+      setState(() {
+        if (existing != null) {
+          _cutoverPlan = CutoverOpeningPlan.fromJson(
+            Map<String, dynamic>.from(existing['plan'] as Map),
+          );
+          _cutoverResult = Map<String, dynamic>.from(existing['result'] as Map);
+        } else {
+          _cutoverPlan = CutoverOpeningPlanBuilder().build(
+            analysis: analysis,
+            householdId: householdId,
+            effectiveDate: effectiveDate,
+          );
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _cutoverError = 'Impossible de retrouver le run B1 : $error',
+      );
+    } finally {
+      if (mounted) setState(() => _preparingCutover = false);
     }
   }
 

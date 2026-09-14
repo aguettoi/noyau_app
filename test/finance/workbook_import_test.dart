@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
 import 'package:noyau_app/features/finance/application/workbook_import.dart';
 
 void main() {
@@ -122,4 +125,58 @@ void main() {
       );
     },
   );
+
+  test('le fingerprint d’une source inchangée autorise l’exécution', () {
+    final bytes = Uint8List.fromList([1, 2, 3]);
+    final fingerprint = sha256.convert(bytes).toString();
+
+    final check = WorkbookImportController.fingerprintCheck(bytes, fingerprint);
+
+    expect(check.isMatch, isTrue);
+    expect(check.error, isNull);
+  });
+
+  test('une source modifiée depuis la preview est bloquée avant RPC', () {
+    final previewBytes = Uint8List.fromList([1, 2, 3]);
+    final changedBytes = Uint8List.fromList([1, 2, 4]);
+
+    final check = WorkbookImportController.fingerprintCheck(
+      changedBytes,
+      sha256.convert(previewBytes).toString(),
+    );
+
+    expect(check.isMatch, isFalse);
+    expect(check.error, contains('SOURCE MODIFIÉE'));
+  });
+
+  test(
+    'une source Google est relue avant le contrôle de fingerprint',
+    () async {
+      var reads = 0;
+      final source = WorkbookSource.forTesting(
+        kind: WorkbookSourceKind.googleSheet,
+        fileName: 'source.xlsx',
+        rereader: () async => Uint8List.fromList([++reads]),
+      );
+
+      final preview = await source.reread();
+      final check = await WorkbookImportController.checkSource(
+        source,
+        sha256.convert(preview).toString(),
+      );
+
+      expect(reads, 2);
+      expect(check.isMatch, isFalse);
+      expect(check.error, contains('SOURCE MODIFIÉE'));
+    },
+  );
+
+  test('une source devenue inaccessible est bloquée', () async {
+    const source = WorkbookSource.local(fileName: 'source.xlsx', path: null);
+
+    final check = await WorkbookImportController.checkSource(source, 'abc');
+
+    expect(check.isMatch, isFalse);
+    expect(check.error, contains('SOURCE INACCESSIBLE'));
+  });
 }
