@@ -20,6 +20,7 @@ import '../application/providers/accounts_import_executor_provider.dart';
 import '../application/providers/active_household_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
+import 'import_preview_page.dart';
 import '../domain/financial_account.dart';
 import '../domain/household_member.dart';
 
@@ -154,6 +155,17 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.md),
+          OutlinedButton.icon(
+            key: const Key('workbook-import-route-button'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ImportPreviewPage(),
+              ),
+            ),
+            icon: const Icon(Icons.table_view_outlined),
+            label: const Text('Importer un classeur Excel / Google Sheets'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           const Text('Parcours'),
           DropdownButtonFormField<AccountsImportMode>(
             initialValue: _mode,

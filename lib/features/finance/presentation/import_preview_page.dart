@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../application/cutover_opening_import.dart';
 import '../application/workbook_import.dart';
 
 class ImportPreviewPage extends ConsumerStatefulWidget {
@@ -13,6 +14,10 @@ class ImportPreviewPage extends ConsumerStatefulWidget {
 
 class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
   late final TextEditingController _googleSheetController;
+  CutoverOpeningPlan? _cutoverPlan;
+  Map<String, dynamic>? _cutoverResult;
+  String? _cutoverError;
+  var _executingCutover = false;
 
   @override
   void initState() {
@@ -30,6 +35,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(workbookImportProvider);
     final controller = ref.read(workbookImportProvider.notifier);
+    final targetHousehold = ref.watch(cutoverOpeningTargetHouseholdProvider);
     final analysis = state.analysis;
     final selectedPreviews =
         analysis?.previewsFor(state.selectedImporterIds) ?? const [];
@@ -220,6 +226,12 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                 message:
                     'Vos choix sont confirmes. L archivage sera realise apres l activation du foyer Supabase.',
               ),
+              const SizedBox(height: 12),
+              _buildCutoverSection(
+                analysis: analysis,
+                selectedImporterIds: state.selectedImporterIds,
+                targetHousehold: targetHousehold,
+              ),
             ],
             const SizedBox(height: 16),
             _ActionCard(
@@ -239,6 +251,162 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildCutoverSection({
+    required WorkbookImportAnalysis analysis,
+    required Set<String> selectedImporterIds,
+    required AsyncValue<String> targetHousehold,
+  }) {
+    final hasOpeningSheet = selectedImporterIds.contains(
+      'cutover-opening-positions',
+    );
+    final plan = _cutoverPlan;
+    return _ActionCard(
+      icon: Icons.account_balance_outlined,
+      title: '4. Plan de positions d’ouverture B1',
+      body: hasOpeningSheet
+          ? 'Le plan cible est explicite, auditable et exécute seulement les RPC canoniques Cutover A.'
+          : 'Sélectionnez l’onglet « Positions ouverture » pour préparer le cutover B1.',
+      action: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (targetHousehold.hasError)
+            const Text('Un household opérationnel explicite est requis.'),
+          if (targetHousehold.hasValue)
+            Text('Household cible : ${targetHousehold.value}'),
+          Text('Fingerprint source : ${analysis.sourceFingerprint}'),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const Key('cutover-plan-button'),
+            onPressed: !hasOpeningSheet || !targetHousehold.hasValue
+                ? null
+                : () => setState(() {
+                    _cutoverError = null;
+                    _cutoverResult = null;
+                    _cutoverPlan = CutoverOpeningPlanBuilder().build(
+                      analysis: analysis,
+                      householdId: targetHousehold.value!,
+                      effectiveDate: DateTime.now(),
+                    );
+                  }),
+            icon: const Icon(Icons.preview_outlined),
+            label: const Text('Préparer le plan B1'),
+          ),
+          if (plan != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Date effective : ${CutoverOpeningPlan.formatDate(plan.effectiveDate)}',
+            ),
+            Text(
+              'Comptes : ${plan.accounts.length} • Enveloppes : ${plan.envelopes.length}',
+            ),
+            ...plan.accounts.map(
+              (item) => Text('${item.name} • ${item.openingAmount} MAD'),
+            ),
+            ...plan.envelopes.map(
+              (item) => Text(
+                '${item.name}${item.isToAllocate ? ' (À répartir)' : ''} • ${item.openingAmount} MAD',
+              ),
+            ),
+            if (plan.blockingErrors.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              ...plan.blockingErrors.map((error) => Text(error)),
+            ],
+            if (plan.confirmedAt == null)
+              FilledButton.icon(
+                key: const Key('cutover-confirm-button'),
+                onPressed: plan.canConfirm
+                    ? () => setState(
+                        () => _cutoverPlan = plan.confirm(DateTime.now()),
+                      )
+                    : null,
+                icon: const Icon(Icons.verified_outlined),
+                label: const Text('Confirmer ce plan'),
+              )
+            else ...[
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                key: const Key('cutover-execute-button'),
+                onPressed: _executingCutover
+                    ? null
+                    : () => _executeCutover(analysis, plan),
+                icon: _executingCutover
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.play_arrow_rounded),
+                label: Text(
+                  _executingCutover
+                      ? 'Exécution...'
+                      : 'Exécuter et réconcilier',
+                ),
+              ),
+            ],
+          ],
+          if (_cutoverError case final error?) ...[
+            const SizedBox(height: 8),
+            Text(error),
+          ],
+          if (_cutoverResult case final result?) ...[
+            const SizedBox(height: 8),
+            Text(
+              result['status'] == 'RECONCILED'
+                  ? 'RECONCILED — écart zéro.'
+                  : 'NOT_RECONCILED',
+            ),
+            Text(
+              'Événements : ${result['financial_events']} • transactions GL : ${result['gl_transactions']} • mouvements enveloppes : ${result['envelope_movements']}',
+            ),
+            ...((result['accounts'] as List<dynamic>? ?? const []).map((item) {
+              final value = Map<String, dynamic>.from(item as Map);
+              return Text(
+                '${value['name']} : attendu ${value['expected']} / réel ${value['actual']} / écart ${value['difference']}',
+              );
+            })),
+            ...((result['envelopes'] as List<dynamic>? ?? const []).map((item) {
+              final value = Map<String, dynamic>.from(item as Map);
+              return Text(
+                '${value['name']} : attendu ${value['expected']} / réel ${value['actual']} / écart ${value['difference']}',
+              );
+            })),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executeCutover(
+    WorkbookImportAnalysis analysis,
+    CutoverOpeningPlan plan,
+  ) async {
+    // The preview fingerprint is rechecked before touching Supabase. A changed
+    // source must be analysed and explicitly confirmed again.
+    if (analysis.sourceFingerprint != plan.sourceFingerprint) {
+      setState(
+        () => _cutoverError =
+            'La source a changé : relancez l’analyse et confirmez un nouveau plan.',
+      );
+      return;
+    }
+    setState(() {
+      _executingCutover = true;
+      _cutoverError = null;
+    });
+    try {
+      final result = await ref
+          .read(cutoverOpeningImportRepositoryProvider)
+          .execute(plan);
+      if (!mounted) return;
+      setState(() => _cutoverResult = result);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _cutoverError = 'Exécution B1 refusée : $error');
+    } finally {
+      if (mounted) setState(() => _executingCutover = false);
+    }
   }
 
   Future<void> _showProblemsDialog({

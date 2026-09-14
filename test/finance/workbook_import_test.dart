@@ -2,26 +2,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/workbook_import.dart';
 
 void main() {
-  test('bloque la confirmation lorsqu un onglet est sans importeur', () {
-    const analysis = WorkbookImportAnalysis(
-      fileName: 'source.xlsx',
-      sourceFingerprint:
-          '0123456789012345678901234567890123456789012345678901234567890123',
-      sheetPreviews: [
-        SheetImportPreview(
-          importerId: 'envelopes',
-          sourceSheetName: 'Enveloppes',
-          detectedRecords: 25,
-          issues: [],
-          isTransactionReady: true,
-        ),
-      ],
-      unhandledSheetNames: ['Journal'],
-      sourceSheets: [],
-    );
+  test(
+    'archive les onglets hors périmètre sans bloquer une sélection ciblée',
+    () {
+      const analysis = WorkbookImportAnalysis(
+        fileName: 'source.xlsx',
+        sourceFingerprint:
+            '0123456789012345678901234567890123456789012345678901234567890123',
+        sheetPreviews: [
+          SheetImportPreview(
+            importerId: 'envelopes',
+            sourceSheetName: 'Enveloppes',
+            detectedRecords: 25,
+            issues: [],
+            isTransactionReady: true,
+          ),
+        ],
+        unhandledSheetNames: ['Journal'],
+        sourceSheets: [],
+      );
 
-    expect(analysis.canBeConfirmed, isFalse);
-  });
+      expect(analysis.canConfirmSelection({'envelopes'}), isTrue);
+    },
+  );
 
   test('un apercu sans ecart peut etre confirme', () {
     const preview = SheetImportPreview(
@@ -67,10 +70,10 @@ void main() {
     expect(analysis.canConfirmSelection({'envelopes', 'journal'}), isFalse);
   });
 
-  test('le registre couvre les 29 onglets connus du classeur', () {
+  test('le registre couvre les onglets connus et le plan B1 optionnel', () {
     final importers = DefaultWorkbookImportRegistry.create(const []);
 
-    expect(importers, hasLength(29));
+    expect(importers, hasLength(30));
     expect(
       importers.map((importer) => importer.sourceSheetName),
       containsAll([
@@ -80,6 +83,7 @@ void main() {
         'PRIOS',
         'Orga m\u00e9nage',
         'SIMULATION EMPRUNT 180 Mois',
+        'Positions ouverture',
       ]),
     );
   });

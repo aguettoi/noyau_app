@@ -781,6 +781,43 @@ class FormulaSheetImporter implements WorkbookSheetImporter {
   }
 }
 
+/// B1 owns this deliberately small, opt-in opening-position sheet.  A source
+/// workbook can still contain any number of unrelated/archive sheets.
+class OpeningPositionsSheetImporter implements WorkbookSheetImporter {
+  const OpeningPositionsSheetImporter();
+
+  @override
+  String get id => 'cutover-opening-positions';
+
+  @override
+  String get sourceSheetName => 'Positions ouverture';
+
+  @override
+  Future<SheetImportPreview> analyze(Sheet sheet) async {
+    final records = sheet.rows
+        .skip(1)
+        .where(
+          (row) => row.any(
+            (cell) => (cell?.value?.toString() ?? '').trim().isNotEmpty,
+          ),
+        )
+        .length;
+    return SheetImportPreview(
+      importerId: id,
+      sourceSheetName: sourceSheetName,
+      detectedRecords: records,
+      issues: const [
+        ImportIssue(
+          severity: ImportIssueSeverity.information,
+          message:
+              'Positions B1 détectées : elles seront contrôlées avant confirmation.',
+        ),
+      ],
+      isTransactionReady: true,
+    );
+  }
+}
+
 class DefaultWorkbookImportRegistry {
   const DefaultWorkbookImportRegistry._();
 
@@ -825,6 +862,7 @@ class DefaultWorkbookImportRegistry {
       id: 'income-sheet-22',
       sourceSheetName: 'Feuille 22',
     ),
+    const OpeningPositionsSheetImporter(),
     const FormulaSheetImporter(id: 'dashboard', sourceSheetName: 'TDB'),
     const FormulaSheetImporter(
       id: 'household-sheet-16',
@@ -901,7 +939,6 @@ class WorkbookImportAnalysis {
   final List<SourceSheetSnapshot> sourceSheets;
 
   bool get canBeConfirmed =>
-      unhandledSheetNames.isEmpty &&
       sheetPreviews.every((preview) => preview.canBeConfirmed);
 
   List<Map<String, Object?>> toArchivePayload({Set<String>? importerIds}) {
@@ -944,7 +981,6 @@ class WorkbookImportAnalysis {
 
   bool canConfirmSelection(Set<String> importerIds) =>
       importerIds.isNotEmpty &&
-      unhandledSheetNames.isEmpty &&
       previewsFor(importerIds).every((preview) => preview.canBeConfirmed);
 }
 
@@ -965,27 +1001,33 @@ class WorkbookImportEngine {
 
     for (var index = 0; index < _importers.length; index++) {
       final importer = _importers[index];
-      final sheet = workbook.tables[importer.sourceSheetName];
-      if (sheet == null) {
-        previews.add(
-          SheetImportPreview(
-            importerId: importer.id,
-            sourceSheetName: importer.sourceSheetName,
-            detectedRecords: 0,
-            issues: const [
-              ImportIssue(
-                severity: ImportIssueSeverity.blocking,
-                message: 'Onglet source introuvable.',
-              ),
-            ],
-          ),
-        );
+      final resolvedSheetName = _resolveSheetName(
+        importer.sourceSheetName,
+        workbook.tables.keys,
+      );
+      if (resolvedSheetName == null) {
+        // Missing sheets are not selected and must not block unrelated B1
+        // work; only an explicitly selected sheet participates in validation.
         onProgress?.call(index + 1, _importers.length);
         continue;
       }
-      handledNames.add(importer.sourceSheetName);
-      previews.add(await importer.analyze(sheet));
-      sourceSheets.add(_snapshotSheet(importer.sourceSheetName, sheet));
+      final sheet = workbook.tables[resolvedSheetName];
+      if (sheet == null) {
+        continue;
+      }
+      handledNames.add(resolvedSheetName);
+      final preview = await importer.analyze(sheet);
+      previews.add(
+        SheetImportPreview(
+          importerId: preview.importerId,
+          sourceSheetName: resolvedSheetName,
+          detectedRecords: preview.detectedRecords,
+          issues: preview.issues,
+          problems: preview.problems,
+          isTransactionReady: preview.isTransactionReady,
+        ),
+      );
+      sourceSheets.add(_snapshotSheet(resolvedSheetName, sheet));
       onProgress?.call(index + 1, _importers.length);
     }
 
@@ -999,6 +1041,13 @@ class WorkbookImportEngine {
       unhandledSheetNames: List.unmodifiable(unhandled),
       sourceSheets: List.unmodifiable(sourceSheets),
     );
+  }
+
+  static String? _resolveSheetName(String expected, Iterable<String> names) {
+    if (names.contains(expected)) return expected;
+    const aliases = {'Feuille 21': 'Feuille 25', 'Feuille 22': 'Feuille 26'};
+    final alias = aliases[expected];
+    return alias != null && names.contains(alias) ? alias : null;
   }
 }
 
