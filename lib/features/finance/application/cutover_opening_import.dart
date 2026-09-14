@@ -321,6 +321,87 @@ class CutoverOpeningImportRepository {
   }
 }
 
+/// An explicit import target. This is deliberately separate from the global
+/// operational household resolver: a Cutover plan may be certified in a
+/// technical household without making that household operational elsewhere.
+class CutoverEligibleHousehold {
+  const CutoverEligibleHousehold({
+    required this.id,
+    required this.name,
+    required this.classification,
+  });
+
+  final String id;
+  final String name;
+  final HouseholdClassification classification;
+
+  bool get isTechnical => classification == HouseholdClassification.technical;
+
+  String get classificationLabel => switch (classification) {
+    HouseholdClassification.operational => 'OPÉRATIONNEL',
+    HouseholdClassification.technical => 'TECHNIQUE',
+  };
+}
+
+abstract interface class CutoverEligibleHouseholdsGateway {
+  Future<List<CutoverEligibleHousehold>> householdsForUser(String userId);
+}
+
+class SupabaseCutoverEligibleHouseholdsGateway
+    implements CutoverEligibleHouseholdsGateway {
+  SupabaseCutoverEligibleHouseholdsGateway(this._client);
+
+  final SupabaseClient _client;
+
+  @override
+  Future<List<CutoverEligibleHousehold>> householdsForUser(
+    String userId,
+  ) async {
+    final response = await _client
+        .from('household_members')
+        .select('household_id, households!inner(name, classification)')
+        .eq('user_id', userId);
+    final households = (response as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .map((item) {
+          final household = Map<String, dynamic>.from(
+            item['households'] as Map,
+          );
+          final classification = household['classification'] as String;
+          if (classification != 'operational' &&
+              classification != 'technical') {
+            throw StateError('Classification de foyer invalide.');
+          }
+          return CutoverEligibleHousehold(
+            id: item['household_id'] as String,
+            name: household['name'] as String,
+            classification: classification == 'technical'
+                ? HouseholdClassification.technical
+                : HouseholdClassification.operational,
+          );
+        })
+        .toList(growable: false);
+    households.sort((left, right) => left.name.compareTo(right.name));
+    return households;
+  }
+}
+
+final cutoverEligibleHouseholdsGatewayProvider =
+    Provider<CutoverEligibleHouseholdsGateway>(
+      (ref) => SupabaseCutoverEligibleHouseholdsGateway(
+        ref.watch(supabaseClientProvider),
+      ),
+    );
+
+final cutoverEligibleHouseholdsProvider =
+    FutureProvider<List<CutoverEligibleHousehold>>((ref) async {
+      final userId = ref.watch(currentUserIdProvider);
+      if (userId == null) return const [];
+      return ref
+          .watch(cutoverEligibleHouseholdsGatewayProvider)
+          .householdsForUser(userId);
+    });
+
 final cutoverOpeningImportRepositoryProvider = Provider(
   (ref) => CutoverOpeningImportRepository(ref.watch(supabaseClientProvider)),
 );

@@ -17,6 +17,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
   CutoverOpeningPlan? _cutoverPlan;
   Map<String, dynamic>? _cutoverResult;
   String? _cutoverError;
+  String? _selectedCutoverHouseholdId;
   var _executingCutover = false;
   var _preparingCutover = false;
 
@@ -36,7 +37,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(workbookImportProvider);
     final controller = ref.read(workbookImportProvider.notifier);
-    final targetHousehold = ref.watch(cutoverOpeningTargetHouseholdProvider);
+    final cutoverHouseholds = ref.watch(cutoverEligibleHouseholdsProvider);
     final analysis = state.analysis;
     final selectedPreviews =
         analysis?.previewsFor(state.selectedImporterIds) ?? const [];
@@ -231,7 +232,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
               _buildCutoverSection(
                 analysis: analysis,
                 selectedImporterIds: state.selectedImporterIds,
-                targetHousehold: targetHousehold,
+                cutoverHouseholds: cutoverHouseholds,
               ),
             ],
             const SizedBox(height: 16),
@@ -257,12 +258,16 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
   Widget _buildCutoverSection({
     required WorkbookImportAnalysis analysis,
     required Set<String> selectedImporterIds,
-    required AsyncValue<String> targetHousehold,
+    required AsyncValue<List<CutoverEligibleHousehold>> cutoverHouseholds,
   }) {
     final hasOpeningSheet = selectedImporterIds.contains(
       'cutover-opening-positions',
     );
     final plan = _cutoverPlan;
+    final households = cutoverHouseholds.valueOrNull ?? const [];
+    final selectedHousehold = households
+        .where((household) => household.id == _selectedCutoverHouseholdId)
+        .firstOrNull;
     return _ActionCard(
       icon: Icons.account_balance_outlined,
       title: '4. Plan de positions d’ouverture B1',
@@ -272,20 +277,56 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       action: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (targetHousehold.hasError)
-            const Text('Un household opérationnel explicite est requis.'),
-          if (targetHousehold.hasValue)
-            Text('Household cible : ${targetHousehold.value}'),
+          if (cutoverHouseholds.hasError)
+            const Text('Impossible de charger les households éligibles.'),
+          if (cutoverHouseholds.isLoading) const LinearProgressIndicator(),
+          if (!cutoverHouseholds.isLoading && !cutoverHouseholds.hasError)
+            DropdownButtonFormField<String>(
+              key: const Key('cutover-household-selector'),
+              initialValue: _selectedCutoverHouseholdId,
+              decoration: const InputDecoration(
+                labelText: 'Household cible',
+                border: OutlineInputBorder(),
+              ),
+              items: households
+                  .map(
+                    (household) => DropdownMenuItem(
+                      value: household.id,
+                      child: Text(
+                        '${household.name} — ${household.classificationLabel}',
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: plan?.confirmedAt != null
+                  ? null
+                  : (householdId) => setState(() {
+                      _selectedCutoverHouseholdId = householdId;
+                      _cutoverPlan = null;
+                      _cutoverResult = null;
+                      _cutoverError = null;
+                    }),
+            ),
+          if (selectedHousehold != null) ...[
+            const SizedBox(height: 8),
+            Text('Classification : ${selectedHousehold.classificationLabel}'),
+            Text(
+              selectedHousehold.isTechnical
+                  ? 'ENVIRONNEMENT TECHNIQUE'
+                  : 'ENVIRONNEMENT OPÉRATIONNEL',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+          ],
           Text('Fingerprint source : ${analysis.sourceFingerprint}'),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             key: const Key('cutover-plan-button'),
             onPressed:
                 !hasOpeningSheet ||
-                    !targetHousehold.hasValue ||
+                    selectedHousehold == null ||
                     _preparingCutover
                 ? null
-                : () => _prepareCutover(analysis, targetHousehold.value!),
+                : () => _prepareCutover(analysis, selectedHousehold),
             icon: const Icon(Icons.preview_outlined),
             label: Text(
               _preparingCutover ? 'Recherche du run...' : 'Préparer le plan B1',
@@ -296,6 +337,10 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
             Text(
               'Date effective : ${CutoverOpeningPlan.formatDate(plan.effectiveDate)}',
             ),
+            if (selectedHousehold != null) ...[
+              Text('Household cible : ${selectedHousehold.name}'),
+              Text('Classification : ${selectedHousehold.classificationLabel}'),
+            ],
             Text(
               'Comptes : ${plan.accounts.length} • Enveloppes : ${plan.envelopes.length}',
             ),
@@ -409,7 +454,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
 
   Future<void> _prepareCutover(
     WorkbookImportAnalysis analysis,
-    String householdId,
+    CutoverEligibleHousehold household,
   ) async {
     setState(() {
       _preparingCutover = true;
@@ -421,7 +466,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       final existing = await ref
           .read(cutoverOpeningImportRepositoryProvider)
           .findExisting(
-            householdId: householdId,
+            householdId: household.id,
             sourceFingerprint: analysis.sourceFingerprint,
             effectiveDate: effectiveDate,
           );
@@ -435,7 +480,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
         } else {
           _cutoverPlan = CutoverOpeningPlanBuilder().build(
             analysis: analysis,
-            householdId: householdId,
+            householdId: household.id,
             effectiveDate: effectiveDate,
           );
         }

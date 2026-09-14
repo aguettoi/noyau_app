@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/cutover_opening_import.dart';
+import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/workbook_import.dart';
 
 void main() {
@@ -114,4 +115,31 @@ void main() {
     expect(restored.accounts.single.openingAmount, 1000);
     expect(restored.envelopes.single.name, 'Nourriture');
   });
+
+  test(
+    'une cible technique explicite reste inscrite dans le plan confirmé',
+    () {
+      const target = CutoverEligibleHousehold(
+        id: 'technical-household',
+        name: 'CUTOVER-B1-E2E',
+        classification: HouseholdClassification.technical,
+      );
+      final plan = CutoverOpeningPlanBuilder().build(
+        analysis: const WorkbookImportAnalysis(
+          fileName: 'fictif.xlsx',
+          sourceFingerprint: fingerprint,
+          sheetPreviews: [],
+          unhandledSheetNames: [],
+          sourceSheets: [],
+        ),
+        householdId: target.id,
+        effectiveDate: DateTime(2026, 9, 14),
+      );
+
+      expect(target.isTechnical, isTrue);
+      expect(target.classificationLabel, 'TECHNIQUE');
+      expect(plan.householdId, target.id);
+      expect(plan.confirm(DateTime(2026)).householdId, target.id);
+    },
+  );
 }
