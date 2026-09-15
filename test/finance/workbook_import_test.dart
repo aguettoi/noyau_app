@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
+import 'package:excel/excel.dart';
+import 'package:noyau_app/features/finance/application/cutover_opening_import.dart';
 import 'package:noyau_app/features/finance/application/workbook_import.dart';
 
 void main() {
@@ -71,6 +75,55 @@ void main() {
 
     expect(analysis.canConfirmSelection({'envelopes'}), isTrue);
     expect(analysis.canConfirmSelection({'envelopes', 'journal'}), isFalse);
+  });
+
+  test('lit les positions d ouverture d un XLSX compatible Excel mais non pris '
+      'en charge nativement par excel', () async {
+    final bytes = _buildStylesCompatibilityFixture();
+    final analysis = await WorkbookImportEngine(
+      DefaultWorkbookImportRegistry.create(const []),
+    ).analyze(fileName: 'CUTOVER-B1-E2E.xlsx', bytes: bytes);
+
+    expect(analysis.sourceFingerprint, sha256.convert(bytes).toString());
+    expect(
+      analysis.sourceSheets.map((sheet) => sheet.sourceSheetName),
+      contains('Positions ouverture'),
+    );
+
+    final plan = CutoverOpeningPlanBuilder().build(
+      analysis: analysis,
+      householdId: 'household',
+      effectiveDate: DateTime(2026, 9, 14),
+    );
+    expect(plan.canConfirm, isTrue, reason: plan.blockingErrors.join(' | '));
+    expect(
+      plan.accounts.map((account) => (account.name, account.openingAmount)),
+      containsAll([('Banque A', 1000.0), ('Caisse', 200.0)]),
+    );
+    expect(
+      plan.envelopes.map((envelope) => (envelope.name, envelope.openingAmount)),
+      containsAll([
+        ('Nourriture', 500.0),
+        ('Épargne', 250.0),
+        ('À répartir', 50.0),
+      ]),
+    );
+  });
+
+  test('refuse toujours un XLSX réellement corrompu', () async {
+    await expectLater(
+      WorkbookImportEngine(const []).analyze(
+        fileName: 'corrompu.xlsx',
+        bytes: Uint8List.fromList(utf8.encode('ceci n’est pas un fichier zip')),
+      ),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('endommagé'),
+        ),
+      ),
+    );
   });
 
   test('le registre couvre les onglets connus et le plan B1 optionnel', () {
@@ -179,4 +232,81 @@ void main() {
     expect(check.isMatch, isFalse);
     expect(check.error, contains('SOURCE INACCESSIBLE'));
   });
+}
+
+Uint8List _buildStylesCompatibilityFixture() {
+  final workbook = Excel.createExcel();
+  final sheet = workbook['Positions ouverture'];
+  final rows = [
+    ['Type', 'Nom', 'Kind', 'Montant'],
+    ['Compte', 'Banque A', 'bank', 1000],
+    ['Compte', 'Caisse', 'cash', 200],
+    ['Enveloppe', 'Nourriture', '', 500],
+    ['Enveloppe', 'Épargne', '', 250],
+    ['Enveloppe', 'À répartir', '', 50],
+  ];
+  for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    for (
+      var columnIndex = 0;
+      columnIndex < rows[rowIndex].length;
+      columnIndex++
+    ) {
+      final value = rows[rowIndex][columnIndex];
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(
+              columnIndex: columnIndex,
+              rowIndex: rowIndex,
+            ),
+          )
+          .value = value is int
+          ? IntCellValue(value)
+          : TextCellValue(value as String);
+    }
+  }
+
+  final encoded = workbook.encode()!;
+  final original = ZipDecoder().decodeBytes(encoded, verify: true);
+  final mutated = Archive();
+  for (final file in original.files) {
+    if (!file.isFile) {
+      continue;
+    }
+    file.decompress();
+    var content = utf8.decode(file.content as List<int>);
+    if (file.name == 'xl/_rels/workbook.xml.rels') {
+      content = content
+          .replaceAll('Target="styles.xml"', 'Target="/xl/styles.xml"')
+          .replaceAll('Target="worksheets/', 'Target="/xl/worksheets/')
+          .replaceAll(
+            'Target="sharedStrings.xml"',
+            'Target="/xl/sharedStrings.xml"',
+          );
+    } else if (file.name.startsWith('xl/') &&
+        file.name.endsWith('.xml') &&
+        content.contains(
+          'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+        )) {
+      if (file.name.startsWith('xl/worksheets/')) {
+        content = content.replaceAllMapped(
+          RegExp(r'<c([^>]*)\s+t="inlineStr"([^>]*)><is><t>(.*?)</t></is></c>'),
+          (match) =>
+              '<c${match.group(1)} t="str"${match.group(2)}>'
+              '<v>${match.group(3)}</v></c>',
+        );
+      }
+      content = content
+          .replaceAll(
+            'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+            'xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+          )
+          .replaceAllMapped(
+            RegExp(r'<(/?)([A-Za-z][A-Za-z0-9]*)(?=[\s>/])'),
+            (match) => '<${match.group(1)}x:${match.group(2)}',
+          );
+    }
+    final bytes = utf8.encode(content);
+    mutated.addFile(ArchiveFile(file.name, bytes.length, bytes));
+  }
+  return Uint8List.fromList(ZipEncoder().encode(mutated)!);
 }

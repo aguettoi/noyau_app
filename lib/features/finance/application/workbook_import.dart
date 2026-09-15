@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1060,7 +1062,7 @@ class WorkbookImportEngine {
     required Uint8List bytes,
     void Function(int completed, int total)? onProgress,
   }) async {
-    final workbook = Excel.decodeBytes(bytes);
+    final workbook = _WorkbookDecoder.decode(bytes);
     final previews = <SheetImportPreview>[];
     final handledNames = <String>{};
     final sourceSheets = <SourceSheetSnapshot>[];
@@ -1114,6 +1116,147 @@ class WorkbookImportEngine {
     const aliases = {'Feuille 21': 'Feuille 25', 'Feuille 22': 'Feuille 26'};
     final alias = aliases[expected];
     return alias != null && names.contains(alias) ? alias : null;
+  }
+}
+
+/// Compatibility adapter for valid OOXML workbooks that use absolute package
+/// targets or an explicit SpreadsheetML prefix. `excel` 4.0.6 expects relative
+/// targets and unprefixed SpreadsheetML elements. The source bytes remain the
+/// import source of record: this adapter is only an in-memory representation
+/// passed to the existing decoder, so the SHA-256 fingerprint is unaffected.
+class _WorkbookDecoder {
+  static Excel decode(Uint8List sourceBytes) {
+    try {
+      return Excel.decodeBytes(sourceBytes);
+    } catch (_) {
+      final normalization = _OoxmlCompatibilityNormalizer.normalize(
+        sourceBytes,
+      );
+      if (!normalization.isOoxml) {
+        throw const FormatException(
+          'Le fichier Excel est endommagé ou n’est pas un fichier .xlsx valide.',
+        );
+      }
+      final normalizedBytes = normalization.bytes;
+      if (normalizedBytes == null) {
+        throw const FormatException(
+          'Le fichier Excel contient une structure non prise en charge. '
+          'Ouvrez-le dans Excel puis enregistrez-le à nouveau au format .xlsx.',
+        );
+      }
+      try {
+        return Excel.decodeBytes(normalizedBytes);
+      } catch (_) {
+        throw const FormatException(
+          'Le fichier Excel est lisible, mais certaines de ses structures ne '
+          'sont pas encore prises en charge. Ouvrez-le dans Excel puis '
+          'enregistrez-le à nouveau au format .xlsx.',
+        );
+      }
+    }
+  }
+}
+
+class _OoxmlNormalizationResult {
+  const _OoxmlNormalizationResult({required this.isOoxml, required this.bytes});
+
+  final bool isOoxml;
+  final Uint8List? bytes;
+}
+
+class _OoxmlCompatibilityNormalizer {
+  static const _spreadsheetMlNamespace =
+      'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+  static _OoxmlNormalizationResult normalize(Uint8List sourceBytes) {
+    final Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(sourceBytes, verify: true);
+    } catch (_) {
+      return const _OoxmlNormalizationResult(isOoxml: false, bytes: null);
+    }
+
+    final hasWorkbook = archive.findFile('xl/workbook.xml') != null;
+    final hasContentTypes = archive.findFile('[Content_Types].xml') != null;
+    if (!hasWorkbook || !hasContentTypes) {
+      return const _OoxmlNormalizationResult(isOoxml: false, bytes: null);
+    }
+
+    var changed = false;
+    final normalizedArchive = Archive();
+    for (final file in archive.files) {
+      if (!file.isFile) {
+        continue;
+      }
+      file.decompress();
+      var content = Uint8List.fromList(file.content as List<int>);
+      if (file.name == 'xl/_rels/workbook.xml.rels') {
+        final normalized = _normalizeWorkbookRelationships(
+          utf8.decode(content),
+        );
+        if (normalized != null) {
+          content = Uint8List.fromList(utf8.encode(normalized));
+          changed = true;
+        }
+      } else if (file.name.startsWith('xl/') && file.name.endsWith('.xml')) {
+        final normalized = _normalizeSpreadsheetMarkup(
+          file.name,
+          utf8.decode(content),
+        );
+        if (normalized != null) {
+          content = Uint8List.fromList(utf8.encode(normalized));
+          changed = true;
+        }
+      }
+      normalizedArchive.addFile(
+        ArchiveFile(file.name, content.length, content),
+      );
+    }
+
+    if (!changed) {
+      return const _OoxmlNormalizationResult(isOoxml: true, bytes: null);
+    }
+    final bytes = ZipEncoder().encode(normalizedArchive);
+    return _OoxmlNormalizationResult(
+      isOoxml: true,
+      bytes: bytes == null ? null : Uint8List.fromList(bytes),
+    );
+  }
+
+  static String? _normalizeWorkbookRelationships(String xml) {
+    final normalized = xml
+        .replaceAll('Target="/xl/', 'Target="')
+        .replaceAll("Target='/xl/", "Target='");
+    return normalized == xml ? null : normalized;
+  }
+
+  static String? _normalizeSpreadsheetMarkup(String path, String xml) {
+    var normalized = xml;
+    if (normalized.contains('xmlns:x="$_spreadsheetMlNamespace"')) {
+      normalized = normalized
+          .replaceAll(
+            'xmlns:x="$_spreadsheetMlNamespace"',
+            'xmlns="$_spreadsheetMlNamespace"',
+          )
+          .replaceAll('<x:', '<')
+          .replaceAll('</x:', '</');
+    }
+    if (path.startsWith('xl/worksheets/')) {
+      normalized = normalized
+          .replaceAllMapped(
+            RegExp(r'<c(\s+[^>]*?)\s+t="str"([^>]*)><v>(.*?)</v></c>'),
+            (match) =>
+                '<c${match.group(1)} t="inlineStr"${match.group(2)}>'
+                '<is><t>${match.group(3)}</t></is></c>',
+          )
+          .replaceAllMapped(
+            RegExp(r'<c(\s+[^>]*?)\s+t="str"([^>]*)\s*/>'),
+            (match) =>
+                '<c${match.group(1)} t="inlineStr"${match.group(2)}>'
+                '<is><t></t></is></c>',
+          );
+    }
+    return normalized == xml ? null : normalized;
   }
 }
 
