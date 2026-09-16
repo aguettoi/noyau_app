@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -88,6 +89,19 @@ class ImportIssue {
 
   final ImportIssueSeverity severity;
   final String message;
+
+  Map<String, Object?> _toBackgroundPayload() => {
+    'severity': severity.name,
+    'message': message,
+  };
+
+  static ImportIssue _fromBackgroundPayload(Map<Object?, Object?> payload) =>
+      ImportIssue(
+        severity: ImportIssueSeverity.values.byName(
+          payload['severity']! as String,
+        ),
+        message: payload['message']! as String,
+      );
 }
 
 class ImportProblem {
@@ -102,6 +116,21 @@ class ImportProblem {
   final String field;
   final String explanation;
   final String correctionHint;
+
+  Map<String, Object?> _toBackgroundPayload() => {
+    'row_number': rowNumber,
+    'field': field,
+    'explanation': explanation,
+    'correction_hint': correctionHint,
+  };
+
+  static ImportProblem _fromBackgroundPayload(Map<Object?, Object?> payload) =>
+      ImportProblem(
+        rowNumber: payload['row_number']! as int,
+        field: payload['field']! as String,
+        explanation: payload['explanation']! as String,
+        correctionHint: payload['correction_hint']! as String,
+      );
 }
 
 class SheetImportPreview {
@@ -120,6 +149,39 @@ class SheetImportPreview {
   final List<ImportIssue> issues;
   final List<ImportProblem> problems;
   final bool isTransactionReady;
+
+  Map<String, Object?> _toBackgroundPayload() => {
+    'importer_id': importerId,
+    'source_sheet_name': sourceSheetName,
+    'detected_records': detectedRecords,
+    'issues': issues
+        .map((issue) => issue._toBackgroundPayload())
+        .toList(growable: false),
+    'problems': problems
+        .map((problem) => problem._toBackgroundPayload())
+        .toList(growable: false),
+    'is_transaction_ready': isTransactionReady,
+  };
+
+  static SheetImportPreview _fromBackgroundPayload(
+    Map<Object?, Object?> payload,
+  ) => SheetImportPreview(
+    importerId: payload['importer_id']! as String,
+    sourceSheetName: payload['source_sheet_name']! as String,
+    detectedRecords: payload['detected_records']! as int,
+    issues: _backgroundList(payload['issues'])
+        .map(
+          (issue) => ImportIssue._fromBackgroundPayload(_backgroundMap(issue)),
+        )
+        .toList(growable: false),
+    problems: _backgroundList(payload['problems'])
+        .map(
+          (problem) =>
+              ImportProblem._fromBackgroundPayload(_backgroundMap(problem)),
+        )
+        .toList(growable: false),
+    isTransactionReady: payload['is_transaction_ready']! as bool,
+  );
 
   bool get canBeConfirmed =>
       issues.every((issue) => issue.severity != ImportIssueSeverity.blocking);
@@ -141,6 +203,16 @@ class SourceCellSnapshot {
     'value': value,
     if (formula != null) 'formula': formula,
   };
+
+  Map<String, Object?> _toBackgroundPayload() => toJson();
+
+  static SourceCellSnapshot _fromBackgroundPayload(
+    Map<Object?, Object?> payload,
+  ) => SourceCellSnapshot(
+    coordinate: payload['coordinate']! as String,
+    value: payload['value']! as String,
+    formula: payload['formula'] as String?,
+  );
 }
 
 class SourceSheetSnapshot {
@@ -156,6 +228,25 @@ class SourceSheetSnapshot {
     'source_sheet_name': sourceSheetName,
     'cells': cells.map((cell) => cell.toJson()).toList(growable: false),
   };
+
+  Map<String, Object?> _toBackgroundPayload() => {
+    'source_sheet_name': sourceSheetName,
+    'cells': cells
+        .map((cell) => cell._toBackgroundPayload())
+        .toList(growable: false),
+  };
+
+  static SourceSheetSnapshot _fromBackgroundPayload(
+    Map<Object?, Object?> payload,
+  ) => SourceSheetSnapshot(
+    sourceSheetName: payload['source_sheet_name']! as String,
+    cells: _backgroundList(payload['cells'])
+        .map(
+          (cell) =>
+              SourceCellSnapshot._fromBackgroundPayload(_backgroundMap(cell)),
+        )
+        .toList(growable: false),
+  );
 }
 
 /// Contract implemented by exactly one module per workbook sheet.
@@ -252,7 +343,10 @@ class JournalSheetImporter implements WorkbookSheetImporter {
   @override
   Future<SheetImportPreview> analyze(Sheet sheet) async {
     const headerRow = 2;
-    if (sheet.rows.length < headerRow) {
+    // `excel` rebuilds the complete two-dimensional matrix for every `rows`
+    // access. Keep one materialized view for the large Journal sheet.
+    final rows = sheet.rows;
+    if (rows.length < headerRow) {
       return const SheetImportPreview(
         importerId: 'journal',
         sourceSheetName: 'Journal',
@@ -266,7 +360,7 @@ class JournalSheetImporter implements WorkbookSheetImporter {
       );
     }
 
-    final headers = _rowValues(sheet.rows[headerRow - 1]);
+    final headers = _rowValues(rows[headerRow - 1]);
     final indexes = {
       for (var index = 0; index < headers.length; index++)
         _normalize(headers[index]): index,
@@ -304,15 +398,21 @@ class JournalSheetImporter implements WorkbookSheetImporter {
     var records = 0;
     final problems = <ImportProblem>[];
 
-    for (var rowIndex = headerRow; rowIndex < sheet.rows.length; rowIndex++) {
-      final row = sheet.rows[rowIndex];
-      final values = _rowValues(row);
-      if (values.every((value) => value.trim().isEmpty)) {
+    for (var rowIndex = headerRow; rowIndex < rows.length; rowIndex++) {
+      final row = rows[rowIndex];
+      // The Journal can contain tens of thousands of formula cells in columns
+      // unrelated to a financial movement. Only these four business fields
+      // determine whether a Journal row exists and whether it is valid.
+      final date = _journalCellValue(row, dateIndex);
+      final envelope = _journalCellValue(row, envelopeIndex);
+      final amount = _journalCellValue(row, amountIndex);
+      final detail = _journalCellValue(row, detailIndex);
+      if ([date, envelope, amount, detail].every((value) => value.isEmpty)) {
         continue;
       }
       records++;
       final rowNumber = rowIndex + 1;
-      if (_cell(values, dateIndex).isEmpty) {
+      if (date.isEmpty) {
         problems.add(
           _missingProblem(
             rowNumber,
@@ -322,7 +422,6 @@ class JournalSheetImporter implements WorkbookSheetImporter {
           ),
         );
       }
-      final envelope = _cell(values, envelopeIndex);
       if (envelope.isEmpty) {
         problems.add(
           _missingProblem(
@@ -344,7 +443,7 @@ class JournalSheetImporter implements WorkbookSheetImporter {
           ),
         );
       }
-      if (_parseAmount(_cell(values, amountIndex)) == null) {
+      if (_parseAmount(amount) == null) {
         problems.add(
           _missingProblem(
             rowNumber,
@@ -354,7 +453,7 @@ class JournalSheetImporter implements WorkbookSheetImporter {
           ),
         );
       }
-      if (_cell(values, detailIndex).isEmpty) {
+      if (detail.isEmpty) {
         problems.add(
           _missingProblem(
             rowNumber,
@@ -1009,6 +1108,41 @@ class WorkbookImportAnalysis {
   bool get canBeConfirmed =>
       sheetPreviews.every((preview) => preview.canBeConfirmed);
 
+  Map<String, Object?> _toBackgroundPayload() => {
+    'file_name': fileName,
+    'source_fingerprint': sourceFingerprint,
+    'sheet_previews': sheetPreviews
+        .map((preview) => preview._toBackgroundPayload())
+        .toList(growable: false),
+    'unhandled_sheet_names': unhandledSheetNames,
+    'source_sheets': sourceSheets
+        .map((sheet) => sheet._toBackgroundPayload())
+        .toList(growable: false),
+  };
+
+  static WorkbookImportAnalysis _fromBackgroundPayload(
+    Map<Object?, Object?> payload,
+  ) => WorkbookImportAnalysis(
+    fileName: payload['file_name']! as String,
+    sourceFingerprint: payload['source_fingerprint']! as String,
+    sheetPreviews: _backgroundList(payload['sheet_previews'])
+        .map(
+          (preview) => SheetImportPreview._fromBackgroundPayload(
+            _backgroundMap(preview),
+          ),
+        )
+        .toList(growable: false),
+    unhandledSheetNames: _backgroundList(
+      payload['unhandled_sheet_names'],
+    ).cast<String>(),
+    sourceSheets: _backgroundList(payload['source_sheets'])
+        .map(
+          (sheet) =>
+              SourceSheetSnapshot._fromBackgroundPayload(_backgroundMap(sheet)),
+        )
+        .toList(growable: false),
+  );
+
   List<Map<String, Object?>> toArchivePayload({Set<String>? importerIds}) {
     final previewsBySheet = {
       for (final preview in sheetPreviews) preview.sourceSheetName: preview,
@@ -1111,12 +1245,54 @@ class WorkbookImportEngine {
     );
   }
 
+  /// Runs the existing decoder and import engine away from Flutter's UI
+  /// isolate. The request and response contain only transferable bytes and
+  /// primitive collection payloads; accounting and import rules stay in this
+  /// engine and are not duplicated in the presentation layer.
+  static Future<WorkbookImportAnalysis> analyzeInBackground({
+    required String fileName,
+    required Uint8List bytes,
+    required List<String> expectedEnvelopeNames,
+  }) async {
+    final request = _WorkbookImportBackgroundRequest(
+      fileName: fileName,
+      sourceBytes: TransferableTypedData.fromList([bytes]),
+      expectedEnvelopeNames: expectedEnvelopeNames,
+    );
+    final payload = await Isolate.run(
+      () => _analyzeWorkbookInBackground(request),
+    );
+    return WorkbookImportAnalysis._fromBackgroundPayload(payload);
+  }
+
   static String? _resolveSheetName(String expected, Iterable<String> names) {
     if (names.contains(expected)) return expected;
     const aliases = {'Feuille 21': 'Feuille 25', 'Feuille 22': 'Feuille 26'};
     final alias = aliases[expected];
     return alias != null && names.contains(alias) ? alias : null;
   }
+}
+
+class _WorkbookImportBackgroundRequest {
+  const _WorkbookImportBackgroundRequest({
+    required this.fileName,
+    required this.sourceBytes,
+    required this.expectedEnvelopeNames,
+  });
+
+  final String fileName;
+  final TransferableTypedData sourceBytes;
+  final List<String> expectedEnvelopeNames;
+}
+
+Future<Map<String, Object?>> _analyzeWorkbookInBackground(
+  _WorkbookImportBackgroundRequest request,
+) async {
+  final bytes = request.sourceBytes.materialize().asUint8List();
+  final analysis = await WorkbookImportEngine(
+    DefaultWorkbookImportRegistry.create(request.expectedEnvelopeNames),
+  ).analyze(fileName: request.fileName, bytes: bytes);
+  return analysis._toBackgroundPayload();
 }
 
 /// Compatibility adapter for valid OOXML workbooks that use absolute package
@@ -1396,19 +1572,15 @@ class WorkbookImportController extends Notifier<WorkbookImportState> {
     required WorkbookSource source,
   }) async {
     final expectedEnvelopes = await SourceEnvelopeImport.loadEnvelopeNames();
-    final analysis =
-        await WorkbookImportEngine(
-          DefaultWorkbookImportRegistry.create(expectedEnvelopes),
-        ).analyze(
-          fileName: fileName,
-          bytes: bytes,
-          onProgress: (completed, total) {
-            state = state.copyWith(
-              loadingMessage: 'Analyse des onglets : $completed / $total',
-              loadingProgress: completed / total,
-            );
-          },
-        );
+    state = state.copyWith(
+      loadingMessage: 'Analyse du classeur en cours...',
+      loadingProgress: null,
+    );
+    final analysis = await WorkbookImportEngine.analyzeInBackground(
+      fileName: fileName,
+      bytes: bytes,
+      expectedEnvelopeNames: expectedEnvelopes,
+    );
     state = WorkbookImportState(analysis: analysis, source: source);
   }
 
@@ -1527,6 +1699,21 @@ String _normalize(String value) => value
 
 List<String> _rowValues(List<Data?> row) =>
     row.map((cell) => cell?.value?.toString() ?? '').toList(growable: false);
+
+String _journalCellValue(List<Data?> row, int index) {
+  if (index >= row.length) return '';
+  final value = row[index]?.value;
+  if (value == null) return '';
+  // Never stringify an unused Journal formula. Formulas in one of the four
+  // documented Journal fields retain their source expression, as before.
+  return (value is FormulaCellValue ? value.formula : value.toString()).trim();
+}
+
+Map<Object?, Object?> _backgroundMap(Object? value) =>
+    Map<Object?, Object?>.from(value! as Map);
+
+List<Object?> _backgroundList(Object? value) =>
+    List<Object?>.from(value! as List);
 
 String _cell(List<String> values, int index) =>
     index < values.length ? values[index].trim() : '';

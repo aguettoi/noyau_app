@@ -126,6 +126,83 @@ void main() {
     );
   });
 
+  test(
+    'analyse le Journal uniquement à partir de ses quatre colonnes métier',
+    () async {
+      final workbook = Excel.createExcel();
+      final sheet = workbook['Journal'];
+      _setText(sheet, 0, 1, 'Date');
+      _setText(sheet, 1, 1, 'Enveloppe');
+      _setText(
+        sheet,
+        2,
+        1,
+        'Montant (negatif : depense ; positif : alimentation)',
+      );
+      _setText(sheet, 3, 1, 'Detail');
+      _setText(sheet, 4, 1, 'Formule hors périmètre');
+      _setText(sheet, 0, 2, '2026-09-15');
+      _setText(sheet, 1, 2, 'Nourriture');
+      _setText(sheet, 2, 2, '-100');
+      _setText(sheet, 3, 2, 'Courses');
+      sheet
+          .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: 2))
+          .value = const FormulaCellValue(
+        '=SUM(1,2)',
+      );
+      // This row has an expensive/unrelated formula but no Journal movement.
+      // It must not become an artificial invalid record.
+      sheet
+          .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: 3))
+          .value = const FormulaCellValue(
+        '=SUM(999999,999999)',
+      );
+
+      final preview = await JournalSheetImporter(const [
+        'Nourriture',
+      ]).analyze(sheet);
+
+      expect(preview.detectedRecords, 1);
+      expect(preview.problems, isEmpty);
+    },
+  );
+
+  test(
+    'l analyse en isolate conserve le résultat B1 et le fingerprint brut',
+    () async {
+      final bytes = _buildStylesCompatibilityFixture();
+
+      final analysis = await WorkbookImportEngine.analyzeInBackground(
+        fileName: 'CUTOVER-B1-E2E.xlsx',
+        bytes: bytes,
+        expectedEnvelopeNames: const [],
+      );
+
+      expect(analysis.sourceFingerprint, sha256.convert(bytes).toString());
+      expect(
+        analysis.sourceSheets.map((sheet) => sheet.sourceSheetName),
+        contains('Positions ouverture'),
+      );
+    },
+  );
+
+  test('les erreurs de décodage dans l isolate remontent proprement', () async {
+    await expectLater(
+      WorkbookImportEngine.analyzeInBackground(
+        fileName: 'corrompu.xlsx',
+        bytes: Uint8List.fromList(utf8.encode('ceci n’est pas un fichier zip')),
+        expectedEnvelopeNames: const [],
+      ),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('endommagé'),
+        ),
+      ),
+    );
+  });
+
   test('le registre couvre les onglets connus et le plan B1 optionnel', () {
     final importers = DefaultWorkbookImportRegistry.create(const []);
 
@@ -309,4 +386,17 @@ Uint8List _buildStylesCompatibilityFixture() {
     mutated.addFile(ArchiveFile(file.name, bytes.length, bytes));
   }
   return Uint8List.fromList(ZipEncoder().encode(mutated)!);
+}
+
+void _setText(Sheet sheet, int columnIndex, int rowIndex, String value) {
+  sheet
+      .cell(
+        CellIndex.indexByColumnRow(
+          columnIndex: columnIndex,
+          rowIndex: rowIndex,
+        ),
+      )
+      .value = TextCellValue(
+    value,
+  );
 }
