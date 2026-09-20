@@ -1682,6 +1682,12 @@ class WorkbookImportController extends Notifier<WorkbookImportState> {
       selectedImporterIds: state.selectedImporterIds,
     );
   }
+
+  /// Discards only local preview/selection state. It never affects an import
+  /// already materialised in Supabase.
+  void abandonPreparation() {
+    state = const WorkbookImportState();
+  }
 }
 
 String _normalize(String value) => value

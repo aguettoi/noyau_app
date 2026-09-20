@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../application/cutover_opening_import.dart';
 import '../application/workbook_import.dart';
+import 'cutover_preparation_card.dart';
 
 class ImportPreviewPage extends ConsumerStatefulWidget {
   const ImportPreviewPage({super.key});
@@ -20,6 +21,8 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
   String? _selectedCutoverHouseholdId;
   var _executingCutover = false;
   var _preparingCutover = false;
+  var _preparationHasLocalChanges = false;
+  var _allowPop = false;
 
   @override
   void initState() {
@@ -52,207 +55,307 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
         ? 2
         : 3;
 
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.lg,
-          AppSpacing.lg,
-          AppSpacing.xl,
-        ),
-        children: [
-          Text(
-            'Importer mon fichier Excel',
-            style: Theme.of(context).textTheme.headlineSmall,
+    return PopScope<Object?>(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (!didPop && await _confirmLeave(controller) && mounted) {
+          setState(() => _allowPop = true);
+          Navigator.of(this.context).pop();
+        }
+      },
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xl,
           ),
-          const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'Cet assistant vous guide pas a pas. Vous ne pouvez rien casser : chaque import reste traçable et peut etre annule.',
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _ProgressCard(currentStep: currentStep),
-          if (state.loadingProgress case final progress?) ...[
-            const SizedBox(height: 12),
-            LinearProgressIndicator(value: progress.clamp(0, 1).toDouble()),
-            const SizedBox(height: 6),
-            Text(state.loadingMessage ?? 'Preparation de l import...'),
-          ],
-          const SizedBox(height: 20),
-          _ActionCard(
-            icon: Icons.upload_file_rounded,
-            title: '1. Choisir votre fichier',
-            body:
-                'Selectionnez votre fichier Excel. Il est lu avant tout import.',
-            action: FilledButton.icon(
-              onPressed: state.isPicking ? null : controller.chooseWorkbook,
-              icon: const Icon(Icons.folder_open_outlined),
-              label: Text(
-                state.isPicking
-                    ? 'Lecture du fichier en cours...'
-                    : 'Choisir mon fichier Excel',
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _ActionCard(
-            icon: Icons.link_rounded,
-            title: 'Ou importer depuis Google Sheets',
-            body:
-                'Collez le lien de votre Google Sheet. Le document doit etre partage avec ce lien ou accessible a votre compte Google.',
-            action: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
-                TextField(
-                  controller: _googleSheetController,
-                  keyboardType: TextInputType.url,
-                  decoration: const InputDecoration(
-                    labelText: 'Lien Google Sheets',
-                    hintText: 'https://docs.google.com/spreadsheets/d/...',
-                    border: OutlineInputBorder(),
+                Expanded(
+                  child: Text(
+                    'Importer mon fichier Excel',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
                 ),
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                  onPressed: state.isLoadingGoogleSheet
-                      ? null
-                      : () => controller.loadGoogleSheet(
-                          _googleSheetController.text,
-                        ),
-                  icon: const Icon(Icons.cloud_download_outlined),
-                  label: Text(
-                    state.isLoadingGoogleSheet
-                        ? (state.loadingMessage ??
-                              'Lecture du Google Sheet en cours...')
-                        : 'Lire ce Google Sheet',
-                  ),
+                TextButton.icon(
+                  key: const Key('exit-import-assistant-button'),
+                  onPressed: () => _exitAssistant(controller),
+                  icon: const Icon(Icons.close_outlined),
+                  label: const Text('Quitter'),
                 ),
               ],
             ),
-          ),
-          if (state.error case final error?) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.xs),
             _NoticeCard(
-              icon: Icons.error_outline,
-              color: Theme.of(context).colorScheme.errorContainer,
-              message: error,
+              icon: Icons.info_outline,
+              color: const Color(0xFFEEF1F4),
+              message:
+                  'Parcourez le fichier, contrôlez les données et confirmez uniquement ce que vous souhaitez préparer.',
             ),
-          ],
-          if (analysis case final analysis?) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.md),
+            _ProgressCard(currentStep: currentStep),
+            if (state.loadingProgress case final progress?) ...[
+              const SizedBox(height: 12),
+              LinearProgressIndicator(value: progress.clamp(0, 1).toDouble()),
+              const SizedBox(height: 6),
+              Text(state.loadingMessage ?? 'Preparation de l import...'),
+            ],
+            const SizedBox(height: 20),
             _ActionCard(
-              icon: Icons.checklist_rounded,
-              title: '2. Choisir ce que vous voulez importer',
+              icon: Icons.upload_file_rounded,
+              title: '1. Choisir votre fichier',
               body:
-                  '${analysis.fileName} est pret. Cochez uniquement les onglets que vous souhaitez conserver.',
-              action: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${state.selectedImporterIds.length} onglet(s) choisi(s) sur ${analysis.sheetPreviews.length}',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: controller.selectAllSheets,
-                    icon: const Icon(Icons.select_all_rounded),
-                    label: const Text('Selectionner tout'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...analysis.sheetPreviews.map(
-              (preview) => _SheetPreviewCard(
-                preview: preview,
-                selected: state.selectedImporterIds.contains(
-                  preview.importerId,
+                  'Selectionnez votre fichier Excel. Il est lu avant tout import.',
+              action: FilledButton.icon(
+                onPressed: state.isPicking ? null : controller.chooseWorkbook,
+                icon: const Icon(Icons.folder_open_outlined),
+                label: Text(
+                  state.isPicking
+                      ? 'Lecture du fichier en cours...'
+                      : 'Choisir mon fichier Excel',
                 ),
-                onSelected: (selected) =>
-                    controller.toggleSheet(preview.importerId, selected),
               ),
             ),
-            if (analysis.unhandledSheetNames.isNotEmpty)
-              _NoticeCard(
-                icon: Icons.warning_amber_rounded,
-                color: Theme.of(context).colorScheme.errorContainer,
-                message:
-                    'Ces onglets ne sont pas encore reconnus : ${analysis.unhandledSheetNames.join(', ')}',
-              ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _ActionCard(
-              icon: Icons.health_and_safety_outlined,
-              title: '3. Verifier puis confirmer',
-              body: blockingSelected.isEmpty
-                  ? 'Les onglets choisis sont prets. Vous gardez le controle jusqu a la confirmation.'
-                  : '${blockingSelected.length} onglet(s) choisi(s) demandent votre attention.',
+              icon: Icons.link_rounded,
+              title: 'Ou importer depuis Google Sheets',
+              body:
+                  'Collez le lien de votre Google Sheet. Le document doit etre partage avec ce lien ou accessible a votre compte Google.',
               action: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: blockingSelected.isEmpty
-                        ? null
-                        : () => _showProblemsDialog(
-                            context: context,
-                            previews: blockingSelected,
-                            onSelectOnlyValid: controller.selectOnlyValidSheets,
-                          ),
-                    icon: const Icon(Icons.help_outline_rounded),
-                    label: Text(
-                      'M aider a resoudre les problemes (${blockingSelected.length})',
+                  TextField(
+                    controller: _googleSheetController,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                      labelText: 'Lien Google Sheets',
+                      hintText: 'https://docs.google.com/spreadsheets/d/...',
+                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 8),
                   FilledButton.icon(
-                    onPressed:
-                        analysis.canConfirmSelection(
-                              state.selectedImporterIds,
-                            ) &&
-                            !state.isConfirmed
-                        ? controller.confirmAnalysis
-                        : null,
-                    icon: const Icon(Icons.verified_outlined),
+                    onPressed: state.isLoadingGoogleSheet
+                        ? null
+                        : () => controller.loadGoogleSheet(
+                            _googleSheetController.text,
+                          ),
+                    icon: const Icon(Icons.cloud_download_outlined),
                     label: Text(
-                      state.isConfirmed
-                          ? 'Onglets confirmes'
-                          : 'Confirmer mes choix',
+                      state.isLoadingGoogleSheet
+                          ? (state.loadingMessage ??
+                                'Lecture du Google Sheet en cours...')
+                          : 'Lire ce Google Sheet',
                     ),
                   ),
                 ],
               ),
             ),
-            if (state.isConfirmed) ...[
+            if (state.error case final error?) ...[
               const SizedBox(height: 12),
               _NoticeCard(
-                icon: Icons.check_circle_outline,
-                color: Theme.of(context).colorScheme.primaryContainer,
-                message:
-                    'Vos choix sont confirmes. L archivage sera realise apres l activation du foyer Supabase.',
-              ),
-              const SizedBox(height: 12),
-              _buildCutoverSection(
-                analysis: analysis,
-                selectedImporterIds: state.selectedImporterIds,
-                cutoverHouseholds: cutoverHouseholds,
+                icon: Icons.error_outline,
+                color: Theme.of(context).colorScheme.errorContainer,
+                message: error,
               ),
             ],
-            const SizedBox(height: 16),
-            _ActionCard(
-              icon: Icons.undo_rounded,
-              title: 'Besoin de revenir en arriere ?',
-              body:
-                  'Le dernier import termine pourra etre annule sans effacer son historique.',
-              action: OutlinedButton.icon(
-                onPressed: state.lastImportSessionId == null
-                    ? null
-                    : () => _showUndoDialog(context, controller),
-                icon: const Icon(Icons.undo_outlined),
-                label: const Text('Annuler le dernier import'),
+            if (analysis case final analysis?) ...[
+              const SizedBox(height: 16),
+              CutoverPreparationCard(
+                key: ValueKey(
+                  'cutover-preparation-${analysis.sourceFingerprint}',
+                ),
+                analysis: analysis,
+                onDirtyChanged: (value) => _preparationHasLocalChanges = value,
               ),
+              const SizedBox(height: 16),
+              _ActionCard(
+                icon: Icons.checklist_rounded,
+                title: '2. Choisir ce que vous voulez importer',
+                body:
+                    '${analysis.fileName} est pret. Cochez uniquement les onglets que vous souhaitez conserver.',
+                action: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${state.selectedImporterIds.length} onglet(s) choisi(s) sur ${analysis.sheetPreviews.length}',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: controller.selectAllSheets,
+                      icon: const Icon(Icons.select_all_rounded),
+                      label: const Text('Selectionner tout'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...analysis.sheetPreviews.map(
+                (preview) => _SheetPreviewCard(
+                  preview: preview,
+                  selected: state.selectedImporterIds.contains(
+                    preview.importerId,
+                  ),
+                  onSelected: (selected) =>
+                      controller.toggleSheet(preview.importerId, selected),
+                ),
+              ),
+              if (analysis.unhandledSheetNames.isNotEmpty)
+                _NoticeCard(
+                  icon: Icons.warning_amber_rounded,
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  message:
+                      'Ces onglets ne sont pas encore reconnus : ${analysis.unhandledSheetNames.join(', ')}',
+                ),
+              const SizedBox(height: 16),
+              _ActionCard(
+                icon: Icons.health_and_safety_outlined,
+                title: '3. Verifier puis confirmer',
+                body: blockingSelected.isEmpty
+                    ? 'Les onglets choisis sont prets. Vous gardez le controle jusqu a la confirmation.'
+                    : '${blockingSelected.length} onglet(s) choisi(s) demandent votre attention.',
+                action: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: blockingSelected.isEmpty
+                          ? null
+                          : () => _showProblemsDialog(
+                              context: context,
+                              previews: blockingSelected,
+                              onSelectOnlyValid:
+                                  controller.selectOnlyValidSheets,
+                            ),
+                      icon: const Icon(Icons.help_outline_rounded),
+                      label: Text(
+                        'M aider a resoudre les problemes (${blockingSelected.length})',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed:
+                          analysis.canConfirmSelection(
+                                state.selectedImporterIds,
+                              ) &&
+                              !state.isConfirmed
+                          ? controller.confirmAnalysis
+                          : null,
+                      icon: const Icon(Icons.verified_outlined),
+                      label: Text(
+                        state.isConfirmed
+                            ? 'Onglets confirmes'
+                            : 'Confirmer mes choix',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (state.isConfirmed) ...[
+                const SizedBox(height: 12),
+                _NoticeCard(
+                  icon: Icons.check_circle_outline,
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  message:
+                      'Vos choix sont confirmes. L archivage sera realise apres l activation du foyer Supabase.',
+                ),
+                const SizedBox(height: 12),
+                _buildCutoverSection(
+                  analysis: analysis,
+                  selectedImporterIds: state.selectedImporterIds,
+                  cutoverHouseholds: cutoverHouseholds,
+                ),
+              ],
+              const SizedBox(height: 16),
+              _ActionCard(
+                icon: Icons.undo_rounded,
+                title: 'Besoin de revenir en arriere ?',
+                body:
+                    'Le dernier import termine pourra etre annule sans effacer son historique.',
+                action: OutlinedButton.icon(
+                  onPressed: state.lastImportSessionId == null
+                      ? null
+                      : () => _showUndoDialog(context, controller),
+                  icon: const Icon(Icons.undo_outlined),
+                  label: const Text('Annuler le dernier import'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                key: const Key('back-to-file-step-button'),
+                onPressed: () => _returnToFileStep(controller),
+                icon: const Icon(Icons.arrow_back_outlined),
+                label: const Text('Retour au choix du fichier'),
+              ),
+            ],
+            const SizedBox(height: 20),
+            TextButton.icon(
+              key: const Key('quit-import-assistant-bottom-button'),
+              onPressed: () => _exitAssistant(controller),
+              icon: const Icon(Icons.close_outlined),
+              label: const Text('Quitter l’assistant'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _confirmLeave(WorkbookImportController controller) async {
+    final hasLocalWork =
+        _preparationHasLocalChanges ||
+        ref.read(workbookImportProvider).analysis != null;
+    if (!hasLocalWork) return true;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.info_outline),
+        title: const Text('Quitter l’assistant ?'),
+        content: const Text(
+          'La prévisualisation et les confirmations locales seront abandonnées. Aucune écriture financière n’a été créée.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Rester'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Quitter sans enregistrer'),
+          ),
         ],
       ),
     );
+    if (discard == true) {
+      controller.abandonPreparation();
+      _preparationHasLocalChanges = false;
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _exitAssistant(WorkbookImportController controller) async {
+    if (await _confirmLeave(controller) && mounted) {
+      setState(() => _allowPop = true);
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _returnToFileStep(WorkbookImportController controller) async {
+    if (await _confirmLeave(controller) && mounted) {
+      controller.abandonPreparation();
+      setState(() {
+        _cutoverPlan = null;
+        _cutoverResult = null;
+        _cutoverError = null;
+        _selectedCutoverHouseholdId = null;
+        _preparationHasLocalChanges = false;
+      });
+    }
   }
 
   Widget _buildCutoverSection({
