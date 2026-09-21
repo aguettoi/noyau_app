@@ -27,6 +27,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
   var _creating = false;
   String _expenseIdempotencyKey = _newIdempotencyKey();
   String _cashIncomeIdempotencyKey = _newIdempotencyKey();
+  String _accountTransferIdempotencyKey = _newIdempotencyKey();
 
   Future<void> _openCreateDialog(
     List<FinancialAccount> accounts,
@@ -106,6 +107,20 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
           notes: draft.notes,
         );
         _cashIncomeIdempotencyKey = _newIdempotencyKey();
+      } else if (draft.type == LedgerTransactionType.transfer) {
+        final repository = await ref.read(
+          financialEventRepositoryProvider.future,
+        );
+        await repository.createAccountTransfer(
+          occurredAt: draft.occurredAt,
+          description: draft.description,
+          amount: draft.amount,
+          sourceAccountId: draft.sourceAccountId!,
+          destinationAccountId: draft.destinationAccountId!,
+          idempotencyKey: _accountTransferIdempotencyKey,
+          notes: draft.notes,
+        );
+        _accountTransferIdempotencyKey = _newIdempotencyKey();
       } else {
         await ref.read(createRemoteTransactionProvider)(draft);
       }

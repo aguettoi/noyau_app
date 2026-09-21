@@ -83,7 +83,7 @@ class SupabaseEnvelopeTransferGateway implements EnvelopeTransferGateway {
   @override
   Future<String> transfer(Map<String, Object?> parameters) async {
     final result = await _client.rpc(
-      'create_envelope_transfer',
+      'create_envelope_transfer_event',
       params: parameters,
     );
     if (result is! String || result.isEmpty) {
@@ -181,6 +181,7 @@ final createRemoteEnvelopeTransferProvider =
         required Money amount,
         required DateTime occurredAt,
         required String description,
+        required String idempotencyKey,
       })
     >((ref) {
       return ({
@@ -189,6 +190,7 @@ final createRemoteEnvelopeTransferProvider =
         required Money amount,
         required DateTime occurredAt,
         required String description,
+        required String idempotencyKey,
       }) async {
         final household = await ref.read(activeHouseholdProvider.future);
         final householdId = household.householdId;
@@ -202,6 +204,8 @@ final createRemoteEnvelopeTransferProvider =
           'p_amount': amount.dirhams.toStringAsFixed(2),
           'p_occurred_at': occurredAt.toUtc().toIso8601String(),
           'p_description': description.trim(),
+          'p_notes': null,
+          'p_idempotency_key': idempotencyKey,
         });
       };
     });

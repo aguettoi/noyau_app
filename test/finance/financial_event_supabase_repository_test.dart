@@ -69,6 +69,47 @@ void main() {
     },
   );
 
+  test('create_account_transfer_event transmet le contrat canonique', () async {
+    final gateway = _Gateway();
+    await repository(gateway).createAccountTransfer(
+      occurredAt: DateTime.utc(2026, 9, 21, 10, 30),
+      description: ' Virement interne ',
+      amount: Money.fromMinorUnits(12500),
+      sourceAccountId: 'account-source',
+      destinationAccountId: 'account-destination',
+      notes: ' vérification ',
+      idempotencyKey: '00000000-0000-4000-8000-000000000045',
+    );
+
+    expect(gateway.function, 'create_account_transfer_event');
+    expect(gateway.parameters, {
+      'p_household_id': 'home-1',
+      'p_occurred_at': '2026-09-21T10:30:00.000Z',
+      'p_description': 'Virement interne',
+      'p_amount': '125.00',
+      'p_source_account_id': 'account-source',
+      'p_destination_account_id': 'account-destination',
+      'p_notes': 'vérification',
+      'p_idempotency_key': '00000000-0000-4000-8000-000000000045',
+    });
+  });
+
+  test('un virement canonique invalide ne déclenche aucune RPC', () {
+    final gateway = _Gateway();
+    expect(
+      () => repository(gateway).createAccountTransfer(
+        occurredAt: DateTime.utc(2026),
+        description: 'Virement',
+        amount: Money.fromMinorUnits(0),
+        sourceAccountId: 'same-account',
+        destinationAccountId: 'same-account',
+        idempotencyKey: '00000000-0000-4000-8000-000000000046',
+      ),
+      throwsStateError,
+    );
+    expect(gateway.callCount, 0);
+  });
+
   test(
     'create_cash_income_event refuse les doubles et dépassements avant RPC',
     () async {

@@ -324,6 +324,147 @@ void main() {
     expect(legacyCalls, 0);
   });
 
+  testWidgets('un virement visible utilise seulement la RPC canonique', (
+    tester,
+  ) async {
+    final gateway = _FinancialGateway();
+    var legacyCalls = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          remoteAccountsProvider.overrideWith(
+            (ref) async => [
+              account(id: 'source', name: 'Banque A'),
+              account(id: 'destination', name: 'Caisse'),
+            ],
+          ),
+          remoteTransactionsProvider.overrideWith(
+            (ref) async => const <TransactionHistoryItem>[],
+          ),
+          remoteEnvelopeBalancesProvider.overrideWith(
+            (ref) async => [envelope(id: 'food', name: 'Courses')],
+          ),
+          createRemoteTransactionProvider.overrideWithValue((draft) async {
+            legacyCalls++;
+            return 'legacy';
+          }),
+          financialEventRepositoryProvider.overrideWith(
+            (ref) async => FinancialEventSupabaseRepository(
+              gateway: gateway,
+              householdId: 'home-1',
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: TransactionsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-transaction-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('transaction-type-field')).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Virement interne').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('transaction-description-field')),
+      'Virement vers caisse',
+    );
+    await tester.enterText(
+      find.byKey(const Key('transaction-amount-field')),
+      '125',
+    );
+    await tester.tap(
+      find.byKey(const Key('transaction-source-account-field')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Banque A').last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('transaction-destination-account-field')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Caisse').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('create-transaction-button')));
+    await tester.pumpAndSettle();
+
+    expect(gateway.function, 'create_account_transfer_event');
+    expect(gateway.parameters!['p_source_account_id'], 'source');
+    expect(gateway.parameters!['p_destination_account_id'], 'destination');
+    expect(gateway.parameters!['p_idempotency_key'], isNotEmpty);
+    expect(legacyCalls, 0);
+  });
+
+  testWidgets('un retry de virement conserve la même clé idempotente', (
+    tester,
+  ) async {
+    final gateway = _RetryFinancialGateway();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          remoteAccountsProvider.overrideWith(
+            (ref) async => [
+              account(id: 'source', name: 'Banque A'),
+              account(id: 'destination', name: 'Caisse'),
+            ],
+          ),
+          remoteTransactionsProvider.overrideWith(
+            (ref) async => const <TransactionHistoryItem>[],
+          ),
+          remoteEnvelopeBalancesProvider.overrideWith(
+            (ref) async => [envelope(id: 'food', name: 'Courses')],
+          ),
+          financialEventRepositoryProvider.overrideWith(
+            (ref) async => FinancialEventSupabaseRepository(
+              gateway: gateway,
+              householdId: 'home-1',
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: TransactionsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-transaction-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('transaction-type-field')).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Virement interne').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('transaction-description-field')),
+      'Virement vers caisse',
+    );
+    await tester.enterText(
+      find.byKey(const Key('transaction-amount-field')),
+      '125',
+    );
+    await tester.tap(
+      find.byKey(const Key('transaction-source-account-field')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Banque A').last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('transaction-destination-account-field')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Caisse').last);
+    await tester.pumpAndSettle();
+
+    final submit = find.byKey(const Key('create-transaction-button'));
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(gateway.requests, hasLength(2));
+    expect(
+      gateway.requests[0]['p_idempotency_key'],
+      gateway.requests[1]['p_idempotency_key'],
+    );
+  });
+
   testWidgets('un revenu ne peut pas affecter plus que son montant', (
     tester,
   ) async {
@@ -1575,5 +1716,18 @@ class _FinancialGateway implements FinancialEventSupabaseGateway {
     this.function = function;
     this.parameters = Map<String, Object?>.from(parameters);
     return completion?.future ?? Future<Object?>.value('event-1');
+  }
+}
+
+class _RetryFinancialGateway implements FinancialEventSupabaseGateway {
+  final requests = <Map<String, Object?>>[];
+
+  @override
+  Future<Object?> call(String function, Map<String, Object?> parameters) async {
+    requests.add(Map<String, Object?>.from(parameters));
+    if (requests.length == 1) {
+      throw StateError('Réseau incertain');
+    }
+    return 'event-1';
   }
 }

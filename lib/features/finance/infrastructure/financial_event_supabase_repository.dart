@@ -70,6 +70,32 @@ class FinancialEventSupabaseRepository {
     });
   }
 
+  Future<String> createAccountTransfer({
+    required DateTime occurredAt,
+    required String description,
+    required Money amount,
+    required String sourceAccountId,
+    required String destinationAccountId,
+    required String idempotencyKey,
+    String? notes,
+  }) {
+    FinancialEventContract.validateTransfer(
+      sourceId: sourceAccountId,
+      destinationId: destinationAccountId,
+      amount: amount.dirhams,
+    );
+    return _call('create_account_transfer_event', {
+      'p_household_id': householdId,
+      'p_occurred_at': occurredAt.toUtc().toIso8601String(),
+      'p_description': description.trim(),
+      'p_amount': _mad(amount),
+      'p_source_account_id': sourceAccountId,
+      'p_destination_account_id': destinationAccountId,
+      'p_notes': _nullable(notes),
+      'p_idempotency_key': idempotencyKey,
+    });
+  }
+
   Future<String> createDebtExpense({
     required DateTime occurredAt,
     required String description,

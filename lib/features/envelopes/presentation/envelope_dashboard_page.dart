@@ -242,7 +242,7 @@ class EnvelopeDashboardPage extends ConsumerWidget {
         data: (envelopes) {
           final activeEnvelopes = envelopes;
           final ordinaryActiveEnvelopes = activeEnvelopes
-              .where((envelope) => !envelope.isSystem)
+              .where((envelope) => !envelope.isSystem && !envelope.isArchived)
               .toList(growable: false);
           final toAllocate = history.valueOrNull
               ?.where((envelope) => envelope.systemCode == 'to_allocate')
@@ -261,9 +261,13 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                   ),
                   FilledButton.icon(
                     key: const Key('envelope-transfer-button'),
-                    onPressed: activeEnvelopes.length < 2
+                    onPressed: ordinaryActiveEnvelopes.length < 2
                         ? null
-                        : () => _openTransfer(context, ref, activeEnvelopes),
+                        : () => _openTransfer(
+                            context,
+                            ref,
+                            ordinaryActiveEnvelopes,
+                          ),
                     icon: const Icon(Icons.swap_horiz),
                     label: const Text('Transférer'),
                   ),
@@ -945,6 +949,7 @@ class _EnvelopeTransferDialogState
   final _description = TextEditingController();
   String? _sourceId;
   String? _destinationId;
+  final _idempotencyKey = newEnvelopeDistributionIdempotencyKey();
   var _submitting = false;
   String? _error;
 
@@ -982,6 +987,7 @@ class _EnvelopeTransferDialogState
         amount: Money.fromMinorUnits(cents),
         occurredAt: DateTime.now(),
         description: _description.text.trim(),
+        idempotencyKey: _idempotencyKey,
       );
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -1090,12 +1096,16 @@ class _EnvelopeDropdown extends StatelessWidget {
   Widget build(BuildContext context) => DropdownButtonFormField<String>(
     key: key,
     initialValue: value,
+    isExpanded: true,
     decoration: InputDecoration(labelText: label),
     items: envelopes
         .map(
           (item) => DropdownMenuItem(
             value: item.id,
-            child: Text(item.isSystem ? '${item.name} (Système)' : item.name),
+            child: Text(
+              item.isSystem ? '${item.name} (Système)' : item.name,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         )
         .toList(growable: false),

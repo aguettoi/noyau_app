@@ -69,6 +69,20 @@ class FinancialEventContract {
     }
   }
 
+  static void validateTransfer({
+    required String sourceId,
+    required String destinationId,
+    required num amount,
+  }) {
+    validatePositiveAmount(amount);
+    if (sourceId.trim().isEmpty || destinationId.trim().isEmpty) {
+      throw StateError('Une source et une destination sont requises.');
+    }
+    if (sourceId == destinationId) {
+      throw StateError('La source et la destination doivent être différentes.');
+    }
+  }
+
   static num remainingAfterSettlement({
     required num initialAmount,
     required num settledAmount,

@@ -20,6 +20,26 @@ class _DistributionGateway implements ToAllocateDistributionGateway {
   }
 }
 
+class _EnvelopeTransferGateway implements EnvelopeTransferGateway {
+  _EnvelopeTransferGateway({this.failFirst = false});
+
+  Map<String, Object?>? request;
+  final requests = <Map<String, Object?>>[];
+  final bool failFirst;
+  var callCount = 0;
+
+  @override
+  Future<String> transfer(Map<String, Object?> parameters) async {
+    callCount++;
+    request = Map<String, Object?>.from(parameters);
+    requests.add(request!);
+    if (failFirst && callCount == 1) {
+      throw StateError('Réseau incertain');
+    }
+    return 'envelope-transfer-event';
+  }
+}
+
 void main() {
   const userEnvelope = RemoteEnvelopeBalance(
     id: 'user-envelope',
@@ -88,6 +108,7 @@ void main() {
       systemEnvelope,
     ],
     _DistributionGateway? distributionGateway,
+    _EnvelopeTransferGateway? transferGateway,
     List<RemoteEnvelopeBalance> Function()? envelopeLoader,
   }) async {
     await tester.binding.setSurfaceSize(size);
@@ -113,6 +134,8 @@ void main() {
             toAllocateDistributionGatewayProvider.overrideWithValue(
               distributionGateway,
             ),
+          if (transferGateway != null)
+            envelopeTransferGatewayProvider.overrideWithValue(transferGateway),
         ],
         child: const MaterialApp(home: Scaffold(body: EnvelopeDashboardPage())),
       ),
@@ -191,6 +214,100 @@ void main() {
 
     expect(find.byKey(const Key('to-allocate-alert')), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'le transfert visible utilise le contrat FinancialEvent et exclut le système',
+    (tester) async {
+      final gateway = _EnvelopeTransferGateway();
+      await pumpDashboard(
+        tester,
+        const Size(1000, 760),
+        envelopes: const [userEnvelope, zeroEnvelope, systemEnvelope],
+        transferGateway: gateway,
+      );
+
+      await tester.tap(find.byKey(const Key('envelope-transfer-button')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('transfer-source-envelope-field')).last,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('À répartir (Système)'), findsNothing);
+      await tester.tap(find.text(userEnvelope.name).last);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('transfer-destination-envelope-field')).last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(zeroEnvelope.name).last);
+      await tester.enterText(
+        find.byKey(const Key('transfer-envelope-amount-field')),
+        '10',
+      );
+      await tester.enterText(
+        find.byKey(const Key('transfer-envelope-description-field')),
+        'Transfert test',
+      );
+      await tester.tap(
+        find.byKey(const Key('confirm-envelope-transfer-button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(gateway.callCount, 1);
+      expect(gateway.request!['p_source_envelope_id'], userEnvelope.id);
+      expect(gateway.request!['p_destination_envelope_id'], zeroEnvelope.id);
+      expect(gateway.request!['p_amount'], '10.00');
+      expect(gateway.request!['p_idempotency_key'], isNotEmpty);
+      expect(gateway.request!['p_notes'], isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('un retry de transfert conserve la même clé idempotente', (
+    tester,
+  ) async {
+    final gateway = _EnvelopeTransferGateway(failFirst: true);
+    await pumpDashboard(
+      tester,
+      const Size(1000, 760),
+      envelopes: const [userEnvelope, zeroEnvelope],
+      transferGateway: gateway,
+    );
+
+    await tester.tap(find.byKey(const Key('envelope-transfer-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('transfer-source-envelope-field')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(userEnvelope.name).last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('transfer-destination-envelope-field')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(zeroEnvelope.name).last);
+    await tester.enterText(
+      find.byKey(const Key('transfer-envelope-amount-field')),
+      '10',
+    );
+    await tester.enterText(
+      find.byKey(const Key('transfer-envelope-description-field')),
+      'Transfert test',
+    );
+
+    final submit = find.byKey(const Key('confirm-envelope-transfer-button'));
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(gateway.requests, hasLength(2));
+    expect(
+      gateway.requests[0]['p_idempotency_key'],
+      gateway.requests[1]['p_idempotency_key'],
+    );
   });
 
   testWidgets('l alerte à répartir reste sans overflow en fenêtre étroite', (
