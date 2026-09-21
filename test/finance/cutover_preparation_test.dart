@@ -15,6 +15,10 @@ void main() {
     expect(preparation.envelopes.every((item) => !item.isConfirmed), isTrue);
     expect(preparation.effectiveDate, isNull);
     expect(preparation.canPrepareFuturePlan, isFalse);
+    expect(
+      const CutoverPreparationBuilder().isRealCutoverSource(_analysis()),
+      isTrue,
+    );
   });
 
   test(

@@ -75,7 +75,7 @@ void main() {
     await tester.tap(find.byKey(const Key('start-real-cutover-preparation')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Valeur confirmée'), findsWidgets);
+    expect(find.text('Montant confirmé (MAD)'), findsWidgets);
     expect(find.text('Obligations candidates'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

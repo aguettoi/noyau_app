@@ -439,6 +439,20 @@ class CutoverPreparationBuilder {
     );
   }
 
+  /// Detects the real-cutover review structure without relying on a file name
+  /// or fingerprint. A generic workbook keeps the existing archive workflow.
+  bool isRealCutoverSource(WorkbookImportAnalysis analysis) {
+    final names = _envelopeNames(analysis).map(_normalise).toSet();
+    return names.length == 25 &&
+        names.containsAll(const {
+          'traite maison',
+          'nourriture',
+          'epargne',
+          'voyages',
+          'vignette',
+        });
+  }
+
   List<String> _envelopeNames(WorkbookImportAnalysis analysis) {
     final sheet = analysis.sourceSheets
         .where((item) => _normalise(item.sourceSheetName) == 'enveloppes')

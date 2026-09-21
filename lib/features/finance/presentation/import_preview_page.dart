@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../application/cutover_preparation.dart';
 import '../application/cutover_opening_import.dart';
 import '../application/workbook_import.dart';
 import 'cutover_preparation_card.dart';
@@ -44,6 +45,9 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     final analysis = state.analysis;
     final selectedPreviews =
         analysis?.previewsFor(state.selectedImporterIds) ?? const [];
+    final isRealCutoverSource =
+        analysis != null &&
+        const CutoverPreparationBuilder().isRealCutoverSource(analysis);
     final blockingSelected = selectedPreviews
         .where((preview) => !preview.canBeConfirmed)
         .toList(growable: false);
@@ -76,7 +80,9 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
               children: [
                 Expanded(
                   child: Text(
-                    'Importer mon fichier Excel',
+                    isRealCutoverSource
+                        ? 'Préparation du cutover réel'
+                        : 'Importer mon fichier Excel',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                 ),
@@ -92,11 +98,12 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
             _NoticeCard(
               icon: Icons.info_outline,
               color: const Color(0xFFEEF1F4),
-              message:
-                  'Parcourez le fichier, contrôlez les données et confirmez uniquement ce que vous souhaitez préparer.',
+              message: isRealCutoverSource
+                  ? 'Source reconnue pour la préparation du cutover réel. Cette revue locale ne sélectionne ni n’archive aucun onglet.'
+                  : 'Parcourez le fichier, contrôlez les données et confirmez uniquement ce que vous souhaitez préparer.',
             ),
             const SizedBox(height: AppSpacing.md),
-            _ProgressCard(currentStep: currentStep),
+            if (!isRealCutoverSource) _ProgressCard(currentStep: currentStep),
             if (state.loadingProgress case final progress?) ...[
               const SizedBox(height: 12),
               LinearProgressIndicator(value: progress.clamp(0, 1).toDouble()),
@@ -165,96 +172,110 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
             ],
             if (analysis case final analysis?) ...[
               const SizedBox(height: 16),
-              CutoverPreparationCard(
-                key: ValueKey(
-                  'cutover-preparation-${analysis.sourceFingerprint}',
+              if (isRealCutoverSource) ...[
+                CutoverPreparationCard(
+                  key: ValueKey(
+                    'cutover-preparation-${analysis.sourceFingerprint}',
+                  ),
+                  analysis: analysis,
+                  onDirtyChanged: (value) =>
+                      _preparationHasLocalChanges = value,
                 ),
-                analysis: analysis,
-                onDirtyChanged: (value) => _preparationHasLocalChanges = value,
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
               _ActionCard(
                 icon: Icons.checklist_rounded,
-                title: '2. Choisir ce que vous voulez importer',
-                body:
-                    '${analysis.fileName} est pret. Cochez uniquement les onglets que vous souhaitez conserver.',
-                action: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${state.selectedImporterIds.length} onglet(s) choisi(s) sur ${analysis.sheetPreviews.length}',
-                        style: Theme.of(context).textTheme.labelLarge,
+                title: isRealCutoverSource
+                    ? 'Archivage optionnel des onglets'
+                    : '2. Choisir ce que vous voulez importer',
+                body: isRealCutoverSource
+                    ? 'Ce mécanisme historique est distinct du cutover réel. Journal, scénarios et simulations ne sont pas nécessaires pour préparer les positions d’ouverture.'
+                    : '${analysis.fileName} est pret. Cochez uniquement les onglets que vous souhaitez conserver.',
+                action: isRealCutoverSource
+                    ? const Text(
+                        'Aucun onglet n’est requis pour cette préparation. Ouvrez cette section uniquement si vous souhaitez utiliser l’archivage séparé.',
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${state.selectedImporterIds.length} onglet(s) choisi(s) sur ${analysis.sheetPreviews.length}',
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: controller.selectAllSheets,
+                            icon: const Icon(Icons.select_all_rounded),
+                            label: const Text('Selectionner tout'),
+                          ),
+                        ],
                       ),
-                    ),
-                    TextButton.icon(
-                      onPressed: controller.selectAllSheets,
-                      icon: const Icon(Icons.select_all_rounded),
-                      label: const Text('Selectionner tout'),
-                    ),
-                  ],
-                ),
               ),
               const SizedBox(height: 8),
-              ...analysis.sheetPreviews.map(
-                (preview) => _SheetPreviewCard(
-                  preview: preview,
-                  selected: state.selectedImporterIds.contains(
-                    preview.importerId,
+              if (isRealCutoverSource)
+                _OptionalArchiveSheets(
+                  child: _buildSheetPreviews(
+                    analysis: analysis,
+                    state: state,
+                    controller: controller,
                   ),
-                  onSelected: (selected) =>
-                      controller.toggleSheet(preview.importerId, selected),
+                )
+              else
+                _buildSheetPreviews(
+                  analysis: analysis,
+                  state: state,
+                  controller: controller,
                 ),
-              ),
-              if (analysis.unhandledSheetNames.isNotEmpty)
-                _NoticeCard(
-                  icon: Icons.warning_amber_rounded,
-                  color: Theme.of(context).colorScheme.tertiaryContainer,
-                  message:
-                      'Ces onglets ne sont pas encore reconnus : ${analysis.unhandledSheetNames.join(', ')}',
-                ),
-              const SizedBox(height: 16),
-              _ActionCard(
-                icon: Icons.health_and_safety_outlined,
-                title: '3. Verifier puis confirmer',
-                body: blockingSelected.isEmpty
-                    ? 'Les onglets choisis sont prets. Vous gardez le controle jusqu a la confirmation.'
-                    : '${blockingSelected.length} onglet(s) choisi(s) demandent votre attention.',
-                action: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: blockingSelected.isEmpty
-                          ? null
-                          : () => _showProblemsDialog(
-                              context: context,
-                              previews: blockingSelected,
-                              onSelectOnlyValid:
-                                  controller.selectOnlyValidSheets,
-                            ),
-                      icon: const Icon(Icons.help_outline_rounded),
-                      label: Text(
-                        'M aider a resoudre les problemes (${blockingSelected.length})',
+              if (!isRealCutoverSource ||
+                  state.selectedImporterIds.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _ActionCard(
+                  icon: Icons.health_and_safety_outlined,
+                  title: isRealCutoverSource
+                      ? 'Vérifier l’archivage sélectionné'
+                      : '3. Verifier puis confirmer',
+                  body: blockingSelected.isEmpty
+                      ? isRealCutoverSource
+                            ? 'Cette confirmation concerne uniquement l’archivage d’onglets, jamais le cutover réel.'
+                            : 'Les onglets choisis sont prets. Vous gardez le controle jusqu a la confirmation.'
+                      : '${blockingSelected.length} onglet(s) choisi(s) demandent votre attention.',
+                  action: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: blockingSelected.isEmpty
+                            ? null
+                            : () => _showProblemsDialog(
+                                context: context,
+                                previews: blockingSelected,
+                                onSelectOnlyValid:
+                                    controller.selectOnlyValidSheets,
+                              ),
+                        icon: const Icon(Icons.help_outline_rounded),
+                        label: Text(
+                          'M aider a resoudre les problemes (${blockingSelected.length})',
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed:
-                          analysis.canConfirmSelection(
-                                state.selectedImporterIds,
-                              ) &&
-                              !state.isConfirmed
-                          ? controller.confirmAnalysis
-                          : null,
-                      icon: const Icon(Icons.verified_outlined),
-                      label: Text(
-                        state.isConfirmed
-                            ? 'Onglets confirmes'
-                            : 'Confirmer mes choix',
+                      const SizedBox(height: 8),
+                      FilledButton.icon(
+                        onPressed:
+                            analysis.canConfirmSelection(
+                                  state.selectedImporterIds,
+                                ) &&
+                                !state.isConfirmed
+                            ? controller.confirmAnalysis
+                            : null,
+                        icon: const Icon(Icons.verified_outlined),
+                        label: Text(
+                          state.isConfirmed
+                              ? 'Onglets confirmes'
+                              : 'Confirmer mes choix',
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
               if (state.isConfirmed) ...[
                 const SizedBox(height: 12),
                 _NoticeCard(
@@ -270,20 +291,29 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                   cutoverHouseholds: cutoverHouseholds,
                 ),
               ],
-              const SizedBox(height: 16),
-              _ActionCard(
-                icon: Icons.undo_rounded,
-                title: 'Besoin de revenir en arriere ?',
-                body:
-                    'Le dernier import termine pourra etre annule sans effacer son historique.',
-                action: OutlinedButton.icon(
-                  onPressed: state.lastImportSessionId == null
-                      ? null
-                      : () => _showUndoDialog(context, controller),
-                  icon: const Icon(Icons.undo_outlined),
-                  label: const Text('Annuler le dernier import'),
+              if (!isRealCutoverSource ||
+                  state.lastImportSessionId != null) ...[
+                const SizedBox(height: 16),
+                _ActionCard(
+                  icon: Icons.undo_rounded,
+                  title: isRealCutoverSource
+                      ? 'Annuler le dernier archivage'
+                      : 'Besoin de revenir en arriere ?',
+                  body:
+                      'Le dernier import termine pourra etre annule sans effacer son historique.',
+                  action: OutlinedButton.icon(
+                    onPressed: state.lastImportSessionId == null
+                        ? null
+                        : () => _showUndoDialog(context, controller),
+                    icon: const Icon(Icons.undo_outlined),
+                    label: Text(
+                      isRealCutoverSource
+                          ? 'Annuler le dernier archivage'
+                          : 'Annuler le dernier import',
+                    ),
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 key: const Key('back-to-file-step-button'),
@@ -304,6 +334,30 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       ),
     );
   }
+
+  Widget _buildSheetPreviews({
+    required WorkbookImportAnalysis analysis,
+    required WorkbookImportState state,
+    required WorkbookImportController controller,
+  }) => Column(
+    children: [
+      ...analysis.sheetPreviews.map(
+        (preview) => _SheetPreviewCard(
+          preview: preview,
+          selected: state.selectedImporterIds.contains(preview.importerId),
+          onSelected: (selected) =>
+              controller.toggleSheet(preview.importerId, selected),
+        ),
+      ),
+      if (analysis.unhandledSheetNames.isNotEmpty)
+        _NoticeCard(
+          icon: Icons.warning_amber_rounded,
+          color: Theme.of(context).colorScheme.tertiaryContainer,
+          message:
+              'Ces onglets ne sont pas encore reconnus : ${analysis.unhandledSheetNames.join(', ')}',
+        ),
+    ],
+  );
 
   Future<bool> _confirmLeave(WorkbookImportController controller) async {
     final hasLocalWork =
@@ -828,6 +882,26 @@ class _ActionCard extends StatelessWidget {
           action,
         ],
       ),
+    ),
+  );
+}
+
+class _OptionalArchiveSheets extends StatelessWidget {
+  const _OptionalArchiveSheets({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    child: ExpansionTile(
+      key: const Key('optional-archive-sheets-panel'),
+      title: const Text('Parcourir les onglets à archiver'),
+      subtitle: const Text(
+        'Optionnel et distinct de la préparation du cutover réel.',
+      ),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      children: [child],
     ),
   );
 }
