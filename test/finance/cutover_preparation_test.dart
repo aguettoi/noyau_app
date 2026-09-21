@@ -68,6 +68,38 @@ void main() {
     expect(preparation.remainingConfirmations, 1);
     expect(preparation.canPrepareFuturePlan, isFalse);
   });
+
+  test('les obligations de scénario restent ambiguës et non automatiques', () {
+    final preparation = const CutoverPreparationBuilder().build(_analysis());
+    final parentNora = preparation.obligations.first;
+    final car = preparation.obligations.last;
+
+    expect(
+      parentNora.classification,
+      CutoverObligationClassification.ambiguous,
+    );
+    expect(parentNora.candidateAmount, 40000);
+    expect(parentNora.exists, isFalse);
+    expect(
+      car.classification,
+      CutoverObligationClassification.nonImportableAutomatically,
+    );
+    expect(car.candidateAmount, isNull);
+    expect(car.exists, isFalse);
+    expect(preparation.remainingConfirmations, 31);
+  });
+
+  test('les salaires de référence ne sont pas des encaissements', () {
+    final preparation = const CutoverPreparationBuilder().build(_analysis());
+
+    expect(preparation.incomes.map((item) => item.candidateAmount), [
+      12800,
+      15000,
+    ]);
+    expect(preparation.incomes.every((item) => item.isConfiguration), isTrue);
+    expect(preparation.incomes.every((item) => !item.isActive), isTrue);
+    expect(preparation.incomes.every((item) => !item.isConfirmed), isTrue);
+  });
 }
 
 WorkbookImportAnalysis _analysis() => const WorkbookImportAnalysis(

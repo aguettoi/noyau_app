@@ -48,6 +48,37 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('le contrôle desktop expose les colonnes compactes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              CutoverPreparationCard(
+                analysis: _analysis(),
+                onDirtyChanged: (_) {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('start-real-cutover-preparation')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Valeur confirmée'), findsWidgets);
+    expect(find.text('Obligations candidates'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 WorkbookImportAnalysis _analysis() => const WorkbookImportAnalysis(

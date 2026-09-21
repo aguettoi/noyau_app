@@ -1,5 +1,27 @@
 import 'workbook_import.dart';
 
+/// Provenance status of an obligation mentioned by a source workbook.
+///
+/// A value from a scenario is not evidence of an outstanding obligation. The
+/// status stays local to the preparation screen and has no materialisation
+/// effect by itself.
+enum CutoverObligationClassification {
+  confirmable,
+  ambiguous,
+  nonImportableAutomatically,
+}
+
+extension CutoverObligationClassificationLabel
+    on CutoverObligationClassification {
+  String get label => switch (this) {
+    CutoverObligationClassification.confirmable => 'Confirmable',
+    CutoverObligationClassification.ambiguous =>
+      'Ambiguë — confirmation utilisateur obligatoire',
+    CutoverObligationClassification.nonImportableAutomatically =>
+      'Non importable automatiquement',
+  };
+}
+
 /// Local-only review state for a real cutover source.
 ///
 /// It deliberately contains no database identifier and no execution method:
@@ -187,11 +209,13 @@ class CutoverPreparationIncome extends CutoverPreparationItem {
     required this.member,
     required this.destinationAccount,
     required this.isActive,
+    required this.isConfiguration,
   });
 
   final String member;
   final String destinationAccount;
   final bool isActive;
+  final bool isConfiguration;
 
   CutoverPreparationIncome copyWith({
     num? confirmedAmount,
@@ -212,6 +236,7 @@ class CutoverPreparationIncome extends CutoverPreparationItem {
     member: member ?? this.member,
     destinationAccount: destinationAccount ?? this.destinationAccount,
     isActive: isActive ?? this.isActive,
+    isConfiguration: isConfiguration,
   );
 }
 
@@ -221,6 +246,7 @@ class CutoverPreparationObligation {
     required this.name,
     required this.candidateSource,
     required this.candidateAmount,
+    required this.classification,
     required this.exists,
     required this.creditor,
     required this.initialAmount,
@@ -234,6 +260,7 @@ class CutoverPreparationObligation {
   final String name;
   final String candidateSource;
   final num? candidateAmount;
+  final CutoverObligationClassification classification;
   final bool exists;
   final String creditor;
   final num? initialAmount;
@@ -255,6 +282,7 @@ class CutoverPreparationObligation {
     name: name,
     candidateSource: candidateSource,
     candidateAmount: candidateAmount,
+    classification: classification,
     exists: exists ?? this.exists,
     creditor: creditor ?? this.creditor,
     initialAmount: initialAmount ?? this.initialAmount,
@@ -269,11 +297,41 @@ class CutoverPreparationBuilder {
   const CutoverPreparationBuilder();
 
   static const _accounts = [
-    ('awb-ibrahim', 'AWB Ibrahim', 'Ibrahim', 'Banque'),
-    ('cih-ibrahim', 'CIH Ibrahim', 'Ibrahim', 'Banque'),
-    ('islamique-ibrahim', 'Banque Islamique Ibrahim', 'Ibrahim', 'Banque'),
-    ('banque-nora', 'Banque Nora', 'Nora', 'Banque'),
-    ('espece-maison', 'Espèce maison', 'Foyer', 'Espèces'),
+    (
+      'awb-ibrahim',
+      'AWB Ibrahim',
+      'Ibrahim',
+      'Banque',
+      'SCENARIOS!F18:F20 — compte de simulation à confirmer',
+    ),
+    (
+      'cih-ibrahim',
+      'CIH Ibrahim',
+      'Ibrahim',
+      'Banque',
+      'Test Nv salaires!G30 — budget de simulation à confirmer',
+    ),
+    (
+      'islamique-ibrahim',
+      'Banque Islamique Ibrahim',
+      'Ibrahim',
+      'Banque',
+      'Test Nv salaires!H30 — budget de simulation à confirmer',
+    ),
+    (
+      'banque-nora',
+      'Banque Nora',
+      'Nora',
+      'Banque',
+      'Test Nv salaires!F30 — budget de simulation à confirmer',
+    ),
+    (
+      'espece-maison',
+      'Espèce maison',
+      'Foyer',
+      'Espèces',
+      'Test Nv salaires!K60 — libellé historique à confirmer',
+    ),
   ];
 
   CutoverPreparation build(WorkbookImportAnalysis analysis) {
@@ -287,7 +345,7 @@ class CutoverPreparationBuilder {
               name: definition.$2,
               holder: definition.$3,
               kind: definition.$4,
-              candidateSource: 'Enveloppes — solde calculé à contrôler',
+              candidateSource: definition.$5,
               candidateAmount: null,
               confirmedAmount: null,
               isConfirmed: false,
@@ -299,7 +357,8 @@ class CutoverPreparationBuilder {
           (name) => CutoverPreparationEnvelope(
             id: _id(name),
             name: name,
-            candidateSource: 'Enveloppes / Journal — calcul historique',
+            candidateSource:
+                'Enveloppes!B17:B41 — libellé source, solde à confirmer',
             candidateAmount: null,
             confirmedAmount: null,
             isConfirmed: false,
@@ -320,32 +379,38 @@ class CutoverPreparationBuilder {
         CutoverPreparationIncome(
           id: 'income-ibrahim',
           name: 'Salaire Ibrahim',
-          candidateSource: 'Test Nv salaires',
+          candidateSource:
+              'SCENARIOS!L1:M2 / Test Nv salaires!B6 — paramètre de budget',
           candidateAmount: 12800,
           confirmedAmount: null,
           isConfirmed: false,
           member: 'Ibrahim',
           destinationAccount: '',
           isActive: false,
+          isConfiguration: true,
         ),
         CutoverPreparationIncome(
           id: 'income-nora',
           name: 'Salaire Nora',
-          candidateSource: 'Test Nv salaires',
+          candidateSource:
+              'SCENARIOS!L1:M2 / Test Nv salaires!B10 — paramètre de budget',
           candidateAmount: 15000,
           confirmedAmount: null,
           isConfirmed: false,
           member: 'Nora',
           destinationAccount: '',
           isActive: false,
+          isConfiguration: true,
         ),
       ],
       obligations: const [
         CutoverPreparationObligation(
           id: 'parent-nora',
           name: 'Dette Parent Nora',
-          candidateSource: 'Enveloppes / Acquisit voiture',
+          candidateSource:
+              'Test Nv salaires!J24 / ANCIEN PROGRAMME!M26 — hypothèse de financement voiture',
           candidateAmount: 40000,
+          classification: CutoverObligationClassification.ambiguous,
           exists: false,
           creditor: '',
           initialAmount: null,
@@ -357,8 +422,11 @@ class CutoverPreparationBuilder {
         CutoverPreparationObligation(
           id: 'car',
           name: 'Financement voiture',
-          candidateSource: 'Acquisit voiture',
-          candidateAmount: 40000,
+          candidateSource:
+              'Acquisit voiture!A4:B4 — montant de simulation, sans capital restant dû identifié',
+          candidateAmount: null,
+          classification:
+              CutoverObligationClassification.nonImportableAutomatically,
           exists: false,
           creditor: '',
           initialAmount: null,

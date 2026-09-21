@@ -204,6 +204,8 @@ class _AccountReview extends StatelessWidget {
     title: 'Comptes candidats (${preparation.accounts.length})',
     child: Column(
       children: [
+        const _CandidateTableHeader(),
+        const SizedBox(height: 6),
         ...preparation.accounts.map(
           (account) => _AmountConfirmationRow(
             key: Key('cutover-account-${account.id}'),
@@ -247,6 +249,8 @@ class _EnvelopeReview extends StatelessWidget {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
+        const _CandidateTableHeader(),
+        const SizedBox(height: 6),
         ...preparation.envelopes.map(
           (envelope) => _AmountConfirmationRow(
             key: Key('cutover-envelope-${envelope.id}'),
@@ -297,7 +301,7 @@ class _IncomeReview extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     title: Text(income.name),
                     subtitle: Text(
-                      'Candidat : ${_money(income.candidateAmount)} • ${income.candidateSource}',
+                      '${income.isConfiguration ? 'Paramètre de budget, pas un encaissement' : 'Candidat'} : ${_money(income.candidateAmount)} • ${income.candidateSource}',
                     ),
                     value: income.isActive,
                     onChanged: (value) => onChanged(
@@ -379,7 +383,7 @@ class _ObligationReview extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     title: Text(obligation.name),
                     subtitle: Text(
-                      'Valeur candidate : ${_money(obligation.candidateAmount)} • ${obligation.candidateSource}',
+                      '${obligation.classification.label}\nValeur candidate : ${_money(obligation.candidateAmount)} • ${obligation.candidateSource}',
                     ),
                     value: obligation.exists,
                     onChanged: (value) => onChanged(
@@ -553,78 +557,148 @@ class _AmountConfirmationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isConfirmed
-              ? const Color(0xFF4F6F52)
-              : Theme.of(context).dividerColor,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final desktop = constraints.maxWidth >= 880;
+        final item = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleSmall),
             Text(details, style: Theme.of(context).textTheme.bodySmall),
-            Text(
-              'Source : $source',
-              style: Theme.of(context).textTheme.bodySmall,
+          ],
+        );
+        final sourceValue = Text(
+          source,
+          style: Theme.of(context).textTheme.bodySmall,
+          maxLines: desktop ? 2 : null,
+          overflow: desktop ? TextOverflow.ellipsis : TextOverflow.visible,
+        );
+        final candidate = Text(
+          candidateAmount == null
+              ? 'Calcul source à contrôler'
+              : _money(candidateAmount),
+          style: Theme.of(context).textTheme.bodySmall,
+        );
+        final amountField = TextFormField(
+          key: ValueKey('$title-confirmed-value'),
+          initialValue: confirmedAmount?.toString() ?? '',
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Confirmé (MAD)',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (value) => onAmountChanged(_parseAmount(value)),
+        );
+        final status = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Tooltip(
+              message: confirmedAmount == null
+                  ? 'Saisissez un montant avant confirmation.'
+                  : 'Confirmer cette valeur.',
+              child: Checkbox(
+                value: isConfirmed,
+                onChanged: confirmedAmount == null
+                    ? null
+                    : (value) => onConfirmedChanged(value ?? false),
+              ),
             ),
-            Text(
-              candidateAmount == null
-                  ? 'Candidat : calcul source à contrôler'
-                  : 'Candidat : ${_money(candidateAmount)}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    key: ValueKey('$title-confirmed-value'),
-                    initialValue: confirmedAmount?.toString() ?? '',
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Solde réel confirmé (MAD)',
-                      isDense: true,
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (value) => onAmountChanged(_parseAmount(value)),
-                  ),
+            Flexible(
+              child: Text(
+                isConfirmed ? 'Confirmé' : 'À confirmer',
+                style: TextStyle(
+                  color: isConfirmed
+                      ? const Color(0xFF4F6F52)
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(width: 8),
-                Tooltip(
-                  message: confirmedAmount == null
-                      ? 'Saisissez un montant avant confirmation.'
-                      : 'Confirmer cette valeur.',
-                  child: Checkbox(
-                    value: isConfirmed,
-                    onChanged: confirmedAmount == null
-                        ? null
-                        : (value) => onConfirmedChanged(value ?? false),
-                  ),
-                ),
-              ],
-            ),
-            Text(
-              isConfirmed ? 'Confirmé' : 'À confirmer',
-              style: TextStyle(
-                color: isConfirmed
-                    ? const Color(0xFF4F6F52)
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
-        ),
-      ),
+        );
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isConfirmed
+                  ? const Color(0xFF4F6F52)
+                  : Theme.of(context).dividerColor,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: desktop
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(width: 180, child: item),
+                      const SizedBox(width: 12),
+                      Expanded(flex: 3, child: sourceValue),
+                      const SizedBox(width: 12),
+                      SizedBox(width: 140, child: candidate),
+                      const SizedBox(width: 12),
+                      SizedBox(width: 150, child: amountField),
+                      const SizedBox(width: 8),
+                      SizedBox(width: 125, child: status),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      item,
+                      const SizedBox(height: 4),
+                      Text(
+                        'Source : $source',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      Text(
+                        'Candidat : ${candidateAmount == null ? 'calcul source à contrôler' : _money(candidateAmount)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: amountField),
+                          const SizedBox(width: 8),
+                          status,
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+        );
+      },
     ),
+  );
+}
+
+class _CandidateTableHeader extends StatelessWidget {
+  const _CandidateTableHeader();
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < 880) return const SizedBox.shrink();
+      final style = Theme.of(context).textTheme.labelSmall;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          children: [
+            SizedBox(width: 180, child: Text('Élément', style: style)),
+            const SizedBox(width: 12),
+            const Expanded(flex: 3, child: Text('Source / candidat')),
+            const SizedBox(width: 12),
+            SizedBox(width: 140, child: Text('Valeur source', style: style)),
+            const SizedBox(width: 12),
+            SizedBox(width: 150, child: Text('Valeur confirmée', style: style)),
+            const SizedBox(width: 8),
+            SizedBox(width: 125, child: Text('Statut', style: style)),
+          ],
+        ),
+      );
+    },
   );
 }
 
