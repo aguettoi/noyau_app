@@ -79,6 +79,35 @@ void main() {
     expect(find.text('Obligations candidates'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('le protocole jour J sépare constat et régularisation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              CutoverPreparationCard(
+                analysis: _analysis(),
+                onDirtyChanged: (_) {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('start-real-cutover-preparation')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Protocole de bascule — jour J'), findsOneWidget);
+    expect(
+      find.textContaining('Il ne corrige ni le Grand Livre ni les enveloppes'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 WorkbookImportAnalysis _analysis() => const WorkbookImportAnalysis(

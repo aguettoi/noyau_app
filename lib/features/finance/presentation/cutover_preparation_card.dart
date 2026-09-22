@@ -101,6 +101,8 @@ class _CutoverPreparationCardState extends State<CutoverPreparationCard> {
             onChanged: (value) => _change(preparation.updateObligation(value)),
           ),
           const SizedBox(height: AppSpacing.sm),
+          const _CutoverDayChecklist(),
+          const SizedBox(height: AppSpacing.sm),
           _PreparationSummary(preparation: preparation),
           const SizedBox(height: AppSpacing.sm),
           FilledButton.icon(
@@ -136,6 +138,47 @@ class _CutoverPreparationCardState extends State<CutoverPreparationCard> {
         FilledButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
           child: const Text('Continuer la revue'),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CutoverDayChecklist extends StatelessWidget {
+  const _CutoverDayChecklist();
+
+  @override
+  Widget build(BuildContext context) => _SectionCard(
+    title: 'Protocole de bascule — jour J',
+    child: const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Avant confirmation'),
+        SizedBox(height: 4),
+        Text('1. Figer l’utilisation du Google Sheet.'),
+        Text('2. Choisir la date effective.'),
+        Text(
+          '3. Relever les positions réelles des comptes et compter les espèces.',
+        ),
+        Text('4. Confirmer les enveloppes, dont À répartir indépendamment.'),
+        Text(
+          '5. Confirmer les revenus et traiter les obligations ouvertes séparément.',
+        ),
+        Text(
+          '6. Relire la revue finale avant de préparer l’exécution canonique.',
+        ),
+        SizedBox(height: 10),
+        Text('Après matérialisation'),
+        SizedBox(height: 4),
+        Text('7. Relire les positions persistées depuis la base.'),
+        Text('8. Rapprocher chaque banque avec son solde théorique GL.'),
+        Text('9. Rapprocher la caisse avec le montant physique compté.'),
+        Text(
+          '10. Vérifier toutes les enveloppes sans les compenser avec les comptes.',
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Un rapprochement constate un écart seulement. Il ne corrige ni le Grand Livre ni les enveloppes ; une régularisation future restera une action distincte et append-only.',
         ),
       ],
     ),

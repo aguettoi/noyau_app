@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../application/providers/remote_account_balances_provider.dart';
+import '../application/providers/account_balance_observation_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
 import '../application/providers/remote_transactions_provider.dart';
@@ -259,6 +260,12 @@ class _AccountDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(accountTransactionHistoryProvider(account.id));
+    final observation = ref.watch(
+      latestAccountBalanceObservationProvider(account.id),
+    );
+    final canReconcile =
+        account.type == FinancialAccountType.bank ||
+        account.type == FinancialAccountType.cash;
     return Scaffold(
       appBar: AppBar(title: Text(account.name)),
       body: ListView(
@@ -266,6 +273,15 @@ class _AccountDetailPage extends ConsumerWidget {
         children: [
           Text(account.name, style: Theme.of(context).textTheme.headlineSmall),
           Text('Solde actuel : ${balance.dirhams.toStringAsFixed(2)} MAD'),
+          if (canReconcile) ...[
+            const SizedBox(height: AppSpacing.md),
+            _AccountReconciliationCard(
+              account: account,
+              theoreticalBalance: balance,
+              observation: observation,
+              onRecord: () => _openObservationDialog(context, ref),
+            ),
+          ],
           const SizedBox(height: AppSpacing.md),
           Text('Opérations', style: Theme.of(context).textTheme.titleMedium),
           ...history.when(
@@ -291,7 +307,323 @@ class _AccountDetailPage extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _openObservationDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _RecordAccountBalanceDialog(
+        account: account,
+        theoreticalBalance: balance,
+        onRecord:
+            ({required observedAt, required actualBalance, required reason}) =>
+                ref.read(recordAccountBalanceObservationProvider)(
+                  accountId: account.id,
+                  observedAt: observedAt,
+                  actualBalance: actualBalance,
+                  reason: reason,
+                ),
+      ),
+    );
+    if (saved == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Constat de solde enregistré.')),
+      );
+    }
+  }
 }
+
+class _AccountReconciliationCard extends StatelessWidget {
+  const _AccountReconciliationCard({
+    required this.account,
+    required this.theoreticalBalance,
+    required this.observation,
+    required this.onRecord,
+  });
+
+  final FinancialAccount account;
+  final Money theoreticalBalance;
+  final AsyncValue<AccountBalanceObservation?> observation;
+  final VoidCallback onRecord;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: Theme.of(context).colorScheme.secondaryContainer,
+    child: Padding(
+      padding: AppSpacing.card,
+      child: observation.when(
+        loading: () => const SizedBox(
+          height: 48,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (_, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              account.type == FinancialAccountType.cash
+                  ? 'Inventaire de caisse'
+                  : 'Rapprochement bancaire',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const Text('Le dernier constat ne peut pas être chargé.'),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton(
+                onPressed: onRecord,
+                child: const Text('Constater un solde réel'),
+              ),
+            ),
+          ],
+        ),
+        data: (latest) {
+          final difference = latest == null
+              ? null
+              : latest.actualBalance - theoreticalBalance;
+          final reconciled = difference?.minorUnits == 0;
+          final title = account.type == FinancialAccountType.cash
+              ? 'Inventaire de caisse'
+              : 'Rapprochement bancaire';
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.xxs),
+              Text('Solde théorique GL : ${_frenchMoney(theoreticalBalance)}'),
+              if (latest == null)
+                const Text('Aucun solde réel constaté pour le moment.')
+              else ...[
+                Text(
+                  'Solde réel constaté : ${_frenchMoney(latest.actualBalance)}',
+                ),
+                Text('Écart : ${_frenchMoney(difference!)}'),
+                Text(
+                  reconciled == true
+                      ? 'État : Rapproché'
+                      : 'État : Écart à expliquer',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: reconciled == true
+                        ? AppColors.secondary
+                        : Theme.of(context).colorScheme.error,
+                  ),
+                ),
+                Text('Relevé : ${_formatObservationDate(latest.observedAt)}'),
+                Text('Effectué par : ${latest.actorName}'),
+                Text('Commentaire : ${latest.reason}'),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'Le compte financier indique où se trouve l’argent ; une enveloppe indique à quoi il est destiné. Aucun écart ne modifie le Grand Livre ni les enveloppes.',
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  key: const Key('record-account-balance-observation-button'),
+                  onPressed: onRecord,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: Text(
+                    account.type == FinancialAccountType.cash
+                        ? 'Compter les espèces'
+                        : 'Constater un solde réel',
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class _RecordAccountBalanceDialog extends StatefulWidget {
+  const _RecordAccountBalanceDialog({
+    required this.account,
+    required this.theoreticalBalance,
+    required this.onRecord,
+  });
+
+  final FinancialAccount account;
+  final Money theoreticalBalance;
+  final Future<void> Function({
+    required DateTime observedAt,
+    required Money actualBalance,
+    required String reason,
+  })
+  onRecord;
+
+  @override
+  State<_RecordAccountBalanceDialog> createState() =>
+      _RecordAccountBalanceDialogState();
+}
+
+class _RecordAccountBalanceDialogState
+    extends State<_RecordAccountBalanceDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _actualBalance;
+  final _reason = TextEditingController();
+  var _observedAt = DateTime.now();
+  var _submitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _actualBalance = TextEditingController(
+      text: widget.theoreticalBalance.dirhams.toStringAsFixed(2),
+    );
+  }
+
+  @override
+  void dispose() {
+    _actualBalance.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _observedAt,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_observedAt),
+    );
+    if (time == null || !mounted) return;
+    setState(() {
+      _observedAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_submitting || !_formKey.currentState!.validate()) return;
+    final cents = _madToCents(_actualBalance.text.trim());
+    if (cents == null) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await widget.onRecord(
+        observedAt: _observedAt,
+        actualBalance: Money.fromMinorUnits(cents),
+        reason: _reason.text.trim(),
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Constat impossible : $error');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      widget.account.type == FinancialAccountType.cash
+          ? 'Compter les espèces'
+          : 'Constater un solde bancaire',
+    ),
+    content: SizedBox(
+      width: 440,
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Solde théorique GL : ${_frenchMoney(widget.theoreticalBalance)}',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                key: const Key('actual-account-balance-field'),
+                controller: _actualBalance,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: widget.account.type == FinancialAccountType.cash
+                      ? 'Espèces comptées (MAD) *'
+                      : 'Solde bancaire réel (MAD) *',
+                ),
+                validator: (value) => _madToCents(value?.trim() ?? '') == null
+                    ? 'Saisissez un montant MAD valide.'
+                    : null,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: _submitting ? null : _pickDateTime,
+                icon: const Icon(Icons.schedule_outlined),
+                label: Text(
+                  'Date et heure : ${_formatObservationDate(_observedAt)}',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                key: const Key('account-balance-observation-reason-field'),
+                controller: _reason,
+                maxLength: 280,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Commentaire / justification *',
+                ),
+                validator: (value) {
+                  final reason = value?.trim() ?? '';
+                  if (reason.isEmpty) return 'Le commentaire est obligatoire.';
+                  if (reason.length > 280) return '280 caractères maximum.';
+                  return null;
+                },
+              ),
+              const Text(
+                'Ce constat ne crée aucune correction comptable. Toute régularisation est une action distincte.',
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+        child: const Text('Annuler'),
+      ),
+      FilledButton(
+        key: const Key('record-account-balance-observation-submit-button'),
+        onPressed: _submitting ? null : _submit,
+        child: Text(_submitting ? 'Enregistrement…' : 'Enregistrer le constat'),
+      ),
+    ],
+  );
+}
+
+String _frenchMoney(Money amount) =>
+    '${amount.dirhams.toStringAsFixed(2).replaceAll('.', ',')} MAD';
+
+String _formatObservationDate(DateTime value) =>
+    '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year} • ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 
 String _accountHistoryLabel(Object type) => switch (type.toString()) {
   'LedgerTransactionType.expense' => 'Dépense',
