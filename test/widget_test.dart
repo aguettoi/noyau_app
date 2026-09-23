@@ -8,6 +8,7 @@ import 'package:noyau_app/features/finance/application/providers/remote_accounts
 import 'package:noyau_app/features/finance/application/providers/remote_household_members_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_transactions_provider.dart';
 import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
+import 'package:noyau_app/features/priorities/application/providers/remote_priority_plans_provider.dart';
 import 'package:noyau_app/features/savings_goals/application/providers/remote_savings_goals_provider.dart';
 import 'package:noyau_app/features/shopping_list/application/providers/remote_shopping_list_provider.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
@@ -48,6 +49,7 @@ void main() {
           ),
           savingsGoalsProvider.overrideWith((ref) async => const []),
           shoppingItemsProvider.overrideWith((ref) async => const []),
+          priorityPlansProvider.overrideWith((ref) async => const []),
         ],
         child: const NoyauApp(),
       ),
@@ -118,10 +120,17 @@ void main() {
     expect(find.text('Shopping List'), findsOneWidget);
 
     await tester.tap(
-      find.descendant(of: navigation, matching: find.text('Import')),
+      find.descendant(of: navigation, matching: find.text('Priorités')),
     );
     await tester.pumpAndSettle();
     expect(tester.widget<NavigationBar>(navigation).selectedIndex, 5);
+    expect(find.text('Aucun plan de priorités'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(of: navigation, matching: find.text('Import')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 6);
     expect(find.text('Import des comptes'), findsOneWidget);
 
     await tester.tap(

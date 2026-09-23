@@ -14,6 +14,7 @@ import '../features/finance/application/providers/supabase_client_provider.dart'
 import '../features/envelopes/presentation/envelope_dashboard_page.dart';
 import '../features/savings_goals/presentation/savings_goals_page.dart';
 import '../features/shopping_list/presentation/shopping_list_page.dart';
+import '../features/priorities/presentation/priorities_page.dart';
 
 class NoyauApp extends StatelessWidget {
   const NoyauApp({super.key});
@@ -69,6 +70,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
       EnvelopeDashboardPage(),
       SavingsGoalsPage(),
       ShoppingListPage(),
+      PrioritiesPage(),
       ImportsPage(),
     ];
     final desktop = AppLayout.isDesktop(MediaQuery.sizeOf(context).width);
@@ -152,6 +154,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
                   label: Text('Achats'),
                 ),
                 NavigationRailDestination(
+                  icon: Icon(Icons.low_priority_outlined),
+                  selectedIcon: Icon(Icons.low_priority),
+                  label: Text('Priorités'),
+                ),
+                NavigationRailDestination(
                   icon: Icon(Icons.upload_file_outlined),
                   selectedIcon: Icon(Icons.upload_file),
                   label: Text('Import'),
@@ -217,6 +224,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
                   icon: Icon(Icons.shopping_cart_outlined),
                   selectedIcon: Icon(Icons.shopping_cart),
                   label: 'Achats',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.low_priority_outlined),
+                  selectedIcon: Icon(Icons.low_priority),
+                  label: 'Priorités',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.upload_file_outlined),
