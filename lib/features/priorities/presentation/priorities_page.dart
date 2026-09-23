@@ -417,7 +417,7 @@ class _AddPriorityItemDialog extends StatefulWidget {
 }
 
 class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
-  _PriorityCandidate? _selected;
+  String? _selectedKey;
 
   List<_PriorityCandidate> get _candidates {
     final sources = widget.currentItems.map((item) => item.source).toList();
@@ -474,6 +474,9 @@ class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
   @override
   Widget build(BuildContext context) {
     final candidates = _candidates;
+    final selected = candidates
+        .where((candidate) => candidate.key == _selectedKey)
+        .firstOrNull;
     return AlertDialog(
       title: const Text('Ajouter une priorité'),
       content: SizedBox(
@@ -482,19 +485,19 @@ class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
             ? const Text(
                 'Aucun achat ou objectif éligible. Les projets déjà liés entre eux ne peuvent pas être ajoutés deux fois.',
               )
-            : DropdownButtonFormField<_PriorityCandidate>(
+            : DropdownButtonFormField<String>(
                 key: const Key('priority-source-picker'),
-                initialValue: _selected,
+                initialValue: selected?.key,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Projet *'),
                 items: [
                   for (final candidate in candidates)
                     DropdownMenuItem(
-                      value: candidate,
+                      value: candidate.key,
                       child: Text(candidate.label),
                     ),
                 ],
-                onChanged: (value) => setState(() => _selected = value),
+                onChanged: (value) => setState(() => _selectedKey = value),
               ),
       ),
       actions: [
@@ -503,9 +506,9 @@ class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
           child: const Text('Annuler'),
         ),
         FilledButton(
-          onPressed: _selected == null
+          onPressed: selected == null
               ? null
-              : () => Navigator.of(context).pop(_selected),
+              : () => Navigator.of(context).pop(selected),
           child: const Text('Ajouter'),
         ),
       ],
@@ -522,6 +525,11 @@ class _PriorityCandidate {
   final PrioritySourceType type;
   final String id;
   final String label;
+
+  /// Dropdown values must survive provider refreshes. Candidate instances are
+  /// rebuilt from source lists, whereas this key is a stable business identity.
+  String get key =>
+      '${type == PrioritySourceType.shoppingItem ? 'shopping' : 'goal'}:$id';
 }
 
 class _StatusChip extends StatelessWidget {
@@ -549,3 +557,7 @@ String _money(Money money) =>
 
 String _date(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
+
+extension _FirstOrNull<E> on Iterable<E> {
+  E? get firstOrNull => isEmpty ? null : first;
+}
