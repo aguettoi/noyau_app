@@ -109,6 +109,7 @@ class ShoppingItemDraft {
     this.envelopeId,
     this.budgetGoalId,
     this.finalPriority,
+    this.memberPriorities = const {},
   });
 
   final String label;
@@ -118,6 +119,10 @@ class ShoppingItemDraft {
   final String? envelopeId;
   final String? budgetGoalId;
   final int? finalPriority;
+
+  /// Priorités déclarées pour les membres du foyer, par identifiant membre.
+  /// Une valeur absente ou nulle signifie « Non définie ».
+  final Map<String, int?> memberPriorities;
 
   String? validate() {
     if (label.trim().isEmpty || label.trim().length > 160) {
@@ -131,6 +136,11 @@ class ShoppingItemDraft {
     }
     if (finalPriority != null && (finalPriority! < 0 || finalPriority! > 3)) {
       return 'La priorité finale doit être comprise entre 0 et 3.';
+    }
+    if (memberPriorities.values.any(
+      (priority) => priority != null && (priority < 0 || priority > 3),
+    )) {
+      return 'Les priorités membres doivent être comprises entre 0 et 3.';
     }
     return null;
   }

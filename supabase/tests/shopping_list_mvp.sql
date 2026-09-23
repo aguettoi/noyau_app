@@ -19,11 +19,15 @@ declare
 begin
   select user_id into v_actor_id from public.household_members order by created_at limit 1;
   select user_id into v_other_actor_id from public.household_members where user_id <> v_actor_id order by created_at limit 1;
-  if v_actor_id is null then raise exception 'No test actor is available'; end if;
+  if v_actor_id is null or v_other_actor_id is null then
+    raise exception 'Two test actors are required for Shopping List member priorities';
+  end if;
   perform set_config('request.jwt.claim.sub', v_actor_id::text, true);
 
   insert into public.households(name, classification) values ('SQL TEST — Shopping List', 'technical') returning id into v_household_id;
   insert into public.household_members(household_id, user_id, role) values (v_household_id, v_actor_id, 'owner');
+  insert into public.household_members(household_id, user_id, role)
+  values (v_household_id, v_other_actor_id, 'member');
   insert into public.envelopes(household_id, name) values (v_household_id, 'Achat voiture') returning id into v_envelope_id;
   v_goal_id := public.create_budget_goal(v_household_id, 'Voiture test', 'car', 10000, null, 1, v_envelope_id, null, null, 'planned');
 
@@ -39,22 +43,41 @@ begin
   select count(*) into v_movements_before from public.envelope_movements where household_id = v_household_id;
   select count(*) into v_obligations_before from public.obligations where household_id = v_household_id;
 
-  v_item_id := public.create_shopping_item(v_household_id, 'Poussette', 1500, 'Comparatif à faire', date '2026-12-01', v_envelope_id, v_goal_id, 1);
+  v_item_id := public.create_shopping_item_with_member_priorities(
+    v_household_id, 'Poussette', 1500, 'Comparatif à faire', date '2026-12-01',
+    v_envelope_id, v_goal_id, 1,
+    jsonb_build_array(
+      jsonb_build_object('member_user_id', v_actor_id, 'priority', 2),
+      jsonb_build_object('member_user_id', v_other_actor_id, 'priority', 3)
+    )
+  );
   if (select status from public.shopping_items where id = v_item_id) <> 'planned'
      or (select created_by from public.shopping_items where id = v_item_id) <> v_actor_id
      or (select final_priority from public.shopping_items where id = v_item_id) <> 1 then
     raise exception 'Shopping item creation or actor failed';
   end if;
 
-  perform public.update_shopping_item(v_household_id, v_item_id, 'Poussette évolutive', 1600, 'Comparatif final', date '2026-12-15', v_envelope_id, v_goal_id, 0);
+  if (select priority from public.shopping_item_member_priorities where shopping_item_id = v_item_id and member_user_id = v_actor_id) <> 2
+     or (select priority from public.shopping_item_member_priorities where shopping_item_id = v_item_id and member_user_id = v_other_actor_id) <> 3 then
+    raise exception 'Member priorities were not persisted with the item';
+  end if;
+
+  perform public.update_shopping_item_with_member_priorities(
+    v_household_id, v_item_id, 'Poussette évolutive', 1600, 'Comparatif final',
+    date '2026-12-15', v_envelope_id, v_goal_id, 0,
+    jsonb_build_array(
+      jsonb_build_object('member_user_id', v_actor_id, 'priority', 0),
+      jsonb_build_object('member_user_id', v_other_actor_id, 'priority', null)
+    )
+  );
   if (select label from public.shopping_items where id = v_item_id) <> 'Poussette évolutive'
      or (select final_priority from public.shopping_items where id = v_item_id) <> 0 then
     raise exception 'Shopping item update failed';
   end if;
 
-  perform public.set_shopping_item_member_priority(v_household_id, v_item_id, v_actor_id, 2);
-  if (select priority from public.shopping_item_member_priorities where shopping_item_id = v_item_id and member_user_id = v_actor_id) <> 2 then
-    raise exception 'Member priority was not persisted';
+  if (select priority from public.shopping_item_member_priorities where shopping_item_id = v_item_id and member_user_id = v_actor_id) <> 0
+     or exists (select 1 from public.shopping_item_member_priorities where shopping_item_id = v_item_id and member_user_id = v_other_actor_id) then
+    raise exception 'Member priorities were not reopened or cleared';
   end if;
 
   begin
@@ -81,7 +104,7 @@ begin
   if (select status from public.shopping_items where id = v_item_id) <> 'cancelled' then raise exception 'Cancellation failed'; end if;
   perform public.archive_shopping_item(v_household_id, v_item_id, 'Classé');
   if (select status from public.shopping_items where id = v_item_id) <> 'archived' then raise exception 'Archive failed'; end if;
-  if (select count(*) from public.shopping_item_history where shopping_item_id = v_item_id) <> 5 then
+  if (select count(*) from public.shopping_item_history where shopping_item_id = v_item_id) <> 8 then
     raise exception 'Expected append-only history entries';
   end if;
 

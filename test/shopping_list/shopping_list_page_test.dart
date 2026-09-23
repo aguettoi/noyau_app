@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
+import 'package:noyau_app/features/finance/application/providers/remote_household_members_provider.dart';
+import 'package:noyau_app/features/finance/domain/household_member.dart';
 import 'package:noyau_app/features/savings_goals/application/providers/remote_savings_goals_provider.dart';
 import 'package:noyau_app/features/savings_goals/domain/savings_goal.dart';
 import 'package:noyau_app/features/shopping_list/application/providers/remote_shopping_list_provider.dart';
@@ -15,6 +17,7 @@ void main() {
       shoppingItemsProvider.overrideWith((ref) async => items),
       remoteEnvelopeHistoryProvider.overrideWith((ref) async => [_envelope]),
       savingsGoalsProvider.overrideWith((ref) async => [_goal]),
+      remoteHouseholdMembersProvider.overrideWith((ref) async => _members),
     ],
     child: const MaterialApp(home: Scaffold(body: ShoppingListPage())),
   );
@@ -47,9 +50,15 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: dialog, matching: find.text('Priorité finale')),
+      find.descendant(
+        of: dialog,
+        matching: find.text('Priorité commune / finale'),
+      ),
       findsOneWidget,
     );
+    expect(find.text('Priorités individuelles'), findsOneWidget);
+    expect(find.text('Priorité Membre Alpha'), findsOneWidget);
+    expect(find.text('Priorité Membre Bêta'), findsOneWidget);
     expect(
       find.descendant(
         of: dialog,
@@ -78,18 +87,54 @@ void main() {
   testWidgets(
     'le dialogue d’édition réutilise le formulaire sans clé dupliquée',
     (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(app([_item]));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Modifier'));
+      final edit = find.widgetWithText(OutlinedButton, 'Modifier');
+      await tester.tap(edit);
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
       expect(find.text('Modifier l’achat prévu'), findsOneWidget);
       expect(find.text('Article *'), findsOneWidget);
+      expect(
+        tester
+            .widget<DropdownButtonFormField<int?>>(
+              find.byKey(
+                const ValueKey('shopping-member-priority-member-alpha'),
+              ),
+            )
+            .initialValue,
+        0,
+      );
+      expect(
+        tester
+            .widget<DropdownButtonFormField<int?>>(
+              find.byKey(
+                const ValueKey('shopping-member-priority-member-beta'),
+              ),
+            )
+            .initialValue,
+        2,
+      );
+      expect(
+        tester
+            .widget<DropdownButtonFormField<int?>>(
+              find.byKey(const ValueKey('shopping-final-priority')),
+            )
+            .initialValue,
+        3,
+      );
     },
   );
 }
+
+const _members = [
+  HouseholdMember(id: 'member-alpha', displayName: 'Membre Alpha'),
+  HouseholdMember(id: 'member-beta', displayName: 'Membre Bêta'),
+];
 
 final _envelope = RemoteEnvelopeBalance(
   id: 'envelope-1',
@@ -126,11 +171,25 @@ final _item = ShoppingItemView(
     status: ShoppingItemStatus.planned,
     envelopeId: 'envelope-1',
     budgetGoalId: 'goal-1',
+    finalPriority: 3,
     createdBy: 'actor-1',
     createdAt: DateTime.utc(2026),
     updatedAt: DateTime.utc(2026),
   ),
-  memberPriorities: const [],
+  memberPriorities: const [
+    ShoppingMemberPriority(
+      itemId: 'item-1',
+      memberUserId: 'member-alpha',
+      priority: 0,
+      memberName: 'Membre Alpha',
+    ),
+    ShoppingMemberPriority(
+      itemId: 'item-1',
+      memberUserId: 'member-beta',
+      priority: 2,
+      memberName: 'Membre Bêta',
+    ),
+  ],
   envelopeName: 'Nourriture',
   envelopeBalance: Money.fromDirhams(1000),
   goalName: 'Voiture',

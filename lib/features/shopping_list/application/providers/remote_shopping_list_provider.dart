@@ -138,7 +138,7 @@ class SupabaseShoppingListGateway implements ShoppingListGateway {
   @override
   Future<String> create(String householdId, ShoppingItemDraft draft) async {
     final value = await _client.rpc(
-      'create_shopping_item',
+      'create_shopping_item_with_member_priorities',
       params: _draftParams(householdId, draft),
     );
     if (value is! String || value.isEmpty) {
@@ -155,7 +155,7 @@ class SupabaseShoppingListGateway implements ShoppingListGateway {
     String itemId,
     ShoppingItemDraft draft,
   ) => _client.rpc(
-    'update_shopping_item',
+    'update_shopping_item_with_member_priorities',
     params: {..._draftParams(householdId, draft), 'p_item_id': itemId},
   );
 
@@ -213,6 +213,10 @@ Map<String, Object?> _draftParams(
   'p_envelope_id': draft.envelopeId,
   'p_budget_goal_id': draft.budgetGoalId,
   'p_final_priority': draft.finalPriority,
+  'p_member_priorities': [
+    for (final entry in draft.memberPriorities.entries)
+      {'member_user_id': entry.key, 'priority': entry.value},
+  ],
 };
 
 String? _optional(String? value) {

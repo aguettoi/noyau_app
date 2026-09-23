@@ -5,10 +5,20 @@ import 'package:intl/intl.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
+import '../../finance/application/providers/remote_household_members_provider.dart';
+import '../../finance/domain/household_member.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../savings_goals/domain/savings_goal.dart';
 import '../application/providers/remote_shopping_list_provider.dart';
 import '../domain/shopping_item.dart';
+
+const _priorityChoices = <DropdownMenuItem<int?>>[
+  DropdownMenuItem(value: null, child: Text('Non définie')),
+  DropdownMenuItem(value: 0, child: Text('0 — prioritaire')),
+  DropdownMenuItem(value: 1, child: Text('1')),
+  DropdownMenuItem(value: 2, child: Text('2')),
+  DropdownMenuItem(value: 3, child: Text('3')),
+];
 
 class ShoppingListPage extends ConsumerStatefulWidget {
   const ShoppingListPage({super.key});
@@ -24,6 +34,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
     final results = await Future.wait([
       ref.read(remoteEnvelopeHistoryProvider.future),
       ref.read(savingsGoalsProvider.future),
+      ref.read(remoteHouseholdMembersProvider.future),
     ]);
     if (!mounted) return;
     final result = await showDialog<ShoppingItemDraft>(
@@ -32,6 +43,11 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
         current: current?.item,
         envelopes: results[0] as List<RemoteEnvelopeBalance>,
         goals: results[1] as List<SavingsGoalProgress>,
+        members: results[2] as List<HouseholdMember>,
+        memberPriorities: {
+          for (final priority in current?.memberPriorities ?? const [])
+            priority.memberUserId: priority.priority,
+        },
       ),
     );
     if (result == null || !mounted) return;
@@ -220,7 +236,7 @@ class _ItemCard extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           if (item.item.estimatedAmount != null)
             Text('Estimation : ${_money(item.item.estimatedAmount!)}'),
-          if (item.item.finalPriority != null)
+          if (item.item.finalPriority != null && item.memberPriorities.isEmpty)
             Text(
               'Priorité finale : ${item.item.finalPriority} (0 = prioritaire)',
             ),
@@ -241,7 +257,7 @@ class _ItemCard extends ConsumerWidget {
           if (item.memberPriorities.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Priorités membres : ${item.memberPriorities.map((p) => '${p.memberName} ${p.priority}').join(' · ')}',
+              '${item.memberPriorities.map((p) => '${p.memberName} : ${p.priority}').join(' | ')}${item.item.finalPriority == null ? '' : ' | Commune : ${item.item.finalPriority}'}',
             ),
           ],
           if (item.item.notes?.isNotEmpty ?? false) ...[
@@ -381,10 +397,14 @@ class _ShoppingEditorDialog extends StatefulWidget {
     this.current,
     required this.envelopes,
     required this.goals,
+    required this.members,
+    required this.memberPriorities,
   });
   final ShoppingItem? current;
   final List<RemoteEnvelopeBalance> envelopes;
   final List<SavingsGoalProgress> goals;
+  final List<HouseholdMember> members;
+  final Map<String, int> memberPriorities;
   @override
   State<_ShoppingEditorDialog> createState() => _ShoppingEditorDialogState();
 }
@@ -396,6 +416,7 @@ class _ShoppingEditorDialogState extends State<_ShoppingEditorDialog> {
   String? _envelopeId;
   String? _goalId;
   int? _priority;
+  late final Map<String, int?> _memberPriorities;
   DateTime? _date;
   @override
   void initState() {
@@ -409,6 +430,10 @@ class _ShoppingEditorDialogState extends State<_ShoppingEditorDialog> {
     _envelopeId = item?.envelopeId;
     _goalId = item?.budgetGoalId;
     _priority = item?.finalPriority;
+    _memberPriorities = {
+      for (final member in widget.members)
+        member.id: widget.memberPriorities[member.id],
+    };
     _date = item?.desiredDate;
   }
 
@@ -435,6 +460,7 @@ class _ShoppingEditorDialogState extends State<_ShoppingEditorDialog> {
       envelopeId: _envelopeId,
       budgetGoalId: _goalId,
       finalPriority: _priority,
+      memberPriorities: Map.unmodifiable(_memberPriorities),
     );
     final error = draft.validate();
     if (error != null) {
@@ -486,17 +512,83 @@ class _ShoppingEditorDialogState extends State<_ShoppingEditorDialog> {
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<int?>(
-                initialValue: _priority,
-                decoration: const InputDecoration(labelText: 'Priorité finale'),
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('Non définie')),
-                  DropdownMenuItem(value: 0, child: Text('0 — prioritaire')),
-                  DropdownMenuItem(value: 1, child: Text('1')),
-                  DropdownMenuItem(value: 2, child: Text('2')),
-                  DropdownMenuItem(value: 3, child: Text('3')),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _date == null
+                          ? 'Date souhaitée : non renseignée'
+                          : 'Date souhaitée : ${_dateLabel(_date!)}',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final selected = await showDatePicker(
+                        context: context,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                        initialDate: _date ?? DateTime.now(),
+                      );
+                      if (selected != null) setState(() => _date = selected);
+                    },
+                    child: const Text('Choisir'),
+                  ),
                 ],
+              ),
+              if (widget.members.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Priorités individuelles',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                for (final member in widget.members) ...[
+                  DropdownButtonFormField<int?>(
+                    key: ValueKey('shopping-member-priority-${member.id}'),
+                    initialValue: _memberPriorities[member.id],
+                    decoration: InputDecoration(
+                      labelText: 'Priorité ${member.displayName}',
+                    ),
+                    items: _priorityChoices,
+                    onChanged: (value) =>
+                        setState(() => _memberPriorities[member.id] = value),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+              ],
+              DropdownButtonFormField<int?>(
+                key: const ValueKey('shopping-final-priority'),
+                initialValue: _priority,
+                decoration: const InputDecoration(
+                  labelText: 'Priorité commune / finale',
+                ),
+                items: _priorityChoices,
                 onChanged: (value) => setState(() => _priority = value),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<String?>(
+                key: ValueKey('shopping-envelope-${_envelopeId ?? 'none'}'),
+                initialValue: usableEnvelopes.any((e) => e.id == _envelopeId)
+                    ? _envelopeId
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: 'Enveloppe liée (facultatif)',
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('Aucune')),
+                  for (final envelope in usableEnvelopes)
+                    DropdownMenuItem(
+                      value: envelope.id,
+                      child: Text(
+                        '${envelope.name} · ${_money(envelope.balance)}',
+                      ),
+                    ),
+                ],
+                onChanged: (value) => setState(() => _envelopeId = value),
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String?>(
@@ -522,51 +614,6 @@ class _ShoppingEditorDialogState extends State<_ShoppingEditorDialog> {
                         .fundingEnvelopeId;
                   }
                 }),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String?>(
-                key: ValueKey('shopping-envelope-${_envelopeId ?? 'none'}'),
-                initialValue: usableEnvelopes.any((e) => e.id == _envelopeId)
-                    ? _envelopeId
-                    : null,
-                decoration: const InputDecoration(
-                  labelText: 'Enveloppe liée (facultatif)',
-                ),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('Aucune')),
-                  for (final envelope in usableEnvelopes)
-                    DropdownMenuItem(
-                      value: envelope.id,
-                      child: Text(
-                        '${envelope.name} · ${_money(envelope.balance)}',
-                      ),
-                    ),
-                ],
-                onChanged: (value) => setState(() => _envelopeId = value),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _date == null
-                          ? 'Date souhaitée : non renseignée'
-                          : 'Date souhaitée : ${_dateLabel(_date!)}',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      final selected = await showDatePicker(
-                        context: context,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                        initialDate: _date ?? DateTime.now(),
-                      );
-                      if (selected != null) setState(() => _date = selected);
-                    },
-                    child: const Text('Choisir'),
-                  ),
-                ],
               ),
               TextField(
                 controller: _notes,
@@ -679,6 +726,7 @@ String _historyLabel(String action) => switch (action) {
   'created' => 'Article prévu créé',
   'updated' => 'Article prévu modifié',
   'member_priority_set' => 'Priorité membre définie',
+  'member_priority_cleared' => 'Priorité membre retirée',
   'cancelled' => 'Article annulé',
   'archived' => 'Article archivé',
   _ => 'Modification',
