@@ -11,6 +11,7 @@ import '../features/finance/presentation/supabase_auth_page.dart';
 import '../features/finance/application/providers/active_household_provider.dart';
 import '../features/finance/application/providers/remote_accounts_provider.dart';
 import '../features/finance/application/providers/supabase_client_provider.dart';
+import '../features/dashboard/presentation/financial_dashboard_page.dart';
 import '../features/envelopes/presentation/envelope_dashboard_page.dart';
 import '../features/savings_goals/presentation/savings_goals_page.dart';
 import '../features/shopping_list/presentation/shopping_list_page.dart';
@@ -65,6 +66,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
   @override
   Widget build(BuildContext context) {
     const pages = [
+      FinancialDashboardPage(),
       AccountsPage(),
       FinanceOverviewPage(),
       EnvelopeDashboardPage(),
@@ -128,6 +130,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
                 ),
               ),
               destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: Text('Pilotage'),
+                ),
                 NavigationRailDestination(
                   icon: Icon(Icons.account_balance_outlined),
                   selectedIcon: Icon(Icons.account_balance),
@@ -200,6 +207,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
               onDestinationSelected: (index) =>
                   setState(() => _selectedIndex = index),
               destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: 'Pilotage',
+                ),
                 NavigationDestination(
                   icon: Icon(Icons.account_balance_outlined),
                   selectedIcon: Icon(Icons.account_balance),

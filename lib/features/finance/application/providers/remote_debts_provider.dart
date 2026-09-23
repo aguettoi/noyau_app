@@ -84,6 +84,7 @@ class RemoteReceivableBalance {
     required this.status,
     this.counterpartyName,
     this.recoverySourceEnvelopeId,
+    this.dueAt,
   });
 
   final String id;
@@ -91,6 +92,7 @@ class RemoteReceivableBalance {
   final String kind;
   final String? counterpartyName;
   final String? recoverySourceEnvelopeId;
+  final DateTime? dueAt;
   final Money initialAmount;
   final Money settledAmount;
   final Money writtenOffAmount;
@@ -600,7 +602,7 @@ final remoteReceivableBalancesProvider =
           .watch(supabaseClientProvider)
           .from('obligation_balances')
           .select(
-            'obligation_id, description, receivable_kind, counterparty_name, recovery_source_envelope_id, initial_amount, settled_amount, written_off_amount, remaining_amount, status',
+            'obligation_id, description, receivable_kind, counterparty_name, recovery_source_envelope_id, initial_amount, settled_amount, written_off_amount, remaining_amount, status, due_at',
           )
           .eq('household_id', householdId)
           .eq('obligation_kind', 'receivable')
@@ -620,6 +622,9 @@ final remoteReceivableBalancesProvider =
             writtenOffAmount: _money(row['written_off_amount']),
             remainingAmount: _money(row['remaining_amount']),
             status: row['status'] as String,
+            dueAt: row['due_at'] is String
+                ? DateTime.tryParse(row['due_at'] as String)
+                : null,
           );
         }),
       );

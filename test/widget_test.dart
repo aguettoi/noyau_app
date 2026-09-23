@@ -15,6 +15,9 @@ import 'package:noyau_app/features/finance/domain/financial_account.dart';
 import 'package:noyau_app/features/finance/domain/household_member.dart';
 import 'package:noyau_app/features/finance/domain/transaction_history_item.dart';
 import 'package:noyau_app/features/finance/application/providers/supabase_client_provider.dart';
+import 'package:noyau_app/features/dashboard/application/dashboard_metrics.dart';
+import 'package:noyau_app/features/dashboard/application/providers/remote_financial_dashboard_provider.dart';
+import 'package:noyau_app/core/money/money.dart';
 
 void main() {
   Future<void> pumpApp(WidgetTester tester) async {
@@ -50,6 +53,29 @@ void main() {
           savingsGoalsProvider.overrideWith((ref) async => const []),
           shoppingItemsProvider.overrideWith((ref) async => const []),
           priorityPlansProvider.overrideWith((ref) async => const []),
+          financialDashboardProvider.overrideWith(
+            (ref) async => const FinancialDashboardSnapshot(
+              accounts: [],
+              ordinaryEnvelopes: [],
+              toAllocate: null,
+              budget: DashboardBudgetSummary(
+                period: null,
+                planned: Money.fromMinorUnits(0),
+                consumed: Money.fromMinorUnits(0),
+                overspentEnvelopeIds: {},
+              ),
+              monthlyFlow: DashboardMonthlyFlow(
+                income: Money.fromMinorUnits(0),
+                expense: Money.fromMinorUnits(0),
+              ),
+              debts: [],
+              incomeReceivables: [],
+              recoveryReceivables: [],
+              activeGoals: [],
+              nextPriority: null,
+              alerts: [],
+            ),
+          ),
         ],
         child: const NoyauApp(),
       ),
@@ -63,17 +89,14 @@ void main() {
     final navigation = find.byType(NavigationBar);
     expect(navigation, findsOneWidget);
     expect(tester.widget<NavigationBar>(navigation).selectedIndex, 0);
-    expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('Comptes')),
-      findsOneWidget,
-    );
-    expect(find.byType(FloatingActionButton), findsOneWidget);
+    expect(find.text('Tableau de bord'), findsOneWidget);
+    expect(find.byKey(const Key('dashboard-budget-empty')), findsOneWidget);
 
     await tester.tap(
       find.descendant(of: navigation, matching: find.text('Fondation')),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 1);
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 2);
     expect(find.text('Fondation financière'), findsOneWidget);
     expect(
       find.text('Aucune donnee du foyer n est encore importee.'),
@@ -85,7 +108,7 @@ void main() {
       find.descendant(of: navigation, matching: find.text('Enveloppes')),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 2);
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 3);
     expect(
       find.text(
         'Soldes calculés exclusivement depuis le journal des enveloppes.',
@@ -109,35 +132,35 @@ void main() {
       find.descendant(of: navigation, matching: find.text('Objectifs')),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 3);
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 4);
     expect(find.text('Épargne & objectifs'), findsOneWidget);
 
     await tester.tap(
       find.descendant(of: navigation, matching: find.text('Achats')),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 4);
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 5);
     expect(find.text('Shopping List'), findsOneWidget);
 
     await tester.tap(
       find.descendant(of: navigation, matching: find.text('Priorités')),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 5);
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 6);
     expect(find.text('Aucun plan de priorités'), findsOneWidget);
 
     await tester.tap(
       find.descendant(of: navigation, matching: find.text('Import')),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 6);
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 7);
     expect(find.text('Import des comptes'), findsOneWidget);
 
     await tester.tap(
       find.descendant(of: navigation, matching: find.text('Comptes')),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 0);
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 1);
     expect(
       find.descendant(of: find.byType(AppBar), matching: find.text('Comptes')),
       findsOneWidget,
