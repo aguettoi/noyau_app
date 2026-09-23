@@ -9,6 +9,7 @@ import 'package:noyau_app/features/finance/application/providers/remote_househol
 import 'package:noyau_app/features/finance/application/providers/remote_transactions_provider.dart';
 import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
 import 'package:noyau_app/features/savings_goals/application/providers/remote_savings_goals_provider.dart';
+import 'package:noyau_app/features/shopping_list/application/providers/remote_shopping_list_provider.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
 import 'package:noyau_app/features/finance/domain/household_member.dart';
 import 'package:noyau_app/features/finance/domain/transaction_history_item.dart';
@@ -46,6 +47,7 @@ void main() {
             (ref) async => const <RemoteEnvelopeBalance>[],
           ),
           savingsGoalsProvider.overrideWith((ref) async => const []),
+          shoppingItemsProvider.overrideWith((ref) async => const []),
         ],
         child: const NoyauApp(),
       ),
@@ -109,10 +111,17 @@ void main() {
     expect(find.text('Épargne & objectifs'), findsOneWidget);
 
     await tester.tap(
-      find.descendant(of: navigation, matching: find.text('Import')),
+      find.descendant(of: navigation, matching: find.text('Achats')),
     );
     await tester.pumpAndSettle();
     expect(tester.widget<NavigationBar>(navigation).selectedIndex, 4);
+    expect(find.text('Shopping List'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(of: navigation, matching: find.text('Import')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<NavigationBar>(navigation).selectedIndex, 5);
     expect(find.text('Import des comptes'), findsOneWidget);
 
     await tester.tap(

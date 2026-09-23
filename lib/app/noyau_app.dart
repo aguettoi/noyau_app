@@ -13,6 +13,7 @@ import '../features/finance/application/providers/remote_accounts_provider.dart'
 import '../features/finance/application/providers/supabase_client_provider.dart';
 import '../features/envelopes/presentation/envelope_dashboard_page.dart';
 import '../features/savings_goals/presentation/savings_goals_page.dart';
+import '../features/shopping_list/presentation/shopping_list_page.dart';
 
 class NoyauApp extends StatelessWidget {
   const NoyauApp({super.key});
@@ -67,6 +68,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
       FinanceOverviewPage(),
       EnvelopeDashboardPage(),
       SavingsGoalsPage(),
+      ShoppingListPage(),
       ImportsPage(),
     ];
     final desktop = AppLayout.isDesktop(MediaQuery.sizeOf(context).width);
@@ -145,6 +147,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
                   label: Text('Objectifs'),
                 ),
                 NavigationRailDestination(
+                  icon: Icon(Icons.shopping_cart_outlined),
+                  selectedIcon: Icon(Icons.shopping_cart),
+                  label: Text('Achats'),
+                ),
+                NavigationRailDestination(
                   icon: Icon(Icons.upload_file_outlined),
                   selectedIcon: Icon(Icons.upload_file),
                   label: Text('Import'),
@@ -205,6 +212,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
                   icon: Icon(Icons.savings_outlined),
                   selectedIcon: Icon(Icons.savings),
                   label: 'Objectifs',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.shopping_cart_outlined),
+                  selectedIcon: Icon(Icons.shopping_cart),
+                  label: 'Achats',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.upload_file_outlined),
