@@ -500,7 +500,7 @@ class _ShoppingEditorDialogState extends State<_ShoppingEditorDialog> {
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String?>(
-                key: ValueKey(_goalId),
+                key: ValueKey('shopping-goal-${_goalId ?? 'none'}'),
                 initialValue: _goalId,
                 decoration: const InputDecoration(
                   labelText: 'Objectif lié (facultatif)',
@@ -525,7 +525,7 @@ class _ShoppingEditorDialogState extends State<_ShoppingEditorDialog> {
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String?>(
-                key: ValueKey(_envelopeId),
+                key: ValueKey('shopping-envelope-${_envelopeId ?? 'none'}'),
                 initialValue: usableEnvelopes.any((e) => e.id == _envelopeId)
                     ? _envelopeId
                     : null,
