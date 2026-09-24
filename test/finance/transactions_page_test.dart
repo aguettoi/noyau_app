@@ -146,6 +146,90 @@ void main() {
     expect(financialGateway.callCount, 1);
   });
 
+  testWidgets(
+    'une transaction créée avec un contexte de rapprochement renvoie succès',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final gateway = _FinancialGateway();
+      bool? returned;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            remoteAccountsProvider.overrideWith(
+              (ref) async => [account(id: 'ordinary', name: 'Compte bancaire')],
+            ),
+            remoteTransactionsProvider.overrideWith(
+              (ref) async => const <TransactionHistoryItem>[],
+            ),
+            remoteEnvelopeBalancesProvider.overrideWith(
+              (ref) async => [envelope(id: 'food', name: 'Courses')],
+            ),
+            financialEventRepositoryProvider.overrideWith(
+              (ref) async => FinancialEventSupabaseRepository(
+                gateway: gateway,
+                householdId: 'home-1',
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () async {
+                    returned = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const TransactionsPage(returnAfterCreate: true),
+                      ),
+                    );
+                  },
+                  child: const Text('Ouvrir le flux canonique'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ouvrir le flux canonique'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('add-transaction-button')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('transaction-description-field')),
+        'Opération manquante',
+      );
+      await tester.enterText(
+        find.byKey(const Key('transaction-amount-field')),
+        '30',
+      );
+      await tester.tap(
+        find.byKey(const Key('transaction-source-account-field')).last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Compte bancaire').last);
+      await tester.pumpAndSettle();
+      final envelopeField = find.descendant(
+        of: find.byKey(const Key('create-transaction-form-scroll')),
+        matching: find.byKey(const Key('transaction-envelope-field')),
+      );
+      await tester.ensureVisible(envelopeField);
+      await tester.tap(envelopeField);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Courses').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('create-transaction-button')));
+      await tester.pumpAndSettle();
+
+      expect(gateway.function, 'create_cash_expense_event');
+      expect(returned, isTrue);
+      expect(find.text('Ouvrir le flux canonique'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('une dépense simple transmet son enveloppe distante', (
     tester,
   ) async {

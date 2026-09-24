@@ -88,6 +88,42 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'les trois parcours canoniques reviennent au constat après annulation',
+    (tester) async {
+      await _pump(
+        tester,
+        _bankAccount(),
+        _ObservationGateway(modernHistory: true),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Banque A'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('view-reconciliation-history-button')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Détail'));
+      await tester.pumpAndSettle();
+
+      for (final choice in const [
+        'Dépense, revenu ou virement',
+        'Dette',
+        'Créance ou remboursement',
+      ]) {
+        await tester.tap(find.text('Enregistrer une opération manquante'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(choice));
+        await tester.pumpAndSettle();
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(find.text('Détail du constat'), findsOneWidget);
+      }
+
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('la caisse utilise le vocabulaire inventaire et non bancaire', (
     tester,
   ) async {

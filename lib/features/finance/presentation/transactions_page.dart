@@ -17,7 +17,9 @@ import '../domain/transaction_draft.dart';
 import '../domain/transaction_history_item.dart';
 
 class TransactionsPage extends ConsumerStatefulWidget {
-  const TransactionsPage({super.key});
+  const TransactionsPage({super.key, this.returnAfterCreate = false});
+
+  final bool returnAfterCreate;
 
   @override
   ConsumerState<TransactionsPage> createState() => _TransactionsPageState();
@@ -57,6 +59,9 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
           content: Text('Transaction validée dans le Grand Livre.'),
         ),
       );
+      if (widget.returnAfterCreate) {
+        Navigator.of(context).pop(true);
+      }
     }
   }
 
@@ -1211,7 +1216,9 @@ class DebtsPage extends ConsumerWidget {
 }
 
 class ReceivablesPage extends ConsumerWidget {
-  const ReceivablesPage({super.key});
+  const ReceivablesPage({super.key, this.returnAfterCreate = false});
+
+  final bool returnAfterCreate;
 
   Future<void> _openNewReceivable(BuildContext context, WidgetRef ref) async {
     final choice = await showDialog<_ReceivableCreationKind>(
@@ -1234,6 +1241,9 @@ class ReceivablesPage extends ConsumerWidget {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Créance enregistrée.')));
+        if (returnAfterCreate) {
+          Navigator.of(context).pop(true);
+        }
       }
     }
   }

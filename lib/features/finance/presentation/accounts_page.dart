@@ -756,17 +756,24 @@ class _ReconciliationDetailDialogState
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, (_) => const TransactionsPage()),
+            onPressed: () => Navigator.pop(
+              context,
+              (_) => const TransactionsPage(returnAfterCreate: true),
+            ),
             child: const Text('Dépense, revenu ou virement'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, (_) => const DebtsPage()),
+            onPressed: () => Navigator.pop(
+              context,
+              (_) => const TransactionsPage(returnAfterCreate: true),
+            ),
             child: const Text('Dette'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, (_) => const ReceivablesPage()),
+            onPressed: () => Navigator.pop(
+              context,
+              (_) => const ReceivablesPage(returnAfterCreate: true),
+            ),
             child: const Text('Créance ou remboursement'),
           ),
           TextButton(
@@ -777,9 +784,9 @@ class _ReconciliationDetailDialogState
       ),
     );
     if (destination == null || !mounted) return;
-    await Navigator.of(
+    final created = await Navigator.of(
       context,
-    ).push(MaterialPageRoute<void>(builder: destination));
+    ).push(MaterialPageRoute<bool>(builder: destination));
     if (!mounted) return;
     ref.invalidate(accountTransactionHistoryProvider(widget.account.id));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -789,6 +796,9 @@ class _ReconciliationDetailDialogState
         ),
       ),
     );
+    if (created == true) {
+      await _attachFinancialEvent();
+    }
   }
 }
 
