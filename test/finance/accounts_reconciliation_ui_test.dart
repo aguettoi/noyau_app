@@ -64,6 +64,30 @@ void main() {
     },
   );
 
+  testWidgets('le détail moderne propose le flux canonique manquant', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _bankAccount(),
+      _ObservationGateway(modernHistory: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Banque A'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('view-reconciliation-history-button')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Détail'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enregistrer une opération manquante'), findsOneWidget);
+    await tester.tap(find.text('Enregistrer une opération manquante'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dépense, revenu ou virement'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('la caisse utilise le vocabulaire inventaire et non bancaire', (
     tester,
   ) async {
@@ -145,8 +169,9 @@ FinancialAccount _cashAccount() => FinancialAccount(
 );
 
 class _ObservationGateway implements AccountBalanceObservationGateway {
-  _ObservationGateway({this.legacyHistory = false});
+  _ObservationGateway({this.legacyHistory = false, this.modernHistory = false});
   final bool legacyHistory;
+  final bool modernHistory;
   String? recordedAccountId;
   Money? recordedAmount;
   bool glMutationRequested = false;
@@ -171,7 +196,27 @@ class _ObservationGateway implements AccountBalanceObservationGateway {
   Future<List<AccountReconciliationCase>> fetchHistory({
     required String householdId,
     required String accountId,
-  }) async => legacyHistory
+  }) async => modernHistory
+      ? [
+          AccountReconciliationCase(
+            observation: AccountBalanceObservation(
+              id: 'modern-observation',
+              accountId: accountId,
+              actualBalance: Money.fromMinorUnits(95000),
+              observedAt: DateTime.utc(2026, 10, 2),
+              reason: 'Relevé moderne',
+              actorId: 'actor-1',
+              actorName: 'Ibrahim',
+              createdAt: DateTime.utc(2026, 10, 2),
+              theoreticalBalanceSnapshot: Money.fromMinorUnits(90000),
+              differenceSnapshot: Money.fromMinorUnits(5000),
+            ),
+            status: 'open',
+            remainingDifference: Money.fromMinorUnits(5000),
+            resolutions: const [],
+          ),
+        ]
+      : legacyHistory
       ? [
           AccountReconciliationCase(
             observation: AccountBalanceObservation(

@@ -12,6 +12,7 @@ import '../domain/account_ownership.dart';
 import '../domain/household_member.dart';
 import '../domain/financial_account.dart';
 import '../infrastructure/accounts_supabase_repository.dart';
+import 'transactions_page.dart';
 
 class AccountsPage extends ConsumerStatefulWidget {
   const AccountsPage({super.key});
@@ -665,6 +666,11 @@ class _ReconciliationDetailDialogState
             onPressed: _saving ? null : _attachFinancialEvent,
             child: const Text('Rattacher une opération existante'),
           ),
+        if (remaining.minorUnits != 0)
+          TextButton(
+            onPressed: _saving ? null : _recordMissingOperation,
+            child: const Text('Enregistrer une opération manquante'),
+          ),
         if (remaining.minorUnits != 0 && hasTemporary)
           TextButton(
             onPressed: _saving ? null : _attachFollowUp,
@@ -738,6 +744,51 @@ class _ReconciliationDetailDialogState
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _recordMissingOperation() async {
+    final destination = await showDialog<WidgetBuilder>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Enregistrer une opération manquante'),
+        content: const Text(
+          'Choisissez le flux financier canonique. Le rapprochement ne crée aucune écriture ; vous pourrez rattacher l’opération créée à votre retour.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, (_) => const TransactionsPage()),
+            child: const Text('Dépense, revenu ou virement'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, (_) => const DebtsPage()),
+            child: const Text('Dette'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, (_) => const ReceivablesPage()),
+            child: const Text('Créance ou remboursement'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+    if (destination == null || !mounted) return;
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: destination));
+    if (!mounted) return;
+    ref.invalidate(accountTransactionHistoryProvider(widget.account.id));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Sélectionnez maintenant l’opération créée pour la rattacher au constat.',
+        ),
+      ),
+    );
   }
 }
 
