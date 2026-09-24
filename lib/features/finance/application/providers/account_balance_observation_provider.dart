@@ -285,7 +285,7 @@ class SupabaseAccountBalanceObservationGateway
         return AccountReconciliationCase(
           observation: observation,
           status: c?['status'] as String? ?? 'legacy_unfrozen',
-          remainingDifference: c == null
+          remainingDifference: c == null || c['remaining_difference'] == null
               ? null
               : _money(c['remaining_difference']),
           resolutions: List.unmodifiable(byObservation[id] ?? const []),

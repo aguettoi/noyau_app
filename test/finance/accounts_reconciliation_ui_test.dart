@@ -95,9 +95,9 @@ void main() {
       expect(find.text('Historique des rapprochements'), findsOneWidget);
       expect(
         find.textContaining('Constat historique — référence GL non figée'),
-        findsOneWidget,
+        findsNWidgets(2),
       );
-      expect(find.text('Nouveau constat requis'), findsOneWidget);
+      expect(find.text('Nouveau constat requis'), findsNWidgets(2));
       expect(tester.takeException(), isNull);
     },
   );
@@ -183,6 +183,21 @@ class _ObservationGateway implements AccountBalanceObservationGateway {
               actorId: 'actor-1',
               actorName: 'Ibrahim',
               createdAt: DateTime.utc(2026, 9, 24),
+            ),
+            status: 'legacy_unfrozen',
+            remainingDifference: null,
+            resolutions: const [],
+          ),
+          AccountReconciliationCase(
+            observation: AccountBalanceObservation(
+              id: 'legacy-observation-685',
+              accountId: accountId,
+              actualBalance: Money.fromMinorUnits(68500),
+              observedAt: DateTime.utc(2026, 9, 23),
+              reason: 'Historique antérieur',
+              actorId: 'actor-1',
+              actorName: 'Ibrahim',
+              createdAt: DateTime.utc(2026, 9, 23),
             ),
             status: 'legacy_unfrozen',
             remainingDifference: null,
