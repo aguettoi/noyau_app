@@ -178,6 +178,8 @@ class SupabaseAccountBalanceObservationGateway
           : _money(row['difference_snapshot']),
       remainingDifference: caseRow == null
           ? null
+          : caseRow['remaining_difference'] == null
+          ? null
           : _money(caseRow['remaining_difference']),
       status: caseRow?['status'] as String?,
     );
@@ -276,7 +278,7 @@ class SupabaseAccountBalanceObservationGateway
               ? null
               : _money(row['difference_snapshot']),
           status: c?['status'] as String?,
-          remainingDifference: c == null
+          remainingDifference: c == null || c['remaining_difference'] == null
               ? null
               : _money(c['remaining_difference']),
         );
