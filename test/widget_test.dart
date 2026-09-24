@@ -196,8 +196,18 @@ void main() {
     await tester.tap(find.text('Import & migration'));
     await tester.pumpAndSettle();
     expect(find.text('Import des comptes'), findsOneWidget);
-    await tester.binding.handlePopRoute();
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      7,
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Fondation'),
+      ),
+    );
     await tester.pumpAndSettle();
+    expect(find.text('Fondation financière'), findsOneWidget);
 
     await tester.tap(find.text('Comptes & rapprochements'));
     await tester.pumpAndSettle();
@@ -205,8 +215,18 @@ void main() {
       find.descendant(of: find.byType(AppBar), matching: find.text('Comptes')),
       findsOneWidget,
     );
-    await tester.binding.handlePopRoute();
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      1,
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Fondation'),
+      ),
+    );
     await tester.pumpAndSettle();
+    expect(find.text('Fondation financière'), findsOneWidget);
 
     await tester.tap(find.text('Budget'));
     await tester.pumpAndSettle();
@@ -214,13 +234,19 @@ void main() {
       find.descendant(of: find.byType(AppBar), matching: find.text('Budget')),
       findsOneWidget,
     );
-    await tester.binding.handlePopRoute();
+    expect(find.byType(BackButton), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
+    expect(find.text('Fondation financière'), findsOneWidget);
 
     await tester.tap(find.text('Grand Livre'));
     await tester.pumpAndSettle();
     expect(find.text('Transactions'), findsOneWidget);
     expect(find.text('Grand Livre'), findsOneWidget);
+    expect(find.byType(BackButton), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Fondation financière'), findsOneWidget);
   });
 
   testWidgets('la navigation desktop utilise un rail sans modifier le mobile', (

@@ -16,6 +16,7 @@ import '../features/envelopes/presentation/envelope_dashboard_page.dart';
 import '../features/savings_goals/presentation/savings_goals_page.dart';
 import '../features/shopping_list/presentation/shopping_list_page.dart';
 import '../features/priorities/presentation/priorities_page.dart';
+import 'finance_shell_navigation.dart';
 
 class NoyauApp extends StatelessWidget {
   const NoyauApp({super.key});
@@ -190,65 +191,68 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
           ),
       ],
     );
-    return Scaffold(
-      body: desktop
-          ? Row(
-              children: [
-                navigation!,
-                const VerticalDivider(width: 1),
-                Expanded(child: content),
-              ],
-            )
-          : content,
-      bottomNavigationBar: desktop
-          ? null
-          : NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (index) =>
-                  setState(() => _selectedIndex = index),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard),
-                  label: 'Pilotage',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.account_balance_outlined),
-                  selectedIcon: Icon(Icons.account_balance),
-                  label: 'Comptes',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard),
-                  label: 'Fondation',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.account_balance_wallet_outlined),
-                  selectedIcon: Icon(Icons.account_balance_wallet),
-                  label: 'Enveloppes',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.savings_outlined),
-                  selectedIcon: Icon(Icons.savings),
-                  label: 'Objectifs',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.shopping_cart_outlined),
-                  selectedIcon: Icon(Icons.shopping_cart),
-                  label: 'Achats',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.low_priority_outlined),
-                  selectedIcon: Icon(Icons.low_priority),
-                  label: 'Priorités',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.upload_file_outlined),
-                  selectedIcon: Icon(Icons.upload_file),
-                  label: 'Import',
-                ),
-              ],
-            ),
+    return FinanceShellNavigation(
+      selectDestination: (index) => setState(() => _selectedIndex = index),
+      child: Scaffold(
+        body: desktop
+            ? Row(
+                children: [
+                  navigation!,
+                  const VerticalDivider(width: 1),
+                  Expanded(child: content),
+                ],
+              )
+            : content,
+        bottomNavigationBar: desktop
+            ? null
+            : NavigationBar(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: (index) =>
+                    setState(() => _selectedIndex = index),
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.dashboard_outlined),
+                    selectedIcon: Icon(Icons.dashboard),
+                    label: 'Pilotage',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.account_balance_outlined),
+                    selectedIcon: Icon(Icons.account_balance),
+                    label: 'Comptes',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.dashboard_outlined),
+                    selectedIcon: Icon(Icons.dashboard),
+                    label: 'Fondation',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.account_balance_wallet_outlined),
+                    selectedIcon: Icon(Icons.account_balance_wallet),
+                    label: 'Enveloppes',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.savings_outlined),
+                    selectedIcon: Icon(Icons.savings),
+                    label: 'Objectifs',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.shopping_cart_outlined),
+                    selectedIcon: Icon(Icons.shopping_cart),
+                    label: 'Achats',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.low_priority_outlined),
+                    selectedIcon: Icon(Icons.low_priority),
+                    label: 'Priorités',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.upload_file_outlined),
+                    selectedIcon: Icon(Icons.upload_file),
+                    label: 'Import',
+                  ),
+                ],
+              ),
+      ),
     );
   }
 

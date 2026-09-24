@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/finance_shell_navigation.dart';
 import '../../../core/theme/app_design_system.dart';
-import 'accounts_page.dart';
-import 'imports_page.dart';
 import 'transactions_page.dart';
 import '../../budget_intelligence/presentation/budget_page.dart';
 
@@ -49,22 +48,18 @@ class FinanceOverviewPage extends ConsumerWidget {
                       title: 'Import & migration',
                       subtitle: 'Préparer ou contrôler l’import de vos données',
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const Scaffold(body: ImportsPage()),
-                        ),
-                      ),
+                      onTap: () => FinanceShellNavigation.of(
+                        context,
+                      ).selectDestination(FinanceShellNavigation.importsIndex),
                     ),
                     CompactListRow(
                       leading: const Icon(Icons.account_balance_outlined),
                       title: 'Comptes & rapprochements',
                       subtitle: 'Soldes, espèces et rapprochements',
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const AccountsPage(),
-                        ),
-                      ),
+                      onTap: () => FinanceShellNavigation.of(
+                        context,
+                      ).selectDestination(FinanceShellNavigation.accountsIndex),
                     ),
                     CompactListRow(
                       leading: const Icon(Icons.pie_chart_outline),
