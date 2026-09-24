@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/app/noyau_app.dart';
-import 'package:noyau_app/features/finance/application/finance_workspace.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_accounts_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_household_members_provider.dart';
@@ -27,7 +26,6 @@ void main() {
           supabaseUserIdProvider.overrideWith(
             (ref) => Stream.value('test-user'),
           ),
-          financeWorkspaceProvider.overrideWith(_TestWorkspaceController.new),
           activeHouseholdProvider.overrideWith(
             (ref) async => const ActiveHouseholdState(
               status: ActiveHouseholdStatus.singleHousehold,
@@ -99,9 +97,12 @@ void main() {
     expect(tester.widget<NavigationBar>(navigation).selectedIndex, 2);
     expect(find.text('Fondation financière'), findsOneWidget);
     expect(
-      find.text('Aucune donnee du foyer n est encore importee.'),
+      find.text(
+        'Accédez aux fonctions structurantes de votre foyer financier.',
+      ),
       findsOneWidget,
     );
+    expect(find.textContaining('25 enveloppes détectées'), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
 
     await tester.tap(
@@ -175,7 +176,7 @@ void main() {
 
       await tester.tap(find.text('Fondation'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Grand livre'));
+      await tester.tap(find.text('Grand Livre'));
       await tester.pumpAndSettle();
 
       expect(find.text('Transactions'), findsOneWidget);
@@ -184,6 +185,43 @@ void main() {
       expect(find.byKey(const Key('add-transaction-button')), findsOneWidget);
     },
   );
+
+  testWidgets('la Fondation ouvre ses quatre raccourcis canoniques', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Fondation'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Import & migration'));
+    await tester.pumpAndSettle();
+    expect(find.text('Import des comptes'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Comptes & rapprochements'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Comptes')),
+      findsOneWidget,
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Budget'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Budget')),
+      findsOneWidget,
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Grand Livre'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transactions'), findsOneWidget);
+    expect(find.text('Grand Livre'), findsOneWidget);
+  });
 
   testWidgets('la navigation desktop utilise un rail sans modifier le mobile', (
     tester,
@@ -203,9 +241,4 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Fondation financière'), findsOneWidget);
   });
-}
-
-class _TestWorkspaceController extends FinanceWorkspaceController {
-  @override
-  Future<FinanceWorkspace> build() async => FinanceWorkspace.empty(const []);
 }

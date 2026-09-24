@@ -31,8 +31,7 @@ class PrioritiesPage extends ConsumerWidget {
       error: (error, _) =>
           Center(child: Text('Impossible de lire les priorités : $error')),
       data: (items) => DesktopPageContainer(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: ListView(
           children: [
             Row(
               children: [
@@ -216,40 +215,51 @@ class _PrioritySequence extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items = projections;
-    return ReorderableListView.builder(
-      key: ValueKey('priority-sequence-${plan.plan.id}'),
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      buildDefaultDragHandles: editable,
-      itemCount: items.length,
-      onReorderItem: !editable
-          ? (_, _) {}
-          : (oldIndex, newIndex) async {
-              final reordered = [...items];
-              final item = reordered.removeAt(oldIndex);
-              reordered.insert(newIndex, item);
-              await _run(
-                context,
-                () => reorderPriorityPlanItems(
-                  ref,
-                  plan.plan.id,
-                  reordered.map((entry) => entry.item.item.id).toList(),
-                ),
-              );
-            },
-      itemBuilder: (context, index) {
-        final entry = items[index];
-        return _PriorityEntryCard(
-          key: ValueKey(entry.item.item.id),
-          entry: entry,
-          rank: index + 1,
-          editable: editable,
-          onRemove: () => _run(
-            context,
-            () => removePriorityPlanItem(ref, plan.plan.id, entry.item.item.id),
-          ),
-        );
-      },
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 420),
+      child: ReorderableListView.builder(
+        key: ValueKey('priority-sequence-${plan.plan.id}'),
+        primary: false,
+        buildDefaultDragHandles: false,
+        itemCount: items.length,
+        onReorderItem: !editable
+            ? (_, _) {}
+            : (oldIndex, newIndex) async {
+                if (oldIndex == newIndex) return;
+                final reordered = [...items];
+                final item = reordered.removeAt(oldIndex);
+                reordered.insert(newIndex, item);
+                await _run(
+                  context,
+                  () => reorderPriorityPlanItems(
+                    ref,
+                    plan.plan.id,
+                    reordered.map((entry) => entry.item.item.id).toList(),
+                  ),
+                );
+              },
+        itemBuilder: (context, index) {
+          final entry = items[index];
+          return _PriorityEntryCard(
+            key: ValueKey(entry.item.item.id),
+            entry: entry,
+            rank: index + 1,
+            editable: editable,
+            dragHandle: editable
+                ? ReorderableDragStartListener(
+                    key: ValueKey('priority-drag-${entry.item.item.id}'),
+                    index: index,
+                    child: const Icon(Icons.drag_handle),
+                  )
+                : null,
+            onRemove: () => _run(
+              context,
+              () =>
+                  removePriorityPlanItem(ref, plan.plan.id, entry.item.item.id),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -260,11 +270,13 @@ class _PriorityEntryCard extends StatelessWidget {
     required this.entry,
     required this.rank,
     required this.editable,
+    this.dragHandle,
     required this.onRemove,
   });
   final PriorityProjectionEntry entry;
   final int rank;
   final bool editable;
+  final Widget? dragHandle;
   final VoidCallback onRemove;
 
   @override
@@ -287,13 +299,19 @@ class _PriorityEntryCard extends StatelessWidget {
           if (date != null) 'Prévision : ${_date(date)}',
           'Statut : ${source.status}',
         ].join(' · '),
-        trailing: editable
-            ? IconButton(
-                tooltip: 'Retirer du plan',
-                onPressed: onRemove,
-                icon: const Icon(Icons.remove_circle_outline),
-              )
-            : null,
+        trailing: !editable
+            ? null
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (dragHandle case final Widget handle) handle,
+                  IconButton(
+                    tooltip: 'Retirer du plan',
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.remove_circle_outline),
+                  ),
+                ],
+              ),
       ),
     );
   }
