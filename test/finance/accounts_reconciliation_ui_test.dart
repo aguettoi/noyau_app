@@ -143,6 +143,36 @@ class _ObservationGateway implements AccountBalanceObservationGateway {
   );
 
   @override
+  Future<List<AccountReconciliationCase>> fetchHistory({
+    required String householdId,
+    required String accountId,
+  }) async => const [];
+
+  @override
+  Future<void> explain({
+    required String observationId,
+    required String kind,
+    required String comment,
+    required String idempotencyKey,
+  }) async {}
+
+  @override
+  Future<void> linkFinancialEvent({
+    required String observationId,
+    required String financialEventId,
+    required String comment,
+    required String idempotencyKey,
+  }) async {}
+
+  @override
+  Future<void> resolveByFollowUp({
+    required String observationId,
+    required String followUpObservationId,
+    required String comment,
+    required String idempotencyKey,
+  }) async {}
+
+  @override
   Future<void> record({
     required String accountId,
     required DateTime observedAt,

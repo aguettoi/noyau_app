@@ -9,6 +9,7 @@ class TransactionHistoryItem {
     required this.description,
     required this.amount,
     required this.createdAt,
+    this.financialEventId,
     this.hasEnvelopeMovement = true,
   });
 
@@ -18,5 +19,6 @@ class TransactionHistoryItem {
   final String description;
   final Money amount;
   final DateTime createdAt;
+  final String? financialEventId;
   final bool hasEnvelopeMovement;
 }

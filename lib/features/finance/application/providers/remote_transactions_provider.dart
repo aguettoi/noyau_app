@@ -19,7 +19,7 @@ class SupabaseTransactionsGateway implements TransactionsSupabaseGateway {
     final response = await _client
         .from('financial_transactions')
         .select(
-          'id, type, occurred_at, description, amount, created_at, envelope_movements(id)',
+          'id, event_id, type, occurred_at, description, amount, created_at, envelope_movements(id)',
         )
         .eq('household_id', householdId)
         .isFilter('archived_at', null)
@@ -95,7 +95,7 @@ final accountTransactionHistoryProvider =
           .watch(supabaseClientProvider)
           .from('financial_transactions')
           .select(
-            'id, type, occurred_at, description, amount, created_at, envelope_movements(id)',
+            'id, event_id, type, occurred_at, description, amount, created_at, envelope_movements(id)',
           )
           .eq('household_id', householdId)
           .or(

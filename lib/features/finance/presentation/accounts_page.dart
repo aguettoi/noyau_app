@@ -280,6 +280,7 @@ class _AccountDetailPage extends ConsumerWidget {
               theoreticalBalance: balance,
               observation: observation,
               onRecord: () => _openObservationDialog(context, ref),
+              onHistory: () => _openReconciliationHistory(context, ref),
             ),
           ],
           const SizedBox(height: AppSpacing.md),
@@ -333,6 +334,14 @@ class _AccountDetailPage extends ConsumerWidget {
       );
     }
   }
+
+  Future<void> _openReconciliationHistory(
+    BuildContext context,
+    WidgetRef ref,
+  ) => showDialog<void>(
+    context: context,
+    builder: (_) => _ReconciliationHistoryDialog(account: account),
+  );
 }
 
 class _AccountReconciliationCard extends StatelessWidget {
@@ -341,12 +350,14 @@ class _AccountReconciliationCard extends StatelessWidget {
     required this.theoreticalBalance,
     required this.observation,
     required this.onRecord,
+    required this.onHistory,
   });
 
   final FinancialAccount account;
   final Money theoreticalBalance;
   final AsyncValue<AccountBalanceObservation?> observation;
   final VoidCallback onRecord;
+  final VoidCallback onHistory;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -378,10 +389,17 @@ class _AccountReconciliationCard extends StatelessWidget {
           ],
         ),
         data: (latest) {
+          // A canonical observation freezes its own GL value. Do not recompute
+          // its historical difference from a ledger that may have changed.
           final difference = latest == null
               ? null
-              : latest.actualBalance - theoreticalBalance;
-          final reconciled = difference?.minorUnits == 0;
+              : latest.remainingDifference ??
+                    latest.differenceSnapshot ??
+                    latest.actualBalance - theoreticalBalance;
+          final reconciled =
+              latest?.status == 'resolved' ||
+              latest?.status == 'reconciled' ||
+              difference?.minorUnits == 0;
           final title = account.type == FinancialAccountType.cash
               ? 'Inventaire de caisse'
               : 'Rapprochement bancaire';
@@ -397,10 +415,20 @@ class _AccountReconciliationCard extends StatelessWidget {
                 Text(
                   'Solde réel constaté : ${_frenchMoney(latest.actualBalance)}',
                 ),
+                if (latest.theoreticalBalanceSnapshot != null)
+                  Text(
+                    'Théorique figé : ${_frenchMoney(latest.theoreticalBalanceSnapshot!)}',
+                  ),
                 Text('Écart : ${_frenchMoney(difference!)}'),
                 Text(
                   reconciled == true
                       ? 'État : Rapproché'
+                      : latest.status == 'partially_resolved'
+                      ? 'État : Écart partiellement résolu'
+                      : latest.status == 'explained_pending'
+                      ? 'État : Écart temporaire à suivre'
+                      : latest.status == 'legacy_unfrozen'
+                      ? 'État : Historique à reconfirmer'
                       : 'État : Écart à expliquer',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
@@ -419,15 +447,26 @@ class _AccountReconciliationCard extends StatelessWidget {
               ),
               Align(
                 alignment: Alignment.centerRight,
-                child: OutlinedButton.icon(
-                  key: const Key('record-account-balance-observation-button'),
-                  onPressed: onRecord,
-                  icon: const Icon(Icons.fact_check_outlined),
-                  label: Text(
-                    account.type == FinancialAccountType.cash
-                        ? 'Compter les espèces'
-                        : 'Constater un solde réel',
-                  ),
+                child: Wrap(
+                  spacing: AppSpacing.sm,
+                  children: [
+                    TextButton(
+                      onPressed: onHistory,
+                      child: const Text('Historique des constats'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const Key(
+                        'record-account-balance-observation-button',
+                      ),
+                      onPressed: onRecord,
+                      icon: const Icon(Icons.fact_check_outlined),
+                      label: Text(
+                        account.type == FinancialAccountType.cash
+                            ? 'Compter les espèces'
+                            : 'Constater un solde réel',
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -437,6 +476,366 @@ class _AccountReconciliationCard extends StatelessWidget {
     ),
   );
 }
+
+class _ReconciliationHistoryDialog extends ConsumerWidget {
+  const _ReconciliationHistoryDialog({required this.account});
+  final FinancialAccount account;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(accountReconciliationHistoryProvider(account.id));
+    return AlertDialog(
+      title: Text(
+        account.type == FinancialAccountType.cash
+            ? 'Historique de caisse'
+            : 'Historique des rapprochements',
+      ),
+      content: SizedBox(
+        width: 620,
+        child: history.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => const Text('Impossible de charger les constats.'),
+          data: (cases) => cases.isEmpty
+              ? const Text('Aucun constat.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: cases.length,
+                  separatorBuilder: (_, _) => const Divider(),
+                  itemBuilder: (_, index) => _ReconciliationCaseTile(
+                    account: account,
+                    item: cases[index],
+                  ),
+                ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Fermer'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReconciliationCaseTile extends ConsumerWidget {
+  const _ReconciliationCaseTile({required this.account, required this.item});
+  final FinancialAccount account;
+  final AccountReconciliationCase item;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final observation = item.observation;
+    final remainder =
+        item.remainingDifference ?? observation.differenceSnapshot;
+    return ListTile(
+      title: Text(
+        '${_formatObservationDate(observation.observedAt)} — ${item.status}',
+      ),
+      subtitle: Text(
+        'Réel ${_frenchMoney(observation.actualBalance)} • Écart restant ${remainder == null ? 'historique à reconfirmer' : _frenchMoney(remainder)}\n${observation.reason}',
+      ),
+      isThreeLine: true,
+      trailing: observation.theoreticalBalanceSnapshot == null
+          ? null
+          : TextButton(
+              onPressed: () => _detail(context, ref),
+              child: const Text('Détail'),
+            ),
+    );
+  }
+
+  Future<void> _detail(BuildContext context, WidgetRef ref) => showDialog<void>(
+    context: context,
+    builder: (_) => _ReconciliationDetailDialog(account: account, item: item),
+  );
+}
+
+class _ReconciliationDetailDialog extends ConsumerStatefulWidget {
+  const _ReconciliationDetailDialog({
+    required this.account,
+    required this.item,
+  });
+  final FinancialAccount account;
+  final AccountReconciliationCase item;
+  @override
+  ConsumerState<_ReconciliationDetailDialog> createState() =>
+      _ReconciliationDetailDialogState();
+}
+
+class _ReconciliationDetailDialogState
+    extends ConsumerState<_ReconciliationDetailDialog> {
+  final _comment = TextEditingController();
+  var _temporary = false;
+  var _saving = false;
+  late final String _key;
+  @override
+  void initState() {
+    super.initState();
+    _key =
+        '${DateTime.now().microsecondsSinceEpoch}-${widget.item.observation.id}';
+  }
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final i = widget.item;
+    final o = i.observation;
+    final remaining = i.remainingDifference ?? o.differenceSnapshot!;
+    final hasTemporary = i.resolutions.any((item) => item.kind == 'temporary');
+    return AlertDialog(
+      title: const Text('Détail du constat'),
+      content: SizedBox(
+        width: 620,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Solde réel : ${_frenchMoney(o.actualBalance)}'),
+              Text(
+                'Théorique figé : ${_frenchMoney(o.theoreticalBalanceSnapshot!)}',
+              ),
+              Text('Écart initial : ${_frenchMoney(o.differenceSnapshot!)}'),
+              Text(
+                'Reliquat : ${_frenchMoney(i.remainingDifference ?? o.differenceSnapshot!)}',
+              ),
+              Text('Auteur : ${o.actorName}'),
+              Text('Motif du constat : ${o.reason}'),
+              const SizedBox(height: AppSpacing.sm),
+              ...i.resolutions.map(
+                (r) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(_resolutionLabel(r.kind)),
+                  subtitle: Text(
+                    '${r.comment}\n${r.actorName} • ${_formatObservationDate(r.createdAt)}',
+                  ),
+                  trailing: r.effectiveAmount.minorUnits == 0
+                      ? null
+                      : Text(_frenchMoney(r.effectiveAmount)),
+                ),
+              ),
+              const Divider(),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Différence temporaire'),
+                value: _temporary,
+                onChanged: _saving
+                    ? null
+                    : (v) => setState(() => _temporary = v),
+              ),
+              TextField(
+                controller: _comment,
+                maxLength: 280,
+                decoration: const InputDecoration(
+                  labelText: 'Explication documentaire',
+                  hintText: 'Décrivez le constat sans modifier les écritures.',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Fermer'),
+        ),
+        if (remaining.minorUnits != 0)
+          TextButton(
+            onPressed: _saving ? null : _attachFinancialEvent,
+            child: const Text('Rattacher une opération existante'),
+          ),
+        if (remaining.minorUnits != 0 && hasTemporary)
+          TextButton(
+            onPressed: _saving ? null : _attachFollowUp,
+            child: const Text('Rattacher un constat de suivi'),
+          ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Text(
+            _saving ? 'Enregistrement…' : 'Enregistrer l’explication',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _save() async {
+    if (_comment.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(addAccountReconciliationExplanationProvider)(
+        accountId: widget.account.id,
+        observationId: widget.item.observation.id,
+        kind: _temporary ? 'temporary' : 'documentary',
+        comment: _comment.text,
+        idempotencyKey: _key,
+      );
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _attachFinancialEvent() async {
+    final eventId = await showDialog<String>(
+      context: context,
+      builder: (_) => _SelectAccountEventDialog(account: widget.account),
+    );
+    if (eventId == null || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(linkAccountReconciliationFinancialEventProvider)(
+        accountId: widget.account.id,
+        observationId: widget.item.observation.id,
+        financialEventId: eventId,
+        comment: 'Opération canonique rattachée depuis le rapprochement',
+        idempotencyKey: '$_key-event-$eventId',
+      );
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _attachFollowUp() async {
+    final observationId = await showDialog<String>(
+      context: context,
+      builder: (_) =>
+          _SelectFollowUpDialog(account: widget.account, current: widget.item),
+    );
+    if (observationId == null || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(resolveAccountReconciliationFollowUpProvider)(
+        accountId: widget.account.id,
+        observationId: widget.item.observation.id,
+        followUpObservationId: observationId,
+        comment: 'Constat de suivi confirmé explicitement',
+        idempotencyKey: '$_key-follow-up-$observationId',
+      );
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+}
+
+class _SelectAccountEventDialog extends ConsumerWidget {
+  const _SelectAccountEventDialog({required this.account});
+  final FinancialAccount account;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(accountTransactionHistoryProvider(account.id));
+    return AlertDialog(
+      title: const Text('Rattacher une opération existante'),
+      content: SizedBox(
+        width: 560,
+        child: items.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => const Text('Impossible de charger les opérations.'),
+          data: (list) =>
+              list.where((item) => item.financialEventId != null).isEmpty
+              ? const Text(
+                  'Aucune opération canonique disponible pour ce compte.',
+                )
+              : ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final item in list.where(
+                      (item) => item.financialEventId != null,
+                    ))
+                      ListTile(
+                        title: Text(item.description),
+                        subtitle: Text(_formatObservationDate(item.occurredAt)),
+                        trailing: Text(_frenchMoney(item.amount)),
+                        onTap: () =>
+                            Navigator.pop(context, item.financialEventId),
+                      ),
+                  ],
+                ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SelectFollowUpDialog extends ConsumerWidget {
+  const _SelectFollowUpDialog({required this.account, required this.current});
+  final FinancialAccount account;
+  final AccountReconciliationCase current;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(accountReconciliationHistoryProvider(account.id));
+    return AlertDialog(
+      title: const Text('Rattacher un constat de suivi'),
+      content: SizedBox(
+        width: 560,
+        child: history.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => const Text('Impossible de charger les constats.'),
+          data: (cases) {
+            final compatible = cases
+                .where(
+                  (item) =>
+                      item.observation.id != current.observation.id &&
+                      item.observation.observedAt.isAfter(
+                        current.observation.observedAt,
+                      ) &&
+                      item.observation.differenceSnapshot?.minorUnits == 0,
+                )
+                .toList();
+            return compatible.isEmpty
+                ? const Text(
+                    'Aucun constat ultérieur rapproché n’est disponible.',
+                  )
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final item in compatible)
+                        ListTile(
+                          title: Text(
+                            _formatObservationDate(item.observation.observedAt),
+                          ),
+                          subtitle: Text(
+                            'Solde réel ${_frenchMoney(item.observation.actualBalance)}',
+                          ),
+                          onTap: () =>
+                              Navigator.pop(context, item.observation.id),
+                        ),
+                    ],
+                  );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+      ],
+    );
+  }
+}
+
+String _resolutionLabel(String kind) => switch (kind) {
+  'documentary' => 'Explication documentaire',
+  'temporary' => 'Différence temporaire',
+  'financial_event' => 'Opération canonique rattachée',
+  'follow_up' => 'Constat de suivi',
+  'reversal' => 'Contrepassation',
+  _ => 'Résolution',
+};
 
 class _RecordAccountBalanceDialog extends StatefulWidget {
   const _RecordAccountBalanceDialog({

@@ -62,6 +62,7 @@ class TransactionsSupabaseRepository {
         description: _requiredString(row, 'description'),
         amount: Money.fromMinorUnits(_cents(row['amount'])),
         createdAt: _date(row, 'created_at'),
+        financialEventId: row['event_id'] as String?,
         hasEnvelopeMovement:
             (row['envelope_movements'] as List?)?.isNotEmpty ?? false,
       );

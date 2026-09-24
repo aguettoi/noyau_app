@@ -29,8 +29,11 @@ class DashboardAccountBalance {
   final Money balance;
   final AccountBalanceObservation? observation;
 
-  Money? get reconciliationDifference =>
-      observation == null ? null : observation!.actualBalance - balance;
+  Money? get reconciliationDifference => observation == null
+      ? null
+      : observation!.remainingDifference ??
+            observation!.differenceSnapshot ??
+            observation!.actualBalance - balance;
 }
 
 class DashboardBudgetSummary {
