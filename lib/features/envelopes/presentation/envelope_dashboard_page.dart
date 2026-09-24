@@ -312,7 +312,7 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),
-              const Text(
+              const SecondaryInfoText(
                 'Soldes calculés exclusivement depuis le journal des enveloppes.',
               ),
               if (toAllocate != null && toAllocate.balance.minorUnits > 0) ...[

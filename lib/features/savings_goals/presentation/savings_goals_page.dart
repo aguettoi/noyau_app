@@ -93,7 +93,7 @@ class SavingsGoalsPage extends ConsumerWidget {
                     'Épargne & objectifs',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const Text(
+                  const SecondaryInfoText(
                     'Les objectifs observent le solde réel de leur enveloppe dédiée.',
                   ),
                   FilledButton.icon(

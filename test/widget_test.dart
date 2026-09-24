@@ -249,6 +249,126 @@ void main() {
     expect(find.text('Fondation financière'), findsOneWidget);
   });
 
+  testWidgets(
+    'Pilotage conserve le shell pour les sections principales et le retour des pages secondaires',
+    (tester) async {
+      await pumpApp(tester);
+      final navigation = find.byType(NavigationBar);
+
+      Future<void> returnToPilotage() async {
+        await tester.tap(
+          find.descendant(of: navigation, matching: find.text('Pilotage')),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.widget<NavigationBar>(navigation).selectedIndex, 0);
+        await tester.drag(
+          find.byKey(const Key('financial-dashboard-page')),
+          const Offset(0, 1200),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> tapDashboardAction(Key key) async {
+        await tester.dragUntilVisible(
+          find.byKey(key),
+          find.byKey(const Key('financial-dashboard-page')),
+          const Offset(0, -420),
+        );
+        await tester.ensureVisible(find.byKey(key));
+        await tester.tap(find.byKey(key));
+        await tester.pumpAndSettle();
+      }
+
+      for (final target in const [
+        (Key('dashboard-open-accounts'), 'Comptes'),
+        (Key('dashboard-open-envelopes'), 'Enveloppes'),
+        (Key('dashboard-open-goals'), 'Épargne & objectifs'),
+        (Key('dashboard-open-priorities'), 'Aucun plan de priorités'),
+      ]) {
+        await tapDashboardAction(target.$1);
+        expect(find.text(target.$2), findsWidgets);
+        expect(navigation, findsOneWidget);
+        await returnToPilotage();
+      }
+
+      for (final target in const [
+        Key('dashboard-open-envelopes'),
+        Key('dashboard-open-goals'),
+      ]) {
+        await tapDashboardAction(target);
+        expect(navigation, findsOneWidget);
+        await returnToPilotage();
+      }
+
+      await tapDashboardAction(const Key('dashboard-open-month-preparation'));
+      expect(find.byType(BackButton), findsOneWidget);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(tester.widget<NavigationBar>(navigation).selectedIndex, 0);
+      expect(find.byType(BackButton), findsNothing);
+
+      await tester.drag(
+        find.byKey(const Key('financial-dashboard-page')),
+        const Offset(0, -600),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('dashboard-open-obligations')));
+      await tester.pumpAndSettle();
+      expect(find.byType(BackButton), findsOneWidget);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(tester.widget<NavigationBar>(navigation).selectedIndex, 0);
+      expect(find.byType(BackButton), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'les messages informatifs Pilotage restent secondaires et neutres',
+    (tester) async {
+      await pumpApp(tester);
+      final navigation = find.byType(NavigationBar);
+
+      Future<void> tapDashboardAction(Key key) async {
+        await tester.dragUntilVisible(
+          find.byKey(key),
+          find.byKey(const Key('financial-dashboard-page')),
+          const Offset(0, -420),
+        );
+        await tester.tap(find.byKey(key));
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> expectInfoMessage(String message) async {
+        final text = tester.widget<Text>(find.text(message));
+        final style = text.style!;
+        expect(style.fontSize, lessThanOrEqualTo(16));
+        expect(
+          style.color,
+          Theme.of(
+            tester.element(find.text(message)),
+          ).colorScheme.onSurfaceVariant,
+        );
+        expect(style.decoration, TextDecoration.none);
+      }
+
+      await tapDashboardAction(const Key('dashboard-open-envelopes'));
+      await expectInfoMessage(
+        'Soldes calculés exclusivement depuis le journal des enveloppes.',
+      );
+      await tester.tap(
+        find.descendant(of: navigation, matching: find.text('Pilotage')),
+      );
+      await tester.pumpAndSettle();
+
+      await tapDashboardAction(const Key('dashboard-open-goals'));
+      await expectInfoMessage(
+        'Les objectifs observent le solde réel de leur enveloppe dédiée.',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('la navigation desktop utilise un rail sans modifier le mobile', (
     tester,
   ) async {
@@ -266,5 +386,27 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Fondation financière'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(of: rail, matching: find.text('Pilotage')),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const Key('financial-dashboard-page')),
+      const Offset(0, -420),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('dashboard-open-envelopes')),
+    );
+    await tester.tap(find.byKey(const Key('dashboard-open-envelopes')));
+    await tester.pumpAndSettle();
+    expect(rail, findsOneWidget);
+    expect(find.text('Enveloppes'), findsWidgets);
+    await tester.tap(
+      find.descendant(of: rail, matching: find.text('Pilotage')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<NavigationRail>(rail).selectedIndex, 0);
   });
 }

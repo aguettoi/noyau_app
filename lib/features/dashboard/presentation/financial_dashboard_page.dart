@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
+import '../../../app/finance_shell_navigation.dart';
 import '../../budget_intelligence/presentation/budget_monthly_preparation_page.dart';
 import '../../envelopes/presentation/envelope_dashboard_page.dart';
 import '../../finance/presentation/accounts_page.dart';
@@ -87,7 +88,11 @@ class _TreasurySection extends StatelessWidget {
     subtitle: 'Solde théorique issu du Grand Livre des comptes uniquement.',
     action: TextButton.icon(
       key: const Key('dashboard-open-accounts'),
-      onPressed: () => _open(context, const AccountsPage()),
+      onPressed: () => _openShellDestination(
+        context,
+        FinanceShellNavigation.accountsIndex,
+        const AccountsPage(),
+      ),
       icon: const Icon(Icons.arrow_forward_outlined),
       label: const Text('Comptes'),
     ),
@@ -219,7 +224,11 @@ class _EnvelopesSection extends StatelessWidget {
     subtitle: 'Affectation de l’argent, distincte des soldes de comptes.',
     action: TextButton.icon(
       key: const Key('dashboard-open-envelopes'),
-      onPressed: () => _open(context, const EnvelopeDashboardPage()),
+      onPressed: () => _openShellDestination(
+        context,
+        FinanceShellNavigation.envelopesIndex,
+        const EnvelopeDashboardPage(),
+      ),
       icon: const Icon(Icons.arrow_forward_outlined),
       label: const Text('Enveloppes'),
     ),
@@ -313,12 +322,20 @@ class _GoalsAndPrioritiesSection extends StatelessWidget {
       children: [
         TextButton(
           key: const Key('dashboard-open-goals'),
-          onPressed: () => _open(context, const SavingsGoalsPage()),
+          onPressed: () => _openShellDestination(
+            context,
+            FinanceShellNavigation.savingsGoalsIndex,
+            const SavingsGoalsPage(),
+          ),
           child: const Text('Objectifs'),
         ),
         TextButton(
           key: const Key('dashboard-open-priorities'),
-          onPressed: () => _open(context, const PrioritiesPage()),
+          onPressed: () => _openShellDestination(
+            context,
+            FinanceShellNavigation.prioritiesIndex,
+            const PrioritiesPage(),
+          ),
           child: const Text('Priorités'),
         ),
       ],
@@ -454,4 +471,13 @@ String _money(Money amount) =>
 
 void _open(BuildContext context, Widget page) {
   Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+}
+
+void _openShellDestination(BuildContext context, int index, Widget fallback) {
+  final navigation = FinanceShellNavigation.maybeOf(context);
+  if (navigation != null) {
+    navigation.selectDestination(index);
+    return;
+  }
+  _open(context, fallback);
 }

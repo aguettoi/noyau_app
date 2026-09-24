@@ -226,6 +226,23 @@ class CompactListRow extends StatelessWidget {
   );
 }
 
+/// Texte de contexte non bloquant : il ne doit jamais prendre l'apparence
+/// d'une erreur ou d'un titre de page lorsqu'il accompagne un en-tête métier.
+class SecondaryInfoText extends StatelessWidget {
+  const SecondaryInfoText(this.message, {super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    message,
+    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      decoration: TextDecoration.none,
+    ),
+  );
+}
+
 abstract final class AppRadius {
   static const small = BorderRadius.all(Radius.circular(8));
   static const button = BorderRadius.all(Radius.circular(12));
