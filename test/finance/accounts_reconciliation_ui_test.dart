@@ -78,6 +78,29 @@ void main() {
     expect(find.text('Rapprochement bancaire'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'la fiche compte ouvre l’historique et rend les legacy lisibles',
+    (tester) async {
+      final gateway = _ObservationGateway(legacyHistory: true);
+      await _pump(tester, _bankAccount(), gateway);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Banque A'));
+      await tester.pumpAndSettle();
+      expect(find.text('Voir l’historique'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const Key('view-reconciliation-history-button')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Historique des rapprochements'), findsOneWidget);
+      expect(
+        find.textContaining('Constat historique — référence GL non figée'),
+        findsOneWidget,
+      );
+      expect(find.text('Nouveau constat requis'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Future<void> _pump(
@@ -122,6 +145,8 @@ FinancialAccount _cashAccount() => FinancialAccount(
 );
 
 class _ObservationGateway implements AccountBalanceObservationGateway {
+  _ObservationGateway({this.legacyHistory = false});
+  final bool legacyHistory;
   String? recordedAccountId;
   Money? recordedAmount;
   bool glMutationRequested = false;
@@ -146,7 +171,25 @@ class _ObservationGateway implements AccountBalanceObservationGateway {
   Future<List<AccountReconciliationCase>> fetchHistory({
     required String householdId,
     required String accountId,
-  }) async => const [];
+  }) async => legacyHistory
+      ? [
+          AccountReconciliationCase(
+            observation: AccountBalanceObservation(
+              id: 'legacy-observation',
+              accountId: accountId,
+              actualBalance: Money.fromMinorUnits(73500),
+              observedAt: DateTime.utc(2026, 9, 24),
+              reason: 'Historique',
+              actorId: 'actor-1',
+              actorName: 'Ibrahim',
+              createdAt: DateTime.utc(2026, 9, 24),
+            ),
+            status: 'legacy_unfrozen',
+            remainingDifference: null,
+            resolutions: const [],
+          ),
+        ]
+      : const [];
 
   @override
   Future<void> explain({

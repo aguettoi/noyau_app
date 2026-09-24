@@ -381,9 +381,18 @@ class _AccountReconciliationCard extends StatelessWidget {
             const Text('Le dernier constat ne peut pas être chargé.'),
             Align(
               alignment: Alignment.centerRight,
-              child: OutlinedButton(
-                onPressed: onRecord,
-                child: const Text('Constater un solde réel'),
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                children: [
+                  TextButton(
+                    onPressed: onHistory,
+                    child: const Text('Voir l’historique'),
+                  ),
+                  OutlinedButton(
+                    onPressed: onRecord,
+                    child: const Text('Constater un solde réel'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -440,6 +449,10 @@ class _AccountReconciliationCard extends StatelessWidget {
                 Text('Relevé : ${_formatObservationDate(latest.observedAt)}'),
                 Text('Effectué par : ${latest.actorName}'),
                 Text('Commentaire : ${latest.reason}'),
+                if (latest.status == 'legacy_unfrozen')
+                  const Text(
+                    'Constat historique — référence GL non figée. Créez un nouveau constat pour utiliser le nouveau processus de rapprochement.',
+                  ),
               ],
               const SizedBox(height: AppSpacing.sm),
               const Text(
@@ -451,8 +464,9 @@ class _AccountReconciliationCard extends StatelessWidget {
                   spacing: AppSpacing.sm,
                   children: [
                     TextButton(
+                      key: const Key('view-reconciliation-history-button'),
                       onPressed: onHistory,
-                      child: const Text('Historique des constats'),
+                      child: const Text('Voir l’historique'),
                     ),
                     OutlinedButton.icon(
                       key: const Key(
@@ -528,14 +542,16 @@ class _ReconciliationCaseTile extends ConsumerWidget {
         item.remainingDifference ?? observation.differenceSnapshot;
     return ListTile(
       title: Text(
-        '${_formatObservationDate(observation.observedAt)} — ${item.status}',
+        observation.theoreticalBalanceSnapshot == null
+            ? '${_formatObservationDate(observation.observedAt)} — Constat historique — référence GL non figée'
+            : '${_formatObservationDate(observation.observedAt)} — ${item.status}',
       ),
       subtitle: Text(
         'Réel ${_frenchMoney(observation.actualBalance)} • Écart restant ${remainder == null ? 'historique à reconfirmer' : _frenchMoney(remainder)}\n${observation.reason}',
       ),
       isThreeLine: true,
       trailing: observation.theoreticalBalanceSnapshot == null
-          ? null
+          ? const Text('Nouveau constat requis')
           : TextButton(
               onPressed: () => _detail(context, ref),
               child: const Text('Détail'),
