@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
+import '../../financial_availability/application/providers/financial_availability_provider.dart';
+import '../../financial_availability/domain/financial_availability.dart';
 import '../application/providers/remote_savings_goals_provider.dart';
 import '../domain/savings_goal.dart';
 
@@ -72,6 +74,7 @@ class SavingsGoalsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final goals = ref.watch(savingsGoalsProvider);
+    final availability = ref.watch(financialAvailabilityProvider).valueOrNull;
     return SafeArea(
       child: goals.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -114,6 +117,7 @@ class SavingsGoalsPage extends ConsumerWidget {
                     for (final item in items)
                       _GoalCard(
                         item: item,
+                        projection: availability?.goals[item.goal.id],
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) =>
@@ -181,6 +185,7 @@ class SavingsGoalDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final goals = ref.watch(savingsGoalsProvider);
+    final availability = ref.watch(financialAvailabilityProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(title: const Text('Détail de l’objectif')),
       body: goals.when(
@@ -197,7 +202,10 @@ class SavingsGoalDetailPage extends ConsumerWidget {
           return DesktopPageContainer(
             child: ListView(
               children: [
-                _GoalSummary(item: item),
+                _GoalSummary(
+                  item: item,
+                  projection: availability?.goals[item.goal.id],
+                ),
                 const SizedBox(height: AppSpacing.md),
                 DesktopSection(
                   title: 'Informations',
@@ -210,7 +218,10 @@ class SavingsGoalDetailPage extends ConsumerWidget {
                           icon: const Icon(Icons.edit_outlined),
                           label: const Text('Modifier'),
                         ),
-                  child: _GoalDetails(item: item),
+                  child: _GoalDetails(
+                    item: item,
+                    projection: availability?.goals[item.goal.id],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 if (!item.goal.status.isClosed)
@@ -353,10 +364,11 @@ class SavingsGoalDetailPage extends ConsumerWidget {
 }
 
 class _GoalCard extends StatelessWidget {
-  const _GoalCard({required this.item, required this.onTap});
+  const _GoalCard({required this.item, required this.onTap, this.projection});
 
   final SavingsGoalProgress item;
   final VoidCallback onTap;
+  final GoalFundingProjection? projection;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -403,8 +415,16 @@ class _GoalCard extends StatelessWidget {
               const SizedBox(height: AppSpacing.xs),
               Text('Échéance : ${_date(item.goal.targetDate!)}'),
             ],
-            if (item.estimatedCompletionDate(DateTime.now()) case final date?)
-              Text('Date prévisionnelle : ${_date(date)}'),
+            Text(
+              'Financement sécurisé : ${_money(projection?.securedFunding ?? item.accumulated)}',
+            ),
+            Text(
+              'Reste à financer : ${_money(projection?.remaining ?? item.remaining)}',
+            ),
+            if (projection?.completionDate case final date?)
+              Text('Finançable vers : ${_date(date)}')
+            else if (projection?.reason case final reason?)
+              Text(reason),
           ],
         ),
       ),
@@ -413,9 +433,10 @@ class _GoalCard extends StatelessWidget {
 }
 
 class _GoalSummary extends StatelessWidget {
-  const _GoalSummary({required this.item});
+  const _GoalSummary({required this.item, this.projection});
 
   final SavingsGoalProgress item;
+  final GoalFundingProjection? projection;
 
   @override
   Widget build(BuildContext context) => DesktopSection(
@@ -435,6 +456,13 @@ class _GoalSummary extends StatelessWidget {
         Text(
           '${(item.progressRatio * 100).toStringAsFixed(1)} % · Reste : ${_money(item.remaining)}',
         ),
+        if (projection != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Financement sécurisé : ${_money(projection!.securedFunding)} · Reste à financer : ${_money(projection!.remaining)}',
+          ),
+          if (projection!.reason != null) Text(projection!.reason!),
+        ],
         if (item.isFinancialTargetReached) ...[
           const SizedBox(height: AppSpacing.sm),
           const Text(
@@ -451,14 +479,15 @@ class _GoalSummary extends StatelessWidget {
 }
 
 class _GoalDetails extends StatelessWidget {
-  const _GoalDetails({required this.item});
+  const _GoalDetails({required this.item, this.projection});
 
   final SavingsGoalProgress item;
+  final GoalFundingProjection? projection;
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final projected = item.estimatedCompletionDate(now);
+    final projected = projection?.completionDate;
     final pace = item.requiredMonthlyPace(now);
     return Wrap(
       spacing: AppSpacing.xl,
@@ -479,7 +508,9 @@ class _GoalDetails extends StatelessWidget {
         ),
         _DetailValue(
           label: 'Date prévisionnelle',
-          value: projected == null ? 'Non calculable' : _date(projected),
+          value: projected == null
+              ? (projection?.reason ?? 'Capacité future à confirmer')
+              : _date(projected),
         ),
         if (pace != null)
           _DetailValue(label: 'Rythme requis', value: '${_money(pace)} / mois'),

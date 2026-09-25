@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
+import '../../financial_availability/application/providers/financial_availability_provider.dart';
 import '../../savings_goals/domain/savings_goal.dart';
 import '../../shopping_list/application/providers/remote_shopping_list_provider.dart';
 import '../../shopping_list/domain/shopping_item.dart';
@@ -84,11 +85,24 @@ class _PriorityPlanCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final projections = projectPriorityPlan(
+    final fallback = projectPriorityPlan(
       items: plan.items,
       monthlyCapacity: plan.plan.monthlyCapacity,
       from: DateTime.now(),
     );
+    final canonical = ref.watch(financialAvailabilityProvider).valueOrNull;
+    final canonicalEntries = canonical?.planEntries[plan.plan.id];
+    final projections = canonicalEntries == null
+        ? fallback
+        : List<PriorityProjectionEntry>.generate(plan.items.length, (index) {
+            final entry = canonicalEntries[index];
+            return PriorityProjectionEntry(
+              item: plan.items[index],
+              estimatedNeed: entry.remainingNeed,
+              estimatedMonths: entry.months,
+              estimatedCompletionDate: entry.completionDate,
+            );
+          }, growable: false);
     final editable = plan.plan.status.isEditable;
     return DesktopSection(
       title: plan.plan.name,
@@ -143,6 +157,10 @@ class _PriorityPlanCard extends ConsumerWidget {
           const Text(
             'Hypothèse de planification uniquement — aucun budget, compte ou solde n’est modifié.',
           ),
+          if (canonical?.warnings.isNotEmpty == true) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(canonical!.warnings.first),
+          ],
           const SizedBox(height: AppSpacing.md),
           if (editable)
             Align(
