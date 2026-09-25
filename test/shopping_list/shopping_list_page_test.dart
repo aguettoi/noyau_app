@@ -129,6 +129,44 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'un achat prévu expose le parcours Acheter sans écriture locale',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(app([_item]));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Acheter'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enregistrer l’achat maintenant'), findsOneWidget);
+      expect(find.text('Rattacher une dépense existante'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('les quatre filtres présentent un empty state adapté', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app(const []));
+    await tester.pumpAndSettle();
+    expect(find.text('Aucun achat prévu'), findsOneWidget);
+
+    await tester.tap(find.text('Acheté'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aucun achat effectué'), findsOneWidget);
+
+    await tester.tap(find.text('Annulé'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aucun achat annulé'), findsOneWidget);
+
+    await tester.tap(find.text('Archivé'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aucun achat archivé'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 const _members = [

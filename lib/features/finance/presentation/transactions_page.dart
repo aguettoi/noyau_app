@@ -17,9 +17,18 @@ import '../domain/transaction_draft.dart';
 import '../domain/transaction_history_item.dart';
 
 class TransactionsPage extends ConsumerStatefulWidget {
-  const TransactionsPage({super.key, this.returnAfterCreate = false});
+  const TransactionsPage({
+    super.key,
+    this.returnAfterCreate = false,
+    this.returnCreatedEventId = false,
+    this.prefill,
+    this.forceExpense = false,
+  });
 
   final bool returnAfterCreate;
+  final bool returnCreatedEventId;
+  final TransactionFormPrefill? prefill;
+  final bool forceExpense;
 
   @override
   ConsumerState<TransactionsPage> createState() => _TransactionsPageState();
@@ -35,7 +44,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     List<FinancialAccount> accounts,
     List<RemoteEnvelopeBalance> envelopes,
   ) async {
-    final created = await showDialog<bool>(
+    final created = await showDialog<String>(
       context: context,
       builder: (_) => _CreateTransactionDialog(
         accounts: accounts
@@ -44,9 +53,11 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         envelopes: envelopes,
         onCreate: _create,
         onCreateDebt: _createDebt,
+        prefill: widget.prefill,
+        forceExpense: widget.forceExpense,
       ),
     );
-    if (created == true && mounted) {
+    if (created != null && mounted) {
       ref.invalidate(remoteTransactionsProvider);
       ref.invalidate(remoteAccountBalancesProvider);
       ref.invalidate(remoteAccountsProvider);
@@ -60,14 +71,14 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         ),
       );
       if (widget.returnAfterCreate) {
-        Navigator.of(context).pop(true);
+        Navigator.of(context).pop(widget.returnCreatedEventId ? created : true);
       }
     }
   }
 
-  Future<void> _create(FinancialTransactionDraft draft) async {
+  Future<String?> _create(FinancialTransactionDraft draft) async {
     if (_creating) {
-      return;
+      return null;
     }
     setState(() => _creating = true);
     try {
@@ -75,7 +86,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         final repository = await ref.read(
           financialEventRepositoryProvider.future,
         );
-        await repository.createCashExpense(
+        final eventId = await repository.createCashExpense(
           occurredAt: draft.occurredAt,
           description: draft.description,
           amount: draft.amount,
@@ -89,13 +100,15 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
               )
               .toList(growable: false),
           idempotencyKey: _expenseIdempotencyKey,
+          notes: draft.notes,
         );
         _expenseIdempotencyKey = _newIdempotencyKey();
+        return eventId;
       } else if (draft.type == LedgerTransactionType.income) {
         final repository = await ref.read(
           financialEventRepositoryProvider.future,
         );
-        await repository.createCashIncome(
+        final eventId = await repository.createCashIncome(
           occurredAt: draft.occurredAt,
           description: draft.description,
           amount: draft.amount,
@@ -112,11 +125,12 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
           notes: draft.notes,
         );
         _cashIncomeIdempotencyKey = _newIdempotencyKey();
+        return eventId;
       } else if (draft.type == LedgerTransactionType.transfer) {
         final repository = await ref.read(
           financialEventRepositoryProvider.future,
         );
-        await repository.createAccountTransfer(
+        final eventId = await repository.createAccountTransfer(
           occurredAt: draft.occurredAt,
           description: draft.description,
           amount: draft.amount,
@@ -126,8 +140,9 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
           notes: draft.notes,
         );
         _accountTransferIdempotencyKey = _newIdempotencyKey();
+        return eventId;
       } else {
-        await ref.read(createRemoteTransactionProvider)(draft);
+        return ref.read(createRemoteTransactionProvider)(draft);
       }
     } finally {
       if (mounted) {
@@ -136,14 +151,14 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     }
   }
 
-  Future<void> _createDebt(_DebtExpenseSubmission submission) async {
-    if (_creating) return;
+  Future<String?> _createDebt(_DebtExpenseSubmission submission) async {
+    if (_creating) return null;
     setState(() => _creating = true);
     try {
       final repository = await ref.read(
         financialEventRepositoryProvider.future,
       );
-      await repository.createDebtExpense(
+      final eventId = await repository.createDebtExpense(
         occurredAt: submission.occurredAt,
         description: submission.description,
         amount: submission.amount,
@@ -153,6 +168,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         idempotencyKey: _expenseIdempotencyKey,
       );
       _expenseIdempotencyKey = _newIdempotencyKey();
+      return eventId;
     } finally {
       if (mounted) setState(() => _creating = false);
     }
@@ -261,12 +277,17 @@ class _CreateTransactionDialog extends StatefulWidget {
     required this.envelopes,
     required this.onCreate,
     required this.onCreateDebt,
+    this.prefill,
+    this.forceExpense = false,
   });
 
   final List<FinancialAccount> accounts;
   final List<RemoteEnvelopeBalance> envelopes;
-  final Future<void> Function(FinancialTransactionDraft draft) onCreate;
-  final Future<void> Function(_DebtExpenseSubmission submission) onCreateDebt;
+  final Future<String?> Function(FinancialTransactionDraft draft) onCreate;
+  final Future<String?> Function(_DebtExpenseSubmission submission)
+  onCreateDebt;
+  final TransactionFormPrefill? prefill;
+  final bool forceExpense;
 
   @override
   State<_CreateTransactionDialog> createState() =>
@@ -289,6 +310,18 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
   var _expenseIsDebt = false;
   var _submitting = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final prefill = widget.prefill;
+    if (prefill != null) {
+      _description.text = prefill.description;
+      _amount.text = prefill.amount?.dirhams.toStringAsFixed(2) ?? '';
+      _notes.text = prefill.notes ?? '';
+      _singleEnvelopeId = prefill.envelopeId;
+    }
+  }
 
   @override
   void dispose() {
@@ -415,7 +448,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
         _error = null;
       });
       try {
-        await widget.onCreateDebt(
+        final eventId = await widget.onCreateDebt(
           _DebtExpenseSubmission(
             occurredAt: DateTime.now(),
             description: _description.text.trim(),
@@ -425,7 +458,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
             notes: _notes.text.trim(),
           ),
         );
-        if (mounted) Navigator.of(context).pop(true);
+        if (mounted && eventId != null) Navigator.of(context).pop(eventId);
       } catch (error) {
         if (mounted) setState(() => _error = _financialErrorMessage(error));
       } finally {
@@ -442,6 +475,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
       destinationAccountId: _needsDestination ? _destinationAccountId : null,
       direction: _direction,
       envelopeAllocations: _allocations(),
+      notes: _notes.text.trim(),
     );
     final validationError = draft.validate();
     if (validationError != null) {
@@ -453,9 +487,9 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
       _error = null;
     });
     try {
-      await widget.onCreate(draft);
+      final eventId = await widget.onCreate(draft);
       if (mounted) {
-        Navigator.of(context).pop(true);
+        if (eventId != null) Navigator.of(context).pop(eventId);
       }
     } catch (error) {
       if (mounted) {
@@ -480,26 +514,32 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<LedgerTransactionType>(
-                key: const Key('transaction-type-field'),
-                initialValue: _type,
-                decoration: const InputDecoration(labelText: 'Type *'),
-                items:
-                    const [
-                          LedgerTransactionType.expense,
-                          LedgerTransactionType.income,
-                          LedgerTransactionType.transfer,
-                          LedgerTransactionType.adjustment,
-                        ]
-                        .map(
-                          (type) => DropdownMenuItem(
-                            value: type,
-                            child: Text(_labelFor(type)),
-                          ),
-                        )
-                        .toList(growable: false),
-                onChanged: _submitting ? null : (type) => _changeType(type!),
-              ),
+              if (widget.forceExpense)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Type : Dépense'),
+                )
+              else
+                DropdownButtonFormField<LedgerTransactionType>(
+                  key: const Key('transaction-type-field'),
+                  initialValue: _type,
+                  decoration: const InputDecoration(labelText: 'Type *'),
+                  items:
+                      const [
+                            LedgerTransactionType.expense,
+                            LedgerTransactionType.income,
+                            LedgerTransactionType.transfer,
+                            LedgerTransactionType.adjustment,
+                          ]
+                          .map(
+                            (type) => DropdownMenuItem(
+                              value: type,
+                              child: Text(_labelFor(type)),
+                            ),
+                          )
+                          .toList(growable: false),
+                  onChanged: _submitting ? null : (type) => _changeType(type!),
+                ),
               const SizedBox(height: AppSpacing.sm),
               TextFormField(
                 key: const Key('transaction-description-field'),

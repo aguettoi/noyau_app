@@ -22,6 +22,22 @@ enum LedgerTransactionType {
 
 enum BalanceDirection { increase, decrease }
 
+/// Optional, editable context supplied by another business screen before the
+/// canonical transaction form is opened. It never posts an operation itself.
+class TransactionFormPrefill {
+  const TransactionFormPrefill({
+    required this.description,
+    this.amount,
+    this.envelopeId,
+    this.notes,
+  });
+
+  final String description;
+  final Money? amount;
+  final String? envelopeId;
+  final String? notes;
+}
+
 class EnvelopeAllocationDraft {
   const EnvelopeAllocationDraft({
     required this.envelopeId,

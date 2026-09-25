@@ -18,6 +18,13 @@ abstract interface class ShoppingListGateway {
     String householdId,
     String itemId,
   );
+  Future<Map<String, ShoppingPurchase>> fetchPurchases(
+    String householdId,
+    List<String> financialEventIds,
+  );
+  Future<List<ShoppingExpenseCandidate>> fetchExpenseCandidates(
+    String householdId,
+  );
   Future<String> create(String householdId, ShoppingItemDraft draft);
   Future<void> update(
     String householdId,
@@ -27,6 +34,11 @@ abstract interface class ShoppingListGateway {
   Future<void> setMyPriority(String householdId, String itemId, int priority);
   Future<void> cancel(String householdId, String itemId, String? reason);
   Future<void> archive(String householdId, String itemId, String? reason);
+  Future<ShoppingPurchase> purchase(
+    String householdId,
+    String itemId,
+    String financialEventId,
+  );
 }
 
 class SupabaseShoppingListGateway implements ShoppingListGateway {
@@ -38,7 +50,7 @@ class SupabaseShoppingListGateway implements ShoppingListGateway {
     final rows = await _client
         .from('shopping_items')
         .select(
-          'id, household_id, label, estimated_amount, notes, desired_date, status, envelope_id, budget_goal_id, final_priority, final_priority_set_by, final_priority_set_at, created_by, created_at, updated_by, updated_at, cancelled_by, cancelled_at, cancellation_reason, archived_by, archived_at',
+          'id, household_id, label, estimated_amount, notes, desired_date, status, envelope_id, budget_goal_id, final_priority, final_priority_set_by, final_priority_set_at, purchased_financial_event_id, created_by, created_at, updated_by, updated_at, cancelled_by, cancelled_at, cancellation_reason, archived_by, archived_at',
         )
         .eq('household_id', householdId)
         .order('final_priority')
@@ -47,6 +59,96 @@ class SupabaseShoppingListGateway implements ShoppingListGateway {
     return List.unmodifiable(
       (rows as List<dynamic>)
           .map((row) => _item(Map<String, Object?>.from(row as Map)))
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<Map<String, ShoppingPurchase>> fetchPurchases(
+    String householdId,
+    List<String> financialEventIds,
+  ) async {
+    if (financialEventIds.isEmpty) return const {};
+    final events = await _client
+        .from('financial_events')
+        .select('id, occurred_at, description, created_by')
+        .eq('household_id', householdId)
+        .inFilter('id', financialEventIds);
+    final eventRows = (events as List<dynamic>)
+        .map((row) => Map<String, Object?>.from(row as Map))
+        .toList(growable: false);
+    final transactions = await _client
+        .from('financial_transactions')
+        .select('id, event_id, amount, occurred_at, description')
+        .eq('household_id', householdId)
+        .eq('type', 'expense')
+        .isFilter('archived_at', null)
+        .inFilter('event_id', financialEventIds);
+    final transactionByEvent = {
+      for (final raw in transactions as List<dynamic>)
+        (raw as Map)['event_id'] as String: Map<String, Object?>.from(raw),
+    };
+    final names = await _profileNames(
+      eventRows.map((row) => row['created_by'] as String).toSet().toList(),
+    );
+    return Map.unmodifiable({
+      for (final event in eventRows)
+        if (transactionByEvent[event['id']] case final transaction?)
+          event['id'] as String: ShoppingPurchase(
+            financialEventId: event['id'] as String,
+            financialTransactionId: transaction['id'] as String,
+            amount: _money(transaction['amount']),
+            occurredAt: DateTime.parse(transaction['occurred_at'] as String),
+            description: transaction['description'] as String,
+            actorId: event['created_by'] as String,
+            actorName:
+                names[event['created_by'] as String] ?? 'Utilisateur inconnu',
+          ),
+    });
+  }
+
+  @override
+  Future<List<ShoppingExpenseCandidate>> fetchExpenseCandidates(
+    String householdId,
+  ) async {
+    final events = await _client
+        .from('financial_events')
+        .select('id')
+        .eq('household_id', householdId)
+        .eq('event_type', 'cash_expense');
+    final eventIds = (events as List<dynamic>)
+        .map((row) => (row as Map)['id'] as String)
+        .toList(growable: false);
+    if (eventIds.isEmpty) return const [];
+    final linked = await _client
+        .from('shopping_items')
+        .select('purchased_financial_event_id')
+        .eq('household_id', householdId)
+        .inFilter('purchased_financial_event_id', eventIds);
+    final alreadyLinked = (linked as List<dynamic>)
+        .map((row) => (row as Map)['purchased_financial_event_id'] as String)
+        .toSet();
+    final rows = await _client
+        .from('financial_transactions')
+        .select('id, event_id, amount, occurred_at, description')
+        .eq('household_id', householdId)
+        .eq('type', 'expense')
+        .isFilter('archived_at', null)
+        .inFilter('event_id', eventIds)
+        .order('occurred_at', ascending: false);
+    return List.unmodifiable(
+      (rows as List<dynamic>)
+          .map((raw) => Map<String, Object?>.from(raw as Map))
+          .where((row) => !alreadyLinked.contains(row['event_id']))
+          .map(
+            (row) => ShoppingExpenseCandidate(
+              financialEventId: row['event_id'] as String,
+              financialTransactionId: row['id'] as String,
+              amount: _money(row['amount']),
+              occurredAt: DateTime.parse(row['occurred_at'] as String),
+              description: row['description'] as String,
+            ),
+          )
           .toList(growable: false),
     );
   }
@@ -90,7 +192,7 @@ class SupabaseShoppingListGateway implements ShoppingListGateway {
   ) async {
     final rows = await _client
         .from('shopping_item_history')
-        .select('id, action, reason, actor_id, created_at')
+        .select('id, action, changes, reason, actor_id, created_at')
         .eq('household_id', householdId)
         .eq('shopping_item_id', itemId)
         .order('created_at', ascending: false);
@@ -110,6 +212,9 @@ class SupabaseShoppingListGateway implements ShoppingListGateway {
               actorName:
                   names[row['actor_id'] as String] ?? 'Utilisateur inconnu',
               createdAt: DateTime.parse(row['created_at'] as String),
+              changes: row['changes'] is Map
+                  ? Map<String, Object?>.from(row['changes'] as Map)
+                  : const {},
               reason: row['reason'] as String?,
             ),
           )
@@ -199,6 +304,40 @@ class SupabaseShoppingListGateway implements ShoppingListGateway {
           'p_reason': _optional(reason),
         },
       );
+
+  @override
+  Future<ShoppingPurchase> purchase(
+    String householdId,
+    String itemId,
+    String financialEventId,
+  ) async {
+    final value = await _client.rpc(
+      'purchase_shopping_item_with_expense',
+      params: {
+        'p_household_id': householdId,
+        'p_item_id': itemId,
+        'p_financial_event_id': financialEventId,
+      },
+    );
+    final row = Map<String, Object?>.from(value as Map);
+    final event = await _client
+        .from('financial_events')
+        .select('id, created_by')
+        .eq('id', financialEventId)
+        .single();
+    final eventRow = Map<String, Object?>.from(event);
+    final actorId = eventRow['created_by'] as String;
+    final names = await _profileNames([actorId]);
+    return ShoppingPurchase(
+      financialEventId: financialEventId,
+      financialTransactionId: row['financial_transaction_id'] as String,
+      amount: _money(row['actual_amount']),
+      occurredAt: DateTime.parse(row['occurred_at'] as String),
+      description: '',
+      actorId: actorId,
+      actorName: names[actorId] ?? 'Utilisateur inconnu',
+    );
+  }
 }
 
 Map<String, Object?> _draftParams(
@@ -248,6 +387,7 @@ ShoppingItem _item(Map<String, Object?> row) => ShoppingItem(
   cancellationReason: row['cancellation_reason'] as String?,
   archivedBy: row['archived_by'] as String?,
   archivedAt: _date(row['archived_at']),
+  purchasedFinancialEventId: row['purchased_financial_event_id'] as String?,
 );
 
 DateTime? _date(Object? value) {
@@ -279,16 +419,23 @@ final shoppingItemsProvider = FutureProvider<List<ShoppingItemView>>((
     throw StateError('Aucun foyer actif sans ambiguïté.');
   }
   final gateway = ref.watch(shoppingListGatewayProvider);
+  final items = await gateway.fetchItems(householdId);
   final results = await Future.wait([
-    gateway.fetchItems(householdId),
     gateway.fetchMemberPriorities(householdId),
     ref.watch(remoteEnvelopeHistoryProvider.future),
     ref.watch(savingsGoalsProvider.future),
+    gateway.fetchPurchases(
+      householdId,
+      items
+          .map((item) => item.purchasedFinancialEventId)
+          .whereType<String>()
+          .toList(growable: false),
+    ),
   ]);
-  final items = results[0] as List<ShoppingItem>;
-  final priorities = results[1] as List<ShoppingMemberPriority>;
-  final envelopes = results[2] as List<RemoteEnvelopeBalance>;
-  final goals = results[3] as List<SavingsGoalProgress>;
+  final priorities = results[0] as List<ShoppingMemberPriority>;
+  final envelopes = results[1] as List<RemoteEnvelopeBalance>;
+  final goals = results[2] as List<SavingsGoalProgress>;
+  final purchases = results[3] as Map<String, ShoppingPurchase>;
   final envelopeById = {for (final item in envelopes) item.id: item};
   final goalById = {for (final item in goals) item.goal.id: item};
   return List.unmodifiable(
@@ -309,6 +456,9 @@ final shoppingItemsProvider = FutureProvider<List<ShoppingItemView>>((
             envelopeBalance: envelope?.balance,
             goalName: goal?.goal.name,
             goalProgress: goal?.progressForIndicator,
+            purchase: item.purchasedFinancialEventId == null
+                ? null
+                : purchases[item.purchasedFinancialEventId],
           );
         })
         .toList(growable: false),
@@ -394,6 +544,28 @@ Future<void> archiveShoppingItem(
   await ref
       .read(shoppingListGatewayProvider)
       .archive(household.householdId!, itemId, reason);
+  ref.invalidate(shoppingItemsProvider);
+  ref.invalidate(shoppingItemHistoryProvider(itemId));
+}
+
+Future<List<ShoppingExpenseCandidate>> shoppingExpenseCandidates(
+  WidgetRef ref,
+) async {
+  final household = await ref.read(activeHouseholdProvider.future);
+  return ref
+      .read(shoppingListGatewayProvider)
+      .fetchExpenseCandidates(household.householdId!);
+}
+
+Future<void> purchaseShoppingItem(
+  WidgetRef ref,
+  String itemId,
+  String financialEventId,
+) async {
+  final household = await ref.read(activeHouseholdProvider.future);
+  await ref
+      .read(shoppingListGatewayProvider)
+      .purchase(household.householdId!, itemId, financialEventId);
   ref.invalidate(shoppingItemsProvider);
   ref.invalidate(shoppingItemHistoryProvider(itemId));
 }

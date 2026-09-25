@@ -48,6 +48,17 @@ void main() {
   );
 
   test(
+    'le rattachement réutilise une dépense existante sans en créer une',
+    () async {
+      final gateway = _Gateway();
+      await gateway.purchase('household-1', 'item-1', 'event-1');
+
+      expect(gateway.operations, ['purchase:event-1']);
+      expect(gateway.financialMutationRequested, isFalse);
+    },
+  );
+
+  test(
     'les mutations Shopping ne sollicitent aucun moteur financier',
     () async {
       final gateway = _Gateway();
@@ -118,6 +129,33 @@ class _Gateway implements ShoppingListGateway {
     String householdId,
     String itemId,
   ) async => const [];
+  @override
+  Future<List<ShoppingExpenseCandidate>> fetchExpenseCandidates(
+    String householdId,
+  ) async => const [];
+  @override
+  Future<Map<String, ShoppingPurchase>> fetchPurchases(
+    String householdId,
+    List<String> financialEventIds,
+  ) async => const {};
+  @override
+  Future<ShoppingPurchase> purchase(
+    String householdId,
+    String itemId,
+    String financialEventId,
+  ) async {
+    operations.add('purchase:$financialEventId');
+    return ShoppingPurchase(
+      financialEventId: financialEventId,
+      financialTransactionId: 'transaction-1',
+      amount: Money.fromDirhams(100),
+      occurredAt: DateTime.utc(2026),
+      description: 'Dépense existante',
+      actorId: 'actor-1',
+      actorName: 'Acteur',
+    );
+  }
+
   @override
   Future<List<ShoppingItem>> fetchItems(String householdId) async => [
     ShoppingItem(

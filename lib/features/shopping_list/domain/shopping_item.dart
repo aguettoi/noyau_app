@@ -43,6 +43,7 @@ class ShoppingItem {
     this.cancellationReason,
     this.archivedBy,
     this.archivedAt,
+    this.purchasedFinancialEventId,
   });
 
   final String id;
@@ -66,6 +67,45 @@ class ShoppingItem {
   final String? cancellationReason;
   final String? archivedBy;
   final DateTime? archivedAt;
+  final String? purchasedFinancialEventId;
+}
+
+/// Financial proof linked explicitly to a materialized Shopping item.
+/// The financial event remains the accounting source of truth.
+class ShoppingPurchase {
+  const ShoppingPurchase({
+    required this.financialEventId,
+    required this.financialTransactionId,
+    required this.amount,
+    required this.occurredAt,
+    required this.description,
+    required this.actorId,
+    required this.actorName,
+  });
+
+  final String financialEventId;
+  final String financialTransactionId;
+  final Money amount;
+  final DateTime occurredAt;
+  final String description;
+  final String actorId;
+  final String actorName;
+}
+
+class ShoppingExpenseCandidate {
+  const ShoppingExpenseCandidate({
+    required this.financialEventId,
+    required this.financialTransactionId,
+    required this.amount,
+    required this.occurredAt,
+    required this.description,
+  });
+
+  final String financialEventId;
+  final String financialTransactionId;
+  final Money amount;
+  final DateTime occurredAt;
+  final String description;
 }
 
 class ShoppingMemberPriority {
@@ -89,6 +129,7 @@ class ShoppingItemHistoryEntry {
     required this.actorId,
     required this.actorName,
     required this.createdAt,
+    this.changes = const {},
     this.reason,
   });
 
@@ -97,6 +138,7 @@ class ShoppingItemHistoryEntry {
   final String actorId;
   final String actorName;
   final DateTime createdAt;
+  final Map<String, Object?> changes;
   final String? reason;
 }
 
@@ -154,6 +196,7 @@ class ShoppingItemView {
     this.envelopeBalance,
     this.goalName,
     this.goalProgress,
+    this.purchase,
   });
 
   final ShoppingItem item;
@@ -162,6 +205,7 @@ class ShoppingItemView {
   final Money? envelopeBalance;
   final String? goalName;
   final double? goalProgress;
+  final ShoppingPurchase? purchase;
 
   Money? get estimatedGap {
     if (item.estimatedAmount == null || envelopeBalance == null) return null;

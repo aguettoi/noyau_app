@@ -35,4 +35,31 @@ void main() {
     expect(ShoppingItemStatusLabel.fromDatabase('planned').label, 'Prévu');
     expect(ShoppingItemStatusLabel.fromDatabase('archived').label, 'Archivé');
   });
+
+  test('l estimation et la preuve financière réelle restent distinctes', () {
+    final item = ShoppingItem(
+      id: 'shopping-1',
+      householdId: 'household-1',
+      label: 'TEST TV',
+      estimatedAmount: Money.fromDirhams(6000),
+      status: ShoppingItemStatus.purchased,
+      purchasedFinancialEventId: 'event-1',
+      createdBy: 'actor-1',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+    );
+    final purchase = ShoppingPurchase(
+      financialEventId: 'event-1',
+      financialTransactionId: 'transaction-1',
+      amount: Money.fromDirhams(5650),
+      occurredAt: DateTime.utc(2026, 9, 25),
+      description: 'TEST TV',
+      actorId: 'actor-1',
+      actorName: 'Ibrahim',
+    );
+
+    expect(item.estimatedAmount, Money.fromDirhams(6000));
+    expect(purchase.amount, Money.fromDirhams(5650));
+    expect(item.purchasedFinancialEventId, purchase.financialEventId);
+  });
 }

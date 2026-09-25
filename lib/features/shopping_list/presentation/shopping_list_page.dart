@@ -7,6 +7,8 @@ import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../finance/domain/household_member.dart';
+import '../../finance/domain/transaction_draft.dart';
+import '../../finance/presentation/transactions_page.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../savings_goals/domain/savings_goal.dart';
 import '../application/providers/remote_shopping_list_provider.dart';
@@ -107,6 +109,68 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
     }
   }
 
+  Future<void> _buy(ShoppingItemView item) async {
+    final choice = await showDialog<_PurchaseChoice>(
+      context: context,
+      builder: (_) => const _PurchaseChoiceDialog(),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == _PurchaseChoice.createNow) {
+      final eventId = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => TransactionsPage(
+            returnAfterCreate: true,
+            returnCreatedEventId: true,
+            forceExpense: true,
+            prefill: TransactionFormPrefill(
+              description: item.item.label,
+              amount: item.item.estimatedAmount,
+              envelopeId: item.item.envelopeId,
+              notes: item.item.notes,
+            ),
+          ),
+        ),
+      );
+      if (eventId == null || !mounted) return;
+      await _linkPurchase(item, eventId);
+      return;
+    }
+    late final List<ShoppingExpenseCandidate> candidates;
+    try {
+      candidates = await shoppingExpenseCandidates(ref);
+    } on Object catch (error) {
+      if (mounted) _error(context, error);
+      return;
+    }
+    if (!mounted) return;
+    final candidate = await showDialog<ShoppingExpenseCandidate>(
+      context: context,
+      builder: (_) => _ExistingExpenseDialog(candidates: candidates),
+    );
+    if (candidate == null || !mounted) return;
+    await _linkPurchase(item, candidate.financialEventId);
+  }
+
+  Future<void> _linkPurchase(ShoppingItemView item, String eventId) async {
+    try {
+      await purchaseShoppingItem(ref, item.item.id, eventId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Achat réel rattaché à l’article.')),
+        );
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        _error(
+          context,
+          StateError(
+            'La dépense a été créée, mais son rattachement doit être confirmé : $error',
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = ref.watch(shoppingItemsProvider);
@@ -166,7 +230,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 if (filtered.isEmpty)
-                  _Empty(onCreate: _edit)
+                  _Empty(status: _status, onCreate: _edit)
                 else
                   ResponsiveGrid(
                     minItemWidth: 350,
@@ -180,6 +244,9 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                           onPriority:
                               item.item.status == ShoppingItemStatus.planned
                               ? () => _priority(item)
+                              : null,
+                          onBuy: item.item.status == ShoppingItemStatus.planned
+                              ? () => _buy(item)
                               : null,
                           onCancel:
                               item.item.status == ShoppingItemStatus.planned
@@ -206,12 +273,14 @@ class _ItemCard extends ConsumerWidget {
     required this.item,
     this.onEdit,
     this.onPriority,
+    this.onBuy,
     this.onCancel,
     this.onArchive,
   });
   final ShoppingItemView item;
   final VoidCallback? onEdit;
   final VoidCallback? onPriority;
+  final VoidCallback? onBuy;
   final VoidCallback? onCancel;
   final VoidCallback? onArchive;
 
@@ -236,6 +305,13 @@ class _ItemCard extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           if (item.item.estimatedAmount != null)
             Text('Estimation : ${_money(item.item.estimatedAmount!)}'),
+          if (item.purchase case final purchase?) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text('Montant réel : ${_money(purchase.amount)}'),
+            Text('Acheté le : ${_date(purchase.occurredAt)}'),
+            Text('Opération : ${purchase.description}'),
+            Text('Effectué par : ${purchase.actorName}'),
+          ],
           if (item.item.finalPriority != null && item.memberPriorities.isEmpty)
             Text(
               'Priorité finale : ${item.item.finalPriority} (0 = prioritaire)',
@@ -283,6 +359,12 @@ class _ItemCard extends ConsumerWidget {
                   icon: const Icon(Icons.how_to_vote_outlined),
                   label: const Text('Ma priorité'),
                 ),
+              if (onBuy != null)
+                FilledButton.icon(
+                  onPressed: onBuy,
+                  icon: const Icon(Icons.shopping_bag_outlined),
+                  label: const Text('Acheter'),
+                ),
               if (onCancel != null)
                 TextButton(onPressed: onCancel, child: const Text('Annuler')),
               if (onArchive != null)
@@ -328,6 +410,12 @@ class _ShoppingHistoryDialog extends ConsumerWidget {
                         subtitle: [
                           _dateTime(entry.createdAt),
                           'Effectué par : ${entry.actorName}',
+                          if (entry.action == 'purchased') ...[
+                            if (entry.changes['actual_amount'] != null)
+                              'Montant réel : ${entry.changes['actual_amount']} MAD',
+                            if (entry.changes['financial_event_id'] != null)
+                              'Référence opération : ${entry.changes['financial_event_id']}',
+                          ],
                           if (entry.reason != null) 'Motif : ${entry.reason}',
                         ].join('\n'),
                         leading: const Icon(Icons.history_outlined),
@@ -375,20 +463,103 @@ class _Badge extends StatelessWidget {
 }
 
 class _Empty extends StatelessWidget {
-  const _Empty({required this.onCreate});
+  const _Empty({required this.status, required this.onCreate});
+  final ShoppingItemStatus? status;
   final VoidCallback onCreate;
   @override
-  Widget build(BuildContext context) => DesktopSection(
-    title: 'Aucun achat prévu',
-    subtitle: 'Préparez vos achats sans créer de dépense ni réserver de solde.',
-    action: FilledButton.icon(
-      onPressed: onCreate,
-      icon: const Icon(Icons.add),
-      label: const Text('Ajouter'),
+  Widget build(BuildContext context) {
+    final values = switch (status) {
+      ShoppingItemStatus.purchased => const (
+        'Aucun achat effectué',
+        'Les achats matérialisés par une dépense canonique apparaîtront ici.',
+      ),
+      ShoppingItemStatus.cancelled => const (
+        'Aucun achat annulé',
+        'Les achats annulés seront conservés ici à titre d’historique.',
+      ),
+      ShoppingItemStatus.archived => const (
+        'Aucun achat archivé',
+        'Les achats archivés seront conservés ici à titre d’historique.',
+      ),
+      _ => const (
+        'Aucun achat prévu',
+        'Préparez vos achats sans créer de dépense ni réserver de solde.',
+      ),
+    };
+    return DesktopSection(
+      title: values.$1,
+      subtitle: values.$2,
+      action: status == null || status == ShoppingItemStatus.planned
+          ? FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add),
+              label: const Text('Ajouter'),
+            )
+          : null,
+      child: const Text(
+        'Une intention Shopping ne crée jamais d’écriture financière seule.',
+      ),
+    );
+  }
+}
+
+enum _PurchaseChoice { createNow, attachExisting }
+
+class _PurchaseChoiceDialog extends StatelessWidget {
+  const _PurchaseChoiceDialog();
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Acheter'),
+    content: const Text(
+      'L’achat doit être prouvé par une dépense canonique. Choisissez le parcours adapté.',
     ),
-    child: const Text(
-      'Vous pourrez lier un article à une enveloppe ou à un objectif, à titre d’information uniquement.',
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Annuler'),
+      ),
+      OutlinedButton(
+        onPressed: () => Navigator.pop(context, _PurchaseChoice.attachExisting),
+        child: const Text('Rattacher une dépense existante'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _PurchaseChoice.createNow),
+        child: const Text('Enregistrer l’achat maintenant'),
+      ),
+    ],
+  );
+}
+
+class _ExistingExpenseDialog extends StatelessWidget {
+  const _ExistingExpenseDialog({required this.candidates});
+  final List<ShoppingExpenseCandidate> candidates;
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Rattacher une dépense existante'),
+    content: SizedBox(
+      width: 560,
+      child: candidates.isEmpty
+          ? const Text('Aucune dépense canonique disponible à rattacher.')
+          : ListView(
+              shrinkWrap: true,
+              children: [
+                for (final candidate in candidates)
+                  ListTile(
+                    title: Text(candidate.description),
+                    subtitle: Text(
+                      '${_date(candidate.occurredAt)} • ${_money(candidate.amount)}',
+                    ),
+                    onTap: () => Navigator.pop(context, candidate),
+                  ),
+              ],
+            ),
     ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Retour'),
+      ),
+    ],
   );
 }
 
@@ -729,6 +900,7 @@ String _historyLabel(String action) => switch (action) {
   'member_priority_cleared' => 'Priorité membre retirée',
   'cancelled' => 'Article annulé',
   'archived' => 'Article archivé',
+  'purchased' => 'Achat réel rattaché',
   _ => 'Modification',
 };
 void _error(BuildContext context, Object error) =>
