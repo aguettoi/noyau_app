@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
+import 'package:noyau_app/features/financial_availability/application/providers/financial_availability_provider.dart';
+import 'package:noyau_app/features/financial_availability/domain/financial_availability.dart';
 import 'package:noyau_app/features/priorities/application/providers/remote_priority_plans_provider.dart';
 import 'package:noyau_app/features/priorities/domain/priority_plan.dart';
 import 'package:noyau_app/features/priorities/presentation/priorities_page.dart';
@@ -127,6 +129,83 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(gateway.activated, ['plan']);
   });
+
+  testWidgets(
+    'affiche le nombre de mois de financement au singulier et au pluriel',
+    (tester) async {
+      final gateway = _Gateway();
+      final plan = PriorityPlanView(
+        plan: _planView().plan,
+        items: [
+          PriorityPlanItemView(
+            item: _item(id: 'one', rank: 1, sourceId: 'one'),
+            source: const PrioritySourceSnapshot(
+              type: PrioritySourceType.shoppingItem,
+              id: 'one',
+              label: 'TEST One',
+              status: 'Prévu',
+              estimatedNeed: Money.fromMinorUnits(100),
+            ),
+          ),
+          PriorityPlanItemView(
+            item: _item(id: 'two', rank: 2, sourceId: 'two'),
+            source: const PrioritySourceSnapshot(
+              type: PrioritySourceType.shoppingItem,
+              id: 'two',
+              label: 'TEST Two',
+              status: 'Prévu',
+              estimatedNeed: Money.fromMinorUnits(200),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            priorityPlansProvider.overrideWith((ref) async => [plan]),
+            priorityPlansGatewayProvider.overrideWithValue(gateway),
+            financialAvailabilityProvider.overrideWith(
+              (ref) async => FinancialAvailabilitySnapshot(
+                realLiquidity: Money.fromMinorUnits(0),
+                envelopeTotal: Money.fromMinorUnits(0),
+                toAllocate: Money.fromMinorUnits(0),
+                debtCommitments: Money.fromMinorUnits(0),
+                potentialReceivables: Money.fromMinorUnits(0),
+                goals: const {},
+                planEntries: {
+                  'plan': [
+                    PlanProjectionEntry(
+                      itemId: 'one',
+                      remainingNeed: Money.fromMinorUnits(100),
+                      months: 1,
+                      completionDate: DateTime(2026, 2, 1),
+                    ),
+                    PlanProjectionEntry(
+                      itemId: 'two',
+                      remainingNeed: Money.fromMinorUnits(200),
+                      months: 2,
+                      completionDate: DateTime(2026, 3, 1),
+                    ),
+                  ],
+                },
+                warnings: const [],
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: Scaffold(body: PrioritiesPage())),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('1 mois de financement estimé'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('2 mois de financement estimés'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets(
     'réordonne réellement trois priorités, persiste puis recharge le même ordre',

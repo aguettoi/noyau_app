@@ -489,4 +489,95 @@ void main() {
       expect(entries[1].months, 1);
     },
   );
+
+  test('une capacité modifiée recalcule la date sans écriture', () {
+    const item = AvailabilityPlanItem(
+      id: 'shopping',
+      rank: 1,
+      type: AvailabilitySourceType.shopping,
+      sourceId: 'shopping',
+      status: 'Prévu',
+      estimatedAmount: Money.fromMinorUnits(600000),
+    );
+    final slow = projectFinancialAvailability(
+      input(capacity: mad(5000), items: const [item]),
+      DateTime(2026, 1, 1),
+    );
+    final fast = projectFinancialAvailability(
+      input(capacity: mad(6000), items: const [item]),
+      DateTime(2026, 1, 1),
+    );
+    expect(
+      slow.planEntries['plan']!.single.completionDate,
+      DateTime(2026, 3, 1),
+    );
+    expect(
+      fast.planEntries['plan']!.single.completionDate,
+      DateTime(2026, 2, 1),
+    );
+  });
+
+  test('ajout et suppression recalculent la séquence canonique', () {
+    const first = AvailabilityPlanItem(
+      id: 'first',
+      rank: 1,
+      type: AvailabilitySourceType.shopping,
+      sourceId: 'first',
+      status: 'Prévu',
+      estimatedAmount: Money.fromMinorUnits(300000),
+    );
+    const second = AvailabilityPlanItem(
+      id: 'second',
+      rank: 2,
+      type: AvailabilitySourceType.shopping,
+      sourceId: 'second',
+      status: 'Prévu',
+      estimatedAmount: Money.fromMinorUnits(300000),
+    );
+    final withBoth = projectFinancialAvailability(
+      input(items: const [first, second]),
+      DateTime(2026, 1, 1),
+    );
+    final afterRemoval = projectFinancialAvailability(
+      input(items: const [first]),
+      DateTime(2026, 1, 1),
+    );
+    expect(withBoth.planEntries['plan']!.map((item) => item.itemId), [
+      'first',
+      'second',
+    ]);
+    expect(afterRemoval.planEntries['plan']!.map((item) => item.itemId), [
+      'first',
+    ]);
+  });
+
+  test('objectif PRIOS et détail objectif partagent la même date', () {
+    final value = projectFinancialAvailability(
+      input(
+        goals: [
+          AvailabilityGoal(
+            id: 'a',
+            envelopeId: 'travel',
+            target: mad(6000),
+            accumulated: mad(0),
+            isActive: true,
+          ),
+        ],
+        items: const [
+          AvailabilityPlanItem(
+            id: 'goal',
+            rank: 1,
+            type: AvailabilitySourceType.goal,
+            sourceId: 'a',
+            status: 'Actif',
+          ),
+        ],
+      ),
+      DateTime(2026, 1, 1),
+    );
+    expect(
+      value.planEntries['plan']!.single.completionDate,
+      value.goals['a']!.completionDate,
+    );
+  });
 }

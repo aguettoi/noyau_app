@@ -87,7 +87,9 @@ class _PriorityPlanCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final availabilityState = ref.watch(financialAvailabilityProvider);
     final canonical = availabilityState.valueOrNull;
-    final canonicalEntries = canonical?.planEntries[plan.plan.id];
+    final canonicalEntries = availabilityState.isLoading
+        ? null
+        : canonical?.planEntries[plan.plan.id];
     final unavailableReason = availabilityState.isLoading
         ? 'Projection en cours de chargement.'
         : plan.plan.status == PriorityPlanStatus.planned
@@ -374,7 +376,7 @@ class _PriorityEntryCard extends StatelessWidget {
           if (source.progress != null)
             'Progression : ${(source.progress! * 100).round()} %',
           if (entry.estimatedMonths != null)
-            '${entry.estimatedMonths} mois estimé${entry.estimatedMonths == 1 ? '' : 's'}',
+            '${entry.estimatedMonths} mois de financement estimé${entry.estimatedMonths == 1 ? '' : 's'}',
           if (date != null) 'Prévision : ${_date(date)}',
           if (entry.reason != null) entry.reason!,
           'Statut : ${source.status}',

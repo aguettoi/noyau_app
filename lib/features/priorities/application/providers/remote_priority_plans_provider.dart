@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/money/money.dart';
 import '../../../finance/application/providers/active_household_provider.dart';
 import '../../../finance/application/providers/supabase_client_provider.dart';
+import '../../../financial_availability/application/providers/financial_availability_provider.dart';
 import '../../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../../savings_goals/domain/savings_goal.dart';
 import '../../../shopping_list/application/providers/remote_shopping_list_provider.dart';
@@ -321,6 +322,7 @@ Future<void> createPriorityPlan(WidgetRef ref, PriorityPlanDraft draft) async {
       .read(priorityPlansGatewayProvider)
       .create(household.householdId!, draft);
   ref.invalidate(priorityPlansProvider);
+  ref.invalidate(financialAvailabilityProvider);
 }
 
 Future<void> updatePriorityPlan(
@@ -335,6 +337,7 @@ Future<void> updatePriorityPlan(
       .read(priorityPlansGatewayProvider)
       .update(household.householdId!, planId, draft);
   ref.invalidate(priorityPlansProvider);
+  ref.invalidate(financialAvailabilityProvider);
 }
 
 Future<void> setPriorityPlanStatus(
@@ -347,6 +350,7 @@ Future<void> setPriorityPlanStatus(
       .read(priorityPlansGatewayProvider)
       .setStatus(household.householdId!, planId, status);
   ref.invalidate(priorityPlansProvider);
+  ref.invalidate(financialAvailabilityProvider);
 }
 
 /// Makes this plan the household's sole read-only projection reference.
@@ -359,6 +363,7 @@ Future<void> activatePriorityPlan(WidgetRef ref, String planId) async {
   }
   await ref.read(priorityPlansGatewayProvider).activate(householdId, planId);
   ref.invalidate(priorityPlansProvider);
+  ref.invalidate(financialAvailabilityProvider);
 }
 
 Future<void> addPriorityPlanItem(
@@ -372,6 +377,7 @@ Future<void> addPriorityPlanItem(
       .read(priorityPlansGatewayProvider)
       .addItem(household.householdId!, planId, sourceType, sourceId);
   ref.invalidate(priorityPlansProvider);
+  ref.invalidate(financialAvailabilityProvider);
 }
 
 Future<void> removePriorityPlanItem(
@@ -384,6 +390,7 @@ Future<void> removePriorityPlanItem(
       .read(priorityPlansGatewayProvider)
       .removeItem(household.householdId!, planId, itemId);
   ref.invalidate(priorityPlansProvider);
+  ref.invalidate(financialAvailabilityProvider);
 }
 
 Future<void> reorderPriorityPlanItems(
@@ -396,4 +403,5 @@ Future<void> reorderPriorityPlanItems(
       .read(priorityPlansGatewayProvider)
       .reorderItems(household.householdId!, planId, itemIds);
   ref.invalidate(priorityPlansProvider);
+  ref.invalidate(financialAvailabilityProvider);
 }
