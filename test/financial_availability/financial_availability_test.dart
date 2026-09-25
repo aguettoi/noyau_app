@@ -257,6 +257,32 @@ void main() {
     );
   });
 
+  test('n utilise jamais un plan prévu comme référence de projection', () {
+    final value = projectFinancialAvailability(
+      input(
+        plans: const [
+          AvailabilityPlan(
+            id: 'planned',
+            isActive: false,
+            monthlyCapacity: Money.fromMinorUnits(500000),
+            items: [
+              AvailabilityPlanItem(
+                id: 'goal',
+                rank: 1,
+                type: AvailabilitySourceType.goal,
+                sourceId: 'a',
+                status: 'Actif',
+              ),
+            ],
+          ),
+        ],
+      ),
+      DateTime(2026, 1, 1),
+    );
+    expect(value.goals['a']!.completionDate, isNull);
+    expect(value.goals['a']!.reason, contains('aucun plan PRIOS actif'));
+  });
+
   test('le reorder recalcule la même capacité unique dans le nouvel ordre', () {
     const first = AvailabilityPlanItem(
       id: 'first',
@@ -419,6 +445,48 @@ void main() {
       final entries = value.planEntries['plan']!;
       expect(entries[0].completionDate, DateTime(2026, 3, 1));
       expect(entries[1].completionDate, DateTime(2026, 7, 1));
+    },
+  );
+
+  test(
+    'réalloue le reliquat mensuel après le plafond à la priorité suivante',
+    () {
+      final value = projectFinancialAvailability(
+        input(
+          goals: [
+            AvailabilityGoal(
+              id: 'a',
+              envelopeId: 'travel',
+              target: mad(3000),
+              accumulated: mad(0),
+              isActive: true,
+              monthlyTarget: mad(3000),
+            ),
+          ],
+          items: const [
+            AvailabilityPlanItem(
+              id: 'goal',
+              rank: 1,
+              type: AvailabilitySourceType.goal,
+              sourceId: 'a',
+              status: 'Actif',
+            ),
+            AvailabilityPlanItem(
+              id: 'shopping',
+              rank: 2,
+              type: AvailabilitySourceType.shopping,
+              sourceId: 'shopping',
+              status: 'Prévu',
+              estimatedAmount: Money.fromMinorUnits(200000),
+            ),
+          ],
+        ),
+        DateTime(2026, 1, 1),
+      );
+      final entries = value.planEntries['plan']!;
+      expect(entries[0].completionDate, DateTime(2026, 2, 1));
+      expect(entries[1].completionDate, DateTime(2026, 2, 1));
+      expect(entries[1].months, 1);
     },
   );
 }

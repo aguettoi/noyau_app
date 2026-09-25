@@ -243,10 +243,8 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
   } else {
     final plan = activePlans.single;
     final capacity = plan.monthlyCapacity;
-    final entries = <PlanProjectionEntry>[];
+    final entriesByItemId = <String, PlanProjectionEntry>{};
     final consumedKeys = <String>{};
-    var monthIndex = 0;
-    var monthRemaining = Money.fromMinorUnits(0);
     Money? capacityForMonth(int index) {
       final Money? base;
       if (plan.monthlyCapacities.isNotEmpty) {
@@ -277,9 +275,10 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
       );
     }
 
-    for (final item in [
-      ...plan.items,
-    ]..sort((a, b) => a.rank.compareTo(b.rank))) {
+    final pending = <_PendingPlanItem>[];
+    final orderedItems = [...plan.items]
+      ..sort((a, b) => a.rank.compareTo(b.rank));
+    for (final item in orderedItems) {
       final isPurchasedShopping =
           item.type == AvailabilitySourceType.shopping &&
           item.status == 'Acheté';
@@ -297,44 +296,36 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
                 : item.estimatedAmount)
           : goals[linkedGoalId]?.remaining;
       if (need == null) {
-        entries.add(
-          PlanProjectionEntry(
-            itemId: item.id,
-            remainingNeed: const Money.fromMinorUnits(0),
-            reason: 'Données insuffisantes.',
-          ),
+        entriesByItemId[item.id] = PlanProjectionEntry(
+          itemId: item.id,
+          remainingNeed: const Money.fromMinorUnits(0),
+          reason: 'Données insuffisantes.',
         );
         continue;
       }
       if (need.minorUnits == 0) {
-        entries.add(
-          PlanProjectionEntry(
-            itemId: item.id,
-            remainingNeed: need,
-            months: 0,
-            completionDate: from,
-          ),
+        entriesByItemId[item.id] = PlanProjectionEntry(
+          itemId: item.id,
+          remainingNeed: need,
+          months: 0,
+          completionDate: from,
         );
         continue;
       }
       if (!consumedKeys.add(key)) {
-        entries.add(
-          PlanProjectionEntry(
-            itemId: item.id,
-            remainingNeed: need,
-            reason: 'Projet déjà représenté dans ce plan.',
-          ),
+        entriesByItemId[item.id] = PlanProjectionEntry(
+          itemId: item.id,
+          remainingNeed: need,
+          reason: 'Projet déjà représenté dans ce plan.',
         );
         continue;
       }
       if (capacity == null && plan.monthlyCapacities.isEmpty) {
-        entries.add(
-          PlanProjectionEntry(
-            itemId: item.id,
-            remainingNeed: need,
-            reason:
-                'Projection indisponible — aucune capacité mensuelle fiable n’est connue.',
-          ),
+        entriesByItemId[item.id] = PlanProjectionEntry(
+          itemId: item.id,
+          remainingNeed: need,
+          reason:
+              'Projection indisponible — aucune capacité mensuelle fiable n’est connue.',
         );
         continue;
       }
@@ -342,103 +333,83 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
           ? null
           : goalInputs[linkedGoalId]?.monthlyTarget;
       if (goalCap != null && goalCap.minorUnits <= 0 && need.minorUnits > 0) {
-        entries.add(
-          PlanProjectionEntry(
-            itemId: item.id,
-            remainingNeed: need,
-            reason:
-                'Projection indisponible — la cible mensuelle de cet objectif est nulle.',
-          ),
+        entriesByItemId[item.id] = PlanProjectionEntry(
+          itemId: item.id,
+          remainingNeed: need,
+          reason:
+              'Projection indisponible — la cible mensuelle de cet objectif est nulle.',
         );
         continue;
       }
-      var remaining = need.minorUnits;
-      var monthsUsed = 0;
-      DateTime? completion;
-      var goalMonthAllocated = 0;
-      var currentMonth = -1;
-      while (remaining > 0 && monthIndex < 1200) {
-        if (currentMonth != monthIndex) {
-          currentMonth = monthIndex;
-          goalMonthAllocated = 0;
-        }
-        if (monthRemaining.minorUnits <= 0) {
-          final next = capacityForMonth(monthIndex);
-          if (next == null) break;
-          if (next.minorUnits <= 0) {
-            monthIndex++;
-            continue;
-          }
-          monthRemaining = next;
-        }
-        final capForGoal = goalCap == null
-            ? monthRemaining.minorUnits
-            : (goalCap.minorUnits - goalMonthAllocated).clamp(
-                0,
-                monthRemaining.minorUnits,
-              );
-        if (capForGoal == 0) {
-          monthIndex++;
-          monthRemaining = Money.fromMinorUnits(0);
-          continue;
-        }
-        final allocation = remaining < capForGoal ? remaining : capForGoal;
-        remaining -= allocation;
-        goalMonthAllocated += allocation;
-        monthRemaining = Money.fromMinorUnits(
-          monthRemaining.minorUnits - allocation,
-        );
-        monthsUsed++;
-        if (remaining == 0) {
-          completion = DateTime(
+      pending.add(
+        _PendingPlanItem(
+          item: item,
+          need: need,
+          linkedGoalId: linkedGoalId,
+          monthlyCap: goalCap,
+        ),
+      );
+    }
+    for (
+      var monthIndex = 0;
+      monthIndex < 1200 && pending.any((item) => !item.isComplete);
+      monthIndex++
+    ) {
+      final monthlyCapacity = capacityForMonth(monthIndex);
+      if (monthlyCapacity == null) break;
+      var available = monthlyCapacity.minorUnits;
+      if (available <= 0) continue;
+      for (final item in pending.where((item) => !item.isComplete)) {
+        final allowed = item.monthlyCap == null
+            ? item.remaining
+            : item.remaining.clamp(0, item.monthlyCap!.minorUnits);
+        final allocation = available.clamp(0, allowed);
+        if (allocation == 0) continue;
+        item.allocate(allocation);
+        available -= allocation;
+        if (item.isComplete) {
+          item.completionDate = DateTime(
             from.year,
             from.month + monthIndex + 1,
             from.day,
           );
-          if (monthRemaining.minorUnits == 0) {
-            monthIndex++;
-          }
-          break;
         }
-        if (monthRemaining.minorUnits == 0 ||
-            goalCap != null && goalMonthAllocated >= goalCap.minorUnits) {
-          monthIndex++;
-          monthRemaining = Money.fromMinorUnits(0);
-        }
+        if (available == 0) break;
       }
-      if (completion == null && need.minorUnits > 0) {
-        entries.add(
-          PlanProjectionEntry(
-            itemId: item.id,
-            remainingNeed: need,
-            reason:
-                'Projection indisponible — capacité absente après l’horizon connu.',
-          ),
-        );
-        continue;
-      }
-      entries.add(
-        PlanProjectionEntry(
-          itemId: item.id,
-          remainingNeed: need,
-          months: monthsUsed,
-          completionDate: completion ?? from,
-        ),
-      );
-      if (linkedGoalId != null && goals[linkedGoalId] != null) {
-        final goal = goals[linkedGoalId]!;
-        goals[linkedGoalId] = GoalFundingProjection(
+    }
+    for (final item in pending) {
+      final completion = item.completionDate;
+      entriesByItemId[item.item.id] = completion == null
+          ? PlanProjectionEntry(
+              itemId: item.item.id,
+              remainingNeed: item.need,
+              reason:
+                  'Projection indisponible — capacité absente après l’horizon connu.',
+            )
+          : PlanProjectionEntry(
+              itemId: item.item.id,
+              remainingNeed: item.need,
+              months: item.monthsUsed,
+              completionDate: completion,
+            );
+      if (completion != null &&
+          item.linkedGoalId != null &&
+          goals[item.linkedGoalId] != null) {
+        final goal = goals[item.linkedGoalId]!;
+        goals[item.linkedGoalId!] = GoalFundingProjection(
           goalId: goal.goalId,
           realAccumulated: goal.realAccumulated,
           securedFunding: goal.securedFunding,
           remaining: goal.remaining,
-          completionDate: completion ?? from,
+          completionDate: completion,
           reason: goal.reason,
           reliability: goal.reliability,
         );
       }
     }
-    planEntries[plan.id] = List.unmodifiable(entries);
+    planEntries[plan.id] = List.unmodifiable([
+      for (final item in orderedItems) entriesByItemId[item.id]!,
+    ]);
     for (final goal
         in goals.values
             .where((goal) => goal.completionDate == null)
@@ -493,6 +464,30 @@ Money _needForItem(
   return isPurchasedShopping
       ? const Money.fromMinorUnits(0)
       : item.estimatedAmount ?? const Money.fromMinorUnits(0);
+}
+
+class _PendingPlanItem {
+  _PendingPlanItem({
+    required this.item,
+    required this.need,
+    required this.linkedGoalId,
+    required this.monthlyCap,
+  }) : remaining = need.minorUnits;
+
+  final AvailabilityPlanItem item;
+  final Money need;
+  final String? linkedGoalId;
+  final Money? monthlyCap;
+  int remaining;
+  int monthsUsed = 0;
+  DateTime? completionDate;
+
+  bool get isComplete => remaining == 0;
+
+  void allocate(int amount) {
+    remaining -= amount;
+    monthsUsed++;
+  }
 }
 
 GoalFundingProjection _withGoalReason(

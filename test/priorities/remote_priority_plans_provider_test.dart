@@ -115,6 +115,11 @@ class _Gateway implements PriorityPlansGateway {
   }
 
   @override
+  Future<void> activate(String householdId, String planId) async {
+    operations.add('activate');
+  }
+
+  @override
   Future<List<PriorityPlanItem>> fetchItems(String householdId) async => [
     PriorityPlanItem(
       id: 'plan-item-1',

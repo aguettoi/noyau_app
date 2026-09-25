@@ -24,6 +24,7 @@ abstract interface class PriorityPlansGateway {
     String planId,
     PriorityPlanStatus status,
   );
+  Future<void> activate(String householdId, String planId);
   Future<String> addItem(
     String householdId,
     String planId,
@@ -109,6 +110,12 @@ class SupabasePriorityPlansGateway implements PriorityPlansGateway {
       'p_plan_id': planId,
       'p_status': status.databaseValue,
     },
+  );
+
+  @override
+  Future<void> activate(String householdId, String planId) => _client.rpc(
+    'activate_priority_plan',
+    params: {'p_household_id': householdId, 'p_plan_id': planId},
   );
 
   @override
@@ -339,6 +346,18 @@ Future<void> setPriorityPlanStatus(
   await ref
       .read(priorityPlansGatewayProvider)
       .setStatus(household.householdId!, planId, status);
+  ref.invalidate(priorityPlansProvider);
+}
+
+/// Makes this plan the household's sole read-only projection reference.
+/// The RPC only updates PRIOS metadata and never creates a financial entry.
+Future<void> activatePriorityPlan(WidgetRef ref, String planId) async {
+  final household = await ref.read(activeHouseholdProvider.future);
+  final householdId = household.householdId;
+  if (!household.hasActiveHousehold || householdId == null) {
+    throw StateError('Aucun foyer actif sans ambiguïté.');
+  }
+  await ref.read(priorityPlansGatewayProvider).activate(householdId, planId);
   ref.invalidate(priorityPlansProvider);
 }
 

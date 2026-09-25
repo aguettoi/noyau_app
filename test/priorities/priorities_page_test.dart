@@ -92,6 +92,42 @@ void main() {
     },
   );
 
+  testWidgets('active explicitement un plan prévu sans flux financier', (
+    tester,
+  ) async {
+    final gateway = _Gateway();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeHouseholdProvider.overrideWith(
+            (ref) async => const ActiveHouseholdState(
+              status: ActiveHouseholdStatus.singleHousehold,
+              householdId: 'household',
+              householdIds: ['household'],
+            ),
+          ),
+          priorityPlansProvider.overrideWith(
+            (ref) async => [_planView(status: PriorityPlanStatus.planned)],
+          ),
+          priorityPlansGatewayProvider.overrideWithValue(gateway),
+          shoppingItemsProvider.overrideWith((ref) async => const []),
+          savingsGoalsProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: Scaffold(body: PrioritiesPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('activate-priority-plan-plan')));
+    await tester.pumpAndSettle();
+    expect(find.text('Utiliser ce plan pour mes projections'), findsOneWidget);
+    await tester.tap(find.text('Utiliser ce plan').last);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(gateway.activated, ['plan']);
+  });
+
   testWidgets(
     'réordonne réellement trois priorités, persiste puis recharge le même ordre',
     (tester) async {
@@ -157,12 +193,14 @@ void main() {
   );
 }
 
-PriorityPlanView _planView() => PriorityPlanView(
+PriorityPlanView _planView({
+  PriorityPlanStatus status = PriorityPlanStatus.active,
+}) => PriorityPlanView(
   plan: PriorityPlan(
     id: 'plan',
     householdId: 'household',
     name: 'TEST PRIOS',
-    status: PriorityPlanStatus.active,
+    status: status,
     createdBy: 'user',
     createdAt: DateTime(2026),
     updatedAt: DateTime(2026),
@@ -204,6 +242,7 @@ SavingsGoalProgress _goal() => SavingsGoalProgress(
 
 class _Gateway implements PriorityPlansGateway {
   final added = <(PrioritySourceType, String)>[];
+  final activated = <String>[];
 
   @override
   Future<String> addItem(
@@ -218,6 +257,11 @@ class _Gateway implements PriorityPlansGateway {
 
   @override
   Future<String> create(String a, PriorityPlanDraft b) async => 'plan';
+  @override
+  Future<void> activate(String householdId, String planId) async {
+    activated.add(planId);
+  }
+
   @override
   Future<List<PriorityPlanItem>> fetchItems(String householdId) async =>
       const [];
@@ -295,6 +339,8 @@ class _ReorderGateway implements PriorityPlansGateway {
   @override
   Future<String> create(String householdId, PriorityPlanDraft draft) async =>
       'plan';
+  @override
+  Future<void> activate(String householdId, String planId) async {}
   @override
   Future<void> removeItem(
     String householdId,

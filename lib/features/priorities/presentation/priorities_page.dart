@@ -85,8 +85,16 @@ class _PriorityPlanCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final canonical = ref.watch(financialAvailabilityProvider).valueOrNull;
+    final availabilityState = ref.watch(financialAvailabilityProvider);
+    final canonical = availabilityState.valueOrNull;
     final canonicalEntries = canonical?.planEntries[plan.plan.id];
+    final unavailableReason = availabilityState.isLoading
+        ? 'Projection en cours de chargement.'
+        : plan.plan.status == PriorityPlanStatus.planned
+        ? 'Plan prévu — utilisez-le comme référence pour obtenir les projections.'
+        : availabilityState.hasError
+        ? 'Projection indisponible — les données nécessaires ne peuvent pas être lues.'
+        : 'Projection indisponible — ce plan ne fournit aucune capacité applicable.';
     final projections = canonicalEntries == null
         ? List<PriorityProjectionEntry>.generate(plan.items.length, (index) {
             final item = plan.items[index];
@@ -95,7 +103,7 @@ class _PriorityPlanCard extends ConsumerWidget {
               estimatedNeed: item.source.estimatedNeed,
               estimatedMonths: null,
               estimatedCompletionDate: null,
-              reason: 'Projection en cours de chargement.',
+              reason: unavailableReason,
             );
           }, growable: false)
         : List<PriorityProjectionEntry>.generate(plan.items.length, (index) {
@@ -127,6 +135,13 @@ class _PriorityPlanCard extends ConsumerWidget {
         runSpacing: AppSpacing.xs,
         children: [
           _StatusChip(status: plan.plan.status),
+          if (plan.plan.status == PriorityPlanStatus.planned)
+            OutlinedButton.icon(
+              key: ValueKey('activate-priority-plan-${plan.plan.id}'),
+              onPressed: () => _activate(context, ref),
+              icon: const Icon(Icons.visibility_outlined),
+              label: const Text('Utiliser pour mes projections'),
+            ),
           if (editable)
             IconButton(
               tooltip: 'Modifier le plan',
@@ -140,11 +155,6 @@ class _PriorityPlanCard extends ConsumerWidget {
               () => setPriorityPlanStatus(ref, plan.plan.id, status),
             ),
             itemBuilder: (_) => [
-              if (editable && plan.plan.status != PriorityPlanStatus.active)
-                const PopupMenuItem(
-                  value: PriorityPlanStatus.active,
-                  child: Text('Activer'),
-                ),
               if (editable && plan.plan.status != PriorityPlanStatus.paused)
                 const PopupMenuItem(
                   value: PriorityPlanStatus.paused,
@@ -210,6 +220,42 @@ class _PriorityPlanCard extends ConsumerWidget {
     );
     if (draft == null || !context.mounted) return;
     await _run(context, () => updatePriorityPlan(ref, plan.plan.id, draft));
+  }
+
+  Future<void> _activate(BuildContext context, WidgetRef ref) async {
+    final plans = await ref.read(priorityPlansProvider.future);
+    if (!context.mounted) return;
+    final previous = plans.where(
+      (item) =>
+          item.plan.status == PriorityPlanStatus.active &&
+          item.plan.id != plan.plan.id,
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Utiliser ce plan pour mes projections'),
+        content: Text(
+          previous.isEmpty
+              ? 'Ce plan deviendra la référence de vos projections. Aucun mouvement financier ne sera créé.'
+              : 'Ce plan remplacera « ${previous.first.plan.name} » comme référence de vos projections. Aucun mouvement financier ne sera créé.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Utiliser ce plan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await _run(context, () async {
+      await activatePriorityPlan(ref, plan.plan.id);
+      ref.invalidate(financialAvailabilityProvider);
+    });
   }
 
   Future<void> _addItem(BuildContext context, WidgetRef ref) async {
