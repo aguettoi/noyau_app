@@ -425,6 +425,12 @@ class _GoalCard extends StatelessWidget {
               Text('Finançable vers : ${_date(date)}')
             else if (projection?.reason case final reason?)
               Text(reason),
+            if (projection != null)
+              Text(
+                projection!.reliability == ProjectionReliability.estimated
+                    ? 'Projection estimée selon le plan PRIOS actif.'
+                    : 'Projection non calculable avec les données disponibles.',
+              ),
           ],
         ),
       ),
@@ -462,6 +468,11 @@ class _GoalSummary extends StatelessWidget {
             'Financement sécurisé : ${_money(projection!.securedFunding)} · Reste à financer : ${_money(projection!.remaining)}',
           ),
           if (projection!.reason != null) Text(projection!.reason!),
+          Text(
+            projection!.reliability == ProjectionReliability.estimated
+                ? 'Projection estimée selon le plan PRIOS actif.'
+                : 'Projection non calculable avec les données disponibles.',
+          ),
         ],
         if (item.isFinancialTargetReached) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -509,7 +520,8 @@ class _GoalDetails extends StatelessWidget {
         _DetailValue(
           label: 'Date prévisionnelle',
           value: projected == null
-              ? (projection?.reason ?? 'Capacité future à confirmer')
+              ? (projection?.reason ??
+                    'Projection indisponible — aucune capacité mensuelle fiable n’est connue.')
               : _date(projected),
         ),
         if (pace != null)

@@ -66,6 +66,14 @@ final financialAvailabilityProvider =
               )
               .toList(growable: false),
           debtCommitments: debtTotal,
+          commitments: debts
+              .map(
+                (debt) => AvailabilityCommitment(
+                  amount: debt.remainingAmount,
+                  dueAt: debt.dueAt,
+                ),
+              )
+              .toList(growable: false),
           potentialReceivables: potential,
           goals: goals
               .map(
@@ -75,6 +83,7 @@ final financialAvailabilityProvider =
                   target: item.goal.targetAmount,
                   accumulated: item.accumulated,
                   isActive: item.goal.status.name == 'active',
+                  monthlyTarget: item.goal.monthlyTarget,
                 ),
               )
               .toList(growable: false),

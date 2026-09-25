@@ -5,10 +5,10 @@ import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../financial_availability/application/providers/financial_availability_provider.dart';
+import '../../financial_availability/domain/financial_availability.dart';
 import '../../savings_goals/domain/savings_goal.dart';
 import '../../shopping_list/application/providers/remote_shopping_list_provider.dart';
 import '../../shopping_list/domain/shopping_item.dart';
-import '../application/priority_projection.dart';
 import '../application/providers/remote_priority_plans_provider.dart';
 import '../domain/priority_plan.dart';
 
@@ -85,22 +85,37 @@ class _PriorityPlanCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final fallback = projectPriorityPlan(
-      items: plan.items,
-      monthlyCapacity: plan.plan.monthlyCapacity,
-      from: DateTime.now(),
-    );
     final canonical = ref.watch(financialAvailabilityProvider).valueOrNull;
     final canonicalEntries = canonical?.planEntries[plan.plan.id];
     final projections = canonicalEntries == null
-        ? fallback
-        : List<PriorityProjectionEntry>.generate(plan.items.length, (index) {
-            final entry = canonicalEntries[index];
+        ? List<PriorityProjectionEntry>.generate(plan.items.length, (index) {
+            final item = plan.items[index];
             return PriorityProjectionEntry(
-              item: plan.items[index],
+              item: item,
+              estimatedNeed: item.source.estimatedNeed,
+              estimatedMonths: null,
+              estimatedCompletionDate: null,
+              reason: 'Projection en cours de chargement.',
+            );
+          }, growable: false)
+        : List<PriorityProjectionEntry>.generate(plan.items.length, (index) {
+            final sourceItem = plan.items[index];
+            final entry = canonicalEntries.firstWhere(
+              (entry) => entry.itemId == sourceItem.item.id,
+              orElse: () => PlanProjectionEntry(
+                itemId: sourceItem.item.id,
+                remainingNeed:
+                    sourceItem.source.estimatedNeed ??
+                    const Money.fromMinorUnits(0),
+                reason: 'Projection indisponible — élément absent du plan.',
+              ),
+            );
+            return PriorityProjectionEntry(
+              item: sourceItem,
               estimatedNeed: entry.remainingNeed,
               estimatedMonths: entry.months,
               estimatedCompletionDate: entry.completionDate,
+              reason: entry.reason,
             );
           }, growable: false);
     final editable = plan.plan.status.isEditable;
@@ -315,6 +330,7 @@ class _PriorityEntryCard extends StatelessWidget {
           if (entry.estimatedMonths != null)
             '${entry.estimatedMonths} mois estimé${entry.estimatedMonths == 1 ? '' : 's'}',
           if (date != null) 'Prévision : ${_date(date)}',
+          if (entry.reason != null) entry.reason!,
           'Statut : ${source.status}',
         ].join(' · '),
         trailing: !editable

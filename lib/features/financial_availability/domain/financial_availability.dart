@@ -6,6 +6,7 @@ class FinancialAvailabilityInput {
     required this.liquidity,
     required this.envelopes,
     required this.debtCommitments,
+    this.commitments = const [],
     required this.potentialReceivables,
     required this.goals,
     required this.plans,
@@ -13,9 +14,21 @@ class FinancialAvailabilityInput {
   final Money liquidity;
   final List<AvailabilityEnvelope> envelopes;
   final Money debtCommitments;
+
+  /// Open obligations with a reliable due date. They reduce the simulated
+  /// capacity of their own month only; undated obligations remain explicit
+  /// cautions rather than invented monthly deductions.
+  final List<AvailabilityCommitment> commitments;
   final Money potentialReceivables;
   final List<AvailabilityGoal> goals;
   final List<AvailabilityPlan> plans;
+}
+
+class AvailabilityCommitment {
+  const AvailabilityCommitment({required this.amount, this.dueAt});
+
+  final Money amount;
+  final DateTime? dueAt;
 }
 
 class AvailabilityEnvelope {
@@ -36,12 +49,14 @@ class AvailabilityGoal {
     required this.target,
     required this.accumulated,
     required this.isActive,
+    this.monthlyTarget,
   });
   final String id;
   final String envelopeId;
   final Money target;
   final Money accumulated;
   final bool isActive;
+  final Money? monthlyTarget;
 }
 
 enum AvailabilitySourceType { goal, shopping }
@@ -71,11 +86,16 @@ class AvailabilityPlan {
     required this.isActive,
     required this.monthlyCapacity,
     required this.items,
+    this.monthlyCapacities = const [],
   });
   final String id;
   final bool isActive;
   final Money? monthlyCapacity;
   final List<AvailabilityPlanItem> items;
+
+  /// Optional known month-by-month capacity. It is never extrapolated past
+  /// the supplied horizon; the regular monthly capacity remains the fallback.
+  final List<Money> monthlyCapacities;
 }
 
 class GoalFundingProjection {
@@ -84,6 +104,7 @@ class GoalFundingProjection {
     required this.realAccumulated,
     required this.securedFunding,
     required this.remaining,
+    required this.reliability,
     this.completionDate,
     this.reason,
   });
@@ -91,9 +112,12 @@ class GoalFundingProjection {
   final Money realAccumulated;
   final Money securedFunding;
   final Money remaining;
+  final ProjectionReliability reliability;
   final DateTime? completionDate;
   final String? reason;
 }
+
+enum ProjectionReliability { estimated, insufficientData }
 
 class PlanProjectionEntry {
   const PlanProjectionEntry({
@@ -138,6 +162,7 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
   final activeGoals = input.goals
       .where((goal) => goal.isActive)
       .toList(growable: false);
+  final goalInputs = {for (final goal in activeGoals) goal.id: goal};
   final envelopeUse = <String, int>{};
   for (final goal in activeGoals) {
     envelopeUse[goal.envelopeId] = (envelopeUse[goal.envelopeId] ?? 0) + 1;
@@ -155,9 +180,9 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
   if (input.envelopes.any((e) => e.balance.minorUnits < 0)) {
     warnings.add('Une enveloppe est négative : projection à confirmer.');
   }
-  if (input.debtCommitments.minorUnits > 0) {
+  if (input.commitments.any((commitment) => commitment.dueAt == null)) {
     warnings.add(
-      'Des dettes ouvertes restent à intégrer à la capacité future.',
+      'Des dettes sans échéancier précis ne sont pas déduites automatiquement de la projection.',
     );
   }
   final goals = <String, GoalFundingProjection>{
@@ -171,34 +196,103 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
                 goal.accumulated.minorUnits.clamp(0, goal.target.minorUnits),
               ),
         remaining: Money.fromMinorUnits(
-          (goal.target.minorUnits - goal.accumulated.minorUnits).clamp(
-            0,
-            goal.target.minorUnits,
-          ),
+          (goal.target.minorUnits -
+                  (shared.contains(goal.envelopeId)
+                      ? 0
+                      : goal.accumulated.minorUnits))
+              .clamp(0, goal.target.minorUnits),
         ),
+        reliability: shared.contains(goal.envelopeId)
+            ? ProjectionReliability.insufficientData
+            : ProjectionReliability.estimated,
+        completionDate:
+            !shared.contains(goal.envelopeId) &&
+                goal.accumulated.minorUnits >= goal.target.minorUnits
+            ? from
+            : null,
         reason: shared.contains(goal.envelopeId)
             ? 'Enveloppe partagée : financement sécurisé à confirmer.'
             : null,
       ),
   };
-  final blocking = warnings.isNotEmpty;
   final planEntries = <String, List<PlanProjectionEntry>>{};
-  for (final plan in input.plans.where((p) => p.isActive)) {
+  final activePlans = input.plans.where((plan) => plan.isActive).toList();
+  if (activePlans.length > 1) {
+    warnings.add(
+      'Plusieurs plans PRIOS sont actifs : aucune projection ne choisit arbitrairement une capacité.',
+    );
+    for (final plan in activePlans) {
+      planEntries[plan.id] = List.unmodifiable([
+        for (final item in plan.items)
+          PlanProjectionEntry(
+            itemId: item.id,
+            remainingNeed: _needForItem(item, goals),
+            reason:
+                'Projection indisponible — plusieurs plans actifs doivent être clarifiés.',
+          ),
+      ]);
+    }
+  } else if (activePlans.isEmpty) {
+    for (final goal in goals.values) {
+      goals[goal.goalId] = _withGoalReason(
+        goal,
+        'Projection indisponible — aucun plan PRIOS actif ne fournit de capacité.',
+        ProjectionReliability.insufficientData,
+      );
+    }
+  } else {
+    final plan = activePlans.single;
     final capacity = plan.monthlyCapacity;
     final entries = <PlanProjectionEntry>[];
     final consumedKeys = <String>{};
-    var cursor = from;
+    var monthIndex = 0;
+    var monthRemaining = Money.fromMinorUnits(0);
+    Money? capacityForMonth(int index) {
+      final Money? base;
+      if (plan.monthlyCapacities.isNotEmpty) {
+        base = index < plan.monthlyCapacities.length
+            ? plan.monthlyCapacities[index]
+            : null;
+      } else {
+        base = capacity;
+      }
+      if (base == null) {
+        return null;
+      }
+      final monthStart = DateTime(from.year, from.month + index, 1);
+      final nextMonth = DateTime(from.year, from.month + index + 1, 1);
+      final due = input.commitments
+          .where(
+            (commitment) =>
+                commitment.dueAt != null &&
+                !commitment.dueAt!.isBefore(monthStart) &&
+                commitment.dueAt!.isBefore(nextMonth),
+          )
+          .fold<int>(
+            0,
+            (total, commitment) => total + commitment.amount.minorUnits,
+          );
+      return Money.fromMinorUnits(
+        (base.minorUnits - due).clamp(0, base.minorUnits),
+      );
+    }
+
     for (final item in [
       ...plan.items,
     ]..sort((a, b) => a.rank.compareTo(b.rank))) {
-      final linkedGoalId = item.type == AvailabilitySourceType.goal
+      final isPurchasedShopping =
+          item.type == AvailabilitySourceType.shopping &&
+          item.status == 'Acheté';
+      final linkedGoalId = isPurchasedShopping
+          ? null
+          : item.type == AvailabilitySourceType.goal
           ? item.sourceId
           : item.goalId;
       final key = linkedGoalId == null
           ? 'shopping:${item.sourceId}'
           : 'goal:$linkedGoalId';
       final need = linkedGoalId == null
-          ? (item.status == 'Acheté'
+          ? (isPurchasedShopping
                 ? const Money.fromMinorUnits(0)
                 : item.estimatedAmount)
           : goals[linkedGoalId]?.remaining;
@@ -208,6 +302,17 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
             itemId: item.id,
             remainingNeed: const Money.fromMinorUnits(0),
             reason: 'Données insuffisantes.',
+          ),
+        );
+        continue;
+      }
+      if (need.minorUnits == 0) {
+        entries.add(
+          PlanProjectionEntry(
+            itemId: item.id,
+            remainingNeed: need,
+            months: 0,
+            completionDate: from,
           ),
         );
         continue;
@@ -222,28 +327,102 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
         );
         continue;
       }
-      if (blocking || capacity == null || capacity.minorUnits <= 0) {
+      if (capacity == null && plan.monthlyCapacities.isEmpty) {
         entries.add(
           PlanProjectionEntry(
             itemId: item.id,
             remainingNeed: need,
-            reason: blocking
-                ? 'Capacité future à confirmer.'
-                : 'Capacité mensuelle non disponible.',
+            reason:
+                'Projection indisponible — aucune capacité mensuelle fiable n’est connue.',
           ),
         );
         continue;
       }
-      final months = need.minorUnits == 0
-          ? 0
-          : (need.minorUnits / capacity.minorUnits).ceil();
-      cursor = DateTime(cursor.year, cursor.month + months, cursor.day);
+      final goalCap = linkedGoalId == null
+          ? null
+          : goalInputs[linkedGoalId]?.monthlyTarget;
+      if (goalCap != null && goalCap.minorUnits <= 0 && need.minorUnits > 0) {
+        entries.add(
+          PlanProjectionEntry(
+            itemId: item.id,
+            remainingNeed: need,
+            reason:
+                'Projection indisponible — la cible mensuelle de cet objectif est nulle.',
+          ),
+        );
+        continue;
+      }
+      var remaining = need.minorUnits;
+      var monthsUsed = 0;
+      DateTime? completion;
+      var goalMonthAllocated = 0;
+      var currentMonth = -1;
+      while (remaining > 0 && monthIndex < 1200) {
+        if (currentMonth != monthIndex) {
+          currentMonth = monthIndex;
+          goalMonthAllocated = 0;
+        }
+        if (monthRemaining.minorUnits <= 0) {
+          final next = capacityForMonth(monthIndex);
+          if (next == null) break;
+          if (next.minorUnits <= 0) {
+            monthIndex++;
+            continue;
+          }
+          monthRemaining = next;
+        }
+        final capForGoal = goalCap == null
+            ? monthRemaining.minorUnits
+            : (goalCap.minorUnits - goalMonthAllocated).clamp(
+                0,
+                monthRemaining.minorUnits,
+              );
+        if (capForGoal == 0) {
+          monthIndex++;
+          monthRemaining = Money.fromMinorUnits(0);
+          continue;
+        }
+        final allocation = remaining < capForGoal ? remaining : capForGoal;
+        remaining -= allocation;
+        goalMonthAllocated += allocation;
+        monthRemaining = Money.fromMinorUnits(
+          monthRemaining.minorUnits - allocation,
+        );
+        monthsUsed++;
+        if (remaining == 0) {
+          completion = DateTime(
+            from.year,
+            from.month + monthIndex + 1,
+            from.day,
+          );
+          if (monthRemaining.minorUnits == 0) {
+            monthIndex++;
+          }
+          break;
+        }
+        if (monthRemaining.minorUnits == 0 ||
+            goalCap != null && goalMonthAllocated >= goalCap.minorUnits) {
+          monthIndex++;
+          monthRemaining = Money.fromMinorUnits(0);
+        }
+      }
+      if (completion == null && need.minorUnits > 0) {
+        entries.add(
+          PlanProjectionEntry(
+            itemId: item.id,
+            remainingNeed: need,
+            reason:
+                'Projection indisponible — capacité absente après l’horizon connu.',
+          ),
+        );
+        continue;
+      }
       entries.add(
         PlanProjectionEntry(
           itemId: item.id,
           remainingNeed: need,
-          months: months,
-          completionDate: cursor,
+          months: monthsUsed,
+          completionDate: completion ?? from,
         ),
       );
       if (linkedGoalId != null && goals[linkedGoalId] != null) {
@@ -253,12 +432,31 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
           realAccumulated: goal.realAccumulated,
           securedFunding: goal.securedFunding,
           remaining: goal.remaining,
-          completionDate: cursor,
+          completionDate: completion ?? from,
           reason: goal.reason,
+          reliability: goal.reliability,
         );
       }
     }
     planEntries[plan.id] = List.unmodifiable(entries);
+    for (final goal
+        in goals.values
+            .where((goal) => goal.completionDate == null)
+            .toList(growable: false)) {
+      final isRepresented = plan.items.any(
+        (item) =>
+            (item.type == AvailabilitySourceType.goal &&
+                item.sourceId == goal.goalId) ||
+            item.goalId == goal.goalId,
+      );
+      if (!isRepresented) {
+        goals[goal.goalId] = _withGoalReason(
+          goal,
+          'Projection indisponible — cet objectif n’est dans aucun plan PRIOS actif.',
+          ProjectionReliability.insufficientData,
+        );
+      }
+    }
   }
   int sum(Iterable<Money> values) =>
       values.fold(0, (s, value) => s + value.minorUnits);
@@ -277,3 +475,36 @@ FinancialAvailabilitySnapshot projectFinancialAvailability(
     warnings: List.unmodifiable(warnings),
   );
 }
+
+Money _needForItem(
+  AvailabilityPlanItem item,
+  Map<String, GoalFundingProjection> goals,
+) {
+  final isPurchasedShopping =
+      item.type == AvailabilitySourceType.shopping && item.status == 'Acheté';
+  final goalId = isPurchasedShopping
+      ? null
+      : item.type == AvailabilitySourceType.goal
+      ? item.sourceId
+      : item.goalId;
+  if (goalId != null) {
+    return goals[goalId]?.remaining ?? const Money.fromMinorUnits(0);
+  }
+  return isPurchasedShopping
+      ? const Money.fromMinorUnits(0)
+      : item.estimatedAmount ?? const Money.fromMinorUnits(0);
+}
+
+GoalFundingProjection _withGoalReason(
+  GoalFundingProjection goal,
+  String reason,
+  ProjectionReliability reliability,
+) => GoalFundingProjection(
+  goalId: goal.goalId,
+  realAccumulated: goal.realAccumulated,
+  securedFunding: goal.securedFunding,
+  remaining: goal.remaining,
+  completionDate: goal.completionDate,
+  reason: reason,
+  reliability: reliability,
+);

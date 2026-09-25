@@ -152,10 +152,12 @@ class PriorityProjectionEntry {
     required this.estimatedNeed,
     required this.estimatedMonths,
     required this.estimatedCompletionDate,
+    this.reason,
   });
 
   final PriorityPlanItemView item;
   final Money? estimatedNeed;
   final int? estimatedMonths;
   final DateTime? estimatedCompletionDate;
+  final String? reason;
 }
