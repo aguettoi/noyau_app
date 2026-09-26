@@ -53,9 +53,9 @@ class SupabaseShoppingListGateway implements ShoppingListGateway {
           'id, household_id, label, estimated_amount, notes, desired_date, status, envelope_id, budget_goal_id, final_priority, final_priority_set_by, final_priority_set_at, purchased_financial_event_id, created_by, created_at, updated_by, updated_at, cancelled_by, cancelled_at, cancellation_reason, archived_by, archived_at',
         )
         .eq('household_id', householdId)
-        .order('final_priority')
-        .order('desired_date')
-        .order('created_at');
+        .order('final_priority', ascending: true)
+        .order('desired_date', ascending: true, nullsFirst: false)
+        .order('created_at', ascending: true);
     return List.unmodifiable(
       (rows as List<dynamic>)
           .map((row) => _item(Map<String, Object?>.from(row as Map)))

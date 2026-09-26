@@ -297,7 +297,7 @@ final obligationSettlementHistoryProvider =
                 ? const <String>['00000000-0000-0000-0000-000000000000']
                 : settlementIds,
           )
-          .order('occurred_at');
+          .order('occurred_at', ascending: true);
       final reversalEventIds = <String>[
         for (final raw in reversalRows as List<dynamic>)
           (raw as Map)['financial_event_id'] as String,
@@ -308,7 +308,7 @@ final obligationSettlementHistoryProvider =
           .eq('household_id', householdId)
           .eq('obligation_id', obligationId)
           .eq('adjustment_kind', 'writeoff')
-          .order('occurred_at');
+          .order('occurred_at', ascending: true);
       final writeoffReversalRows = await client
           .from('obligation_adjustments')
           .select(
@@ -317,7 +317,7 @@ final obligationSettlementHistoryProvider =
           .eq('household_id', householdId)
           .eq('obligation_id', obligationId)
           .eq('adjustment_kind', 'reversal')
-          .order('occurred_at');
+          .order('occurred_at', ascending: true);
       final reversalsBySettlement = <String, int>{};
       final reversalRowsBySettlement = <String, List<Map<String, Object?>>>{};
       for (final raw in reversalRows as List<dynamic>) {

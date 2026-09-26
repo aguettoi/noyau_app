@@ -48,8 +48,8 @@ class SupabaseSavingsGoalsGateway implements SavingsGoalsGateway {
           'id, household_id, name, goal_type, target_amount, target_date, priority, status, funding_envelope_id, monthly_target, notes, created_by, created_at, updated_by, updated_at, closed_at, closed_by, closure_reason',
         )
         .eq('household_id', householdId)
-        .order('priority')
-        .order('created_at');
+        .order('priority', ascending: true)
+        .order('created_at', ascending: true);
     return List.unmodifiable(
       (rows as List<dynamic>)
           .map((raw) => _goal(Map<String, Object?>.from(raw as Map)))

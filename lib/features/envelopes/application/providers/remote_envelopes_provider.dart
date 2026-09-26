@@ -325,14 +325,14 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
       .from('envelopes')
       .select('id, name, notes, archived_at, is_system, system_code')
       .eq('household_id', householdId)
-      .order('name');
+      .order('name', ascending: true);
   final rows = await client
       .from('envelope_ledger_balances')
       .select(
         'envelope_id, envelope_name, inflows, outflows, balance, is_system, system_code, last_movement_at',
       )
       .eq('household_id', householdId)
-      .order('envelope_name');
+      .order('envelope_name', ascending: true);
   final balanceRowsByEnvelopeId = <String, Map<String, Object?>>{
     for (final raw in rows as List<dynamic>)
       (raw as Map)['envelope_id'] as String: Map<String, Object?>.from(raw),

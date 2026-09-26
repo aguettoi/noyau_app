@@ -266,7 +266,7 @@ final remoteBudgetScenariosProvider = FutureProvider<List<BudgetScenario>>((
           'id, name, description, active, priority, valid_from, valid_to, notes, is_default, current_version_id',
         )
         .eq('household_id', repository.householdId)
-        .order('priority');
+        .order('priority', ascending: true);
   } on PostgrestException catch (error) {
     // 080006 is intentionally not deployed to every environment yet.
     if (!const {'42703', 'PGRST204'}.contains(error.code)) rethrow;
@@ -276,7 +276,7 @@ final remoteBudgetScenariosProvider = FutureProvider<List<BudgetScenario>>((
           'id, name, description, active, priority, valid_from, valid_to, notes',
         )
         .eq('household_id', repository.householdId)
-        .order('priority');
+        .order('priority', ascending: true);
   }
   return List.unmodifiable(
     (rows as List<dynamic>).map((raw) {
@@ -352,7 +352,7 @@ final budgetScenarioRulesProvider =
             )
             .eq('household_id', repository.householdId)
             .eq('scenario_id', scenarioId)
-            .order('priority');
+            .order('priority', ascending: true);
         return List.unmodifiable(
           (rows as List<dynamic>).map((raw) {
             final row = Map<String, Object?>.from(raw as Map);
@@ -492,7 +492,7 @@ final remoteBudgetRunLinesProvider =
           )
           .eq('household_id', repository.householdId)
           .eq('run_id', runId)
-          .order('priority');
+          .order('priority', ascending: true);
       return List.unmodifiable(
         (rows as List<dynamic>).map((raw) {
           final row = Map<String, Object?>.from(raw as Map);

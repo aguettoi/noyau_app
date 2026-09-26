@@ -22,7 +22,7 @@ class SupabaseAccountsGateway implements AccountsSupabaseGateway {
           )
           .eq('household_id', householdId)
           .eq('is_system', false)
-          .order('created_at');
+          .order('created_at', ascending: true);
       return (response as List<dynamic>)
           .map((row) => Map<String, Object?>.from(row as Map))
           .toList(growable: false);

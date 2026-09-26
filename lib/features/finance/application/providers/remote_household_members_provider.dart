@@ -21,7 +21,7 @@ class SupabaseHouseholdMembersGateway implements HouseholdMembersGateway {
           .from('household_members')
           .select('user_id')
           .eq('household_id', householdId)
-          .order('created_at');
+          .order('created_at', ascending: true);
       final rows = response as List<dynamic>;
       final memberIds = rows
           .map((item) => Map<String, dynamic>.from(item as Map)['user_id'])

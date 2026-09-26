@@ -217,7 +217,7 @@ class SupabaseAccountBalanceObservationGateway
         )
         .eq('household_id', householdId)
         .eq('account_id', accountId)
-        .order('created_at');
+        .order('created_at', ascending: true);
     final profiles = <String, String>{};
     final actorIds = <String>{
       for (final raw in rows as List<dynamic>)
