@@ -143,6 +143,7 @@ void main() {
               type: PrioritySourceType.shoppingItem,
               id: 'one',
               label: 'TEST One',
+              progress: 0.002,
               status: 'Prévu',
               estimatedNeed: Money.fromMinorUnits(100),
             ),
@@ -200,6 +201,7 @@ void main() {
         find.textContaining('1 mois de financement estimé'),
         findsOneWidget,
       );
+      expect(find.textContaining('Progression : 0,2 %'), findsOneWidget);
       expect(
         find.textContaining('2 mois de financement estimés'),
         findsOneWidget,

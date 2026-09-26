@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
@@ -11,6 +16,54 @@ import 'package:noyau_app/features/shopping_list/application/providers/remote_sh
 import 'package:noyau_app/features/shopping_list/domain/shopping_item.dart';
 
 void main() {
+  test(
+    'gateway requests ascending ranks and maps the ordered HTTP response',
+    () async {
+      var requests = 0;
+      final client = SupabaseClient(
+        'https://example.supabase.co',
+        'test-key',
+        httpClient: MockClient((request) async {
+          requests++;
+          expect(request.method, 'GET');
+          expect(request.url.path, '/rest/v1/priority_plan_items');
+          expect(request.url.queryParameters['household_id'], 'eq.household-1');
+          expect(
+            request.url.queryParameters['order'],
+            'plan_id.asc.nullslast,rank.asc.nullslast',
+          );
+          return http.Response(
+            jsonEncode([
+              for (final rank in [1, 2, 3])
+                {
+                  'id': 'item-$rank',
+                  'household_id': 'household-1',
+                  'plan_id': 'plan-1',
+                  'rank': rank,
+                  'shopping_item_id': 'shopping-$rank',
+                  'budget_goal_id': null,
+                  'created_by': 'actor-1',
+                  'created_at': '2026-09-26T00:00:00Z',
+                  'updated_by': null,
+                  'updated_at': '2026-09-26T00:00:00Z',
+                },
+            ]),
+            200,
+            request: request,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(client.dispose);
+      final items = await SupabasePriorityPlansGateway(
+        client,
+      ).fetchItems('household-1');
+      expect(requests, 1);
+      expect(items.map((item) => item.rank), [1, 2, 3]);
+      expect(items.map((item) => item.id), ['item-1', 'item-2', 'item-3']);
+    },
+  );
+
   ProviderContainer scope(_Gateway gateway) => ProviderContainer(
     overrides: [
       activeHouseholdProvider.overrideWith(

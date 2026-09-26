@@ -374,7 +374,7 @@ class _PriorityEntryCard extends StatelessWidget {
           if (entry.estimatedNeed != null)
             'Besoin estimé : ${_money(entry.estimatedNeed!)}',
           if (source.progress != null)
-            'Progression : ${(source.progress! * 100).round()} %',
+            'Progression : ${(source.progress! * 100).toStringAsFixed(1).replaceAll('.', ',')} %',
           if (entry.estimatedMonths != null)
             '${entry.estimatedMonths} mois de financement estimé${entry.estimatedMonths == 1 ? '' : 's'}',
           if (date != null) 'Prévision : ${_date(date)}',

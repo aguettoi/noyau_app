@@ -68,8 +68,8 @@ class SupabasePriorityPlansGateway implements PriorityPlansGateway {
           'id, household_id, plan_id, rank, shopping_item_id, budget_goal_id, created_by, created_at, updated_by, updated_at',
         )
         .eq('household_id', householdId)
-        .order('plan_id')
-        .order('rank');
+        .order('plan_id', ascending: true)
+        .order('rank', ascending: true);
     return List.unmodifiable(
       (rows as List<dynamic>)
           .map((row) => _planItem(Map<String, Object?>.from(row as Map)))
