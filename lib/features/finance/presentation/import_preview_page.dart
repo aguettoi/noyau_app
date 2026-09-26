@@ -446,6 +446,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                 border: OutlineInputBorder(),
               ),
               items: households
+                  .where((household) => household.isOperational)
                   .map(
                     (household) => DropdownMenuItem(
                       value: household.id,
@@ -468,7 +469,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
             const SizedBox(height: 8),
             Text('Classification : ${selectedHousehold.classificationLabel}'),
             Text(
-              selectedHousehold.isTechnical
+              !selectedHousehold.isOperational
                   ? 'ENVIRONNEMENT TECHNIQUE'
                   : 'ENVIRONNEMENT OPÉRATIONNEL',
               style: Theme.of(context).textTheme.labelLarge,

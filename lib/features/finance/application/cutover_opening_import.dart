@@ -337,9 +337,13 @@ class CutoverEligibleHousehold {
 
   bool get isTechnical => classification == HouseholdClassification.technical;
 
+  bool get isOperational =>
+      classification == HouseholdClassification.operational;
+
   String get classificationLabel => switch (classification) {
     HouseholdClassification.operational => 'OPÉRATIONNEL',
     HouseholdClassification.technical => 'TECHNIQUE',
+    HouseholdClassification.archived => 'ARCHIVÉ',
   };
 }
 
@@ -369,15 +373,18 @@ class SupabaseCutoverEligibleHouseholdsGateway
           );
           final classification = household['classification'] as String;
           if (classification != 'operational' &&
-              classification != 'technical') {
+              classification != 'technical' &&
+              classification != 'archived') {
             throw StateError('Classification de foyer invalide.');
           }
           return CutoverEligibleHousehold(
             id: item['household_id'] as String,
             name: household['name'] as String,
-            classification: classification == 'technical'
-                ? HouseholdClassification.technical
-                : HouseholdClassification.operational,
+            classification: switch (classification) {
+              'technical' => HouseholdClassification.technical,
+              'archived' => HouseholdClassification.archived,
+              _ => HouseholdClassification.operational,
+            },
           );
         })
         .toList(growable: false);

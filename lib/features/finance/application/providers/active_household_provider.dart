@@ -28,7 +28,7 @@ class ActiveHouseholdState {
       status == ActiveHouseholdStatus.singleHousehold && householdId != null;
 }
 
-enum HouseholdClassification { operational, technical }
+enum HouseholdClassification { operational, technical, archived }
 
 class HouseholdMembership {
   const HouseholdMembership({
@@ -67,14 +67,17 @@ class SupabaseHouseholdMembershipGateway implements HouseholdMembershipGateway {
             final classification = householdMap['classification'];
             if (householdId is! String ||
                 (classification != 'operational' &&
-                    classification != 'technical')) {
+                    classification != 'technical' &&
+                    classification != 'archived')) {
               throw StateError('Un foyer accessible est incomplet.');
             }
             return HouseholdMembership(
               householdId: householdId,
-              classification: classification == 'technical'
-                  ? HouseholdClassification.technical
-                  : HouseholdClassification.operational,
+              classification: switch (classification) {
+                'technical' => HouseholdClassification.technical,
+                'archived' => HouseholdClassification.archived,
+                _ => HouseholdClassification.operational,
+              },
             );
           })
           .toList(growable: false);

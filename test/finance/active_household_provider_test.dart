@@ -90,6 +90,40 @@ void main() {
     },
   );
 
+  test('un foyer archive est ignore au profit de operational', () async {
+    final scope = container(
+      userId: 'user-1',
+      gateway: _Gateway(
+        memberships: const [
+          _Membership('household-archived', archived: true),
+          _Membership('household-operational'),
+          _Membership('household-technical', technical: true),
+        ],
+      ),
+    );
+    addTearDown(scope.dispose);
+
+    final state = await scope.read(activeHouseholdProvider.future);
+
+    expect(state.status, ActiveHouseholdStatus.singleHousehold);
+    expect(state.householdId, 'household-operational');
+  });
+
+  test('archive seul ne devient jamais le foyer actif', () async {
+    final scope = container(
+      userId: 'user-1',
+      gateway: _Gateway(
+        memberships: const [_Membership('household-archived', archived: true)],
+      ),
+    );
+    addTearDown(scope.dispose);
+
+    final state = await scope.read(activeHouseholdProvider.future);
+
+    expect(state.status, ActiveHouseholdStatus.noHousehold);
+    expect(state.householdId, isNull);
+  });
+
   test('plusieurs foyers operationnels restent ambigus', () async {
     final scope = container(
       userId: 'user-1',
@@ -160,6 +194,8 @@ class _Gateway implements HouseholdMembershipGateway {
             householdId: membership.id,
             classification: membership.technical
                 ? HouseholdClassification.technical
+                : membership.archived
+                ? HouseholdClassification.archived
                 : HouseholdClassification.operational,
           ),
         )
@@ -168,8 +204,9 @@ class _Gateway implements HouseholdMembershipGateway {
 }
 
 class _Membership {
-  const _Membership(this.id, {this.technical = false});
+  const _Membership(this.id, {this.technical = false, this.archived = false});
 
   final String id;
   final bool technical;
+  final bool archived;
 }
