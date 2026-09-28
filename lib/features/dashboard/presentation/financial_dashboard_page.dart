@@ -12,6 +12,8 @@ import '../../priorities/presentation/priorities_page.dart';
 import '../../savings_goals/presentation/savings_goals_page.dart';
 import '../application/dashboard_metrics.dart';
 import '../application/providers/remote_financial_dashboard_provider.dart';
+import '../application/providers/dashboard_history_provider.dart';
+import 'dashboard_v2_panels.dart';
 
 /// Home screen for the household: a composition of read-only canonical ledgers.
 class FinancialDashboardPage extends ConsumerWidget {
@@ -26,7 +28,9 @@ class FinancialDashboardPage extends ConsumerWidget {
         error: (error, _) => Center(
           child: Padding(
             padding: AppSpacing.page,
-            child: Text('Impossible de lire le tableau de bord : $error'),
+            child: const Text(
+              'Le tableau de bord ne peut pas être chargé. Réessayez après avoir vérifié votre connexion.',
+            ),
           ),
         ),
         data: (snapshot) => _DashboardContent(snapshot: snapshot),
@@ -35,13 +39,13 @@ class FinancialDashboardPage extends ConsumerWidget {
   }
 }
 
-class _DashboardContent extends StatelessWidget {
+class _DashboardContent extends ConsumerWidget {
   const _DashboardContent({required this.snapshot});
 
   final FinancialDashboardSnapshot snapshot;
 
   @override
-  Widget build(BuildContext context) => DesktopPageContainer(
+  Widget build(BuildContext context, WidgetRef ref) => DesktopPageContainer(
     child: ListView(
       key: const Key('financial-dashboard-page'),
       children: [
@@ -54,6 +58,55 @@ class _DashboardContent extends StatelessWidget {
           'Vue de pilotage : les comptes, enveloppes et projections restent distincts.',
         ),
         const SizedBox(height: AppSpacing.lg),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            for (final period in DashboardPeriod.values)
+              ChoiceChip(
+                label: Text(period.label),
+                selected: ref.watch(dashboardPeriodProvider) == period,
+                onSelected: (_) =>
+                    ref.read(dashboardPeriodProvider.notifier).state = period,
+              ),
+          ],
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            'Vue Foyer • les flux et budgets suivent la période choisie ; les positions et projections restent actuelles. Aucune ventilation artificielle par membre.',
+          ),
+        ),
+        if (snapshot.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Aucune donnée financière réelle n’est encore disponible pour ce foyer. Les indicateurs apparaîtront après l’initialisation.',
+                key: Key('dashboard-v2-empty'),
+              ),
+            ),
+          ),
+        if (snapshot.alerts.isNotEmpty) ...[
+          DesktopSection(
+            title: 'À faire',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final alert in snapshot.alerts.take(4))
+                  ActionChip(
+                    label: Text(alert.title),
+                    onPressed: () =>
+                        _openDashboardDestination(context, alert.destination),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _AlertsSection(snapshot: snapshot),
+          const SizedBox(height: AppSpacing.md),
+        ],
         _TreasurySection(snapshot: snapshot),
         const SizedBox(height: AppSpacing.md),
         _MonthlySection(snapshot: snapshot),
@@ -68,10 +121,12 @@ class _DashboardContent extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         ResponsiveGrid(
           minItemWidth: 410,
-          children: [
-            _GoalsAndPrioritiesSection(snapshot: snapshot),
-            _AlertsSection(snapshot: snapshot),
-          ],
+          children: [_GoalsAndPrioritiesSection(snapshot: snapshot)],
+        ),
+        DashboardV2Panels(
+          snapshot: snapshot,
+          open: (destination) =>
+              _openDashboardDestination(context, destination),
         ),
       ],
     ),
@@ -125,9 +180,16 @@ class _TreasurySection extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
               child: CompactListRow(
                 title: item.account.name,
-                subtitle: item.reconciliationDifference == null
-                    ? 'Aucun rapprochement récent.'
-                    : 'Écart de rapprochement : ${_money(item.reconciliationDifference!)}',
+                subtitle:
+                    snapshot.reconciliations.any(
+                      (c) => c.accountId == item.account.id && c.isOpen,
+                    )
+                    ? 'Dossier de rapprochement à traiter.'
+                    : snapshot.reconciliations.any(
+                        (c) => c.accountId == item.account.id,
+                      )
+                    ? 'Historique de constats disponible.'
+                    : 'Aucun constat disponible.',
                 leading: Icon(
                   item.account.type.name == 'cash'
                       ? Icons.payments_outlined
@@ -148,14 +210,16 @@ class _MonthlySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DesktopSection(
-    title: 'Mois en cours',
+    title: snapshot.period.label,
     subtitle:
         'Le budget mensuel est un plan ; il ne s’ajoute jamais à la trésorerie.',
-    action: TextButton.icon(
-      key: const Key('dashboard-open-month-preparation'),
-      onPressed: () => _open(context, const BudgetMonthlyPreparationPage()),
-      icon: const Icon(Icons.calendar_month_outlined),
-      label: const Text('Préparer le mois'),
+    action: Flexible(
+      child: TextButton.icon(
+        key: const Key('dashboard-open-month-preparation'),
+        onPressed: () => _open(context, const BudgetMonthlyPreparationPage()),
+        icon: const Icon(Icons.calendar_month_outlined),
+        label: const Text('Préparer le mois'),
+      ),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,7 +238,7 @@ class _MonthlySection extends StatelessWidget {
               icon: Icons.north_east_outlined,
             ),
             _MetricCard(
-              label: 'Reste à vivre',
+              label: 'Solde revenus − dépenses',
               value: _money(snapshot.monthlyFlow.remainder),
               icon: Icons.today_outlined,
             ),
@@ -237,7 +301,7 @@ class _EnvelopesSection extends StatelessWidget {
       children: [
         _MetricCard(
           label: 'Total des enveloppes',
-          value: _money(snapshot.ordinaryEnvelopeTotal),
+          value: _money(snapshot.totalEnvelopes),
           icon: Icons.account_balance_wallet_outlined,
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -317,28 +381,31 @@ class _GoalsAndPrioritiesSection extends StatelessWidget {
     title: 'Objectifs & priorités',
     subtitle:
         'Les objectifs lisent leurs enveloppes ; les priorités restent une projection.',
-    action: Wrap(
-      spacing: AppSpacing.xs,
-      children: [
-        TextButton(
-          key: const Key('dashboard-open-goals'),
-          onPressed: () => _openShellDestination(
-            context,
-            FinanceShellNavigation.savingsGoalsIndex,
-            const SavingsGoalsPage(),
+    action: SizedBox(
+      width: MediaQuery.sizeOf(context).width < 600 ? 130 : 220,
+      child: Wrap(
+        spacing: AppSpacing.xs,
+        children: [
+          TextButton(
+            key: const Key('dashboard-open-goals'),
+            onPressed: () => _openShellDestination(
+              context,
+              FinanceShellNavigation.savingsGoalsIndex,
+              const SavingsGoalsPage(),
+            ),
+            child: const Text('Objectifs'),
           ),
-          child: const Text('Objectifs'),
-        ),
-        TextButton(
-          key: const Key('dashboard-open-priorities'),
-          onPressed: () => _openShellDestination(
-            context,
-            FinanceShellNavigation.prioritiesIndex,
-            const PrioritiesPage(),
+          TextButton(
+            key: const Key('dashboard-open-priorities'),
+            onPressed: () => _openShellDestination(
+              context,
+              FinanceShellNavigation.prioritiesIndex,
+              const PrioritiesPage(),
+            ),
+            child: const Text('Priorités'),
           ),
-          child: const Text('Priorités'),
-        ),
-      ],
+        ],
+      ),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,7 +451,7 @@ class _AlertsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DesktopSection(
-    title: 'Points d’attention',
+    title: 'Alertes et actions',
     subtitle: 'Signaux de suivi uniquement : aucune correction automatique.',
     child: snapshot.alerts.isEmpty
         ? const _EmptyMessage('Aucun point d’attention détecté.')
@@ -393,14 +460,23 @@ class _AlertsSection extends StatelessWidget {
               for (final alert in snapshot.alerts)
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                  child: CompactListRow(
-                    title: alert.title,
-                    subtitle: alert.detail,
+                  child: ListTile(
+                    title: Text(
+                      '${switch (alert.severity) {
+                        DashboardAlertSeverity.attention => "INFO",
+                        DashboardAlertSeverity.warning => "ATTENTION",
+                        DashboardAlertSeverity.critical => "CRITIQUE",
+                      }} • ${alert.title}',
+                    ),
+                    subtitle: Text(alert.detail),
+                    onTap: () =>
+                        _openDashboardDestination(context, alert.destination),
+                    trailing: const Icon(Icons.chevron_right),
                     leading: Icon(
-                      alert.severity == DashboardAlertSeverity.warning
+                      alert.severity != DashboardAlertSeverity.attention
                           ? Icons.warning_amber_outlined
                           : Icons.info_outline,
-                      color: alert.severity == DashboardAlertSeverity.warning
+                      color: alert.severity != DashboardAlertSeverity.attention
                           ? AppColors.warning
                           : AppColors.info,
                     ),
@@ -409,6 +485,44 @@ class _AlertsSection extends StatelessWidget {
             ],
           ),
   );
+}
+
+void _openDashboardDestination(
+  BuildContext context,
+  DashboardDestination destination,
+) {
+  switch (destination) {
+    case DashboardDestination.accounts:
+      _openShellDestination(
+        context,
+        FinanceShellNavigation.accountsIndex,
+        const AccountsPage(),
+      );
+    case DashboardDestination.envelopes:
+      _openShellDestination(
+        context,
+        FinanceShellNavigation.envelopesIndex,
+        const EnvelopeDashboardPage(),
+      );
+    case DashboardDestination.budget:
+      _open(context, const BudgetMonthlyPreparationPage());
+    case DashboardDestination.debts:
+      _open(context, const DebtsPage());
+    case DashboardDestination.receivables:
+      _open(context, const ReceivablesPage());
+    case DashboardDestination.goals:
+      _openShellDestination(
+        context,
+        FinanceShellNavigation.savingsGoalsIndex,
+        const SavingsGoalsPage(),
+      );
+    case DashboardDestination.priorities:
+      _openShellDestination(
+        context,
+        FinanceShellNavigation.prioritiesIndex,
+        const PrioritiesPage(),
+      );
+  }
 }
 
 class _MetricCard extends StatelessWidget {

@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/money/money.dart';
 import '../../../budget_intelligence/application/budget_reporting.dart';
@@ -10,13 +9,15 @@ import '../../../finance/application/providers/active_household_provider.dart';
 import '../../../finance/application/providers/remote_account_balances_provider.dart';
 import '../../../finance/application/providers/remote_accounts_provider.dart';
 import '../../../finance/application/providers/remote_debts_provider.dart';
-import '../../../finance/application/providers/supabase_client_provider.dart';
 import '../../../finance/domain/financial_account.dart';
+import '../../../financial_availability/application/providers/financial_availability_provider.dart';
+import '../../../financial_availability/domain/financial_availability.dart';
 import '../../../priorities/application/providers/remote_priority_plans_provider.dart';
 import '../../../priorities/domain/priority_plan.dart';
 import '../../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../../savings_goals/domain/savings_goal.dart';
 import '../dashboard_metrics.dart';
+import 'dashboard_history_provider.dart';
 
 class DashboardAccountBalance {
   const DashboardAccountBalance({
@@ -68,6 +69,12 @@ class FinancialDashboardSnapshot {
     required this.activeGoals,
     required this.nextPriority,
     required this.alerts,
+    this.report = const [],
+    this.history = const [],
+    this.reconciliations = const [],
+    this.activePlan,
+    this.availability,
+    this.period = DashboardPeriod.currentMonth,
   });
 
   final List<DashboardAccountBalance> accounts;
@@ -81,6 +88,31 @@ class FinancialDashboardSnapshot {
   final List<SavingsGoalProgress> activeGoals;
   final PriorityPlanItemView? nextPriority;
   final List<DashboardAlert> alerts;
+  final List<RemoteBudgetReportRow> report;
+  final List<DashboardFlowPoint> history;
+  final List<DashboardReconciliation> reconciliations;
+  final PriorityPlanView? activePlan;
+  final FinancialAvailabilitySnapshot? availability;
+  final DashboardPeriod period;
+
+  bool get isEmpty =>
+      accounts.isEmpty &&
+      ordinaryEnvelopes.isEmpty &&
+      toAllocate == null &&
+      debts.isEmpty &&
+      incomeReceivables.isEmpty &&
+      recoveryReceivables.isEmpty &&
+      history.isEmpty;
+  Money get totalEnvelopes =>
+      ordinaryEnvelopeTotal +
+      (toAllocate?.balance ?? const Money.fromMinorUnits(0));
+  Money get savingsAccounts => _total(
+    accounts
+        .where((a) => a.account.type == FinancialAccountType.savings)
+        .map((a) => a.balance),
+  );
+  Money get netObligations =>
+      incomeReceivableRemaining + recoveryRemaining - debtRemaining;
 
   Money get cashTotal => Money.fromMinorUnits(
     accounts.fold(0, (sum, item) => sum + item.balance.minorUnits),
@@ -107,43 +139,6 @@ class FinancialDashboardSnapshot {
   );
 }
 
-abstract interface class FinancialDashboardGateway {
-  Future<List<Map<String, Object?>>> fetchMonthlyTransactions({
-    required String householdId,
-    required DateTime startsAt,
-    required DateTime endsAt,
-  });
-}
-
-class SupabaseFinancialDashboardGateway implements FinancialDashboardGateway {
-  SupabaseFinancialDashboardGateway(this._client);
-  final SupabaseClient _client;
-
-  @override
-  Future<List<Map<String, Object?>>> fetchMonthlyTransactions({
-    required String householdId,
-    required DateTime startsAt,
-    required DateTime endsAt,
-  }) async {
-    final rows = await _client
-        .from('financial_transactions')
-        .select('type, amount')
-        .eq('household_id', householdId)
-        .isFilter('archived_at', null)
-        .gte('occurred_at', startsAt.toUtc().toIso8601String())
-        .lt('occurred_at', endsAt.toUtc().toIso8601String());
-    return List.unmodifiable(
-      (rows as List<dynamic>)
-          .map((row) => Map<String, Object?>.from(row as Map))
-          .toList(growable: false),
-    );
-  }
-}
-
-final financialDashboardGatewayProvider = Provider<FinancialDashboardGateway>(
-  (ref) => SupabaseFinancialDashboardGateway(ref.watch(supabaseClientProvider)),
-);
-
 /// Reads and composes canonical ledgers. It has no mutation path.
 final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
   ref,
@@ -154,9 +149,9 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
     throw StateError('Aucun foyer actif sans ambiguïté.');
   }
 
-  final now = DateTime.now();
-  final monthStart = DateTime(now.year, now.month);
-  final monthEnd = DateTime(now.year, now.month + 1);
+  final now = ref.watch(dashboardClockProvider);
+  final selectedPeriod = ref.watch(dashboardPeriodProvider);
+  final bounds = selectedPeriod.bounds(now);
   final accounts = await ref.watch(remoteAccountsProvider.future);
   final balances = await ref.watch(remoteAccountBalancesProvider.future);
   final envelopes = await ref.watch(remoteEnvelopeHistoryProvider.future);
@@ -165,24 +160,20 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
   final goals = await ref.watch(savingsGoalsProvider.future);
   final priorities = await ref.watch(priorityPlansProvider.future);
   final periods = await ref.watch(remoteBudgetPeriodsProvider.future);
-  final transactionRows = await ref
-      .watch(financialDashboardGatewayProvider)
-      .fetchMonthlyTransactions(
-        householdId: householdId,
-        startsAt: monthStart,
-        endsAt: monthEnd,
-      );
+  final transactionRows = await ref.watch(dashboardHistoryProvider.future);
+  final reconciliations = await ref.watch(
+    dashboardReconciliationsProvider.future,
+  );
+  final availability = await ref.watch(financialAvailabilityProvider.future);
 
   final accountBalances = <DashboardAccountBalance>[];
-  for (final account in accounts.where((item) => !item.isArchived)) {
-    final observation = await ref.watch(
-      latestAccountBalanceObservationProvider(account.id).future,
-    );
+  for (final account in accounts.where(
+    (item) => !item.isArchived && !item.isSystem,
+  )) {
     accountBalances.add(
       DashboardAccountBalance(
         account: account,
         balance: balances[account.id] ?? const Money.fromMinorUnits(0),
-        observation: observation,
       ),
     );
   }
@@ -198,16 +189,20 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
       period.endsOn.month,
       period.endsOn.day + 1,
     );
-    return !now.isBefore(starts) && now.isBefore(ends);
+    return starts.isBefore(bounds.end) && ends.isAfter(bounds.start);
   }).firstOrNull;
-  final report = currentPeriod == null
-      ? const <RemoteBudgetReportRow>[]
-      : await ref.watch(
-          remoteBudgetReportingProvider((
-            horizon: BudgetHorizon.monthly,
-            period: currentPeriod,
-          )).future,
-        );
+  final report = await ref.watch(
+    remoteBudgetReportingProvider((
+      horizon: BudgetHorizon.monthly,
+      period: RemoteBudgetPeriod(
+        id: 'dashboard-range',
+        householdId: householdId,
+        startsOn: bounds.start,
+        endsOn: DateTime(bounds.end.year, bounds.end.month, bounds.end.day - 1),
+        status: 'projection',
+      ),
+    )).future,
+  );
   final budget = DashboardBudgetSummary(
     period: currentPeriod,
     planned: _sum(report.map((item) => item.plannedCents)),
@@ -224,14 +219,29 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
   final toAllocate = envelopes
       .where((item) => item.isSystem && item.systemCode == 'to_allocate')
       .firstOrNull;
-  final flow = DashboardMonthlyFlow.fromTransactionRows(transactionRows);
+  final flow = DashboardMonthlyFlow.fromTransactionRows(
+    transactionRows.where((row) {
+      final date = DateTime.parse(row['occurred_at'] as String).toLocal();
+      return !date.isBefore(bounds.start) && date.isBefore(bounds.end);
+    }),
+  );
   final activeGoals = goals
       .where((item) => item.goal.status == SavingsGoalStatus.active)
       .toList(growable: false);
-  final activePlan = priorities
+  final activePlans = priorities
       .where((item) => item.plan.status == PriorityPlanStatus.active)
+      .toList();
+  final activePlan = activePlans.length == 1 ? activePlans.single : null;
+  final pendingEntries =
+      availability.planEntries[activePlan?.plan.id] ??
+      const <PlanProjectionEntry>[];
+  final nextId = pendingEntries
+      .where((e) => e.remainingNeed.minorUnits > 0)
+      .firstOrNull
+      ?.itemId;
+  final nextPriority = activePlan?.items
+      .where((e) => e.item.id == nextId)
       .firstOrNull;
-  final nextPriority = activePlan?.items.firstOrNull;
   final openDebts = debts
       .where((item) => item.remainingAmount.minorUnits > 0)
       .toList(growable: false);
@@ -258,7 +268,7 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
     recoveryReceivables: List.unmodifiable(recoveryReceivables),
     activeGoals: List.unmodifiable(activeGoals),
     nextPriority: nextPriority,
-    alerts: _buildAlerts(
+    alerts: buildDashboardAlerts(
       accounts: accountBalances,
       envelopes: ordinaryEnvelopes,
       toAllocate: toAllocate,
@@ -267,14 +277,32 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
       incomeReceivables: incomeReceivables,
       recoveryReceivables: recoveryReceivables,
       now: now,
+      report: report,
+      reconciliations: reconciliations,
+      goals: activeGoals,
+      availability: availability,
+      activePlan: activePlan,
+      thresholds: ref.watch(dashboardThresholdsProvider),
     ),
+    report: report,
+    history: dashboardFlowSeries(
+      transactionRows.where(
+        (row) => !DateTime.parse(
+          row['occurred_at'] as String,
+        ).toLocal().isBefore(DateTime(now.year, now.month - 5)),
+      ),
+    ),
+    reconciliations: reconciliations,
+    activePlan: activePlan,
+    availability: availability,
+    period: selectedPeriod,
   );
 });
 
 Money _sum(Iterable<int> values) =>
     Money.fromMinorUnits(values.fold(0, (sum, item) => sum + item));
 
-List<DashboardAlert> _buildAlerts({
+List<DashboardAlert> buildDashboardAlerts({
   required List<DashboardAccountBalance> accounts,
   required List<RemoteEnvelopeBalance> envelopes,
   required RemoteEnvelopeBalance? toAllocate,
@@ -283,6 +311,12 @@ List<DashboardAlert> _buildAlerts({
   required List<RemoteReceivableBalance> incomeReceivables,
   required List<RemoteReceivableBalance> recoveryReceivables,
   required DateTime now,
+  required List<RemoteBudgetReportRow> report,
+  required List<DashboardReconciliation> reconciliations,
+  required List<SavingsGoalProgress> goals,
+  required FinancialAvailabilitySnapshot availability,
+  required PriorityPlanView? activePlan,
+  required DashboardThresholds thresholds,
 }) {
   final alerts = <DashboardAlert>[];
   for (final account in accounts) {
@@ -292,16 +326,35 @@ List<DashboardAlert> _buildAlerts({
           title: 'Compte négatif',
           detail: '${account.account.name} est négatif.',
           severity: DashboardAlertSeverity.warning,
+          destination: DashboardDestination.accounts,
         ),
       );
     }
-    final difference = account.reconciliationDifference;
-    if (difference != null && difference.minorUnits != 0) {
+    final cases = reconciliations
+        .where((c) => c.accountId == account.account.id)
+        .toList();
+    final open = cases.where((c) => c.isOpen).length;
+    if (open > 0) {
       alerts.add(
         DashboardAlert(
           title: 'Écart de rapprochement',
-          detail: '${account.account.name} présente un écart constaté.',
+          detail: '${account.account.name} : $open dossier(s) ouvert(s).',
           severity: DashboardAlertSeverity.warning,
+        ),
+      );
+    }
+    final dates = cases.map((c) => c.observedAt).toList()..sort();
+    if (dates.isEmpty ||
+        now.difference(dates.last).inDays > thresholds.reconciliationDays ||
+        cases.every((c) => c.status == 'legacy_unfrozen')) {
+      alerts.add(
+        DashboardAlert(
+          title: account.account.type == FinancialAccountType.cash
+              ? 'Espèces à contrôler'
+              : 'Compte à rapprocher',
+          detail:
+              '${account.account.name} : ${dates.isEmpty ? "aucun constat" : "constat ancien ou historique non figé"}.',
+          severity: DashboardAlertSeverity.attention,
         ),
       );
     }
@@ -313,16 +366,30 @@ List<DashboardAlert> _buildAlerts({
           title: 'Enveloppe négative',
           detail: '${envelope.name} est à découvert.',
           severity: DashboardAlertSeverity.warning,
+          destination: DashboardDestination.envelopes,
         ),
       );
     }
   }
-  if (budget.overspentEnvelopeIds.isNotEmpty) {
+  for (final row in report) {
+    if (row.plannedCents <= 0 ||
+        row.actualCents < row.plannedCents * thresholds.budgetWarning) {
+      continue;
+    }
+    final name =
+        envelopes.where((e) => e.id == row.envelopeId).firstOrNull?.name ??
+        'Enveloppe';
     alerts.add(
-      const DashboardAlert(
-        title: 'Budget dépassé',
-        detail: 'Au moins une enveloppe dépasse le budget mensuel prévu.',
-        severity: DashboardAlertSeverity.warning,
+      DashboardAlert(
+        title: row.actualCents > row.plannedCents
+            ? 'Budget dépassé'
+            : 'Budget proche de sa limite',
+        detail:
+            '$name : ${(row.actualCents / 100).toStringAsFixed(2)} / ${(row.plannedCents / 100).toStringAsFixed(2)} MAD ; reste ${((row.plannedCents - row.actualCents) / 100).toStringAsFixed(2)} MAD.',
+        severity: row.actualCents > row.plannedCents
+            ? DashboardAlertSeverity.critical
+            : DashboardAlertSeverity.warning,
+        destination: DashboardDestination.budget,
       ),
     );
   }
@@ -332,34 +399,120 @@ List<DashboardAlert> _buildAlerts({
         title: 'Fonds à répartir',
         detail: 'Une partie des fonds attend encore une affectation.',
         severity: DashboardAlertSeverity.attention,
+        destination: DashboardDestination.envelopes,
       ),
     );
   }
-  final dueSoon = DateTime(now.year, now.month, now.day + 7);
+  final dueSoon = DateTime(now.year, now.month, now.day + thresholds.dueDays);
   for (final obligation in debts) {
     if (obligation.dueAt != null && !obligation.dueAt!.isAfter(dueSoon)) {
       alerts.add(
-        const DashboardAlert(
-          title: 'Dette à échéance proche',
-          detail: 'Une dette ouverte arrive à échéance.',
-          severity: DashboardAlertSeverity.attention,
+        DashboardAlert(
+          title:
+              obligation.dueAt!.isBefore(DateTime(now.year, now.month, now.day))
+              ? 'Dette en retard'
+              : 'Dette à échéance proche',
+          detail:
+              '${obligation.description} : ${obligation.remainingAmount.dirhams.toStringAsFixed(2)} MAD restant.',
+          severity: DashboardAlertSeverity.warning,
+          destination: DashboardDestination.debts,
         ),
       );
-      break;
     }
   }
   for (final obligation in [...incomeReceivables, ...recoveryReceivables]) {
     if (obligation.dueAt != null && !obligation.dueAt!.isAfter(dueSoon)) {
       alerts.add(
-        const DashboardAlert(
+        DashboardAlert(
           title: 'Créance à suivre',
-          detail: 'Une créance ouverte arrive à échéance.',
+          detail:
+              '${obligation.description} : ${obligation.remainingAmount.dirhams.toStringAsFixed(2)} MAD à recevoir.',
           severity: DashboardAlertSeverity.attention,
+          destination: DashboardDestination.receivables,
         ),
       );
-      break;
     }
   }
+  if (recoveryReceivables.isNotEmpty) {
+    alerts.add(
+      DashboardAlert(
+        title: 'Recovery restant',
+        detail: '${recoveryReceivables.length} remboursement(s) à suivre.',
+        severity: DashboardAlertSeverity.attention,
+        destination: DashboardDestination.receivables,
+      ),
+    );
+  }
+  for (final goal in goals) {
+    final projection = availability.goals[goal.goal.id];
+    if (goal.remaining.minorUnits > 0 &&
+        goal.goal.targetDate != null &&
+        goal.goal.targetDate!.isBefore(
+          DateTime(now.year, now.month, now.day),
+        )) {
+      alerts.add(
+        DashboardAlert(
+          title: 'Objectif en retard',
+          detail: goal.goal.name,
+          severity: DashboardAlertSeverity.warning,
+          destination: DashboardDestination.goals,
+        ),
+      );
+    }
+    if (projection == null || projection.securedFunding.minorUnits <= 0) {
+      alerts.add(
+        DashboardAlert(
+          title: 'Objectif sans financement sécurisé',
+          detail: goal.goal.name,
+          severity: DashboardAlertSeverity.attention,
+          destination: DashboardDestination.goals,
+        ),
+      );
+    }
+  }
+  if (activePlan != null) {
+    final entries =
+        availability.planEntries[activePlan.plan.id] ??
+        const <PlanProjectionEntry>[];
+    if ((activePlan.plan.monthlyCapacity?.minorUnits ?? 0) <= 0 ||
+        entries.any(
+          (e) => e.remainingNeed.minorUnits > 0 && e.completionDate == null,
+        )) {
+      alerts.add(
+        DashboardAlert(
+          title: 'Projection PRIOS à vérifier',
+          detail:
+              'Capacité ou données insuffisantes pour ${activePlan.plan.name}.',
+          severity: DashboardAlertSeverity.warning,
+          destination: DashboardDestination.priorities,
+        ),
+      );
+    }
+    for (final item in activePlan.items) {
+      final date = entries
+          .where((e) => e.itemId == item.item.id)
+          .firstOrNull
+          ?.completionDate;
+      if (date != null &&
+          item.source.date != null &&
+          date.isAfter(item.source.date!)) {
+        alerts.add(
+          DashboardAlert(
+            title: 'Priorité au-delà de la date cible',
+            detail: item.source.label,
+            severity: DashboardAlertSeverity.warning,
+            destination: DashboardDestination.priorities,
+          ),
+        );
+      }
+    }
+  }
+  alerts.sort((a, b) {
+    final level = b.severity.index.compareTo(a.severity.index);
+    return level != 0
+        ? level
+        : '${a.title} ${a.detail}'.compareTo('${b.title} ${b.detail}');
+  });
   return List.unmodifiable(alerts);
 }
 

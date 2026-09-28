@@ -88,6 +88,18 @@ void main() {
     expect(navigation, findsOneWidget);
     expect(tester.widget<NavigationBar>(navigation).selectedIndex, 0);
     expect(find.text('Tableau de bord'), findsOneWidget);
+    // V2 adds filters and an empty-household notice before the budget section.
+    // Verify the same budget state through the real scrollable page.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('dashboard-budget-empty')),
+      250,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('financial-dashboard-page')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.byKey(const Key('dashboard-budget-empty')), findsOneWidget);
 
     await tester.tap(

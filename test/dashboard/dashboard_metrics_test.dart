@@ -38,11 +38,12 @@ void main() {
 
   test('dashboard composition keeps its Supabase access read-only', () {
     final source = File(
-      'lib/features/dashboard/application/providers/remote_financial_dashboard_provider.dart',
+      'lib/features/dashboard/application/providers/dashboard_history_provider.dart',
     ).readAsStringSync();
 
     expect(source, contains(".from('financial_transactions')"));
-    expect(source, contains(".select('type, amount')"));
+    expect(source, contains(".select('id, type, amount, occurred_at')"));
+    expect(source, contains(".eq('household_id', householdId)"));
     expect(source, isNot(contains('.rpc(')));
     expect(source, isNot(contains('.insert(')));
     expect(source, isNot(contains('.update(')));
