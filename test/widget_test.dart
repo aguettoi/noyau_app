@@ -287,6 +287,8 @@ void main() {
           const Offset(0, -420),
         );
         await tester.ensureVisible(find.byKey(key));
+        await tester.pumpAndSettle();
+        expect(find.byKey(key).hitTestable(), findsOneWidget);
         await tester.tap(find.byKey(key));
         await tester.pumpAndSettle();
       }
@@ -319,12 +321,7 @@ void main() {
       expect(tester.widget<NavigationBar>(navigation).selectedIndex, 0);
       expect(find.byType(BackButton), findsNothing);
 
-      await tester.drag(
-        find.byKey(const Key('financial-dashboard-page')),
-        const Offset(0, -600),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('dashboard-open-obligations')));
+      await tapDashboardAction(const Key('dashboard-open-obligations'));
       await tester.pumpAndSettle();
       expect(find.byType(BackButton), findsOneWidget);
       await tester.tap(find.byType(BackButton));
@@ -347,6 +344,8 @@ void main() {
           find.byKey(const Key('financial-dashboard-page')),
           const Offset(0, -420),
         );
+        await tester.pumpAndSettle();
+        expect(find.byKey(key).hitTestable(), findsOneWidget);
         await tester.tap(find.byKey(key));
         await tester.pumpAndSettle();
       }
