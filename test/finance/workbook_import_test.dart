@@ -95,7 +95,12 @@ void main() {
       householdId: 'household',
       effectiveDate: DateTime(2026, 9, 14),
     );
-    expect(plan.canConfirm, isTrue, reason: plan.blockingErrors.join(' | '));
+    expect(plan.canConfirm, isFalse);
+    expect(
+      plan.accounts.every((account) => account.ownershipType == null),
+      isTrue,
+      reason: 'La titularité absente ne doit jamais être déduite du libellé.',
+    );
     expect(
       plan.accounts.map((account) => (account.name, account.openingAmount)),
       containsAll([('Banque A', 1000.0), ('Caisse', 200.0)]),

@@ -2,10 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/cutover_opening_import.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/workbook_import.dart';
+import 'package:noyau_app/features/finance/domain/account_ownership.dart';
 
 void main() {
   const fingerprint =
       '0123456789012345678901234567890123456789012345678901234567890123';
+  const holderA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const holderB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
   test(
     'le plan B1 porte cible explicite, fingerprint et positions fictives',
@@ -23,14 +26,20 @@ void main() {
               SourceCellSnapshot(coordinate: 'B1', value: 'Nom'),
               SourceCellSnapshot(coordinate: 'C1', value: 'Kind'),
               SourceCellSnapshot(coordinate: 'D1', value: 'Montant'),
+              SourceCellSnapshot(coordinate: 'E1', value: 'Ownership type'),
+              SourceCellSnapshot(coordinate: 'F1', value: 'Holder user ids'),
               SourceCellSnapshot(coordinate: 'A2', value: 'Compte'),
               SourceCellSnapshot(coordinate: 'B2', value: 'Banque A'),
               SourceCellSnapshot(coordinate: 'C2', value: 'bank'),
               SourceCellSnapshot(coordinate: 'D2', value: '1000'),
+              SourceCellSnapshot(coordinate: 'E2', value: 'individual'),
+              SourceCellSnapshot(coordinate: 'F2', value: holderA),
               SourceCellSnapshot(coordinate: 'A3', value: 'Compte'),
               SourceCellSnapshot(coordinate: 'B3', value: 'Caisse'),
               SourceCellSnapshot(coordinate: 'C3', value: 'cash'),
               SourceCellSnapshot(coordinate: 'D3', value: '200'),
+              SourceCellSnapshot(coordinate: 'E3', value: 'shared'),
+              SourceCellSnapshot(coordinate: 'F3', value: '$holderA;$holderB'),
               SourceCellSnapshot(coordinate: 'A4', value: 'Enveloppe'),
               SourceCellSnapshot(coordinate: 'B4', value: 'Nourriture'),
               SourceCellSnapshot(coordinate: 'D4', value: '500'),
@@ -54,6 +63,12 @@ void main() {
       expect(plan.householdId, 'household');
       expect(plan.sourceFingerprint, fingerprint);
       expect(plan.accounts, hasLength(2));
+      expect(
+        plan.accounts.first.ownershipType,
+        AccountOwnershipType.individual,
+      );
+      expect(plan.accounts.last.ownershipType, AccountOwnershipType.shared);
+      expect(plan.accounts.last.holderUserIds, [holderA, holderB]);
       expect(plan.envelopes, hasLength(3));
       expect(plan.envelopes.last.isToAllocate, isTrue);
       expect(plan.confirm(DateTime(2026)).confirmedAt, isNotNull);
@@ -92,6 +107,8 @@ void main() {
           name: 'Banque A',
           kind: 'bank',
           openingAmount: 1000,
+          ownershipType: AccountOwnershipType.individual,
+          holderUserIds: [holderA],
         ),
       ],
       envelopes: const [
@@ -113,6 +130,11 @@ void main() {
     expect(restored.effectiveDate, plan.effectiveDate);
     expect(restored.confirmedAt, plan.confirmedAt);
     expect(restored.accounts.single.openingAmount, 1000);
+    expect(
+      restored.accounts.single.ownershipType,
+      AccountOwnershipType.individual,
+    );
+    expect(restored.accounts.single.holderUserIds, [holderA]);
     expect(restored.envelopes.single.name, 'Nourriture');
   });
 
@@ -142,4 +164,84 @@ void main() {
       expect(plan.confirm(DateTime(2026)).householdId, target.id);
     },
   );
+
+  test('la titularité absente reste à confirmer sans déduction du nom', () {
+    const account = CutoverOpeningAccount(
+      sourceLabel: 'A2',
+      name: 'Compte Ibrahim et Nora',
+      kind: 'bank',
+      openingAmount: 100,
+    );
+
+    expect(account.ownershipType, isNull);
+    expect(account.holderUserIds, isEmpty);
+    expect(account.hasValidOwnership, isFalse);
+    expect(account.ownershipValidationError, 'Titularité à confirmer.');
+  });
+
+  test('les cardinalités individual shared et household sont explicites', () {
+    const individual = CutoverOpeningAccount(
+      sourceLabel: 'A2',
+      name: 'Individuel',
+      kind: 'bank',
+      openingAmount: 100,
+      ownershipType: AccountOwnershipType.individual,
+      holderUserIds: [holderA],
+    );
+    const shared = CutoverOpeningAccount(
+      sourceLabel: 'A3',
+      name: 'Partagé',
+      kind: 'bank',
+      openingAmount: 100,
+      ownershipType: AccountOwnershipType.shared,
+      holderUserIds: [holderA, holderB],
+    );
+    const household = CutoverOpeningAccount(
+      sourceLabel: 'A4',
+      name: 'Foyer',
+      kind: 'cash',
+      openingAmount: 100,
+      ownershipType: AccountOwnershipType.household,
+    );
+
+    expect(individual.hasValidOwnership, isTrue);
+    expect(shared.hasValidOwnership, isTrue);
+    expect(household.hasValidOwnership, isTrue);
+    expect(
+      household.copyWith(holderUserIds: const [holderA]).hasValidOwnership,
+      isFalse,
+    );
+  });
+
+  test('un titulaire hors household bloque la confirmation locale', () {
+    final plan = CutoverOpeningPlan(
+      cutoverId: '11111111-1111-4111-8111-111111111111',
+      householdId: 'household',
+      sourceFingerprint: fingerprint,
+      effectiveDate: DateTime(2026, 9, 29),
+      accounts: const [
+        CutoverOpeningAccount(
+          sourceLabel: 'A2',
+          name: 'Compte individuel',
+          kind: 'bank',
+          openingAmount: 100,
+          ownershipType: AccountOwnershipType.individual,
+          holderUserIds: [holderA],
+        ),
+      ],
+      envelopes: const [
+        CutoverOpeningEnvelope(
+          sourceLabel: 'A3',
+          name: 'Nourriture',
+          openingAmount: 50,
+          isToAllocate: false,
+        ),
+      ],
+    );
+
+    expect(plan.canConfirm, isTrue);
+    expect(plan.canConfirmForMemberIds({holderA}), isTrue);
+    expect(plan.canConfirmForMemberIds({holderB}), isFalse);
+    expect(plan.ownershipErrorsForMemberIds({holderB}), hasLength(1));
+  });
 }

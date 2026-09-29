@@ -5,6 +5,8 @@ import '../../../core/theme/app_design_system.dart';
 import '../application/cutover_preparation.dart';
 import '../application/cutover_opening_import.dart';
 import '../application/workbook_import.dart';
+import '../domain/account_ownership.dart';
+import '../domain/household_member.dart';
 import 'cutover_preparation_card.dart';
 
 class ImportPreviewPage extends ConsumerStatefulWidget {
@@ -425,6 +427,17 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     final selectedHousehold = households
         .where((household) => household.id == _selectedCutoverHouseholdId)
         .firstOrNull;
+    final householdMembers = _selectedCutoverHouseholdId == null
+        ? const AsyncValue<List<HouseholdMember>>.data([])
+        : ref.watch(
+            cutoverHouseholdMembersProvider(_selectedCutoverHouseholdId!),
+          );
+    final memberIds = householdMembers.valueOrNull
+        ?.map((member) => member.id)
+        .toSet();
+    final outsideHolderErrors = plan == null || memberIds == null
+        ? const <String>[]
+        : plan.ownershipErrorsForMemberIds(memberIds);
     return _ActionCard(
       icon: Icons.account_balance_outlined,
       title: '4. Plan de positions d’ouverture B1',
@@ -502,8 +515,18 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
             Text(
               'Comptes : ${plan.accounts.length} • Enveloppes : ${plan.envelopes.length}',
             ),
-            ...plan.accounts.map(
-              (item) => Text('${item.name} • ${item.openingAmount} MAD'),
+            ...plan.accounts.indexed.map(
+              (entry) => CutoverAccountOwnershipCard(
+                key: ValueKey('cutover-account-${entry.$2.name}'),
+                account: entry.$2,
+                members: householdMembers.valueOrNull ?? const [],
+                membersLoading: householdMembers.isLoading,
+                membersError: householdMembers.hasError,
+                enabled: plan.confirmedAt == null,
+                onChanged: (account) => setState(
+                  () => _cutoverPlan = plan.updateAccount(entry.$1, account),
+                ),
+              ),
             ),
             ...plan.envelopes.map(
               (item) => Text(
@@ -514,10 +537,17 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
               const SizedBox(height: 6),
               ...plan.blockingErrors.map((error) => Text(error)),
             ],
+            if (outsideHolderErrors.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              ...outsideHolderErrors.map(Text.new),
+            ],
             if (plan.confirmedAt == null)
               FilledButton.icon(
                 key: const Key('cutover-confirm-button'),
-                onPressed: plan.canConfirm
+                onPressed:
+                    plan.canConfirm &&
+                        householdMembers.hasValue &&
+                        outsideHolderErrors.isEmpty
                     ? () => setState(
                         () => _cutoverPlan = plan.confirm(DateTime.now()),
                       )
@@ -720,6 +750,160 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       ],
     ),
   );
+}
+
+class CutoverAccountOwnershipCard extends StatelessWidget {
+  const CutoverAccountOwnershipCard({
+    super.key,
+    required this.account,
+    required this.members,
+    required this.membersLoading,
+    required this.membersError,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final CutoverOpeningAccount account;
+  final List<HouseholdMember> members;
+  final bool membersLoading;
+  final bool membersError;
+  final bool enabled;
+  final ValueChanged<CutoverOpeningAccount> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final ownership = account.ownershipType;
+    final error = account.ownershipValidationError;
+    final action = error != null
+        ? 'CONFLIT — À CONFIRMER'
+        : account.conflictDecision == 'match'
+        ? 'RATTACHER À L’EXISTANT'
+        : 'CRÉER';
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      child: Padding(
+        padding: AppSpacing.card,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${account.name} • ${account.kind} • ${account.openingAmount} MAD',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              key: ValueKey('cutover-ownership-${account.name}'),
+              initialValue: ownership?.name ?? 'unconfirmed',
+              decoration: const InputDecoration(
+                labelText: 'Titularité',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'unconfirmed',
+                  child: Text('À CONFIRMER'),
+                ),
+                DropdownMenuItem(
+                  value: 'individual',
+                  child: Text('Individuel'),
+                ),
+                DropdownMenuItem(value: 'shared', child: Text('Partagé')),
+                DropdownMenuItem(value: 'household', child: Text('Foyer')),
+              ],
+              onChanged: !enabled
+                  ? null
+                  : (value) {
+                      final selectedOwnership = switch (value) {
+                        'individual' => AccountOwnershipType.individual,
+                        'shared' => AccountOwnershipType.shared,
+                        'household' => AccountOwnershipType.household,
+                        _ => null,
+                      };
+                      onChanged(
+                        account.copyWith(
+                          ownershipType: selectedOwnership,
+                          clearOwnershipType: selectedOwnership == null,
+                          holderUserIds:
+                              selectedOwnership ==
+                                  AccountOwnershipType.household
+                              ? const []
+                              : account.holderUserIds,
+                        ),
+                      );
+                    },
+            ),
+            if (ownership != null &&
+                ownership != AccountOwnershipType.household) ...[
+              const SizedBox(height: 8),
+              Text(
+                ownership == AccountOwnershipType.individual
+                    ? 'Titulaire'
+                    : 'Titulaires',
+              ),
+              if (membersLoading) const LinearProgressIndicator(),
+              if (membersError)
+                const Text('Impossible de charger les membres du foyer.'),
+              ...members.map(
+                (member) => CheckboxListTile(
+                  key: ValueKey('cutover-holder-${account.name}-${member.id}'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(member.displayName),
+                  value: account.holderUserIds.contains(member.id),
+                  onChanged: !enabled
+                      ? null
+                      : (selected) {
+                          final holders = [...account.holderUserIds];
+                          if (selected ?? false) {
+                            if (ownership == AccountOwnershipType.individual) {
+                              holders
+                                ..clear()
+                                ..add(member.id);
+                            } else if (!holders.contains(member.id)) {
+                              holders.add(member.id);
+                            }
+                          } else {
+                            holders.remove(member.id);
+                          }
+                          onChanged(account.copyWith(holderUserIds: holders));
+                        },
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Text('Décision : $action'),
+            Text(
+              'Titularité : ${_ownershipLabel(ownership)} • Titulaires : ${_holderLabels(account.holderUserIds, members)}',
+            ),
+            if (error != null)
+              Text(
+                error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _ownershipLabel(AccountOwnershipType? ownership) =>
+      switch (ownership) {
+        AccountOwnershipType.individual => 'Individuel',
+        AccountOwnershipType.shared => 'Partagé',
+        AccountOwnershipType.household => 'Foyer',
+        null => 'À CONFIRMER',
+      };
+
+  static String _holderLabels(
+    List<String> holderIds,
+    List<HouseholdMember> members,
+  ) {
+    if (holderIds.isEmpty) return 'Aucun';
+    final labels = {
+      for (final member in members) member.id: member.displayName,
+    };
+    return holderIds.map((id) => labels[id] ?? 'Membre du foyer').join(', ');
+  }
 }
 
 class _ProblemsForSheet extends StatelessWidget {

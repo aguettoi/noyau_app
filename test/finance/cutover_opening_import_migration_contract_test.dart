@@ -9,6 +9,9 @@ void main() {
   final correctionMigration = File(
     'supabase/migrations/20260914191453_cutover_b1_reconciliation_and_resume.sql',
   ).readAsStringSync();
+  final ownershipMigration = File(
+    'supabase/migrations/20260929203237_preserve_cutover_account_ownership.sql',
+  ).readAsStringSync();
 
   test('B1 persiste un run immuable et une identité de replay stable', () {
     expect(migration, contains('cutover_opening_runs'));
@@ -79,4 +82,65 @@ void main() {
       );
     },
   );
+
+  test('B1 préserve la titularité et refuse les titulaires hors foyer', () {
+    expect(
+      ownershipMigration,
+      contains("v_ownership_type not in ('individual','shared','household')"),
+    );
+    expect(
+      ownershipMigration,
+      contains('An account holder must belong to the target household'),
+    );
+    expect(ownershipMigration, contains('create_account_with_holders'));
+    expect(
+      ownershipMigration,
+      contains("v_ownership_type='household' and cardinality(v_holder_ids)<>0"),
+    );
+    expect(
+      ownershipMigration,
+      contains(
+        "v_ownership_type='individual' and cardinality(v_holder_ids)<>1",
+      ),
+    );
+    expect(
+      ownershipMigration,
+      contains("v_ownership_type='shared' and cardinality(v_holder_ids)<2"),
+    );
+  });
+
+  test('B1 bloque un match incompatible sans réécrire sa titularité', () {
+    expect(
+      ownershipMigration,
+      contains(
+        'Existing account ownership conflicts with the confirmed cutover plan',
+      ),
+    );
+    expect(
+      ownershipMigration,
+      contains('v_existing_holder_ids is distinct from v_holder_ids'),
+    );
+    expect(
+      ownershipMigration,
+      isNot(contains('update public.accounts set ownership_type')),
+    );
+    expect(
+      ownershipMigration,
+      isNot(contains('update public.account_holders')),
+    );
+  });
+
+  test('B1 conserve Cutover A et n’utilise aucun mécanisme legacy', () {
+    expect(ownershipMigration, contains('create_account_opening_event'));
+    expect(ownershipMigration, contains('create_envelope_opening_event'));
+    expect(
+      ownershipMigration,
+      contains(
+        'create_account_with_holders(\n        p_household_id,v_account_name,v_kind,0,null',
+      ),
+    );
+    expect(ownershipMigration, isNot(contains("'opening_offset'")));
+    expect(ownershipMigration, isNot(contains('accounts.opening_balance')));
+    expect(ownershipMigration, isNot(contains('automatic compensation')));
+  });
 }

@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'providers/active_household_provider.dart';
+import 'providers/remote_household_members_provider.dart';
 import 'providers/supabase_client_provider.dart';
+import '../domain/account_ownership.dart';
+import '../domain/household_member.dart';
 import 'workbook_import.dart';
 
 class CutoverOpeningAccount {
@@ -13,6 +16,8 @@ class CutoverOpeningAccount {
     required this.name,
     required this.kind,
     required this.openingAmount,
+    this.ownershipType,
+    this.holderUserIds = const [],
     this.conflictDecision = 'create',
   });
 
@@ -20,13 +25,53 @@ class CutoverOpeningAccount {
   final String name;
   final String kind;
   final num openingAmount;
+  final AccountOwnershipType? ownershipType;
+  final List<String> holderUserIds;
   final String conflictDecision;
+
+  String? get ownershipValidationError {
+    final ownership = ownershipType;
+    if (ownership == null) return 'Titularité à confirmer.';
+    final uniqueHolders = holderUserIds.toSet();
+    if (uniqueHolders.length != holderUserIds.length) {
+      return 'Un même titulaire ne peut être sélectionné deux fois.';
+    }
+    return switch (ownership) {
+      AccountOwnershipType.individual when holderUserIds.length != 1 =>
+        'Un compte individuel exige exactement un titulaire.',
+      AccountOwnershipType.shared when holderUserIds.length < 2 =>
+        'Un compte partagé exige au moins deux titulaires.',
+      AccountOwnershipType.household when holderUserIds.isNotEmpty =>
+        'Un compte foyer ne porte aucun titulaire individuel.',
+      _ => null,
+    };
+  }
+
+  bool get hasValidOwnership => ownershipValidationError == null;
+
+  CutoverOpeningAccount copyWith({
+    AccountOwnershipType? ownershipType,
+    bool clearOwnershipType = false,
+    List<String>? holderUserIds,
+  }) => CutoverOpeningAccount(
+    sourceLabel: sourceLabel,
+    name: name,
+    kind: kind,
+    openingAmount: openingAmount,
+    ownershipType: clearOwnershipType
+        ? null
+        : ownershipType ?? this.ownershipType,
+    holderUserIds: List.unmodifiable(holderUserIds ?? this.holderUserIds),
+    conflictDecision: conflictDecision,
+  );
 
   Map<String, Object?> toJson() => {
     'source_label': sourceLabel,
     'name': name,
     'kind': kind,
     'opening_amount': openingAmount,
+    'ownership_type': ownershipType?.name,
+    'holder_user_ids': holderUserIds,
     'conflict_decision': conflictDecision,
   };
 }
@@ -79,7 +124,41 @@ class CutoverOpeningPlan {
   final DateTime? confirmedAt;
 
   bool get canConfirm =>
-      blockingErrors.isEmpty && accounts.isNotEmpty && envelopes.isNotEmpty;
+      blockingErrors.isEmpty &&
+      accounts.isNotEmpty &&
+      envelopes.isNotEmpty &&
+      accounts.every((account) => account.hasValidOwnership);
+
+  List<String> ownershipErrorsForMemberIds(Set<String> memberIds) => accounts
+      .where(
+        (account) => account.holderUserIds.any(
+          (holderId) => !memberIds.contains(holderId),
+        ),
+      )
+      .map(
+        (account) =>
+            '${account.name} : un titulaire ne fait pas partie du household cible.',
+      )
+      .toList(growable: false);
+
+  bool canConfirmForMemberIds(Set<String> memberIds) =>
+      canConfirm && ownershipErrorsForMemberIds(memberIds).isEmpty;
+
+  CutoverOpeningPlan updateAccount(int index, CutoverOpeningAccount account) =>
+      CutoverOpeningPlan(
+        cutoverId: cutoverId,
+        householdId: householdId,
+        sourceFingerprint: sourceFingerprint,
+        effectiveDate: effectiveDate,
+        accounts: List.unmodifiable([
+          for (var current = 0; current < accounts.length; current++)
+            current == index ? account : accounts[current],
+        ]),
+        envelopes: envelopes,
+        blockingErrors: blockingErrors,
+        warnings: warnings,
+        confirmedAt: confirmedAt,
+      );
 
   CutoverOpeningPlan confirm(DateTime now) => CutoverOpeningPlan(
     cutoverId: cutoverId,
@@ -121,6 +200,12 @@ class CutoverOpeningPlan {
               name: value['name'] as String,
               kind: value['kind'] as String,
               openingAmount: value['opening_amount'] as num,
+              ownershipType: _parseOwnershipType(
+                value['ownership_type'] as String?,
+              ),
+              holderUserIds: List<String>.from(
+                value['holder_user_ids'] as List? ?? const [],
+              ),
               conflictDecision:
                   value['conflict_decision'] as String? ?? 'create',
             );
@@ -152,6 +237,13 @@ class CutoverOpeningPlan {
   static String formatDate(DateTime date) =>
       '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }
+
+AccountOwnershipType? _parseOwnershipType(String? value) => switch (value) {
+  'individual' => AccountOwnershipType.individual,
+  'shared' => AccountOwnershipType.shared,
+  'household' => AccountOwnershipType.household,
+  _ => null,
+};
 
 /// Extracts only the controlled B1 sheet.  Other workbook sheets remain
 /// archived/optional and never become cutover inputs by accident.
@@ -186,6 +278,14 @@ class CutoverOpeningPlanBuilder {
       final nameIndex = header.indexOf('nom');
       final kindIndex = header.indexOf('kind');
       final amountIndex = header.indexOf('montant');
+      final ownershipIndex = _firstHeaderIndex(header, const [
+        'ownership type',
+        'ownership_type',
+      ]);
+      final holdersIndex = _firstHeaderIndex(header, const [
+        'holder user ids',
+        'holder_user_ids',
+      ]);
       if ([typeIndex, nameIndex, amountIndex].any((index) => index < 0)) {
         errors.add('L’onglet doit contenir les colonnes Type, Nom et Montant.');
       } else {
@@ -203,6 +303,14 @@ class CutoverOpeningPlanBuilder {
           }
           if (type == 'compte') {
             final kind = _at(row, kindIndex).toLowerCase();
+            final ownershipType = _parseOwnershipType(
+              _at(row, ownershipIndex).toLowerCase().replaceAll(' ', '_'),
+            );
+            final holderUserIds = _at(row, holdersIndex)
+                .split(RegExp(r'[,;]'))
+                .map((value) => value.trim())
+                .where((value) => value.isNotEmpty)
+                .toList(growable: false);
             if (!const {'bank', 'cash', 'savings', 'loan'}.contains(kind)) {
               errors.add('Ligne ${index + 1} : type de compte invalide.');
               continue;
@@ -213,6 +321,8 @@ class CutoverOpeningPlanBuilder {
                 name: name,
                 kind: kind,
                 openingAmount: amount,
+                ownershipType: ownershipType,
+                holderUserIds: List.unmodifiable(holderUserIds),
               ),
             );
           } else if (type == 'enveloppe') {
@@ -269,6 +379,14 @@ class CutoverOpeningPlanBuilder {
 
   static String _at(List<String> values, int index) =>
       index >= 0 && index < values.length ? values[index].trim() : '';
+  static int _firstHeaderIndex(List<String> headers, List<String> names) {
+    for (final name in names) {
+      final index = headers.indexOf(name);
+      if (index >= 0) return index;
+    }
+    return -1;
+  }
+
   static String _normalise(String value) => value
       .toLowerCase()
       .trim()
@@ -412,6 +530,13 @@ final cutoverEligibleHouseholdsProvider =
 final cutoverOpeningImportRepositoryProvider = Provider(
   (ref) => CutoverOpeningImportRepository(ref.watch(supabaseClientProvider)),
 );
+
+final cutoverHouseholdMembersProvider =
+    FutureProvider.family<List<HouseholdMember>, String>((ref, householdId) {
+      return ref
+          .watch(householdMembersGatewayProvider)
+          .fetchMembers(householdId);
+    });
 
 final cutoverOpeningTargetHouseholdProvider = FutureProvider<String>((
   ref,
