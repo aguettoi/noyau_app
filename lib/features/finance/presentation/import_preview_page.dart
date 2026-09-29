@@ -8,6 +8,7 @@ import '../application/workbook_import.dart';
 import '../domain/account_ownership.dart';
 import '../domain/household_member.dart';
 import 'cutover_preparation_card.dart';
+import 'import_wizard_components.dart';
 
 class ImportPreviewPage extends ConsumerStatefulWidget {
   const ImportPreviewPage({super.key});
@@ -53,13 +54,15 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     final blockingSelected = selectedPreviews
         .where((preview) => !preview.canBeConfirmed)
         .toList(growable: false);
-    final currentStep = analysis == null
-        ? 0
-        : state.selectedImporterIds.isEmpty
-        ? 1
-        : blockingSelected.isNotEmpty
-        ? 2
-        : 3;
+    final currentStep = _cutoverResult != null
+        ? 4
+        : _cutoverPlan?.confirmedAt != null
+        ? 3
+        : analysis != null
+        ? state.isConfirmed
+              ? 2
+              : 1
+        : 0;
 
     return PopScope<Object?>(
       canPop: _allowPop,
@@ -69,269 +72,292 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
           Navigator.of(this.context).pop();
         }
       },
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.xl,
-          ),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    isRealCutoverSource
-                        ? 'Préparation du cutover réel'
-                        : 'Importer mon fichier Excel',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
+      child: ColoredBox(
+        color: AppColors.background,
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: ListView(
+                padding: AppLayout.pagePaddingFor(
+                  MediaQuery.sizeOf(context).width,
                 ),
-                TextButton.icon(
-                  key: const Key('exit-import-assistant-button'),
-                  onPressed: () => _exitAssistant(controller),
-                  icon: const Icon(Icons.close_outlined),
-                  label: const Text('Quitter'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            _NoticeCard(
-              icon: Icons.info_outline,
-              color: const Color(0xFFEEF1F4),
-              message: isRealCutoverSource
-                  ? 'Source reconnue pour la préparation du cutover réel. Cette revue locale ne sélectionne ni n’archive aucun onglet.'
-                  : 'Parcourez le fichier, contrôlez les données et confirmez uniquement ce que vous souhaitez préparer.',
-            ),
-            const SizedBox(height: AppSpacing.md),
-            if (!isRealCutoverSource) _ProgressCard(currentStep: currentStep),
-            if (state.loadingProgress case final progress?) ...[
-              const SizedBox(height: 12),
-              LinearProgressIndicator(value: progress.clamp(0, 1).toDouble()),
-              const SizedBox(height: 6),
-              Text(state.loadingMessage ?? 'Preparation de l import...'),
-            ],
-            const SizedBox(height: 20),
-            _ActionCard(
-              icon: Icons.upload_file_rounded,
-              title: '1. Choisir votre fichier',
-              body:
-                  'Selectionnez votre fichier Excel. Il est lu avant tout import.',
-              action: FilledButton.icon(
-                onPressed: state.isPicking ? null : controller.chooseWorkbook,
-                icon: const Icon(Icons.folder_open_outlined),
-                label: Text(
-                  state.isPicking
-                      ? 'Lecture du fichier en cours...'
-                      : 'Choisir mon fichier Excel',
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _ActionCard(
-              icon: Icons.link_rounded,
-              title: 'Ou importer depuis Google Sheets',
-              body:
-                  'Collez le lien de votre Google Sheet. Le document doit etre partage avec ce lien ou accessible a votre compte Google.',
-              action: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextField(
-                    controller: _googleSheetController,
-                    keyboardType: TextInputType.url,
-                    decoration: const InputDecoration(
-                      labelText: 'Lien Google Sheets',
-                      hintText: 'https://docs.google.com/spreadsheets/d/...',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.icon(
-                    onPressed: state.isLoadingGoogleSheet
-                        ? null
-                        : () => controller.loadGoogleSheet(
-                            _googleSheetController.text,
-                          ),
-                    icon: const Icon(Icons.cloud_download_outlined),
-                    label: Text(
-                      state.isLoadingGoogleSheet
-                          ? (state.loadingMessage ??
-                                'Lecture du Google Sheet en cours...')
-                          : 'Lire ce Google Sheet',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (state.error case final error?) ...[
-              const SizedBox(height: 12),
-              _NoticeCard(
-                icon: Icons.error_outline,
-                color: Theme.of(context).colorScheme.errorContainer,
-                message: error,
-              ),
-            ],
-            if (analysis case final analysis?) ...[
-              const SizedBox(height: 16),
-              if (isRealCutoverSource) ...[
-                CutoverPreparationCard(
-                  key: ValueKey(
-                    'cutover-preparation-${analysis.sourceFingerprint}',
-                  ),
-                  analysis: analysis,
-                  onDirtyChanged: (value) =>
-                      _preparationHasLocalChanges = value,
-                ),
-                const SizedBox(height: 16),
-              ],
-              _ActionCard(
-                icon: Icons.checklist_rounded,
-                title: isRealCutoverSource
-                    ? 'Archivage optionnel des onglets'
-                    : '2. Choisir ce que vous voulez importer',
-                body: isRealCutoverSource
-                    ? 'Ce mécanisme historique est distinct du cutover réel. Journal, scénarios et simulations ne sont pas nécessaires pour préparer les positions d’ouverture.'
-                    : '${analysis.fileName} est pret. Cochez uniquement les onglets que vous souhaitez conserver.',
-                action: isRealCutoverSource
-                    ? const Text(
-                        'Aucun onglet n’est requis pour cette préparation. Ouvrez cette section uniquement si vous souhaitez utiliser l’archivage séparé.',
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${state.selectedImporterIds.length} onglet(s) choisi(s) sur ${analysis.sheetPreviews.length}',
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: controller.selectAllSheets,
-                            icon: const Icon(Icons.select_all_rounded),
-                            label: const Text('Selectionner tout'),
-                          ),
-                        ],
-                      ),
-              ),
-              const SizedBox(height: 8),
-              if (isRealCutoverSource)
-                _OptionalArchiveSheets(
-                  child: _buildSheetPreviews(
-                    analysis: analysis,
-                    state: state,
-                    controller: controller,
-                  ),
-                )
-              else
-                _buildSheetPreviews(
-                  analysis: analysis,
-                  state: state,
-                  controller: controller,
-                ),
-              if (!isRealCutoverSource ||
-                  state.selectedImporterIds.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _ActionCard(
-                  icon: Icons.health_and_safety_outlined,
-                  title: isRealCutoverSource
-                      ? 'Vérifier l’archivage sélectionné'
-                      : '3. Verifier puis confirmer',
-                  body: blockingSelected.isEmpty
-                      ? isRealCutoverSource
-                            ? 'Cette confirmation concerne uniquement l’archivage d’onglets, jamais le cutover réel.'
-                            : 'Les onglets choisis sont prets. Vous gardez le controle jusqu a la confirmation.'
-                      : '${blockingSelected.length} onglet(s) choisi(s) demandent votre attention.',
-                  action: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  Row(
                     children: [
-                      OutlinedButton.icon(
-                        onPressed: blockingSelected.isEmpty
-                            ? null
-                            : () => _showProblemsDialog(
-                                context: context,
-                                previews: blockingSelected,
-                                onSelectOnlyValid:
-                                    controller.selectOnlyValidSheets,
-                              ),
-                        icon: const Icon(Icons.help_outline_rounded),
-                        label: Text(
-                          'M aider a resoudre les problemes (${blockingSelected.length})',
+                      Expanded(
+                        child: Text(
+                          'Importer mes données',
+                          style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      FilledButton.icon(
-                        onPressed:
-                            analysis.canConfirmSelection(
-                                  state.selectedImporterIds,
-                                ) &&
-                                !state.isConfirmed
-                            ? controller.confirmAnalysis
-                            : null,
-                        icon: const Icon(Icons.verified_outlined),
-                        label: Text(
-                          state.isConfirmed
-                              ? 'Onglets confirmes'
-                              : 'Confirmer mes choix',
+                      TextButton.icon(
+                        key: const Key('exit-import-assistant-button'),
+                        onPressed: () => _exitAssistant(controller),
+                        icon: const Icon(Icons.close_outlined),
+                        label: const Text('Quitter'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const SecondaryInfoText(
+                    'Source, contrôle, plan, exécution et réconciliation dans un parcours unique et auditable.',
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  ImportWizardStepper(currentStep: currentStep),
+                  const SizedBox(height: AppSpacing.md),
+                  _NoticeCard(
+                    icon: Icons.info_outline,
+                    color: const Color(0xFFEEF1F4),
+                    message: isRealCutoverSource
+                        ? 'Source reconnue pour la préparation du cutover réel. Cette revue locale ne sélectionne ni n’archive aucun onglet.'
+                        : 'Parcourez le fichier, contrôlez les données et confirmez uniquement ce que vous souhaitez préparer.',
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (state.loadingProgress case final progress?) ...[
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: progress.clamp(0, 1).toDouble(),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(state.loadingMessage ?? 'Preparation de l import...'),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
+                  ResponsiveGrid(
+                    minItemWidth: 390,
+                    children: [
+                      _ActionCard(
+                        icon: Icons.upload_file_rounded,
+                        title: 'Fichier Excel',
+                        body:
+                            'Sélectionnez un fichier .xlsx à analyser localement.',
+                        action: FilledButton.icon(
+                          onPressed: state.isPicking
+                              ? null
+                              : controller.chooseWorkbook,
+                          icon: const Icon(Icons.folder_open_outlined),
+                          label: Text(
+                            state.isPicking
+                                ? 'Lecture en cours...'
+                                : 'Choisir mon fichier Excel',
+                          ),
+                        ),
+                      ),
+                      _ActionCard(
+                        icon: Icons.link_rounded,
+                        title: 'Google Sheets',
+                        body: 'Collez le lien partagé du classeur à analyser.',
+                        action: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TextField(
+                              controller: _googleSheetController,
+                              keyboardType: TextInputType.url,
+                              decoration: const InputDecoration(
+                                labelText: 'Lien Google Sheets',
+                                hintText:
+                                    'https://docs.google.com/spreadsheets/d/...',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            FilledButton.icon(
+                              onPressed: state.isLoadingGoogleSheet
+                                  ? null
+                                  : () => controller.loadGoogleSheet(
+                                      _googleSheetController.text,
+                                    ),
+                              icon: const Icon(Icons.cloud_download_outlined),
+                              label: Text(
+                                state.isLoadingGoogleSheet
+                                    ? (state.loadingMessage ??
+                                          'Lecture du Google Sheet en cours...')
+                                    : 'Lire ce Google Sheet',
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-              if (state.isConfirmed) ...[
-                const SizedBox(height: 12),
-                _NoticeCard(
-                  icon: Icons.check_circle_outline,
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  message:
-                      'Vos choix sont confirmes. L archivage sera realise apres l activation du foyer Supabase.',
-                ),
-                const SizedBox(height: 12),
-                _buildCutoverSection(
-                  analysis: analysis,
-                  selectedImporterIds: state.selectedImporterIds,
-                  cutoverHouseholds: cutoverHouseholds,
-                ),
-              ],
-              if (!isRealCutoverSource ||
-                  state.lastImportSessionId != null) ...[
-                const SizedBox(height: 16),
-                _ActionCard(
-                  icon: Icons.undo_rounded,
-                  title: isRealCutoverSource
-                      ? 'Annuler le dernier archivage'
-                      : 'Besoin de revenir en arriere ?',
-                  body:
-                      'Le dernier import termine pourra etre annule sans effacer son historique.',
-                  action: OutlinedButton.icon(
-                    onPressed: state.lastImportSessionId == null
-                        ? null
-                        : () => _showUndoDialog(context, controller),
-                    icon: const Icon(Icons.undo_outlined),
-                    label: Text(
-                      isRealCutoverSource
-                          ? 'Annuler le dernier archivage'
-                          : 'Annuler le dernier import',
+                  if (state.error case final error?) ...[
+                    const SizedBox(height: 12),
+                    _NoticeCard(
+                      icon: Icons.error_outline,
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      message: error,
                     ),
+                  ],
+                  if (analysis case final analysis?) ...[
+                    const SizedBox(height: 16),
+                    _SourceSummaryCard(
+                      analysis: analysis,
+                      realCutover: isRealCutoverSource,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    if (isRealCutoverSource) ...[
+                      CutoverPreparationCard(
+                        key: ValueKey(
+                          'cutover-preparation-${analysis.sourceFingerprint}',
+                        ),
+                        analysis: analysis,
+                        onDirtyChanged: (value) =>
+                            _preparationHasLocalChanges = value,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    _ActionCard(
+                      icon: Icons.checklist_rounded,
+                      title: isRealCutoverSource
+                          ? 'Archivage optionnel des onglets'
+                          : '2. Choisir ce que vous voulez importer',
+                      body: isRealCutoverSource
+                          ? 'Ce mécanisme historique est distinct du cutover réel. Journal, scénarios et simulations ne sont pas nécessaires pour préparer les positions d’ouverture.'
+                          : '${analysis.fileName} est pret. Cochez uniquement les onglets que vous souhaitez conserver.',
+                      action: isRealCutoverSource
+                          ? const Text(
+                              'Aucun onglet n’est requis pour cette préparation. Ouvrez cette section uniquement si vous souhaitez utiliser l’archivage séparé.',
+                            )
+                          : Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${state.selectedImporterIds.length} onglet(s) choisi(s) sur ${analysis.sheetPreviews.length}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelLarge,
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: controller.selectAllSheets,
+                                  icon: const Icon(Icons.select_all_rounded),
+                                  label: const Text('Selectionner tout'),
+                                ),
+                              ],
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (isRealCutoverSource)
+                      _OptionalArchiveSheets(
+                        child: _buildSheetPreviews(
+                          analysis: analysis,
+                          state: state,
+                          controller: controller,
+                        ),
+                      )
+                    else
+                      _buildSheetPreviews(
+                        analysis: analysis,
+                        state: state,
+                        controller: controller,
+                      ),
+                    if (!isRealCutoverSource ||
+                        state.selectedImporterIds.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _ActionCard(
+                        icon: Icons.health_and_safety_outlined,
+                        title: isRealCutoverSource
+                            ? 'Vérifier l’archivage sélectionné'
+                            : '3. Verifier puis confirmer',
+                        body: blockingSelected.isEmpty
+                            ? isRealCutoverSource
+                                  ? 'Cette confirmation concerne uniquement l’archivage d’onglets, jamais le cutover réel.'
+                                  : 'Les onglets choisis sont prets. Vous gardez le controle jusqu a la confirmation.'
+                            : '${blockingSelected.length} onglet(s) choisi(s) demandent votre attention.',
+                        action: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: blockingSelected.isEmpty
+                                  ? null
+                                  : () => _showProblemsDialog(
+                                      context: context,
+                                      previews: blockingSelected,
+                                      onSelectOnlyValid:
+                                          controller.selectOnlyValidSheets,
+                                    ),
+                              icon: const Icon(Icons.help_outline_rounded),
+                              label: Text(
+                                'M aider a resoudre les problemes (${blockingSelected.length})',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            FilledButton.icon(
+                              onPressed:
+                                  analysis.canConfirmSelection(
+                                        state.selectedImporterIds,
+                                      ) &&
+                                      !state.isConfirmed
+                                  ? controller.confirmAnalysis
+                                  : null,
+                              icon: const Icon(Icons.verified_outlined),
+                              label: Text(
+                                state.isConfirmed
+                                    ? 'Onglets confirmes'
+                                    : 'Confirmer mes choix',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (state.isConfirmed) ...[
+                      const SizedBox(height: 12),
+                      _NoticeCard(
+                        icon: Icons.check_circle_outline,
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        message:
+                            'Vos choix sont confirmes. L archivage sera realise apres l activation du foyer Supabase.',
+                      ),
+                      const SizedBox(height: 12),
+                      _buildCutoverSection(
+                        analysis: analysis,
+                        selectedImporterIds: state.selectedImporterIds,
+                        cutoverHouseholds: cutoverHouseholds,
+                      ),
+                    ],
+                    if (!isRealCutoverSource ||
+                        state.lastImportSessionId != null) ...[
+                      const SizedBox(height: 16),
+                      _ActionCard(
+                        icon: Icons.undo_rounded,
+                        title: isRealCutoverSource
+                            ? 'Annuler le dernier archivage'
+                            : 'Besoin de revenir en arriere ?',
+                        body:
+                            'Le dernier import termine pourra etre annule sans effacer son historique.',
+                        action: OutlinedButton.icon(
+                          onPressed: state.lastImportSessionId == null
+                              ? null
+                              : () => _showUndoDialog(context, controller),
+                          icon: const Icon(Icons.undo_outlined),
+                          label: Text(
+                            isRealCutoverSource
+                                ? 'Annuler le dernier archivage'
+                                : 'Annuler le dernier import',
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      key: const Key('back-to-file-step-button'),
+                      onPressed: () => _returnToFileStep(controller),
+                      icon: const Icon(Icons.arrow_back_outlined),
+                      label: const Text('Retour au choix du fichier'),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  TextButton.icon(
+                    key: const Key('quit-import-assistant-bottom-button'),
+                    onPressed: () => _exitAssistant(controller),
+                    icon: const Icon(Icons.close_outlined),
+                    label: const Text('Quitter l’assistant'),
                   ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                key: const Key('back-to-file-step-button'),
-                onPressed: () => _returnToFileStep(controller),
-                icon: const Icon(Icons.arrow_back_outlined),
-                label: const Text('Retour au choix du fichier'),
+                ],
               ),
-            ],
-            const SizedBox(height: 20),
-            TextButton.icon(
-              key: const Key('quit-import-assistant-bottom-button'),
-              onPressed: () => _exitAssistant(controller),
-              icon: const Icon(Icons.close_outlined),
-              label: const Text('Quitter l’assistant'),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -438,180 +464,201 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     final outsideHolderErrors = plan == null || memberIds == null
         ? const <String>[]
         : plan.ownershipErrorsForMemberIds(memberIds);
-    return _ActionCard(
-      icon: Icons.account_balance_outlined,
-      title: '4. Plan de positions d’ouverture B1',
-      body: hasOpeningSheet
-          ? 'Le plan cible est explicite, auditable et exécute seulement les RPC canoniques Cutover A.'
-          : 'Sélectionnez l’onglet « Positions ouverture » pour préparer le cutover B1.',
-      action: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (cutoverHouseholds.hasError)
-            const Text('Impossible de charger les households éligibles.'),
-          if (cutoverHouseholds.isLoading) const LinearProgressIndicator(),
-          if (!cutoverHouseholds.isLoading && !cutoverHouseholds.hasError)
-            DropdownButtonFormField<String>(
-              key: const Key('cutover-household-selector'),
-              initialValue: _selectedCutoverHouseholdId,
-              decoration: const InputDecoration(
-                labelText: 'Household cible',
-                border: OutlineInputBorder(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ActionCard(
+          icon: Icons.home_work_outlined,
+          title: 'Destination',
+          body: hasOpeningSheet
+              ? 'Choisissez explicitement le foyer cible autorisé.'
+              : 'Sélectionnez l’onglet « Positions ouverture » pour préparer le cutover B1.',
+          action: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (cutoverHouseholds.hasError)
+                const Text('Impossible de charger les households éligibles.'),
+              if (cutoverHouseholds.isLoading) const LinearProgressIndicator(),
+              if (!cutoverHouseholds.isLoading && !cutoverHouseholds.hasError)
+                DropdownButtonFormField<String>(
+                  key: const Key('cutover-household-selector'),
+                  initialValue: _selectedCutoverHouseholdId,
+                  decoration: const InputDecoration(
+                    labelText: 'Household cible',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: households
+                      .map(
+                        (household) => DropdownMenuItem(
+                          value: household.id,
+                          child: Text(
+                            '${household.name} — ${household.classificationLabel}',
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: plan?.confirmedAt != null
+                      ? null
+                      : (householdId) => setState(() {
+                          _selectedCutoverHouseholdId = householdId;
+                          _cutoverPlan = null;
+                          _cutoverResult = null;
+                          _cutoverError = null;
+                        }),
+                ),
+              if (selectedHousehold != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: ImportDecisionBadge(
+                    key: Key(
+                      selectedHousehold.isOperational
+                          ? 'operational-household-badge'
+                          : 'technical-household-badge',
+                    ),
+                    label: selectedHousehold.isOperational
+                        ? 'ENVIRONNEMENT OPÉRATIONNEL'
+                        : 'ENVIRONNEMENT TECHNIQUE',
+                    tone: selectedHousehold.isOperational
+                        ? ImportDecisionTone.operational
+                        : ImportDecisionTone.technical,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+              ExpansionTile(
+                key: const Key('cutover-technical-details'),
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                title: const Text('Détails techniques'),
+                subtitle: const Text(
+                  'Fingerprint et identifiant de destination',
+                ),
+                children: [
+                  SelectableText('Fingerprint : ${analysis.sourceFingerprint}'),
+                  if (selectedHousehold != null)
+                    SelectableText('Household ID : ${selectedHousehold.id}'),
+                ],
               ),
-              items: households
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  key: const Key('cutover-plan-button'),
+                  onPressed:
+                      !hasOpeningSheet ||
+                          selectedHousehold == null ||
+                          _preparingCutover
+                      ? null
+                      : () => _prepareCutover(analysis, selectedHousehold),
+                  icon: const Icon(Icons.preview_outlined),
+                  label: Text(
+                    _preparingCutover
+                        ? 'Recherche du run...'
+                        : 'Préparer le plan B1',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (plan != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          _PlanSummaryCard(plan: plan, household: selectedHousehold),
+          const SizedBox(height: AppSpacing.md),
+          DesktopSection(
+            title: 'Comptes candidats',
+            subtitle:
+                '${plan.accounts.length} position(s) à créer ou rattacher',
+            child: ResponsiveGrid(
+              minItemWidth: 330,
+              children: plan.accounts.indexed
                   .map(
-                    (household) => DropdownMenuItem(
-                      value: household.id,
-                      child: Text(
-                        '${household.name} — ${household.classificationLabel}',
+                    (entry) => CutoverAccountOwnershipCard(
+                      key: ValueKey('cutover-account-${entry.$2.name}'),
+                      account: entry.$2,
+                      members: householdMembers.valueOrNull ?? const [],
+                      membersLoading: householdMembers.isLoading,
+                      membersError: householdMembers.hasError,
+                      enabled: plan.confirmedAt == null,
+                      onChanged: (account) => setState(
+                        () => _cutoverPlan = plan.updateAccount(
+                          entry.$1,
+                          account,
+                        ),
                       ),
                     ),
                   )
                   .toList(growable: false),
-              onChanged: plan?.confirmedAt != null
-                  ? null
-                  : (householdId) => setState(() {
-                      _selectedCutoverHouseholdId = householdId;
-                      _cutoverPlan = null;
-                      _cutoverResult = null;
-                      _cutoverError = null;
-                    }),
-            ),
-          if (selectedHousehold != null) ...[
-            const SizedBox(height: 8),
-            Text('Classification : ${selectedHousehold.classificationLabel}'),
-            Text(
-              !selectedHousehold.isOperational
-                  ? 'ENVIRONNEMENT TECHNIQUE'
-                  : 'ENVIRONNEMENT OPÉRATIONNEL',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-          ],
-          Text('Fingerprint source : ${analysis.sourceFingerprint}'),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            key: const Key('cutover-plan-button'),
-            onPressed:
-                !hasOpeningSheet ||
-                    selectedHousehold == null ||
-                    _preparingCutover
-                ? null
-                : () => _prepareCutover(analysis, selectedHousehold),
-            icon: const Icon(Icons.preview_outlined),
-            label: Text(
-              _preparingCutover ? 'Recherche du run...' : 'Préparer le plan B1',
             ),
           ),
-          if (plan != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Date effective : ${CutoverOpeningPlan.formatDate(plan.effectiveDate)}',
+          const SizedBox(height: AppSpacing.md),
+          DesktopSection(
+            title: 'Enveloppes candidates',
+            subtitle:
+                '${plan.envelopes.length} position(s), sans compensation automatique',
+            child: ResponsiveGrid(
+              minItemWidth: 280,
+              children: plan.envelopes
+                  .map((item) => _CutoverEnvelopeCard(item: item))
+                  .toList(growable: false),
             ),
-            if (selectedHousehold != null) ...[
-              Text('Household cible : ${selectedHousehold.name}'),
-              Text('Classification : ${selectedHousehold.classificationLabel}'),
-            ],
-            Text(
-              'Comptes : ${plan.accounts.length} • Enveloppes : ${plan.envelopes.length}',
+          ),
+          if (plan.blockingErrors.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _NoticeCard(
+              icon: Icons.error_outline,
+              color: AppColors.dangerContainer,
+              message: plan.blockingErrors.join('\n'),
             ),
-            ...plan.accounts.indexed.map(
-              (entry) => CutoverAccountOwnershipCard(
-                key: ValueKey('cutover-account-${entry.$2.name}'),
-                account: entry.$2,
-                members: householdMembers.valueOrNull ?? const [],
-                membersLoading: householdMembers.isLoading,
-                membersError: householdMembers.hasError,
-                enabled: plan.confirmedAt == null,
-                onChanged: (account) => setState(
-                  () => _cutoverPlan = plan.updateAccount(entry.$1, account),
+          ],
+          if (outsideHolderErrors.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _NoticeCard(
+              icon: Icons.error_outline,
+              color: AppColors.dangerContainer,
+              message: outsideHolderErrors.join('\n'),
+            ),
+          ],
+          if (plan.confirmedAt == null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  key: const Key('cutover-confirm-button'),
+                  onPressed:
+                      plan.canConfirm &&
+                          householdMembers.hasValue &&
+                          outsideHolderErrors.isEmpty
+                      ? () => setState(
+                          () => _cutoverPlan = plan.confirm(DateTime.now()),
+                        )
+                      : null,
+                  icon: const Icon(Icons.verified_outlined),
+                  label: const Text('Confirmer ce plan'),
                 ),
               ),
-            ),
-            ...plan.envelopes.map(
-              (item) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  '${item.name}${item.isToAllocate ? ' (À répartir)' : ''} • ${item.openingAmount} MAD',
-                ),
-                subtitle: Text(
-                  item.referenceConflict ??
-                      'Décision : ${item.conflictDecision == 'match' ? 'RATTACHER À L’EXISTANT' : 'CRÉER'}',
-                ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: CutoverExecutionPanel(
+                confirmed: true,
+                executing: _executingCutover,
+                result: _cutoverResult,
+                onExecute: () => _executeCutover(analysis, plan),
               ),
             ),
-            if (plan.blockingErrors.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              ...plan.blockingErrors.map((error) => Text(error)),
-            ],
-            if (outsideHolderErrors.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              ...outsideHolderErrors.map(Text.new),
-            ],
-            if (plan.confirmedAt == null)
-              FilledButton.icon(
-                key: const Key('cutover-confirm-button'),
-                onPressed:
-                    plan.canConfirm &&
-                        householdMembers.hasValue &&
-                        outsideHolderErrors.isEmpty
-                    ? () => setState(
-                        () => _cutoverPlan = plan.confirm(DateTime.now()),
-                      )
-                    : null,
-                icon: const Icon(Icons.verified_outlined),
-                label: const Text('Confirmer ce plan'),
-              )
-            else ...[
-              const SizedBox(height: 8),
-              FilledButton.icon(
-                key: const Key('cutover-execute-button'),
-                onPressed: _executingCutover
-                    ? null
-                    : () => _executeCutover(analysis, plan),
-                icon: _executingCutover
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.play_arrow_rounded),
-                label: Text(
-                  _executingCutover
-                      ? 'Exécution...'
-                      : 'Exécuter et réconcilier',
-                ),
-              ),
-            ],
-          ],
-          if (_cutoverError case final error?) ...[
-            const SizedBox(height: 8),
-            Text(error),
-          ],
-          if (_cutoverResult case final result?) ...[
-            const SizedBox(height: 8),
-            Text(
-              result['status'] == 'RECONCILED'
-                  ? 'RECONCILED — écart zéro.'
-                  : 'NOT_RECONCILED',
-            ),
-            Text(
-              'Événements : ${result['financial_events']} • transactions GL : ${result['gl_transactions']} • mouvements enveloppes : ${result['envelope_movements']}',
-            ),
-            ...((result['accounts'] as List<dynamic>? ?? const []).map((item) {
-              final value = Map<String, dynamic>.from(item as Map);
-              return Text(
-                '${value['name']} : attendu ${value['expected']} / réel ${value['actual']} / écart ${value['difference']}',
-              );
-            })),
-            ...((result['envelopes'] as List<dynamic>? ?? const []).map((item) {
-              final value = Map<String, dynamic>.from(item as Map);
-              return Text(
-                '${value['name']} : attendu ${value['expected']} / réel ${value['actual']} / écart ${value['difference']}',
-              );
-            })),
-          ],
         ],
-      ),
+        if (_cutoverError case final error?) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _NoticeCard(
+            icon: Icons.error_outline,
+            color: AppColors.dangerContainer,
+            message: error,
+          ),
+        ],
+      ],
     );
   }
 
@@ -768,6 +815,203 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
   );
 }
 
+class _SourceSummaryCard extends StatelessWidget {
+  const _SourceSummaryCard({required this.analysis, required this.realCutover});
+
+  final WorkbookImportAnalysis analysis;
+  final bool realCutover;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    key: const Key('import-source-summary'),
+    child: Padding(
+      padding: AppSpacing.card,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.description_outlined, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  analysis.fileName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              ImportDecisionBadge(
+                label: realCutover ? 'CUTOVER RÉEL' : 'SOURCE ANALYSÉE',
+                tone: realCutover
+                    ? ImportDecisionTone.technical
+                    : ImportDecisionTone.operational,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          SecondaryInfoText(
+            '${analysis.sheetPreviews.length} onglet(s) reconnu(s) • '
+            '${analysis.unhandledSheetNames.length} non reconnu(s)',
+          ),
+          ExpansionTile(
+            key: const Key('import-technical-details'),
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: AppSpacing.xs),
+            title: const Text('Détails techniques'),
+            subtitle: const Text('Empreinte SHA-256 de la source originale'),
+            children: [SelectableText(analysis.sourceFingerprint)],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _PlanSummaryCard extends StatelessWidget {
+  const _PlanSummaryCard({required this.plan, required this.household});
+
+  final CutoverOpeningPlan plan;
+  final CutoverEligibleHousehold? household;
+
+  @override
+  Widget build(BuildContext context) {
+    final accountsTotal = plan.accounts.fold<num>(
+      0,
+      (total, item) => total + item.openingAmount,
+    );
+    final envelopesTotal = plan.envelopes.fold<num>(
+      0,
+      (total, item) => total + item.openingAmount,
+    );
+    return DesktopSection(
+      title: '3. Plan de positions d’ouverture',
+      subtitle: 'Revue obligatoire avant toute exécution',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ResponsiveGrid(
+            minItemWidth: 210,
+            children: [
+              _PlanMetric(
+                label: 'Date effective',
+                value: CutoverOpeningPlan.formatDate(plan.effectiveDate),
+              ),
+              _PlanMetric(
+                label: 'Comptes',
+                value: '${plan.accounts.length} • $accountsTotal MAD',
+              ),
+              _PlanMetric(
+                label: 'Enveloppes',
+                value: '${plan.envelopes.length} • $envelopesTotal MAD',
+              ),
+              _PlanMetric(
+                label: 'Destination',
+                value: household?.name ?? 'Household explicite',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const SecondaryInfoText(
+            'Les comptes et les enveloppes sont deux ledgers indépendants. Aucun équilibrage artificiel entre leurs totaux.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanMetric extends StatelessWidget {
+  const _PlanMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(AppSpacing.sm),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: AppRadius.input,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: AppSpacing.xxs),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+      ],
+    ),
+  );
+}
+
+class _CutoverEnvelopeCard extends StatelessWidget {
+  const _CutoverEnvelopeCard({required this.item});
+
+  final CutoverOpeningEnvelope item;
+
+  @override
+  Widget build(BuildContext context) {
+    final conflict = item.referenceConflict != null;
+    final match = item.conflictDecision == 'match';
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: AppSpacing.card,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.name,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                ImportDecisionBadge(
+                  label: conflict
+                      ? 'CONFLIT'
+                      : match
+                      ? 'MATCH'
+                      : 'CRÉER',
+                  tone: conflict
+                      ? ImportDecisionTone.conflict
+                      : match
+                      ? ImportDecisionTone.match
+                      : ImportDecisionTone.create,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text('${item.openingAmount} MAD'),
+            if (item.isToAllocate)
+              const SecondaryInfoText('Enveloppe système À répartir'),
+            if (item.referenceConflict != null) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                item.referenceConflict!,
+                style: const TextStyle(color: AppColors.danger),
+              ),
+            ],
+            if (item.matchedEnvelopeId != null)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Référence technique'),
+                children: [SelectableText(item.matchedEnvelopeId!)],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class CutoverAccountOwnershipCard extends StatelessWidget {
   const CutoverAccountOwnershipCard({
     super.key,
@@ -802,10 +1046,30 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '${account.name} • ${account.kind} • ${account.openingAmount} MAD',
-              style: Theme.of(context).textTheme.titleSmall,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${account.name} • ${account.openingAmount} MAD',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                ImportDecisionBadge(
+                  label: account.referenceConflict != null || error != null
+                      ? 'CONFLIT'
+                      : account.conflictDecision == 'match'
+                      ? 'MATCH'
+                      : 'CRÉER',
+                  tone: account.referenceConflict != null || error != null
+                      ? ImportDecisionTone.conflict
+                      : account.conflictDecision == 'match'
+                      ? ImportDecisionTone.match
+                      : ImportDecisionTone.create,
+                ),
+              ],
             ),
+            const SizedBox(height: AppSpacing.xxs),
+            SecondaryInfoText('Type : ${account.kind}'),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               key: ValueKey('cutover-ownership-${account.name}'),
@@ -888,11 +1152,15 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
             ],
             const SizedBox(height: 6),
             Text('Décision : $action'),
-            if (account.matchedAccountId != null)
-              Text('Compte existant : ${account.matchedAccountId}'),
             Text(
               'Titularité : ${_ownershipLabel(ownership)} • Titulaires : ${_holderLabels(account.holderUserIds, members)}',
             ),
+            if (account.matchedAccountId != null)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Référence technique'),
+                children: [SelectableText(account.matchedAccountId!)],
+              ),
             if (error != null)
               Text(
                 error,
@@ -982,74 +1250,6 @@ class _ProblemsForSheet extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ProgressCard extends StatelessWidget {
-  const _ProgressCard({required this.currentStep});
-
-  final int currentStep;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    color: Theme.of(context).colorScheme.secondaryContainer,
-    child: Padding(
-      padding: AppSpacing.card,
-      child: Row(
-        children: [
-          _ProgressStep(
-            number: '1',
-            label: 'Fichier',
-            active: currentStep >= 0,
-          ),
-          const Expanded(child: Divider()),
-          _ProgressStep(number: '2', label: 'Choix', active: currentStep >= 1),
-          const Expanded(child: Divider()),
-          _ProgressStep(
-            number: '3',
-            label: 'Verification',
-            active: currentStep >= 2,
-          ),
-          const Expanded(child: Divider()),
-          _ProgressStep(
-            number: '4',
-            label: 'Confirmation',
-            active: currentStep >= 3,
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _ProgressStep extends StatelessWidget {
-  const _ProgressStep({
-    required this.number,
-    required this.label,
-    required this.active,
-  });
-
-  final String number;
-  final String label;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      CircleAvatar(
-        radius: 16,
-        backgroundColor: active
-            ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-        foregroundColor: active
-            ? Theme.of(context).colorScheme.onPrimary
-            : Theme.of(context).colorScheme.onSurfaceVariant,
-        child: Text(number),
-      ),
-      const SizedBox(height: 6),
-      Text(label, style: Theme.of(context).textTheme.labelSmall),
-    ],
-  );
 }
 
 class _ActionCard extends StatelessWidget {
@@ -1159,19 +1359,22 @@ class _SheetPreviewCard extends StatelessWidget {
         ? Theme.of(context).colorScheme.errorContainer
         : null,
     child: CheckboxListTile(
+      dense: true,
       value: selected,
       onChanged: (value) => onSelected(value ?? false),
       controlAffinity: ListTileControlAffinity.leading,
-      secondary: Icon(
-        preview.canBeConfirmed
-            ? Icons.check_circle_outline
-            : Icons.error_outline,
+      secondary: ImportDecisionBadge(
+        label: preview.canBeConfirmed ? 'PRÊT' : 'À VÉRIFIER',
+        tone: preview.canBeConfirmed
+            ? ImportDecisionTone.create
+            : ImportDecisionTone.conflict,
       ),
       title: Text(preview.sourceSheetName),
       subtitle: Text(
-        '${preview.detectedRecords} elements reconnus\n${preview.issues.map((issue) => issue.message).join('\n')}',
+        '${preview.detectedRecords} élément(s) reconnu(s)'
+        '${preview.issues.isEmpty ? '' : '\n${preview.issues.map((issue) => issue.message).join('\n')}'}',
       ),
-      isThreeLine: true,
+      isThreeLine: preview.issues.isNotEmpty,
     ),
   );
 }
