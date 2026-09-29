@@ -334,42 +334,45 @@ class CompactFinanceNavigation extends StatelessWidget {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text(
-                'Plus',
-                style: TextStyle(fontWeight: FontWeight.w700),
+        child: SingleChildScrollView(
+          key: const Key('mobile-more-list'),
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text(
+                  'Plus',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text('Autres espaces de FINANCIEL PILOTE'),
               ),
-              subtitle: Text('Autres espaces de FINANCIEL PILOTE'),
-            ),
-            _moreDestination(
-              context,
-              index: 2,
-              icon: Icons.dashboard_outlined,
-              label: 'Fondation',
-            ),
-            _moreDestination(
-              context,
-              index: 5,
-              icon: Icons.shopping_cart_outlined,
-              label: 'Achats',
-            ),
-            _moreDestination(
-              context,
-              index: 6,
-              icon: Icons.low_priority_outlined,
-              label: 'Priorités',
-            ),
-            _moreDestination(
-              context,
-              index: 7,
-              icon: Icons.upload_file_outlined,
-              label: 'Import',
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
+              _moreDestination(
+                context,
+                index: 2,
+                icon: Icons.dashboard_outlined,
+                label: 'Fondation',
+              ),
+              _moreDestination(
+                context,
+                index: 5,
+                icon: Icons.shopping_cart_outlined,
+                label: 'Achats',
+              ),
+              _moreDestination(
+                context,
+                index: 6,
+                icon: Icons.low_priority_outlined,
+                label: 'Priorités',
+              ),
+              _moreDestination(
+                context,
+                index: 7,
+                icon: Icons.upload_file_outlined,
+                label: 'Import',
+              ),
+            ],
+          ),
         ),
       ),
     );

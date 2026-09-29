@@ -478,6 +478,84 @@ void main() {
     );
   }
 
+  for (final viewport in const [
+    Size(390, 360),
+    Size(430, 600),
+    Size(390, 900),
+  ]) {
+    testWidgets(
+      'la feuille Plus reste accessible à ${viewport.width}x${viewport.height}',
+      (tester) async {
+        tester.view.physicalSize = viewport;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        var selectedIndex = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: Text('Destination $selectedIndex'),
+                bottomNavigationBar: CompactFinanceNavigation(
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: (index) =>
+                      setState(() => selectedIndex = index),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final navigation = find.byKey(const Key('compact-mobile-navigation'));
+        await tester.tap(
+          find.descendant(of: navigation, matching: find.text('Plus')),
+        );
+        await tester.pumpAndSettle();
+
+        final moreList = find.byKey(const Key('mobile-more-list'));
+        expect(moreList, findsOneWidget);
+        expect(
+          find.ancestor(of: moreList, matching: find.byType(SafeArea)),
+          findsOneWidget,
+        );
+        for (final destinationIndex in [2, 5, 6, 7]) {
+          expect(
+            find.byKey(Key('mobile-more-destination-$destinationIndex')),
+            findsOneWidget,
+          );
+        }
+
+        final scrollable = find.descendant(
+          of: moreList,
+          matching: find.byType(Scrollable),
+        );
+        expect(scrollable, findsOneWidget);
+        if (viewport.height == 360) {
+          expect(
+            tester.state<ScrollableState>(scrollable).position.maxScrollExtent,
+            greaterThan(0),
+          );
+        }
+        final importDestination = find.byKey(
+          const Key('mobile-more-destination-7'),
+        );
+        await tester.scrollUntilVisible(
+          importDestination,
+          120,
+          scrollable: scrollable,
+        );
+        await tester.tap(importDestination);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Destination 7'), findsOneWidget);
+        expect(find.byKey(const Key('mobile-more-list')), findsNothing);
+        expect(tester.widget<NavigationBar>(navigation).selectedIndex, 4);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('largeur intermédiaire conserve les huit destinations lisibles', (
     tester,
   ) async {
