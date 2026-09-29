@@ -62,6 +62,8 @@ class FinanceShell extends ConsumerStatefulWidget {
 }
 
 class _FinanceShellState extends ConsumerState<FinanceShell> {
+  static const _compactNavigationBreakpoint = 720.0;
+
   var _selectedIndex = 0;
 
   @override
@@ -77,6 +79,9 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
       ImportsPage(),
     ];
     final desktop = AppLayout.isDesktop(MediaQuery.sizeOf(context).width);
+    final compactNavigation =
+        !desktop &&
+        MediaQuery.sizeOf(context).width < _compactNavigationBreakpoint;
     final navigation = desktop
         ? Container(
             width: 116,
@@ -205,6 +210,12 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
             : content,
         bottomNavigationBar: desktop
             ? null
+            : compactNavigation
+            ? CompactFinanceNavigation(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: (index) =>
+                    setState(() => _selectedIndex = index),
+              )
             : NavigationBar(
                 selectedIndex: _selectedIndex,
                 onDestinationSelected: (index) =>
@@ -261,4 +272,124 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
     ref.invalidate(activeHouseholdProvider);
     ref.invalidate(remoteAccountsProvider);
   }
+}
+
+@visibleForTesting
+class CompactFinanceNavigation extends StatelessWidget {
+  const CompactFinanceNavigation({
+    super.key,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  static const _primaryDestinationIndexes = [0, 1, 3, 4];
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) => NavigationBar(
+    key: const Key('compact-mobile-navigation'),
+    selectedIndex: _primaryDestinationIndexes.contains(selectedIndex)
+        ? _primaryDestinationIndexes.indexOf(selectedIndex)
+        : 4,
+    onDestinationSelected: (index) {
+      if (index == 4) {
+        _showMoreDestinations(context);
+        return;
+      }
+      onDestinationSelected(_primaryDestinationIndexes[index]);
+    },
+    destinations: const [
+      NavigationDestination(
+        icon: Icon(Icons.dashboard_outlined),
+        selectedIcon: Icon(Icons.dashboard),
+        label: 'Pilotage',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.account_balance_outlined),
+        selectedIcon: Icon(Icons.account_balance),
+        label: 'Comptes',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.account_balance_wallet_outlined),
+        selectedIcon: Icon(Icons.account_balance_wallet),
+        label: 'Enveloppes',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.savings_outlined),
+        selectedIcon: Icon(Icons.savings),
+        label: 'Objectifs',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.more_horiz),
+        selectedIcon: Icon(Icons.more),
+        label: 'Plus',
+      ),
+    ],
+  );
+
+  Future<void> _showMoreDestinations(BuildContext context) async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text(
+                'Plus',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text('Autres espaces de FINANCIEL PILOTE'),
+            ),
+            _moreDestination(
+              context,
+              index: 2,
+              icon: Icons.dashboard_outlined,
+              label: 'Fondation',
+            ),
+            _moreDestination(
+              context,
+              index: 5,
+              icon: Icons.shopping_cart_outlined,
+              label: 'Achats',
+            ),
+            _moreDestination(
+              context,
+              index: 6,
+              icon: Icons.low_priority_outlined,
+              label: 'Priorités',
+            ),
+            _moreDestination(
+              context,
+              index: 7,
+              icon: Icons.upload_file_outlined,
+              label: 'Import',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted || selected == null) return;
+    onDestinationSelected(selected);
+  }
+
+  Widget _moreDestination(
+    BuildContext context, {
+    required int index,
+    required IconData icon,
+    required String label,
+  }) => ListTile(
+    key: Key('mobile-more-destination-$index'),
+    leading: Icon(icon),
+    title: Text(label),
+    trailing: selectedIndex == index
+        ? const Icon(Icons.check, color: AppColors.secondary)
+        : const Icon(Icons.chevron_right),
+    selected: selectedIndex == index,
+    onTap: () => Navigator.of(context).pop(index),
+  );
 }

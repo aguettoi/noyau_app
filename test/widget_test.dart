@@ -380,10 +380,128 @@ void main() {
     },
   );
 
+  for (final width in [390.0, 430.0]) {
+    testWidgets(
+      'navigation mobile compacte à $width px expose Plus et les huit espaces',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        var selectedIndex = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: Text('Destination $selectedIndex'),
+                bottomNavigationBar: CompactFinanceNavigation(
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: (index) =>
+                      setState(() => selectedIndex = index),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final navigation = find.byKey(const Key('compact-mobile-navigation'));
+        expect(navigation, findsOneWidget);
+        expect(
+          find.descendant(
+            of: navigation,
+            matching: find.byType(NavigationDestination),
+          ),
+          findsNWidgets(5),
+        );
+        for (final label in [
+          'Pilotage',
+          'Comptes',
+          'Enveloppes',
+          'Objectifs',
+          'Plus',
+        ]) {
+          expect(
+            find.descendant(of: navigation, matching: find.text(label)),
+            findsOneWidget,
+          );
+        }
+        for (final label in ['Fondation', 'Achats', 'Priorités', 'Import']) {
+          expect(
+            find.descendant(of: navigation, matching: find.text(label)),
+            findsNothing,
+          );
+        }
+
+        await tester.tap(
+          find.descendant(of: navigation, matching: find.text('Plus')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Autres espaces de FINANCIEL PILOTE'), findsOneWidget);
+        for (final destinationIndex in [2, 5, 6, 7]) {
+          expect(
+            find.byKey(Key('mobile-more-destination-$destinationIndex')),
+            findsOneWidget,
+          );
+        }
+        for (final destinationIndex in [2, 5, 6, 7]) {
+          if (destinationIndex != 2) {
+            await tester.tap(
+              find.descendant(of: navigation, matching: find.text('Plus')),
+            );
+            await tester.pumpAndSettle();
+          }
+          await tester.tap(
+            find.byKey(Key('mobile-more-destination-$destinationIndex')),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Destination $destinationIndex'), findsOneWidget);
+          expect(tester.widget<NavigationBar>(navigation).selectedIndex, 4);
+        }
+        for (final destination in const [
+          (0, 'Pilotage'),
+          (1, 'Comptes'),
+          (3, 'Enveloppes'),
+          (4, 'Objectifs'),
+        ]) {
+          await tester.tap(
+            find.descendant(
+              of: navigation,
+              matching: find.text(destination.$2),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Destination ${destination.$1}'), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('largeur intermédiaire conserve les huit destinations lisibles', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await pumpApp(tester);
+    final navigation = find.byType(NavigationBar);
+    expect(
+      find.descendant(
+        of: navigation,
+        matching: find.byType(NavigationDestination),
+      ),
+      findsNWidgets(8),
+    );
+    expect(find.text('Plus'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('la navigation desktop utilise un rail sans modifier le mobile', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
