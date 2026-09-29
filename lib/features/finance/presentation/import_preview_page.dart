@@ -459,7 +459,6 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                 border: OutlineInputBorder(),
               ),
               items: households
-                  .where((household) => household.isOperational)
                   .map(
                     (household) => DropdownMenuItem(
                       value: household.id,
