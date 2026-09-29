@@ -529,8 +529,15 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
               ),
             ),
             ...plan.envelopes.map(
-              (item) => Text(
-                '${item.name}${item.isToAllocate ? ' (À répartir)' : ''} • ${item.openingAmount} MAD',
+              (item) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  '${item.name}${item.isToAllocate ? ' (À répartir)' : ''} • ${item.openingAmount} MAD',
+                ),
+                subtitle: Text(
+                  item.referenceConflict ??
+                      'Décision : ${item.conflictDecision == 'match' ? 'RATTACHER À L’EXISTANT' : 'CRÉER'}',
+                ),
               ),
             ),
             if (plan.blockingErrors.isNotEmpty) ...[
@@ -673,6 +680,16 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
           );
         }
       });
+      if (existing == null) {
+        final prepared = _cutoverPlan;
+        if (prepared != null) {
+          final resolved = await ref
+              .read(cutoverOpeningImportRepositoryProvider)
+              .resolveReferences(prepared);
+          if (!mounted) return;
+          setState(() => _cutoverPlan = resolved);
+        }
+      }
     } catch (error) {
       if (!mounted) return;
       setState(
@@ -774,7 +791,7 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ownership = account.ownershipType;
     final error = account.ownershipValidationError;
-    final action = error != null
+    final action = account.referenceConflict != null || error != null
         ? 'CONFLIT — À CONFIRMER'
         : account.conflictDecision == 'match'
         ? 'RATTACHER À L’EXISTANT'
@@ -872,12 +889,19 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
             ],
             const SizedBox(height: 6),
             Text('Décision : $action'),
+            if (account.matchedAccountId != null)
+              Text('Compte existant : ${account.matchedAccountId}'),
             Text(
               'Titularité : ${_ownershipLabel(ownership)} • Titulaires : ${_holderLabels(account.holderUserIds, members)}',
             ),
             if (error != null)
               Text(
                 error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            if (account.referenceConflict != null)
+              Text(
+                account.referenceConflict!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],

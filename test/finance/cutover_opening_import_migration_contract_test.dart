@@ -12,6 +12,12 @@ void main() {
   final ownershipMigration = File(
     'supabase/migrations/20260929203237_preserve_cutover_account_ownership.sql',
   ).readAsStringSync();
+  final matchedReferencesMigration = File(
+    'supabase/migrations/20260929205002_bind_cutover_matched_references.sql',
+  ).readAsStringSync();
+  final matchedSystemEnvelopeFix = File(
+    'supabase/migrations/20260929205156_fix_cutover_matched_system_envelope.sql',
+  ).readAsStringSync();
 
   test('B1 persiste un run immuable et une identité de replay stable', () {
     expect(migration, contains('cutover_opening_runs'));
@@ -142,5 +148,58 @@ void main() {
     expect(ownershipMigration, isNot(contains("'opening_offset'")));
     expect(ownershipMigration, isNot(contains('accounts.opening_balance')));
     expect(ownershipMigration, isNot(contains('automatic compensation')));
+  });
+
+  test('B1 lie chaque match au référentiel explicitement confirmé', () {
+    expect(matchedReferencesMigration, contains('matched_account_id'));
+    expect(matchedReferencesMigration, contains('matched_envelope_id'));
+    expect(
+      matchedReferencesMigration,
+      contains('does not identify exactly one confirmed reference'),
+    );
+    expect(matchedReferencesMigration, contains('where id=v_expected_id'));
+    expect(matchedReferencesMigration, contains('for update'));
+    expect(
+      matchedReferencesMigration,
+      contains('A conflicting account reference cannot be materialized'),
+    );
+    expect(
+      matchedReferencesMigration,
+      contains('A conflicting envelope reference cannot be materialized'),
+    );
+  });
+
+  test('B1 conserve le replay historique avant le nouveau contrat de match', () {
+    final replayCheck = matchedReferencesMigration.indexOf(
+      'if exists (\n    select 1 from public.cutover_opening_runs',
+    );
+    final accountValidation = matchedReferencesMigration.indexOf(
+      "for v_account in select value from jsonb_array_elements(p_plan->'accounts')",
+    );
+    expect(replayCheck, greaterThanOrEqualTo(0));
+    expect(accountValidation, greaterThan(replayCheck));
+  });
+
+  test('la liaison explicite ne réintroduit aucun mécanisme legacy', () {
+    expect(matchedReferencesMigration, isNot(contains('opening_offset')));
+    expect(
+      matchedReferencesMigration,
+      isNot(contains('accounts.opening_balance')),
+    );
+    expect(
+      matchedReferencesMigration,
+      contains('execute_cutover_opening_import_materialize'),
+    );
+    expect(
+      matchedReferencesMigration,
+      contains('reconcile_cutover_opening_run'),
+    );
+  });
+
+  test('B1 utilise la colonne système canonique des enveloppes', () {
+    expect(matchedSystemEnvelopeFix, contains("system_code='to_allocate'"));
+    expect(matchedSystemEnvelopeFix, isNot(contains("system_key='to_allocate'")));
+    expect(matchedSystemEnvelopeFix, contains('matched_account_id'));
+    expect(matchedSystemEnvelopeFix, contains('matched_envelope_id'));
   });
 }

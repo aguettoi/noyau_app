@@ -244,4 +244,157 @@ void main() {
     expect(plan.canConfirmForMemberIds({holderB}), isFalse);
     expect(plan.ownershipErrorsForMemberIds({holderB}), hasLength(1));
   });
+
+  test('la résolution read-only transporte les identifiants de match', () {
+    final plan =
+        CutoverOpeningPlan(
+          cutoverId: '11111111-1111-4111-8111-111111111111',
+          householdId: 'household',
+          sourceFingerprint: fingerprint,
+          effectiveDate: DateTime(2026, 9, 29),
+          accounts: const [
+            CutoverOpeningAccount(
+              sourceLabel: 'A2',
+              name: 'Banque A',
+              kind: 'bank',
+              openingAmount: 100,
+              ownershipType: AccountOwnershipType.individual,
+              holderUserIds: [holderA],
+            ),
+          ],
+          envelopes: const [
+            CutoverOpeningEnvelope(
+              sourceLabel: 'A3',
+              name: 'À répartir',
+              openingAmount: 50,
+              isToAllocate: true,
+            ),
+          ],
+        ).resolveReferences(
+          existingAccounts: const [
+            CutoverExistingAccount(
+              id: 'account-a',
+              name: 'Banque A',
+              kind: 'bank',
+              ownershipType: AccountOwnershipType.individual,
+              holderUserIds: [holderA],
+              archived: false,
+            ),
+          ],
+          existingEnvelopes: const [
+            CutoverExistingEnvelope(
+              id: 'envelope-to-allocate',
+              name: 'À répartir',
+              isSystem: true,
+              systemKey: 'to_allocate',
+              archived: false,
+            ),
+          ],
+        );
+
+    expect(plan.accounts.single.conflictDecision, 'match');
+    expect(plan.accounts.single.matchedAccountId, 'account-a');
+    expect(plan.envelopes.single.conflictDecision, 'match');
+    expect(plan.envelopes.single.matchedEnvelopeId, 'envelope-to-allocate');
+    expect(plan.canConfirm, isTrue);
+    expect(plan.toJson().toString(), contains('matched_account_id'));
+    expect(plan.toJson().toString(), contains('matched_envelope_id'));
+  });
+
+  test('un match incompatible est bloquant et ne réécrit rien', () {
+    final plan =
+        CutoverOpeningPlan(
+          cutoverId: '11111111-1111-4111-8111-111111111111',
+          householdId: 'household',
+          sourceFingerprint: fingerprint,
+          effectiveDate: DateTime(2026, 9, 29),
+          accounts: const [
+            CutoverOpeningAccount(
+              sourceLabel: 'A2',
+              name: 'Banque A',
+              kind: 'bank',
+              openingAmount: 100,
+              ownershipType: AccountOwnershipType.individual,
+              holderUserIds: [holderA],
+            ),
+          ],
+          envelopes: const [
+            CutoverOpeningEnvelope(
+              sourceLabel: 'A3',
+              name: 'Nourriture',
+              openingAmount: 50,
+              isToAllocate: false,
+            ),
+          ],
+        ).resolveReferences(
+          existingAccounts: const [
+            CutoverExistingAccount(
+              id: 'account-a',
+              name: 'Banque A',
+              kind: 'bank',
+              ownershipType: AccountOwnershipType.shared,
+              holderUserIds: [holderA, holderB],
+              archived: false,
+            ),
+          ],
+          existingEnvelopes: const [],
+        );
+
+    expect(plan.accounts.single.conflictDecision, 'conflict');
+    expect(plan.accounts.single.matchedAccountId, 'account-a');
+    expect(plan.accounts.single.hasReferenceConflict, isTrue);
+    expect(plan.canConfirm, isFalse);
+  });
+
+  test('plusieurs références de même nom rendent le match ambigu', () {
+    final plan =
+        CutoverOpeningPlan(
+          cutoverId: '11111111-1111-4111-8111-111111111111',
+          householdId: 'household',
+          sourceFingerprint: fingerprint,
+          effectiveDate: DateTime(2026, 9, 29),
+          accounts: const [
+            CutoverOpeningAccount(
+              sourceLabel: 'A2',
+              name: 'Banque A',
+              kind: 'bank',
+              openingAmount: 100,
+              ownershipType: AccountOwnershipType.individual,
+              holderUserIds: [holderA],
+            ),
+          ],
+          envelopes: const [
+            CutoverOpeningEnvelope(
+              sourceLabel: 'A3',
+              name: 'Nourriture',
+              openingAmount: 50,
+              isToAllocate: false,
+            ),
+          ],
+        ).resolveReferences(
+          existingAccounts: const [
+            CutoverExistingAccount(
+              id: 'account-a',
+              name: 'Banque A',
+              kind: 'bank',
+              ownershipType: AccountOwnershipType.individual,
+              holderUserIds: [holderA],
+              archived: false,
+            ),
+            CutoverExistingAccount(
+              id: 'account-b',
+              name: 'BANQUE A',
+              kind: 'bank',
+              ownershipType: AccountOwnershipType.individual,
+              holderUserIds: [holderA],
+              archived: false,
+            ),
+          ],
+          existingEnvelopes: const [],
+        );
+
+    expect(plan.accounts.single.conflictDecision, 'conflict');
+    expect(plan.accounts.single.matchedAccountId, isNull);
+    expect(plan.canConfirm, isFalse);
+  });
 }
