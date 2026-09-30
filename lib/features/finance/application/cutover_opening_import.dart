@@ -276,8 +276,9 @@ class CutoverOpeningPlan {
         if (matches.isEmpty) {
           if (envelope.isToAllocate) {
             return envelope.copyWith(
-              conflictDecision: 'conflict',
-              referenceConflict: 'Enveloppe système À répartir introuvable.',
+              conflictDecision: 'create',
+              clearMatchedEnvelopeId: true,
+              clearReferenceConflict: true,
             );
           }
           return envelope.copyWith(
@@ -489,11 +490,19 @@ class CutoverOpeningPlanBuilder {
           final amount = num.tryParse(
             _at(row, amountIndex).replaceAll(',', '.'),
           );
-          if (name.isEmpty || amount == null || amount <= 0) {
-            errors.add('Ligne ${index + 1} : nom et montant positif requis.');
+          if (name.isEmpty || amount == null || amount < 0) {
+            errors.add(
+              'Ligne ${index + 1} : nom et montant positif ou nul requis.',
+            );
             continue;
           }
           if (type == 'compte') {
+            if (amount == 0) {
+              errors.add(
+                'Ligne ${index + 1} : un compte requiert un montant positif.',
+              );
+              continue;
+            }
             final kind = _at(row, kindIndex).toLowerCase();
             final ownershipType = _parseOwnershipType(
               _at(row, ownershipIndex).toLowerCase().replaceAll(' ', '_'),

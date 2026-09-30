@@ -397,4 +397,125 @@ void main() {
     expect(plan.accounts.single.matchedAccountId, isNull);
     expect(plan.canConfirm, isFalse);
   });
+
+  test('le plan accepte une enveloppe métier et À répartir à zéro', () {
+    const analysis = WorkbookImportAnalysis(
+      fileName: 'zero.xlsx',
+      sourceFingerprint: fingerprint,
+      sheetPreviews: [],
+      unhandledSheetNames: [],
+      sourceSheets: [
+        SourceSheetSnapshot(
+          sourceSheetName: 'Positions ouverture',
+          cells: [
+            SourceCellSnapshot(coordinate: 'A1', value: 'Type'),
+            SourceCellSnapshot(coordinate: 'B1', value: 'Nom'),
+            SourceCellSnapshot(coordinate: 'C1', value: 'Kind'),
+            SourceCellSnapshot(coordinate: 'D1', value: 'Montant'),
+            SourceCellSnapshot(coordinate: 'E1', value: 'Ownership type'),
+            SourceCellSnapshot(coordinate: 'F1', value: 'Holder user ids'),
+            SourceCellSnapshot(coordinate: 'A2', value: 'Compte'),
+            SourceCellSnapshot(coordinate: 'B2', value: 'Banque'),
+            SourceCellSnapshot(coordinate: 'C2', value: 'bank'),
+            SourceCellSnapshot(coordinate: 'D2', value: '100'),
+            SourceCellSnapshot(coordinate: 'E2', value: 'individual'),
+            SourceCellSnapshot(coordinate: 'F2', value: holderA),
+            SourceCellSnapshot(coordinate: 'A3', value: 'Enveloppe'),
+            SourceCellSnapshot(coordinate: 'B3', value: 'Positive A'),
+            SourceCellSnapshot(coordinate: 'D3', value: '100'),
+            SourceCellSnapshot(coordinate: 'A4', value: 'Enveloppe'),
+            SourceCellSnapshot(coordinate: 'B4', value: 'Zero B'),
+            SourceCellSnapshot(coordinate: 'D4', value: '0'),
+            SourceCellSnapshot(coordinate: 'A5', value: 'Enveloppe'),
+            SourceCellSnapshot(coordinate: 'B5', value: 'À répartir'),
+            SourceCellSnapshot(coordinate: 'D5', value: '0'),
+          ],
+        ),
+      ],
+    );
+    final plan = CutoverOpeningPlanBuilder().build(
+      analysis: analysis,
+      householdId: 'household',
+      effectiveDate: DateTime(2026, 10),
+      cutoverId: '11111111-1111-4111-8111-111111111111',
+    );
+
+    expect(plan.canConfirm, isTrue, reason: plan.blockingErrors.join(' | '));
+    expect(plan.envelopes.map((item) => item.openingAmount), [100, 0, 0]);
+    expect(plan.envelopes.last.isToAllocate, isTrue);
+  });
+
+  test('À répartir absent devient une création système explicite', () {
+    final plan =
+        CutoverOpeningPlan(
+          cutoverId: '11111111-1111-4111-8111-111111111111',
+          householdId: 'household',
+          sourceFingerprint: fingerprint,
+          effectiveDate: DateTime(2026, 10),
+          accounts: const [
+            CutoverOpeningAccount(
+              sourceLabel: 'A2',
+              name: 'Banque',
+              kind: 'bank',
+              openingAmount: 100,
+              ownershipType: AccountOwnershipType.individual,
+              holderUserIds: [holderA],
+            ),
+          ],
+          envelopes: const [
+            CutoverOpeningEnvelope(
+              sourceLabel: 'A3',
+              name: 'À répartir',
+              openingAmount: 0,
+              isToAllocate: true,
+            ),
+          ],
+        ).resolveReferences(
+          existingAccounts: const [],
+          existingEnvelopes: const [],
+        );
+
+    expect(plan.envelopes.single.conflictDecision, 'create');
+    expect(plan.envelopes.single.matchedEnvelopeId, isNull);
+    expect(plan.envelopes.single.hasReferenceConflict, isFalse);
+  });
+
+  test('un compte à zéro reste refusé', () {
+    const analysis = WorkbookImportAnalysis(
+      fileName: 'account-zero.xlsx',
+      sourceFingerprint: fingerprint,
+      sheetPreviews: [],
+      unhandledSheetNames: [],
+      sourceSheets: [
+        SourceSheetSnapshot(
+          sourceSheetName: 'Positions ouverture',
+          cells: [
+            SourceCellSnapshot(coordinate: 'A1', value: 'Type'),
+            SourceCellSnapshot(coordinate: 'B1', value: 'Nom'),
+            SourceCellSnapshot(coordinate: 'C1', value: 'Kind'),
+            SourceCellSnapshot(coordinate: 'D1', value: 'Montant'),
+            SourceCellSnapshot(coordinate: 'E1', value: 'Ownership type'),
+            SourceCellSnapshot(coordinate: 'F1', value: 'Holder user ids'),
+            SourceCellSnapshot(coordinate: 'A2', value: 'Compte'),
+            SourceCellSnapshot(coordinate: 'B2', value: 'Banque'),
+            SourceCellSnapshot(coordinate: 'C2', value: 'bank'),
+            SourceCellSnapshot(coordinate: 'D2', value: '0'),
+            SourceCellSnapshot(coordinate: 'E2', value: 'individual'),
+            SourceCellSnapshot(coordinate: 'F2', value: holderA),
+            SourceCellSnapshot(coordinate: 'A3', value: 'Enveloppe'),
+            SourceCellSnapshot(coordinate: 'B3', value: 'Zero B'),
+            SourceCellSnapshot(coordinate: 'D3', value: '0'),
+          ],
+        ),
+      ],
+    );
+    final plan = CutoverOpeningPlanBuilder().build(
+      analysis: analysis,
+      householdId: 'household',
+      effectiveDate: DateTime(2026, 10),
+    );
+
+    expect(plan.canConfirm, isFalse);
+    expect(plan.blockingErrors.single, contains('montant positif'));
+  });
 }

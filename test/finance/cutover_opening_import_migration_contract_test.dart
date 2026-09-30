@@ -18,6 +18,9 @@ void main() {
   final matchedSystemEnvelopeFix = File(
     'supabase/migrations/20260929205156_fix_cutover_matched_system_envelope.sql',
   ).readAsStringSync();
+  final zeroEnvelopeMigration = File(
+    'supabase/migrations/20260930192845_cutover_zero_balance_envelopes.sql',
+  ).readAsStringSync();
 
   test('B1 persiste un run immuable et une identité de replay stable', () {
     expect(migration, contains('cutover_opening_runs'));
@@ -198,8 +201,30 @@ void main() {
 
   test('B1 utilise la colonne système canonique des enveloppes', () {
     expect(matchedSystemEnvelopeFix, contains("system_code='to_allocate'"));
-    expect(matchedSystemEnvelopeFix, isNot(contains("system_key='to_allocate'")));
+    expect(
+      matchedSystemEnvelopeFix,
+      isNot(contains("system_key='to_allocate'")),
+    );
     expect(matchedSystemEnvelopeFix, contains('matched_account_id'));
     expect(matchedSystemEnvelopeFix, contains('matched_envelope_id'));
+  });
+
+  test('Cutover crée les référentiels zéro sans mouvement financier', () {
+    expect(zeroEnvelopeMigration, contains('v_amount < 0'));
+    expect(zeroEnvelopeMigration, contains('if v_amount > 0 then'));
+    expect(
+      zeroEnvelopeMigration,
+      contains("jsonb_array_length(v_envelope_openings) > 0"),
+    );
+    expect(
+      zeroEnvelopeMigration,
+      contains("'envelope_movements',jsonb_array_length(v_envelope_openings)"),
+    );
+    expect(zeroEnvelopeMigration, contains('ensure_household_system_envelope'));
+    expect(
+      zeroEnvelopeMigration,
+      isNot(contains('import_household_envelopes')),
+    );
+    expect(zeroEnvelopeMigration, isNot(contains('opening_offset')));
   });
 }
