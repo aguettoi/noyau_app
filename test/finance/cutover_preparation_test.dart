@@ -73,25 +73,29 @@ void main() {
     expect(preparation.canPrepareFuturePlan, isFalse);
   });
 
-  test('les obligations de scénario restent ambiguës et non automatiques', () {
-    final preparation = const CutoverPreparationBuilder().build(_analysis());
-    final parentNora = preparation.obligations.first;
-    final car = preparation.obligations.last;
+  test(
+    'les trois obligations réelles restent explicites et non automatiques',
+    () {
+      final preparation = const CutoverPreparationBuilder().build(_analysis());
 
-    expect(
-      parentNora.classification,
-      CutoverObligationClassification.ambiguous,
-    );
-    expect(parentNora.candidateAmount, 40000);
-    expect(parentNora.exists, isFalse);
-    expect(
-      car.classification,
-      CutoverObligationClassification.nonImportableAutomatically,
-    );
-    expect(car.candidateAmount, isNull);
-    expect(car.exists, isFalse);
-    expect(preparation.remainingConfirmations, 31);
-  });
+      expect(preparation.obligations, hasLength(3));
+      expect(preparation.obligations.map((item) => item.candidateAmount), [
+        91995,
+        52282.40,
+        454000,
+      ]);
+      expect(
+        preparation.obligations.every(
+          (item) =>
+              item.classification ==
+              CutoverObligationClassification.confirmable,
+        ),
+        isTrue,
+      );
+      expect(preparation.obligations.every((item) => !item.exists), isTrue);
+      expect(preparation.remainingConfirmations, 31);
+    },
+  );
 
   test('les salaires de référence ne sont pas des encaissements', () {
     final preparation = const CutoverPreparationBuilder().build(_analysis());

@@ -405,12 +405,12 @@ class CutoverPreparationBuilder {
       ],
       obligations: const [
         CutoverPreparationObligation(
-          id: 'parent-nora',
-          name: 'Dette Parent Nora',
+          id: 'logan-opening',
+          name: 'Financement Logan',
           candidateSource:
-              'Test Nv salaires!J24 / ANCIEN PROGRAMME!M26 — hypothèse de financement voiture',
-          candidateAmount: 40000,
-          classification: CutoverObligationClassification.ambiguous,
+              'PLANNING EMPRUNT 55K!G4 / PRIOS!C17 — solde confirmé au 29/09/2026',
+          candidateAmount: 91995,
+          classification: CutoverObligationClassification.confirmable,
           exists: false,
           creditor: '',
           initialAmount: null,
@@ -420,13 +420,27 @@ class CutoverPreparationBuilder {
           isConfirmed: false,
         ),
         CutoverPreparationObligation(
-          id: 'car',
-          name: 'Financement voiture',
+          id: 'family-loan-opening',
+          name: 'Emprunt familial — Simulation 55K',
           candidateSource:
-              'Acquisit voiture!A4:B4 — montant de simulation, sans capital restant dû identifié',
-          candidateAmount: null,
-          classification:
-              CutoverObligationClassification.nonImportableAutomatically,
+              'PLANNING EMPRUNT 55K!C2:C3 — solde confirmé au 29/09/2026',
+          candidateAmount: 52282.40,
+          classification: CutoverObligationClassification.confirmable,
+          exists: false,
+          creditor: '',
+          initialAmount: null,
+          remainingAmount: null,
+          monthlyAmount: null,
+          nextDueDate: null,
+          isConfirmed: false,
+        ),
+        CutoverPreparationObligation(
+          id: 'arreda-home-opening',
+          name: 'Financement logement Banque Arreda',
+          candidateSource:
+              'SIMULATION EMPRUNT ARREDA 180 M!D5 — solde confirmé au 29/09/2026',
+          candidateAmount: 454000,
+          classification: CutoverObligationClassification.confirmable,
           exists: false,
           creditor: '',
           initialAmount: null,
