@@ -123,6 +123,36 @@ class FinancialEventSupabaseRepository {
     });
   }
 
+  /// Opens a debt that predates FINANCIEL PILOTE.
+  ///
+  /// The server records an audit FinancialEvent and the obligation only. It
+  /// deliberately creates no current-period expense, GL posting, or envelope
+  /// movement.
+  Future<String> createObligationOpening({
+    required DateTime occurredAt,
+    required String description,
+    required Money amount,
+    required String idempotencyKey,
+    String? creditorName,
+    DateTime? dueAt,
+    String? notes,
+  }) {
+    FinancialEventContract.validatePositiveAmount(amount.dirhams);
+    if (description.trim().isEmpty) {
+      return Future.error(StateError('Un libellé d’ouverture est requis.'));
+    }
+    return _call('create_obligation_opening_event', {
+      'p_household_id': householdId,
+      'p_occurred_at': occurredAt.toUtc().toIso8601String(),
+      'p_description': description.trim(),
+      'p_amount': _mad(amount),
+      'p_creditor_name': _nullable(creditorName),
+      'p_due_at': dueAt == null ? null : _date(dueAt),
+      'p_notes': _nullable(notes),
+      'p_idempotency_key': idempotencyKey,
+    });
+  }
+
   Future<String> settleDebt({
     required String obligationId,
     required DateTime occurredAt,

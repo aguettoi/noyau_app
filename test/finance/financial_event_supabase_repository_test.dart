@@ -6,6 +6,34 @@ import 'package:noyau_app/features/finance/infrastructure/financial_event_supaba
 void main() {
   FinancialEventSupabaseRepository repository(_Gateway gateway) =>
       FinancialEventSupabaseRepository(gateway: gateway, householdId: 'home-1');
+
+  test(
+    'obligation opening uses the dedicated audit-only RPC contract',
+    () async {
+      final gateway = _Gateway();
+      final eventId = await repository(gateway).createObligationOpening(
+        occurredAt: DateTime.utc(2026, 9, 29),
+        description: 'Financement Logan — solde d’ouverture',
+        amount: Money.fromDirhams(91995),
+        creditorName: 'Créancier Logan',
+        idempotencyKey: 'opening-logan',
+        notes: 'Cutover réel',
+      );
+
+      expect(eventId, '00000000-0000-4000-8000-000000000010');
+      expect(gateway.function, 'create_obligation_opening_event');
+      expect(gateway.parameters, {
+        'p_household_id': 'home-1',
+        'p_occurred_at': '2026-09-29T00:00:00.000Z',
+        'p_description': 'Financement Logan — solde d’ouverture',
+        'p_amount': '91995.00',
+        'p_creditor_name': 'Créancier Logan',
+        'p_due_at': null,
+        'p_notes': 'Cutover réel',
+        'p_idempotency_key': 'opening-logan',
+      });
+    },
+  );
   const allocations = [
     FinancialEventAllocation(envelopeId: 'food', amount: 60),
     FinancialEventAllocation(envelopeId: 'transport', amount: 40),
