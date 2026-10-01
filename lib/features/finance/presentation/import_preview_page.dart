@@ -8,6 +8,7 @@ import '../application/workbook_import.dart';
 import '../domain/account_ownership.dart';
 import '../domain/household_member.dart';
 import 'cutover_preparation_card.dart';
+import 'historical_analytics_preview_card.dart';
 import 'import_wizard_components.dart';
 
 class ImportPreviewPage extends ConsumerStatefulWidget {
@@ -203,6 +204,13 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                         analysis: analysis,
                         onDirtyChanged: (value) =>
                             _preparationHasLocalChanges = value,
+                      ),
+                      const SizedBox(height: 16),
+                      HistoricalAnalyticsPreviewCard(
+                        key: ValueKey(
+                          'historical-analytics-${analysis.sourceFingerprint}',
+                        ),
+                        analysis: analysis,
                       ),
                       const SizedBox(height: 16),
                     ],

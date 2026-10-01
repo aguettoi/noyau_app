@@ -1197,6 +1197,7 @@ class WorkbookImportEngine {
     void Function(int completed, int total)? onProgress,
   }) async {
     final workbook = _WorkbookDecoder.decode(bytes);
+    final rawJournalAmounts = _RawOoxmlJournalAmounts.read(bytes);
     final previews = <SheetImportPreview>[];
     final handledNames = <String>{};
     final sourceSheets = <SourceSheetSnapshot>[];
@@ -1229,7 +1230,12 @@ class WorkbookImportEngine {
           isTransactionReady: preview.isTransactionReady,
         ),
       );
-      sourceSheets.add(_snapshotSheet(resolvedSheetName, sheet));
+      final snapshot = _snapshotSheet(resolvedSheetName, sheet);
+      sourceSheets.add(
+        resolvedSheetName == 'Journal' && rawJournalAmounts.isNotEmpty
+            ? _replaceJournalAmounts(snapshot, rawJournalAmounts)
+            : snapshot,
+      );
       onProgress?.call(index + 1, _importers.length);
     }
 
@@ -1270,6 +1276,71 @@ class WorkbookImportEngine {
     const aliases = {'Feuille 21': 'Feuille 25', 'Feuille 22': 'Feuille 26'};
     final alias = aliases[expected];
     return alias != null && names.contains(alias) ? alias : null;
+  }
+}
+
+SourceSheetSnapshot _replaceJournalAmounts(
+  SourceSheetSnapshot snapshot,
+  Map<String, String> amounts,
+) => SourceSheetSnapshot(
+  sourceSheetName: snapshot.sourceSheetName,
+  cells: snapshot.cells
+      .map(
+        (cell) => amounts[cell.coordinate] == null
+            ? cell
+            : SourceCellSnapshot(
+                coordinate: cell.coordinate,
+                value: amounts[cell.coordinate]!,
+                formula: cell.formula,
+              ),
+      )
+      .toList(growable: false),
+);
+
+/// Reads only the raw numeric amount cells required by the C4C analytical
+/// preview. This avoids applying Excel number formats to source amounts while
+/// keeping the existing workbook decoder and import engine as the sole parser.
+class _RawOoxmlJournalAmounts {
+  static Map<String, String> read(Uint8List bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes, verify: true);
+      final workbookFile = archive.findFile('xl/workbook.xml');
+      final relationshipsFile = archive.findFile('xl/_rels/workbook.xml.rels');
+      if (workbookFile == null || relationshipsFile == null) return const {};
+      workbookFile.decompress();
+      relationshipsFile.decompress();
+      final workbook = utf8.decode(workbookFile.content as List<int>);
+      final relationships = utf8.decode(relationshipsFile.content as List<int>);
+      final sheetMatch = RegExp(
+        r'<sheet\b[^>]*name=["\x27]Journal["\x27][^>]*(?:r:id|id)=["\x27]([^"\x27]+)["\x27]',
+      ).firstMatch(workbook);
+      final relationshipId = sheetMatch?.group(1);
+      if (relationshipId == null) return const {};
+      final relationship = RegExp(
+        '<Relationship\\b[^>]*Id=["\\x27]${RegExp.escape(relationshipId)}["\\x27][^>]*Target=["\\x27]([^"\\x27]+)["\\x27]',
+      ).firstMatch(relationships);
+      final target = relationship?.group(1);
+      if (target == null) return const {};
+      final normalizedTarget = target.replaceFirst(RegExp(r'^/xl/'), '');
+      final path = normalizedTarget.startsWith('xl/')
+          ? normalizedTarget
+          : 'xl/$normalizedTarget';
+      final sheetFile = archive.findFile(path);
+      if (sheetFile == null) return const {};
+      sheetFile.decompress();
+      final xml = utf8.decode(sheetFile.content as List<int>);
+      final result = <String, String>{};
+      final pattern = RegExp(
+        r'<c\b[^>]*r=["\x27](D(?:[3-9]|[1-9]\d+))["\x27][^>]*>([\s\S]*?)</c>',
+      );
+      for (final cell in pattern.allMatches(xml)) {
+        final value = RegExp(r'<v>([^<]*)</v>').firstMatch(cell.group(2) ?? '');
+        if (value != null) result[cell.group(1)!] = value.group(1)!;
+      }
+      return result;
+    } catch (_) {
+      return const {};
+    }
   }
 }
 
