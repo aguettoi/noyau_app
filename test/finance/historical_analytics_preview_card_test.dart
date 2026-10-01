@@ -42,6 +42,14 @@ void main() {
           SourceCellSnapshot(coordinate: 'C9', value: 'Traite maison'),
           SourceCellSnapshot(coordinate: 'D9', value: '59630'),
           SourceCellSnapshot(coordinate: 'E9', value: 'Syndic et notaire'),
+          SourceCellSnapshot(coordinate: 'B10', value: '2026-05-08'),
+          SourceCellSnapshot(coordinate: 'C10', value: 'Sorties'),
+          SourceCellSnapshot(coordinate: 'D10', value: '-7'),
+          SourceCellSnapshot(coordinate: 'E10', value: 'Café'),
+          SourceCellSnapshot(coordinate: 'B11', value: '2026-05-08'),
+          SourceCellSnapshot(coordinate: 'C11', value: 'sorties'),
+          SourceCellSnapshot(coordinate: 'D11', value: '-7'),
+          SourceCellSnapshot(coordinate: 'E11', value: 'cafe'),
         ],
       ),
     ],
@@ -71,7 +79,17 @@ void main() {
   ) async {
     await open(tester);
     expect(find.text('Propositions analytiques'), findsOneWidget);
-    expect(find.text('Total lignes : 7'), findsOneWidget);
+    expect(find.text('Total lignes : 9'), findsOneWidget);
+    expect(find.text('Montant dépenses : 124.00 MAD'), findsOneWidget);
+    expect(find.text('Restant à examiner : 1'), findsOneWidget);
+    expect(
+      find.text('Répétitions source strictes : 1 groupe / 2 lignes'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Ressemblances métier : 1 groupe / 2 lignes'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('history-filter-adjustments')));
     await tester.pumpAndSettle();
@@ -81,7 +99,16 @@ void main() {
     await tester.tap(find.byKey(const Key('history-filter-duplicates')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('duplicate-group-0')), findsOneWidget);
-    expect(find.text('Groupe 1 — 2 occurrences à comparer'), findsOneWidget);
+    expect(
+      find.text(
+        'Répétition source stricte — groupe 1 — 2 occurrences conservées',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Ressemblance métier — groupe 2 — 2 occurrences conservées'),
+      findsOneWidget,
+    );
     expect(find.text('Ligne 4'), findsOneWidget);
     expect(find.text('Ligne 5'), findsOneWidget);
 
@@ -109,6 +136,7 @@ void main() {
       await tester.tap(find.text('Revenu validé').last);
       await tester.pumpAndSettle();
       expect(find.text('Décisions humaines effectuées : 1'), findsOneWidget);
+      expect(find.text('Restant à examiner : 0'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('history-filter-expenses')));
       await tester.pumpAndSettle();
@@ -127,22 +155,22 @@ void main() {
       await open(tester, size: const Size(390, 720));
       await tester.tap(find.byKey(const Key('history-filter-mobile')));
       await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('Doublons potentiels').last);
+      await tester.tap(find.textContaining('Répétitions à contrôler').last);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('duplicate-decision-4')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Conserver').last);
+      await tester.tap(find.text('Ignorer comme saisie dupliquée').last);
       await tester.pumpAndSettle();
-      expect(find.text('Doublons potentiels non décidés : 1'), findsOneWidget);
+      expect(find.text('Restant à examiner : 1'), findsOneWidget);
       await tester.tap(find.byKey(const Key('history-filter-mobile')));
       await tester.pumpAndSettle();
       await tester.tap(find.textContaining('Toutes (').last);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('history-filter-mobile')));
       await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('Doublons potentiels').last);
+      await tester.tap(find.textContaining('Répétitions à contrôler').last);
       await tester.pumpAndSettle();
-      expect(find.text('Conserver'), findsOneWidget);
+      expect(find.text('Ignorer comme saisie dupliquée'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

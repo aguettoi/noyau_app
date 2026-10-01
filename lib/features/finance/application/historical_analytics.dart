@@ -16,6 +16,8 @@ enum HistoricalAnalyticClassification {
 
 enum HistoricalAnalyticConfidence { high, medium, low }
 
+enum HistoricalAnalyticRepetition { strictSource, businessSimilarity }
+
 class HistoricalAnalyticLine {
   const HistoricalAnalyticLine({
     required this.sourceRowNumber,
@@ -31,6 +33,7 @@ class HistoricalAnalyticLine {
     required this.sourceContentHash,
     this.transferGroupKey,
     this.duplicateCandidateKey,
+    this.repetition,
   });
 
   final int sourceRowNumber;
@@ -46,6 +49,7 @@ class HistoricalAnalyticLine {
   final String sourceContentHash;
   final String? transferGroupKey;
   final String? duplicateCandidateKey;
+  final HistoricalAnalyticRepetition? repetition;
 
   Map<String, Object?> toCommitJson() => {
     'source_row_number': sourceRowNumber,
@@ -106,6 +110,14 @@ class HistoricalAnalyticsPreview {
       .fold(0, (sum, line) => sum + line.analyticalAmount);
   int get duplicateCandidates =>
       lines.where((line) => line.duplicateCandidateKey != null).length;
+  int repetitionLineCount(HistoricalAnalyticRepetition value) =>
+      lines.where((line) => line.repetition == value).length;
+  int repetitionGroupCount(HistoricalAnalyticRepetition value) => lines
+      .where((line) => line.repetition == value)
+      .map((line) => line.duplicateCandidateKey)
+      .whereType<String>()
+      .toSet()
+      .length;
 }
 
 class HistoricalAnalyticsPreviewBuilder {
@@ -180,6 +192,7 @@ class HistoricalAnalyticsPreviewBuilder {
     }
 
     final duplicateKeys = <int, String>{};
+    final repetitions = <int, HistoricalAnalyticRepetition>{};
     final duplicateGroups = <String, List<_RawLine>>{};
     for (final line in raw) {
       if (transferKeys.containsKey(line.row) ||
@@ -195,8 +208,19 @@ class HistoricalAnalyticsPreviewBuilder {
       (entry) => entry.value.length > 1,
     )) {
       final key = sha256.convert(utf8.encode(entry.key)).toString();
+      final rawSignatures = entry.value
+          .map(
+            (line) =>
+                '${_day(line.date)}|${line.envelope}|'
+                '${line.amount.toStringAsFixed(2)}|${line.detail}',
+          )
+          .toSet();
+      final repetition = rawSignatures.length == 1
+          ? HistoricalAnalyticRepetition.strictSource
+          : HistoricalAnalyticRepetition.businessSimilarity;
       for (final line in entry.value) {
         duplicateKeys[line.row] = key;
+        repetitions[line.row] = repetition;
       }
     }
 
@@ -263,6 +287,7 @@ class HistoricalAnalyticsPreviewBuilder {
                     .toString(),
                 transferGroupKey: transferKey,
                 duplicateCandidateKey: duplicateKeys[source.row],
+                repetition: repetitions[source.row],
               );
             })
             .toList(growable: false)

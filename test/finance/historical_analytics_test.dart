@@ -59,23 +59,53 @@ void main() {
   });
 
   test(
-    'retains duplicates as review candidates with stable source identity',
+    'keeps strict repetitions and business similarities as separate expenses',
     () {
       final preview = const HistoricalAnalyticsPreviewBuilder().build(
         analysis([
           ['2026-06-01', 'Courses', '-50', 'Épicerie'],
           ['2026-06-01', 'Courses', '-50', 'Épicerie'],
+          ['2026-06-02', 'Navette', '-5', 'grand taxi'],
+          ['2026-06-02', 'Navette', '-5', 'Grand taxi'],
         ]),
       );
-      expect(preview.lines, hasLength(2));
-      expect(preview.duplicateCandidates, 2);
+      expect(preview.lines, hasLength(4));
+      expect(preview.duplicateCandidates, 4);
+      expect(
+        preview.repetitionGroupCount(HistoricalAnalyticRepetition.strictSource),
+        1,
+      );
+      expect(
+        preview.repetitionLineCount(HistoricalAnalyticRepetition.strictSource),
+        2,
+      );
+      expect(
+        preview.repetitionGroupCount(
+          HistoricalAnalyticRepetition.businessSimilarity,
+        ),
+        1,
+      );
+      expect(
+        preview.repetitionLineCount(
+          HistoricalAnalyticRepetition.businessSimilarity,
+        ),
+        2,
+      );
+      expect(
+        preview.lines.every(
+          (line) =>
+              line.classification == HistoricalAnalyticClassification.expense,
+        ),
+        isTrue,
+      );
+      expect(preview.amount(HistoricalAnalyticClassification.expense), 110);
       expect(
         preview.lines.first.duplicateCandidateKey,
-        preview.lines.last.duplicateCandidateKey,
+        preview.lines[1].duplicateCandidateKey,
       );
       expect(
         preview.lines.first.sourceContentHash,
-        isNot(preview.lines.last.sourceContentHash),
+        isNot(preview.lines[1].sourceContentHash),
       );
     },
   );

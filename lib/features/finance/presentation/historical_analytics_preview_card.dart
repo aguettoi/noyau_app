@@ -7,7 +7,7 @@ enum _ReviewFilter {
   all('Toutes'),
   expenses('Dépenses'),
   positives('Positifs à valider'),
-  duplicates('Doublons potentiels'),
+  duplicates('Répétitions à contrôler'),
   transfers('Transferts internes'),
   adjustments('Ajustements techniques'),
   ignored('Ignorés'),
@@ -73,7 +73,9 @@ class _HistoricalAnalyticsPreviewCardState
               Text(
                 '${preview.count(HistoricalAnalyticClassification.ambiguousPositive)} positifs à valider',
               ),
-              Text('${preview.duplicateCandidates} candidats doublons'),
+              Text(
+                '${preview.duplicateCandidates} lignes avec répétition à contrôler',
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -194,8 +196,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
       .where(
         (l) =>
             l.classification ==
-                HistoricalAnalyticClassification.ambiguousPositive ||
-            l.duplicateCandidateKey != null,
+            HistoricalAnalyticClassification.ambiguousPositive,
       )
       .map((l) => l.sourceRowNumber)
       .toSet();
@@ -230,13 +231,6 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                 preview: widget.preview,
                 classification: current,
                 ignoredCount: count(_ReviewFilter.ignored),
-                pendingDuplicateCount: widget.preview.lines
-                    .where(
-                      (line) =>
-                          line.duplicateCandidateKey != null &&
-                          !decided.contains(line.sourceRowNumber),
-                    )
-                    .length,
                 decisionsCount: decided.length,
                 remainingCount: reviewable.difference(decided).length,
               ),
@@ -423,14 +417,13 @@ class _Summary extends StatelessWidget {
     required this.preview,
     required this.classification,
     required this.ignoredCount,
-    required this.pendingDuplicateCount,
     required this.decisionsCount,
     required this.remainingCount,
   });
   final HistoricalAnalyticsPreview preview;
   final HistoricalAnalyticClassification Function(HistoricalAnalyticLine)
   classification;
-  final int ignoredCount, pendingDuplicateCount, decisionsCount, remainingCount;
+  final int ignoredCount, decisionsCount, remainingCount;
 
   @override
   Widget build(BuildContext context) {
@@ -445,6 +438,11 @@ class _Summary extends StatelessWidget {
     );
     int n(HistoricalAnalyticClassification c) =>
         preview.lines.where((l) => classification(l) == c).length;
+    String groups(HistoricalAnalyticRepetition repetition) {
+      final count = preview.repetitionGroupCount(repetition);
+      return '$count groupe${count > 1 ? 's' : ''}';
+    }
+
     return Container(
       key: const Key('history-dynamic-summary'),
       padding: const EdgeInsets.all(10),
@@ -466,7 +464,17 @@ class _Summary extends StatelessWidget {
               'Positifs non décidés : ${n(HistoricalAnalyticClassification.ambiguousPositive)}',
             ),
             const SizedBox(width: 14),
-            Text('Doublons potentiels non décidés : $pendingDuplicateCount'),
+            Text(
+              'Répétitions source strictes : '
+              '${groups(HistoricalAnalyticRepetition.strictSource)} / '
+              '${preview.repetitionLineCount(HistoricalAnalyticRepetition.strictSource)} lignes',
+            ),
+            const SizedBox(width: 14),
+            Text(
+              'Ressemblances métier : '
+              '${groups(HistoricalAnalyticRepetition.businessSimilarity)} / '
+              '${preview.repetitionLineCount(HistoricalAnalyticRepetition.businessSimilarity)} lignes',
+            ),
             const SizedBox(width: 14),
             Text(
               'Transferts internes : ${n(HistoricalAnalyticClassification.internalTransfer)}',
@@ -581,7 +589,8 @@ class _DuplicateGroup extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Groupe ${index + 1} — ${lines.length} occurrences à comparer',
+            '${_repetitionLabel(lines.first.repetition)} — '
+            'groupe ${index + 1} — ${lines.length} occurrences conservées',
             style: Theme.of(context).textTheme.titleSmall,
           ),
           ...lines.map(
@@ -608,7 +617,7 @@ class _DuplicateGroup extends StatelessWidget {
                       ),
                       value:
                           decisions[line.sourceRowNumber] ??
-                          _DuplicateDecision.review,
+                          _DuplicateDecision.keep,
                       isExpanded: true,
                       items: const [
                         DropdownMenuItem(
@@ -617,7 +626,7 @@ class _DuplicateGroup extends StatelessWidget {
                         ),
                         DropdownMenuItem(
                           value: _DuplicateDecision.ignore,
-                          child: Text('Ignorer comme doublon'),
+                          child: Text('Ignorer comme saisie dupliquée'),
                         ),
                         DropdownMenuItem(
                           value: _DuplicateDecision.review,
@@ -642,3 +651,9 @@ class _DuplicateGroup extends StatelessWidget {
 String _date(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/'
     '${value.month.toString().padLeft(2, '0')}/${value.year}';
+
+String _repetitionLabel(HistoricalAnalyticRepetition? value) => switch (value) {
+  HistoricalAnalyticRepetition.strictSource => 'Répétition source stricte',
+  HistoricalAnalyticRepetition.businessSimilarity => 'Ressemblance métier',
+  null => 'Répétition à contrôler',
+};
