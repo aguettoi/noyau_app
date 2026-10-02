@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:noyau_app/features/finance/application/cutover_opening_import.dart';
 import 'package:noyau_app/features/finance/application/workbook_import.dart';
 import 'package:noyau_app/features/finance/presentation/historical_analytics_preview_card.dart';
 
@@ -64,9 +66,18 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: HistoricalAnalyticsPreviewCard(analysis: analysis),
+      ProviderScope(
+        overrides: [
+          cutoverEligibleHouseholdsProvider.overrideWith((ref) async => []),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: const [
+                HistoricalAnalyticsPreviewCard(analysis: analysis),
+              ],
+            ),
+          ),
         ),
       ),
     );

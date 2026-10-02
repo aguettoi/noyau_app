@@ -1,6 +1,12 @@
-import 'package:flutter/material.dart';
+import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../application/cutover_opening_import.dart';
+import '../application/historical_analytic_materialization.dart';
 import '../application/historical_analytics.dart';
+import '../application/providers/historical_analytics_provider.dart';
 import '../application/workbook_import.dart';
 
 enum _ReviewFilter {
@@ -29,66 +35,254 @@ enum _ReviewSort {
 
 enum _DuplicateDecision { keep, ignore, review }
 
-class HistoricalAnalyticsPreviewCard extends StatefulWidget {
+class HistoricalAnalyticsPreviewCard extends ConsumerStatefulWidget {
   const HistoricalAnalyticsPreviewCard({super.key, required this.analysis});
   final WorkbookImportAnalysis analysis;
 
   @override
-  State<HistoricalAnalyticsPreviewCard> createState() =>
+  ConsumerState<HistoricalAnalyticsPreviewCard> createState() =>
       _HistoricalAnalyticsPreviewCardState();
 }
 
 class _HistoricalAnalyticsPreviewCardState
-    extends State<HistoricalAnalyticsPreviewCard> {
+    extends ConsumerState<HistoricalAnalyticsPreviewCard> {
+  static const _expectedBackupSha =
+      'a98806810967481921508df92138ab58e6e1b02cde5e40f390c08ec5b0519663';
+  static const _expectedSourceSha =
+      'f3cbc99e335586d5628791017e5fd8119430a03d32674ba1d11f284157c8f8bc';
+  static const _realHouseholdId = '51cfd7c6-8edc-4c42-94db-1be78289fe81';
   late final HistoricalAnalyticsPreview preview =
       const HistoricalAnalyticsPreviewBuilder().build(widget.analysis);
   final Map<int, HistoricalAnalyticClassification> localDecisions = {};
   final Map<int, _DuplicateDecision> duplicateDecisions = {};
+  HistoricalAnalyticMaterializationPlan? _materializationPlan;
+  String? _materializationError;
+  String? _materializationResult;
+  String? _selectedHouseholdId;
+  bool _materializing = false;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Historique analytique — aperçu local',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Période retenue : 01/05/2026 au 29/09/2026. '
-            'Aucune écriture financière et aucune donnée Supabase ne sont créées par cet aperçu.',
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 16,
-            runSpacing: 8,
-            children: [
-              Text('${preview.lines.length} lignes retenues'),
-              Text(
-                '${preview.count(HistoricalAnalyticClassification.expense)} dépenses analytiques',
+  Widget build(BuildContext context) {
+    final households = ref.watch(cutoverEligibleHouseholdsProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Historique analytique — aperçu local',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Période retenue : 01/05/2026 au 29/09/2026. '
+              'Aucune écriture financière et aucune donnée Supabase ne sont créées par cet aperçu.',
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                Text('${preview.lines.length} lignes retenues'),
+                Text(
+                  '${preview.count(HistoricalAnalyticClassification.expense)} dépenses analytiques',
+                ),
+                Text(
+                  '${preview.lines.where((line) => (localDecisions[line.sourceRowNumber] ?? line.classification) == HistoricalAnalyticClassification.ambiguousPositive).length} positifs à valider',
+                ),
+                Text(
+                  '${preview.duplicateCandidates} lignes avec répétition à contrôler',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              key: const Key('historical-analytics-review'),
+              onPressed: preview.lines.isEmpty ? null : _openReview,
+              icon: const Icon(Icons.manage_search),
+              label: const Text('Examiner les propositions'),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+            Text(
+              'Matérialisation analytique contrôlée',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Chargez la sauvegarde certifiée des décisions. La préparation reste locale jusqu’à une confirmation explicite. Aucune écriture GL, compte, enveloppe ou obligation.',
+            ),
+            const SizedBox(height: 10),
+            households.when(
+              data: (items) => DropdownButtonFormField<String>(
+                key: const Key('historical-materialization-household'),
+                initialValue: _selectedHouseholdId,
+                decoration: const InputDecoration(
+                  labelText: 'Household cible explicite',
+                  border: OutlineInputBorder(),
+                ),
+                items: items
+                    .where((item) => item.isOperational)
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item.id,
+                        child: Text(
+                          '${item.name} — ${item.classificationLabel}',
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) => setState(() {
+                  _selectedHouseholdId = value;
+                  _materializationPlan = null;
+                  _materializationResult = null;
+                }),
               ),
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const Text('Households indisponibles.'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const Key('load-historical-decisions'),
+              onPressed: _selectedHouseholdId == null ? null : _loadBackup,
+              icon: const Icon(Icons.restore_page_outlined),
+              label: const Text('Charger les 45 décisions certifiées'),
+            ),
+            if (_materializationError != null) ...[
+              const SizedBox(height: 8),
               Text(
-                '${preview.count(HistoricalAnalyticClassification.ambiguousPositive)} positifs à valider',
-              ),
-              Text(
-                '${preview.duplicateCandidates} lignes avec répétition à contrôler',
+                _materializationError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
+            if (_materializationPlan case final plan?) ...[
+              const SizedBox(height: 12),
+              Text('Source : ${widget.analysis.fileName}'),
+              SelectableText('SHA-256 : ${plan.sourceFingerprint}'),
+              const Text('Période : 01/05/2026 au 29/09/2026'),
+              Text(
+                '${plan.lines.length} lignes · ${plan.decisions.length} décisions humaines · 0 ambigu',
+              ),
+              Text(
+                'Ventilation : ${plan.count(HistoricalAnalyticClassification.expense)} dépenses, '
+                '${plan.count(HistoricalAnalyticClassification.validatedIncome)} revenus validés, '
+                '${plan.count(HistoricalAnalyticClassification.internalTransfer)} transferts, '
+                '${plan.count(HistoricalAnalyticClassification.technicalAdjustment)} ajustements, '
+                '${plan.count(HistoricalAnalyticClassification.budgetFunding)} alimentations budget.',
+              ),
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                key: const Key('materialize-historical-analytics'),
+                onPressed: _materializing
+                    ? null
+                    : () => _confirmMaterialization(plan),
+                icon: const Icon(Icons.publish_outlined),
+                label: const Text('Matérialiser l’historique analytique'),
+              ),
+            ],
+            if (_materializationResult != null) ...[
+              const SizedBox(height: 8),
+              Text(_materializationResult!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadBackup() async {
+    try {
+      final bytes = await ref.read(historicalDecisionFilePickerProvider)();
+      if (bytes == null || !mounted) return;
+      _restoreBackup(bytes);
+    } catch (error) {
+      if (mounted) setState(() => _materializationError = '$error');
+    }
+  }
+
+  void _restoreBackup(Uint8List bytes) {
+    final target = _selectedHouseholdId;
+    if (target == null || target != _realHouseholdId) {
+      throw const FormatException(
+        'Le household certifié doit être sélectionné explicitement.',
+      );
+    }
+    if (widget.analysis.sourceFingerprint != _expectedSourceSha) {
+      throw const FormatException('La source Excel ne correspond pas à C4B.');
+    }
+    final backup = HistoricalAnalyticDecisionBackup.decodeStrict(
+      bytes,
+      expectedSha256: _expectedBackupSha,
+      expectedSourceFingerprint: _expectedSourceSha,
+      expectedHouseholdId: _realHouseholdId,
+    );
+    final plan = HistoricalAnalyticMaterializationPlan.restore(
+      preview: preview,
+      backup: backup,
+      sourceFingerprint: widget.analysis.sourceFingerprint,
+      householdId: target,
+    );
+    setState(() {
+      _materializationPlan = plan;
+      duplicateDecisions.clear();
+      localDecisions
+        ..clear()
+        ..addEntries(
+          backup.decisions.map(
+            (decision) => MapEntry(
+              decision.sourceRowNumber,
+              decision.finalClassification,
+            ),
           ),
-          const SizedBox(height: 12),
-          FilledButton.tonalIcon(
-            key: const Key('historical-analytics-review'),
-            onPressed: preview.lines.isEmpty ? null : _openReview,
-            icon: const Icon(Icons.manage_search),
-            label: const Text('Examiner les propositions'),
+        );
+      _materializationError = null;
+      _materializationResult = null;
+    });
+  }
+
+  Future<void> _confirmMaterialization(
+    HistoricalAnalyticMaterializationPlan plan,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmer la matérialisation analytique'),
+        content: const Text(
+          'Cette opération écrit uniquement l’historique analytique et ses décisions. Elle ne crée aucune écriture financière.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmer'),
           ),
         ],
       ),
-    ),
-  );
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _materializing = true);
+    try {
+      final result = await ref
+          .read(historicalAnalyticsGatewayProvider)
+          .materialize(plan);
+      if (mounted) {
+        setState(() {
+          _materializationResult = result['replayed'] == true
+              ? 'Historique déjà matérialisé : replay idempotent.'
+              : '${result['inserted_lines']} lignes et ${result['inserted_decisions']} décisions matérialisées.';
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _materializationError = '$error');
+    } finally {
+      if (mounted) setState(() => _materializing = false);
+    }
+  }
 
   Future<void> _openReview() => showDialog<void>(
     context: context,
@@ -96,7 +290,10 @@ class _HistoricalAnalyticsPreviewCardState
       preview: preview,
       decisions: localDecisions,
       duplicateDecisions: duplicateDecisions,
-      onDecision: () => setState(() {}),
+      onDecision: () => setState(() {
+        _materializationPlan = null;
+        _materializationResult = null;
+      }),
     ),
   );
 }
