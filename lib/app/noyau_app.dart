@@ -17,6 +17,7 @@ import '../features/savings_goals/presentation/savings_goals_page.dart';
 import '../features/shopping_list/presentation/shopping_list_page.dart';
 import '../features/priorities/presentation/priorities_page.dart';
 import 'finance_shell_navigation.dart';
+import 'global_refresh_provider.dart';
 
 class NoyauApp extends StatelessWidget {
   const NoyauApp({super.key});
@@ -48,8 +49,9 @@ class _AuthenticationGate extends ConsumerWidget {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => const SupabaseAuthPage(),
-      data: (id) =>
-          id == null ? const SupabaseAuthPage() : const FinanceShell(),
+      data: (id) => id == null
+          ? const SupabaseAuthPage()
+          : FinanceShell(key: ValueKey('finance-shell-$id')),
     );
   }
 }
@@ -61,10 +63,31 @@ class FinanceShell extends ConsumerStatefulWidget {
   ConsumerState<FinanceShell> createState() => _FinanceShellState();
 }
 
-class _FinanceShellState extends ConsumerState<FinanceShell> {
+class _FinanceShellState extends ConsumerState<FinanceShell>
+    with WidgetsBindingObserver {
   static const _compactNavigationBreakpoint = 720.0;
 
   var _selectedIndex = 0;
+  var _refreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshAll(silentSuccess: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,10 +151,19 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
               trailing: Expanded(
                 child: Align(
                   alignment: Alignment.bottomCenter,
-                  child: IconButton(
-                    tooltip: 'Se déconnecter',
-                    onPressed: _signOut,
-                    icon: const Icon(Icons.logout_outlined),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _RefreshButton(
+                        refreshing: _refreshing,
+                        onPressed: _refreshing ? null : _refreshAll,
+                      ),
+                      IconButton(
+                        tooltip: 'Se déconnecter',
+                        onPressed: _signOut,
+                        icon: const Icon(Icons.logout_outlined),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -187,10 +219,19 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
-              child: IconButton(
-                tooltip: 'Se déconnecter',
-                onPressed: _signOut,
-                icon: const Icon(Icons.logout_outlined),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _RefreshButton(
+                    refreshing: _refreshing,
+                    onPressed: _refreshing ? null : _refreshAll,
+                  ),
+                  IconButton(
+                    tooltip: 'Se déconnecter',
+                    onPressed: _signOut,
+                    icon: const Icon(Icons.logout_outlined),
+                  ),
+                ],
               ),
             ),
           ),
@@ -272,6 +313,49 @@ class _FinanceShellState extends ConsumerState<FinanceShell> {
     ref.invalidate(activeHouseholdProvider);
     ref.invalidate(remoteAccountsProvider);
   }
+
+  Future<void> _refreshAll({bool silentSuccess = false}) async {
+    if (_refreshing || !mounted) return;
+    setState(() => _refreshing = true);
+    try {
+      await ref.read(globalRefreshActionProvider)();
+      if (!mounted || silentSuccess) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Données actualisées.')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Actualisation impossible. Vérifiez votre connexion puis réessayez.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+}
+
+class _RefreshButton extends StatelessWidget {
+  const _RefreshButton({required this.refreshing, required this.onPressed});
+
+  final bool refreshing;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: const Key('global-refresh-button'),
+    tooltip: refreshing ? 'Actualisation en cours' : 'Actualiser',
+    onPressed: onPressed,
+    icon: refreshing
+        ? const SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Icon(Icons.refresh),
+  );
 }
 
 @visibleForTesting

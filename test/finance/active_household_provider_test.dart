@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/supabase_client_provider.dart';
 
+final _testSessionUserProvider = StateProvider<String?>((ref) => null);
+
 void main() {
   ProviderContainer container({
     String? userId,
@@ -144,6 +146,38 @@ void main() {
   });
 
   test(
+    'un changement de session résout le foyer du nouvel utilisateur',
+    () async {
+      final gateway = _SessionGateway({
+        'ibrahim': const [_Membership('household-real')],
+        'nora': const [
+          _Membership('household-archived', archived: true),
+          _Membership('household-real'),
+        ],
+      });
+      final scope = ProviderContainer(
+        overrides: [
+          currentUserIdProvider.overrideWith(
+            (ref) => ref.watch(_testSessionUserProvider),
+          ),
+          householdMembershipGatewayProvider.overrideWithValue(gateway),
+        ],
+      );
+      addTearDown(scope.dispose);
+
+      scope.read(_testSessionUserProvider.notifier).state = 'ibrahim';
+      final ibrahim = await scope.read(activeHouseholdProvider.future);
+      expect(ibrahim.householdId, 'household-real');
+      expect(gateway.lastUserId, 'ibrahim');
+
+      scope.read(_testSessionUserProvider.notifier).state = 'nora';
+      final nora = await scope.read(activeHouseholdProvider.future);
+      expect(nora.householdId, 'household-real');
+      expect(gateway.lastUserId, 'nora');
+    },
+  );
+
+  test(
     'uniquement des foyers techniques ne donnent aucun foyer actif',
     () async {
       final scope = container(
@@ -209,4 +243,28 @@ class _Membership {
   final String id;
   final bool technical;
   final bool archived;
+}
+
+class _SessionGateway implements HouseholdMembershipGateway {
+  _SessionGateway(this.membershipsByUser);
+
+  final Map<String, List<_Membership>> membershipsByUser;
+  String? lastUserId;
+
+  @override
+  Future<List<HouseholdMembership>> householdsForUser(String userId) async {
+    lastUserId = userId;
+    return (membershipsByUser[userId] ?? const [])
+        .map(
+          (membership) => HouseholdMembership(
+            householdId: membership.id,
+            classification: membership.archived
+                ? HouseholdClassification.archived
+                : membership.technical
+                ? HouseholdClassification.technical
+                : HouseholdClassification.operational,
+          ),
+        )
+        .toList(growable: false);
+  }
 }

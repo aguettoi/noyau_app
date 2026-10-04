@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/app/noyau_app.dart';
+import 'package:noyau_app/app/global_refresh_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_accounts_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_household_members_provider.dart';
@@ -19,7 +22,10 @@ import 'package:noyau_app/features/dashboard/application/providers/remote_financ
 import 'package:noyau_app/core/money/money.dart';
 
 void main() {
-  Future<void> pumpApp(WidgetTester tester) async {
+  Future<void> pumpApp(
+    WidgetTester tester, {
+    GlobalRefreshAction? refreshAction,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -74,12 +80,79 @@ void main() {
               alerts: [],
             ),
           ),
+          if (refreshAction != null)
+            globalRefreshActionProvider.overrideWithValue(refreshAction),
         ],
         child: const NoyauApp(),
       ),
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('Actualiser coordonne un seul refresh et confirme le succès', (
+    tester,
+  ) async {
+    final completer = Completer<void>();
+    var calls = 0;
+    await pumpApp(
+      tester,
+      refreshAction: () {
+        calls += 1;
+        return completer.future;
+      },
+    );
+
+    final button = find.byKey(const Key('global-refresh-button'));
+    expect(button, findsOneWidget);
+    await tester.tap(button);
+    await tester.pump();
+    expect(calls, 1);
+    expect(find.byType(CircularProgressIndicator), findsWidgets);
+
+    await tester.tap(button);
+    await tester.pump();
+    expect(calls, 1);
+
+    completer.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Données actualisées.'), findsOneWidget);
+  });
+
+  testWidgets('Actualiser remonte une erreur claire', (tester) async {
+    await pumpApp(
+      tester,
+      refreshAction: () async => throw StateError('source indisponible'),
+    );
+
+    await tester.tap(find.byKey(const Key('global-refresh-button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Actualisation impossible. Vérifiez votre connexion puis réessayez.',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('le retour au premier plan déclenche un refresh silencieux', (
+    tester,
+  ) async {
+    var calls = 0;
+    await pumpApp(tester, refreshAction: () async => calls += 1);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(calls, 1);
+    expect(find.text('Données actualisées.'), findsNothing);
+  });
 
   testWidgets('navigation relie chaque destination a sa page', (tester) async {
     await pumpApp(tester);
