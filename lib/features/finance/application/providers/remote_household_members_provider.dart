@@ -19,12 +19,15 @@ class SupabaseHouseholdMembersGateway implements HouseholdMembersGateway {
     try {
       final response = await _client
           .from('household_members')
-          .select('user_id')
+          .select('user_id, role')
           .eq('household_id', householdId)
           .order('created_at', ascending: true);
       final rows = response as List<dynamic>;
-      final memberIds = rows
-          .map((item) => Map<String, dynamic>.from(item as Map)['user_id'])
+      final memberRows = rows
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList(growable: false);
+      final memberIds = memberRows
+          .map((item) => item['user_id'])
           .whereType<String>()
           .map((userId) => userId.trim())
           .where((userId) => userId.isNotEmpty)
@@ -60,6 +63,11 @@ class SupabaseHouseholdMembersGateway implements HouseholdMembersGateway {
 
       final members = householdMembersForDisplay(
         userIds: memberIds,
+        rolesByUserId: {
+          for (final row in memberRows)
+            if (row['user_id'] is String)
+              row['user_id'] as String: row['role'] as String? ?? 'member',
+        },
         displayNamesByUserId: namesByUserId,
         emailsByUserId: emailsByUserId,
       );
@@ -86,6 +94,7 @@ class SupabaseHouseholdMembersGateway implements HouseholdMembersGateway {
 
 List<HouseholdMember> householdMembersForDisplay({
   required List<String> userIds,
+  Map<String, String> rolesByUserId = const {},
   required Map<String, String> displayNamesByUserId,
   Map<String, String> emailsByUserId = const {},
 }) => List.unmodifiable(
@@ -95,6 +104,7 @@ List<HouseholdMember> householdMembersForDisplay({
     final email = emailsByUserId[userId]?.trim();
     return HouseholdMember(
       id: userId,
+      role: rolesByUserId[userId] ?? 'member',
       displayName: displayName != null && displayName.isNotEmpty
           ? displayName
           : email != null && email.isNotEmpty

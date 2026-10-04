@@ -10,6 +10,7 @@ import '../features/finance/presentation/accounts_page.dart';
 import '../features/finance/presentation/supabase_auth_page.dart';
 import '../features/finance/presentation/household_onboarding_page.dart';
 import '../features/finance/presentation/household_members_dialog.dart';
+import '../features/finance/presentation/household_settings_page.dart';
 import '../features/finance/application/providers/active_household_provider.dart';
 import '../features/finance/application/providers/remote_accounts_provider.dart';
 import '../features/finance/application/providers/supabase_client_provider.dart';
@@ -175,6 +176,12 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                         onPressed: _showHouseholdMembers,
                         icon: const Icon(Icons.group_outlined),
                       ),
+                      IconButton(
+                        key: const Key('household-settings-button'),
+                        tooltip: 'Profil et paramètres',
+                        onPressed: _showHouseholdSettings,
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
                       _RefreshButton(
                         refreshing: _refreshing,
                         onPressed: _refreshing ? null : _refreshAll,
@@ -247,6 +254,12 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                     tooltip: 'Membres du foyer',
                     onPressed: _showHouseholdMembers,
                     icon: const Icon(Icons.group_outlined),
+                  ),
+                  IconButton(
+                    key: const Key('household-settings-button'),
+                    tooltip: 'Profil et paramètres',
+                    onPressed: _showHouseholdSettings,
+                    icon: const Icon(Icons.settings_outlined),
                   ),
                   _RefreshButton(
                     refreshing: _refreshing,
@@ -343,6 +356,10 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
   Future<void> _showHouseholdMembers() => showDialog<void>(
     context: context,
     builder: (_) => const HouseholdMembersDialog(),
+  );
+
+  Future<void> _showHouseholdSettings() => Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => const HouseholdSettingsPage()),
   );
 
   Future<void> _refreshAll({bool silentSuccess = false}) async {
