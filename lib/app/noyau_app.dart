@@ -8,6 +8,8 @@ import '../features/finance/presentation/finance_overview_page.dart';
 import '../features/finance/presentation/imports_page.dart';
 import '../features/finance/presentation/accounts_page.dart';
 import '../features/finance/presentation/supabase_auth_page.dart';
+import '../features/finance/presentation/household_onboarding_page.dart';
+import '../features/finance/presentation/household_members_dialog.dart';
 import '../features/finance/application/providers/active_household_provider.dart';
 import '../features/finance/application/providers/remote_accounts_provider.dart';
 import '../features/finance/application/providers/supabase_client_provider.dart';
@@ -49,9 +51,23 @@ class _AuthenticationGate extends ConsumerWidget {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => const SupabaseAuthPage(),
-      data: (id) => id == null
-          ? const SupabaseAuthPage()
-          : FinanceShell(key: ValueKey('finance-shell-$id')),
+      data: (id) {
+        if (id == null) return const SupabaseAuthPage();
+        final household = ref.watch(activeHouseholdProvider);
+        return household.when(
+          loading: () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          error: (_, _) => const HouseholdOnboardingPage(),
+          data: (state) => switch (state.status) {
+            ActiveHouseholdStatus.singleHousehold => FinanceShell(
+              key: ValueKey('finance-shell-$id'),
+            ),
+            ActiveHouseholdStatus.multipleHouseholds =>
+              const MultipleHouseholdsPage(),
+            _ => const HouseholdOnboardingPage(),
+          },
+        );
+      },
     );
   }
 }
@@ -154,6 +170,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        tooltip: 'Membres du foyer',
+                        onPressed: _showHouseholdMembers,
+                        icon: const Icon(Icons.group_outlined),
+                      ),
                       _RefreshButton(
                         refreshing: _refreshing,
                         onPressed: _refreshing ? null : _refreshAll,
@@ -222,6 +243,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  IconButton(
+                    tooltip: 'Membres du foyer',
+                    onPressed: _showHouseholdMembers,
+                    icon: const Icon(Icons.group_outlined),
+                  ),
                   _RefreshButton(
                     refreshing: _refreshing,
                     onPressed: _refreshing ? null : _refreshAll,
@@ -313,6 +339,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     ref.invalidate(activeHouseholdProvider);
     ref.invalidate(remoteAccountsProvider);
   }
+
+  Future<void> _showHouseholdMembers() => showDialog<void>(
+    context: context,
+    builder: (_) => const HouseholdMembersDialog(),
+  );
 
   Future<void> _refreshAll({bool silentSuccess = false}) async {
     if (_refreshing || !mounted) return;

@@ -16,6 +16,15 @@ abstract interface class SupabaseAuthGateway {
     required String password,
   });
 
+  Future<bool> signUp({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+  });
+
+  Future<void> sendPasswordReset(String email);
+
   Future<void> signOut();
 }
 
@@ -38,6 +47,33 @@ class SupabaseClientAuthGateway implements SupabaseAuthGateway {
   }) async {
     await _client.auth.signInWithPassword(email: email, password: password);
   }
+
+  @override
+  Future<bool> signUp({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+  }) async {
+    final displayName = [
+      firstName.trim(),
+      lastName.trim(),
+    ].where((part) => part.isNotEmpty).join(' ');
+    final response = await _client.auth.signUp(
+      email: email.trim(),
+      password: password,
+      data: {
+        'first_name': firstName.trim(),
+        'last_name': lastName.trim(),
+        'display_name': displayName,
+      },
+    );
+    return response.session != null;
+  }
+
+  @override
+  Future<void> sendPasswordReset(String email) =>
+      _client.auth.resetPasswordForEmail(email.trim());
 
   @override
   Future<void> signOut() => _client.auth.signOut();

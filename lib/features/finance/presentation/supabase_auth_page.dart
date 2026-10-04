@@ -15,15 +15,23 @@ class SupabaseAuthPage extends ConsumerStatefulWidget {
 
 class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
   final _formKey = GlobalKey<FormState>();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordConfirmationController = TextEditingController();
   var _submitting = false;
+  var _creatingAccount = false;
   String? _errorMessage;
+  String? _successMessage;
 
   @override
   void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordConfirmationController.dispose();
     super.dispose();
   }
 
@@ -34,6 +42,7 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
     setState(() {
       _submitting = true;
       _errorMessage = null;
+      _successMessage = null;
     });
     try {
       await ref
@@ -55,6 +64,88 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
       if (mounted) {
         setState(() => _submitting = false);
       }
+    }
+  }
+
+  Future<void> _signUp() async {
+    if (_submitting || !_formKey.currentState!.validate()) return;
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+    try {
+      final sessionCreated = await ref
+          .read(supabaseAuthGatewayProvider)
+          .signUp(
+            firstName: _firstNameController.text,
+            lastName: _lastNameController.text,
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
+      if (!mounted) return;
+      setState(() {
+        _successMessage = sessionCreated
+            ? 'Compte créé. Vous pouvez maintenant créer ou rejoindre votre foyer.'
+            : 'Compte créé. Confirmez votre adresse e-mail puis connectez-vous.';
+        if (!sessionCreated) _creatingAccount = false;
+      });
+    } on AuthException catch (error) {
+      _debugAuthFailure(error);
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = switch (error.code) {
+          'user_already_exists' => 'Cette adresse e-mail est déjà utilisée.',
+          'weak_password' =>
+            'Le mot de passe ne respecte pas les règles de sécurité.',
+          _ =>
+            'Création impossible. Vérifiez les informations et votre connexion.',
+        };
+      });
+    } catch (error) {
+      _debugAuthFailure(error);
+      if (mounted) {
+        setState(
+          () => _errorMessage =
+              'Création impossible. Vérifiez les informations et votre connexion.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(
+        () => _errorMessage =
+            'Saisissez votre adresse e-mail avant de demander un nouveau mot de passe.',
+      );
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+    try {
+      await ref.read(supabaseAuthGatewayProvider).sendPasswordReset(email);
+      if (mounted) {
+        setState(
+          () => _successMessage =
+              'Si cette adresse existe, un e-mail de réinitialisation a été envoyé.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _errorMessage =
+              'Demande impossible pour le moment. Vérifiez votre connexion.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -109,17 +200,45 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Text(
-                        'Accéder à Noyau',
+                        _creatingAccount
+                            ? 'Créer un compte'
+                            : 'Accéder à Noyau',
                         style: Theme.of(context).textTheme.headlineSmall,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'Connectez-vous pour accéder à votre foyer et préparer vos imports.',
+                        _creatingAccount
+                            ? 'Créez votre identité personnelle. Votre foyer sera configuré ensuite.'
+                            : 'Connectez-vous pour accéder à votre foyer.',
                         style: Theme.of(context).textTheme.bodyMedium,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: AppSpacing.lg),
+                      if (_creatingAccount) ...[
+                        TextFormField(
+                          key: const Key('auth-first-name-field'),
+                          controller: _firstNameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Prénom',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Saisissez votre prénom.'
+                              : null,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        TextFormField(
+                          key: const Key('auth-last-name-field'),
+                          controller: _lastNameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Nom (facultatif)',
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
                       TextFormField(
                         key: const Key('auth-email-field'),
                         controller: _emailController,
@@ -140,15 +259,43 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                         obscureText: true,
                         enableSuggestions: false,
                         autocorrect: false,
-                        autofillHints: const [AutofillHints.password],
+                        autofillHints: [
+                          _creatingAccount
+                              ? AutofillHints.newPassword
+                              : AutofillHints.password,
+                        ],
                         decoration: const InputDecoration(
                           labelText: 'Mot de passe',
                         ),
-                        validator: (value) => value == null || value.isEmpty
-                            ? 'Saisissez votre mot de passe.'
-                            : null,
-                        onFieldSubmitted: (_) => _signIn(),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Saisissez votre mot de passe.';
+                          }
+                          if (_creatingAccount && value.length < 8) {
+                            return 'Utilisez au moins 8 caractères.';
+                          }
+                          return null;
+                        },
+                        onFieldSubmitted: (_) {
+                          if (!_creatingAccount) _signIn();
+                        },
                       ),
+                      if (_creatingAccount) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        TextFormField(
+                          key: const Key('auth-password-confirmation-field'),
+                          controller: _passwordConfirmationController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Confirmer le mot de passe',
+                          ),
+                          validator: (value) =>
+                              value != _passwordController.text
+                              ? 'Les mots de passe ne correspondent pas.'
+                              : null,
+                          onFieldSubmitted: (_) => _signUp(),
+                        ),
+                      ],
                       if (_errorMessage != null) ...[
                         const SizedBox(height: AppSpacing.sm),
                         Text(
@@ -159,10 +306,23 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                               ),
                         ),
                       ],
+                      if (_successMessage != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          _successMessage!,
+                          key: const Key('auth-success-message'),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                      ],
                       const SizedBox(height: AppSpacing.lg),
                       FilledButton(
                         key: const Key('auth-sign-in-button'),
-                        onPressed: _submitting ? null : _signIn,
+                        onPressed: _submitting
+                            ? null
+                            : (_creatingAccount ? _signUp : _signIn),
                         child: _submitting
                             ? const SizedBox(
                                 height: 20,
@@ -171,8 +331,34 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text('Se connecter'),
+                            : Text(
+                                _creatingAccount
+                                    ? 'Créer mon compte'
+                                    : 'Se connecter',
+                              ),
                       ),
+                      const SizedBox(height: AppSpacing.xs),
+                      TextButton(
+                        key: const Key('auth-switch-mode-button'),
+                        onPressed: _submitting
+                            ? null
+                            : () => setState(() {
+                                _creatingAccount = !_creatingAccount;
+                                _errorMessage = null;
+                                _successMessage = null;
+                              }),
+                        child: Text(
+                          _creatingAccount
+                              ? 'J’ai déjà un compte'
+                              : 'Créer un compte',
+                        ),
+                      ),
+                      if (!_creatingAccount)
+                        TextButton(
+                          key: const Key('auth-forgot-password-button'),
+                          onPressed: _submitting ? null : _forgotPassword,
+                          child: const Text('Mot de passe oublié ?'),
+                        ),
                     ],
                   ),
                 ),
