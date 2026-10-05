@@ -5,6 +5,7 @@ import '../features/dashboard/application/providers/dashboard_history_provider.d
 import '../features/dashboard/application/providers/remote_financial_dashboard_provider.dart';
 import '../features/envelopes/application/providers/remote_envelopes_provider.dart';
 import '../features/finance/application/providers/account_balance_observation_provider.dart';
+import '../features/finance/application/providers/payment_methods_provider.dart';
 import '../features/finance/application/providers/remote_account_balances_provider.dart';
 import '../features/finance/application/providers/remote_accounts_provider.dart';
 import '../features/finance/application/providers/remote_debts_provider.dart';
@@ -40,6 +41,7 @@ final globalRefreshActionProvider = Provider<GlobalRefreshAction>((ref) {
     ref.invalidate(remoteBudgetRunLinesProvider);
     ref.invalidate(remoteBudgetReportingProvider);
     ref.invalidate(remoteHouseholdMembersProvider);
+    ref.invalidate(paymentMethodsProvider);
     ref.invalidate(latestAccountBalanceObservationProvider);
     ref.invalidate(accountReconciliationHistoryProvider);
     ref.invalidate(savingsGoalsProvider);

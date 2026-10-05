@@ -5,6 +5,7 @@ import '../../../core/theme/app_design_system.dart';
 import '../application/providers/active_household_provider.dart';
 import '../application/providers/household_settings_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
+import 'payment_methods_page.dart';
 
 class HouseholdSettingsPage extends ConsumerStatefulWidget {
   const HouseholdSettingsPage({super.key});
@@ -147,6 +148,17 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
                       padding: const EdgeInsets.only(top: AppSpacing.sm),
                       child: Text(_message!),
                     ),
+                  const SizedBox(height: AppSpacing.lg),
+                  OutlinedButton.icon(
+                    key: const Key('payment-methods-settings-button'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PaymentMethodsPage(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.credit_card),
+                    label: const Text('Moyens de paiement'),
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                   Text(
                     'Membres',

@@ -18,6 +18,8 @@ class RemoteEnvelopeBalance {
     this.notes,
     this.lastMovementAt,
     this.systemCode,
+    this.recommendedAccountId,
+    this.recommendedPaymentMethodId,
   });
 
   final String id;
@@ -30,6 +32,8 @@ class RemoteEnvelopeBalance {
   final String? notes;
   final String? systemCode;
   final DateTime? lastMovementAt;
+  final String? recommendedAccountId;
+  final String? recommendedPaymentMethodId;
 }
 
 class RemoteEnvelopeMovement {
@@ -323,7 +327,9 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
   final client = ref.watch(supabaseClientProvider);
   final envelopeRows = await client
       .from('envelopes')
-      .select('id, name, notes, archived_at, is_system, system_code')
+      .select(
+        'id, name, notes, archived_at, is_system, system_code, recommended_account_id, recommended_payment_method_id',
+      )
       .eq('household_id', householdId)
       .order('name', ascending: true);
   final rows = await client
@@ -352,6 +358,9 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
         systemCode: envelope['system_code'] as String?,
         isArchived: envelope['archived_at'] != null,
         notes: envelope['notes'] as String?,
+        recommendedAccountId: envelope['recommended_account_id'] as String?,
+        recommendedPaymentMethodId:
+            envelope['recommended_payment_method_id'] as String?,
         lastMovementAt: balance?['last_movement_at'] is String
             ? DateTime.tryParse(balance!['last_movement_at'] as String)
             : null,

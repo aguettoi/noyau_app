@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../finance/application/csv_import_templates.dart';
+import '../../finance/application/providers/payment_methods_provider.dart';
+import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/presentation/imports_page.dart';
 import '../application/providers/remote_envelopes_provider.dart';
 
@@ -547,6 +549,15 @@ class _EnvelopeDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final movements = ref.watch(remoteEnvelopeMovementsProvider(envelope.id));
+    final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
+    final methods = ref.watch(paymentMethodsProvider).valueOrNull ?? const [];
+    final accountName = accounts
+        .where((account) => account.id == envelope.recommendedAccountId)
+        .map((account) => account.name)
+        .firstOrNull;
+    final method = methods
+        .where((item) => item.id == envelope.recommendedPaymentMethodId)
+        .firstOrNull;
     return Scaffold(
       appBar: AppBar(title: Text(envelope.name)),
       body: ListView(
@@ -558,6 +569,11 @@ class _EnvelopeDetailPage extends ConsumerWidget {
           Text('Sorties : ${_money(envelope.outflows)} MAD'),
           if (envelope.lastMovementAt != null)
             Text('Dernier mouvement : ${_date(envelope.lastMovementAt!)}'),
+          const SizedBox(height: AppSpacing.sm),
+          Text('Compte recommandé : ${accountName ?? 'Aucun'}'),
+          Text(
+            'Moyen recommandé : ${method == null ? 'Aucun' : '${method.label}${method.active ? '' : ' (inactif)'}'}',
+          ),
           const SizedBox(height: AppSpacing.md),
           Text('Mouvements', style: Theme.of(context).textTheme.titleMedium),
           ...movements.when(
@@ -1155,6 +1171,8 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
   final _notes = TextEditingController();
   var _saving = false;
   String? _error;
+  String? _recommendedAccountId;
+  String? _recommendedPaymentMethodId;
 
   bool get _editing => widget.envelope != null;
 
@@ -1164,6 +1182,8 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
     _name = TextEditingController(text: widget.envelope?.name ?? '');
     _opening = TextEditingController();
     _notes.text = widget.envelope?.notes ?? '';
+    _recommendedAccountId = widget.envelope?.recommendedAccountId;
+    _recommendedPaymentMethodId = widget.envelope?.recommendedPaymentMethodId;
   }
 
   @override
@@ -1193,6 +1213,13 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
           notes: _notes.text,
           archived: false,
         );
+        await ref
+            .read(paymentMethodsGatewayProvider)
+            .setEnvelopeRecommendation(
+              envelopeId: widget.envelope!.id,
+              accountId: _recommendedAccountId,
+              paymentMethodId: _recommendedPaymentMethodId,
+            );
       } else {
         await ref.read(createRemoteEnvelopeProvider)(
           name: _name.text,
@@ -1215,62 +1242,146 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(_editing ? 'Modifier l’enveloppe' : 'Nouvelle enveloppe'),
-    content: SizedBox(
-      width: 420,
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              key: const Key('envelope-name-field'),
-              controller: _name,
-              decoration: const InputDecoration(labelText: 'Nom *'),
-              validator: (value) => value?.trim().isEmpty ?? true
-                  ? 'Le nom est obligatoire.'
-                  : null,
-            ),
-            if (!_editing)
+  Widget build(BuildContext context) {
+    final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
+    final methods = ref.watch(paymentMethodsProvider).valueOrNull ?? const [];
+    final selectableMethods = methods
+        .where(
+          (method) =>
+              (method.active || method.id == _recommendedPaymentMethodId) &&
+              (_recommendedAccountId == null ||
+                  method.accountId == null ||
+                  method.accountId == _recommendedAccountId),
+        )
+        .toList(growable: false);
+    return AlertDialog(
+      title: Text(_editing ? 'Modifier l’enveloppe' : 'Nouvelle enveloppe'),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               TextFormField(
-                key: const Key('envelope-opening-balance-field'),
-                controller: _opening,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Solde initial (MAD)',
-                ),
+                key: const Key('envelope-name-field'),
+                controller: _name,
+                decoration: const InputDecoration(labelText: 'Nom *'),
+                validator: (value) => value?.trim().isEmpty ?? true
+                    ? 'Le nom est obligatoire.'
+                    : null,
               ),
-            TextFormField(
-              key: const Key('envelope-notes-field'),
-              controller: _notes,
-              decoration: const InputDecoration(labelText: 'Notes'),
-              maxLines: 2,
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+              if (!_editing)
+                TextFormField(
+                  key: const Key('envelope-opening-balance-field'),
+                  controller: _opening,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Solde initial (MAD)',
+                  ),
                 ),
+              TextFormField(
+                key: const Key('envelope-notes-field'),
+                controller: _notes,
+                decoration: const InputDecoration(labelText: 'Notes'),
+                maxLines: 2,
               ),
-          ],
+              if (_editing) ...[
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String?>(
+                  key: const Key('envelope-recommended-account-field'),
+                  initialValue: _recommendedAccountId,
+                  decoration: const InputDecoration(
+                    labelText: 'Compte recommandé (facultatif)',
+                    helperText: 'Recommandation non bloquante',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Aucun'),
+                    ),
+                    for (final account in accounts)
+                      DropdownMenuItem<String?>(
+                        value: account.id,
+                        child: Text(account.name),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    _recommendedAccountId = value;
+                    final selected = methods
+                        .where(
+                          (method) => method.id == _recommendedPaymentMethodId,
+                        )
+                        .firstOrNull;
+                    if (selected?.accountId != null &&
+                        selected!.accountId != value) {
+                      _recommendedPaymentMethodId = null;
+                    }
+                  }),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String?>(
+                  key: const Key('envelope-recommended-payment-method-field'),
+                  initialValue: _recommendedPaymentMethodId,
+                  decoration: const InputDecoration(
+                    labelText: 'Moyen recommandé (facultatif)',
+                    helperText:
+                        'Un moyen inactif reste visible mais non sélectionnable',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Aucun'),
+                    ),
+                    for (final method in selectableMethods)
+                      DropdownMenuItem<String?>(
+                        value: method.id,
+                        enabled: method.active,
+                        child: Text(
+                          method.active
+                              ? method.label
+                              : '${method.label} (inactif)',
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    _recommendedPaymentMethodId = value;
+                    final selected = methods
+                        .where((method) => method.id == value)
+                        .firstOrNull;
+                    if (selected?.accountId != null) {
+                      _recommendedAccountId = selected!.accountId;
+                    }
+                  }),
+                ),
+              ],
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: _saving ? null : () => Navigator.pop(context),
-        child: const Text('Annuler'),
-      ),
-      FilledButton(
-        key: const Key('save-envelope-button'),
-        onPressed: _saving ? null : _save,
-        child: Text(_saving ? 'Enregistrement…' : 'Enregistrer'),
-      ),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          key: const Key('save-envelope-button'),
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? 'Enregistrement…' : 'Enregistrer'),
+        ),
+      ],
+    );
+  }
 }
