@@ -9,6 +9,7 @@ import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/providers/remote_account_balances_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
 import '../application/providers/remote_transactions_provider.dart';
+import '../application/providers/payment_methods_provider.dart';
 import '../application/providers/financial_event_provider.dart';
 import '../application/providers/remote_debts_provider.dart';
 import '../application/financial_event_contract.dart';
@@ -43,6 +44,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
   Future<void> _openCreateDialog(
     List<FinancialAccount> accounts,
     List<RemoteEnvelopeBalance> envelopes,
+    List<PaymentMethod> paymentMethods,
   ) async {
     final created = await showDialog<String>(
       context: context,
@@ -51,6 +53,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
             .where((account) => !account.isArchived && !account.isSystem)
             .toList(growable: false),
         envelopes: envelopes,
+        paymentMethods: paymentMethods,
         onCreate: _create,
         onCreateDebt: _createDebt,
         prefill: widget.prefill,
@@ -91,6 +94,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
           description: draft.description,
           amount: draft.amount,
           sourceAccountId: draft.sourceAccountId!,
+          actualPaymentMethodId: draft.actualPaymentMethodId,
           allocations: draft.envelopeAllocations
               .map(
                 (allocation) => FinancialEventAllocation(
@@ -179,6 +183,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     final transactions = ref.watch(remoteTransactionsProvider);
     final accounts = ref.watch(remoteAccountsProvider);
     final envelopes = ref.watch(remoteEnvelopeBalancesProvider);
+    final paymentMethods = ref.watch(paymentMethodsProvider);
     final canOpen = accounts.hasValue && envelopes.hasValue && !_creating;
     return Scaffold(
       appBar: AppBar(
@@ -204,6 +209,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
             ? () => _openCreateDialog(
                 accounts.requireValue,
                 envelopes.requireValue,
+                paymentMethods.valueOrNull ?? const [],
               )
             : null,
         icon: _creating
@@ -275,6 +281,7 @@ class _CreateTransactionDialog extends StatefulWidget {
   const _CreateTransactionDialog({
     required this.accounts,
     required this.envelopes,
+    required this.paymentMethods,
     required this.onCreate,
     required this.onCreateDebt,
     this.prefill,
@@ -283,6 +290,7 @@ class _CreateTransactionDialog extends StatefulWidget {
 
   final List<FinancialAccount> accounts;
   final List<RemoteEnvelopeBalance> envelopes;
+  final List<PaymentMethod> paymentMethods;
   final Future<String?> Function(FinancialTransactionDraft draft) onCreate;
   final Future<String?> Function(_DebtExpenseSubmission submission)
   onCreateDebt;
@@ -304,12 +312,14 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
   LedgerTransactionType _type = LedgerTransactionType.expense;
   BalanceDirection _direction = BalanceDirection.increase;
   String? _sourceAccountId;
+  String? _actualPaymentMethodId;
   String? _destinationAccountId;
   String? _singleEnvelopeId;
   var _splitExpense = false;
   var _expenseIsDebt = false;
   var _submitting = false;
   String? _error;
+  DateTime _economicDate = DateTime.now();
 
   @override
   void initState() {
@@ -349,6 +359,56 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
     (sum, row) => sum + (_madToCents(row.amount.text) ?? 0),
   );
   int get _remainingCents => _amountCents - _splitCents;
+
+  RemoteEnvelopeBalance? get _selectedEnvelope {
+    final id = _singleEnvelopeId;
+    if (id == null) return null;
+    return widget.envelopes.where((item) => item.id == id).firstOrNull;
+  }
+
+  List<PaymentMethod> get _availablePaymentMethods => widget.paymentMethods
+      .where(
+        (method) =>
+            method.active &&
+            (method.accountId == null || method.accountId == _sourceAccountId),
+      )
+      .toList(growable: false);
+
+  void _selectEnvelope(String? id) {
+    setState(() {
+      _singleEnvelopeId = id;
+      final envelope = _selectedEnvelope;
+      final recommendedAccount = envelope?.recommendedAccountId;
+      if (recommendedAccount != null &&
+          widget.accounts.any((account) => account.id == recommendedAccount)) {
+        _sourceAccountId = recommendedAccount;
+      }
+      final recommendedMethod = envelope?.recommendedPaymentMethodId;
+      if (recommendedMethod != null &&
+          widget.paymentMethods.any(
+            (method) => method.id == recommendedMethod && method.active,
+          )) {
+        final method = widget.paymentMethods.firstWhere(
+          (item) => item.id == recommendedMethod,
+        );
+        if (method.accountId == null || method.accountId == _sourceAccountId) {
+          _actualPaymentMethodId = recommendedMethod;
+        }
+      }
+    });
+  }
+
+  Future<void> _pickEconomicDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _economicDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (selected != null && mounted) {
+      setState(() => _economicDate = selected);
+    }
+  }
 
   List<EnvelopeAllocationDraft> _allocations() {
     if (_isIncome) {
@@ -450,7 +510,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
       try {
         final eventId = await widget.onCreateDebt(
           _DebtExpenseSubmission(
-            occurredAt: DateTime.now(),
+            occurredAt: _economicDateAtNoon(_economicDate),
             description: _description.text.trim(),
             amount: Money.fromMinorUnits(_amountCents),
             allocations: allocations,
@@ -468,10 +528,13 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
     }
     final draft = FinancialTransactionDraft(
       type: _type,
-      occurredAt: DateTime.now(),
+      occurredAt: _economicDateAtNoon(_economicDate),
       description: _description.text.trim(),
       amount: Money.fromMinorUnits(_amountCents),
       sourceAccountId: _needsSource ? _sourceAccountId : null,
+      actualPaymentMethodId: _isExpense && !_expenseIsDebt
+          ? _actualPaymentMethodId
+          : null,
       destinationAccountId: _needsDestination ? _destinationAccountId : null,
       direction: _direction,
       envelopeAllocations: _allocations(),
@@ -529,7 +592,6 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                             LedgerTransactionType.expense,
                             LedgerTransactionType.income,
                             LedgerTransactionType.transfer,
-                            LedgerTransactionType.adjustment,
                           ]
                           .map(
                             (type) => DropdownMenuItem(
@@ -573,7 +635,48 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                   value: _sourceAccountId,
                   onChanged: _submitting
                       ? null
-                      : (id) => setState(() => _sourceAccountId = id),
+                      : (id) => setState(() {
+                          _sourceAccountId = id;
+                          final selected = widget.paymentMethods
+                              .where(
+                                (method) => method.id == _actualPaymentMethodId,
+                              )
+                              .firstOrNull;
+                          if (selected?.accountId != null &&
+                              selected!.accountId != id) {
+                            _actualPaymentMethodId = null;
+                          }
+                        }),
+                ),
+              ],
+              if (_isExpense && !_expenseIsDebt && _needsSource) ...[
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String?>(
+                  key: const Key('transaction-payment-method-field'),
+                  initialValue: _actualPaymentMethodId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Moyen de paiement réellement utilisé',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Non renseigné'),
+                    ),
+                    ..._availablePaymentMethods.map(
+                      (method) => DropdownMenuItem<String?>(
+                        value: method.id,
+                        child: Text(
+                          method.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: _submitting
+                      ? null
+                      : (value) =>
+                            setState(() => _actualPaymentMethodId = value),
                 ),
               ],
               if (_needsDestination) ...[
@@ -717,9 +820,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                     label: 'Enveloppe *',
                     envelopes: widget.envelopes,
                     value: _singleEnvelopeId,
-                    onChanged: _submitting
-                        ? null
-                        : (id) => setState(() => _singleEnvelopeId = id),
+                    onChanged: _submitting ? null : _selectEnvelope,
                   )
                 else ...[
                   ..._splitRows.map(
@@ -749,6 +850,20 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                     ),
                   ),
                 ],
+                if (!_splitExpense && _selectedEnvelope != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _recommendationMessage(
+                        envelope: _selectedEnvelope!,
+                        actualAccountId: _sourceAccountId,
+                        actualPaymentMethodId: _actualPaymentMethodId,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
               ],
               const SizedBox(height: AppSpacing.sm),
               TextFormField(
@@ -756,6 +871,15 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 controller: _notes,
                 maxLines: 2,
                 decoration: const InputDecoration(labelText: 'Notes'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ListTile(
+                key: const Key('transaction-economic-date-field'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Date économique *'),
+                subtitle: Text(_formatDate(_economicDate)),
+                trailing: const Icon(Icons.calendar_today_outlined),
+                onTap: _submitting ? null : _pickEconomicDate,
               ),
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.sm),
@@ -997,6 +1121,32 @@ String _formatDate(DateTime date) =>
 String _formatDateTime(DateTime date) =>
     '${_formatDate(date)} • ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 String _formatCents(int cents) => (cents / 100).toStringAsFixed(2);
+
+DateTime _economicDateAtNoon(DateTime value) =>
+    DateTime(value.year, value.month, value.day, 12);
+
+String _recommendationMessage({
+  required RemoteEnvelopeBalance envelope,
+  required String? actualAccountId,
+  required String? actualPaymentMethodId,
+}) {
+  final accountDifferent =
+      envelope.recommendedAccountId != null &&
+      envelope.recommendedAccountId != actualAccountId;
+  final methodDifferent =
+      envelope.recommendedPaymentMethodId != null &&
+      envelope.recommendedPaymentMethodId != actualPaymentMethodId;
+  if (!accountDifferent && !methodDifferent) {
+    return 'Le paiement correspond à la recommandation de cette enveloppe.';
+  }
+  if (accountDifferent && methodDifferent) {
+    return 'Le compte et le moyen utilisés diffèrent de la recommandation de cette enveloppe.';
+  }
+  return accountDifferent
+      ? 'Le paiement utilise un compte différent de celui recommandé pour cette enveloppe.'
+      : 'Le paiement utilise un moyen différent de celui recommandé pour cette enveloppe.';
+}
+
 String _historySubtitle(TransactionHistoryItem item) {
   final needsRegularization =
       (item.type == LedgerTransactionType.expense ||

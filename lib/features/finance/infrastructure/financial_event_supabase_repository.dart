@@ -19,6 +19,7 @@ class FinancialEventSupabaseRepository {
     required String description,
     required Money amount,
     required String sourceAccountId,
+    String? actualPaymentMethodId,
     required List<FinancialEventAllocation> allocations,
     required String idempotencyKey,
     String? notes,
@@ -30,12 +31,13 @@ class FinancialEventSupabaseRepository {
     if (sourceAccountId.trim().isEmpty) {
       return Future.error(StateError('Un compte de paiement est requis.'));
     }
-    return _call('create_cash_expense_event', {
+    return _call('create_cash_expense_with_payment_context', {
       'p_household_id': householdId,
       'p_occurred_at': occurredAt.toUtc().toIso8601String(),
       'p_description': description.trim(),
       'p_amount': _mad(amount),
       'p_source_account_id': sourceAccountId,
+      'p_actual_payment_method_id': actualPaymentMethodId,
       'p_envelope_allocations': _allocations(allocations),
       'p_notes': _nullable(notes),
       'p_idempotency_key': idempotencyKey,

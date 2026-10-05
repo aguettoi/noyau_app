@@ -39,24 +39,26 @@ void main() {
     FinancialEventAllocation(envelopeId: 'transport', amount: 40),
   ];
 
-  test('create_cash_expense_event transmet le contrat exact', () async {
+  test('la dépense transmet le contexte PAY-03 exact', () async {
     final gateway = _Gateway();
     await repository(gateway).createCashExpense(
       occurredAt: DateTime.utc(2026, 8, 10, 9),
       description: ' Courses ',
       amount: Money.fromMinorUnits(10000),
       sourceAccountId: 'cash-1',
+      actualPaymentMethodId: 'card-1',
       allocations: allocations,
       idempotencyKey: '00000000-0000-4000-8000-000000000001',
       notes: ' test ',
     );
-    expect(gateway.function, 'create_cash_expense_event');
+    expect(gateway.function, 'create_cash_expense_with_payment_context');
     expect(gateway.parameters, {
       'p_household_id': 'home-1',
       'p_occurred_at': '2026-08-10T09:00:00.000Z',
       'p_description': 'Courses',
       'p_amount': '100.00',
       'p_source_account_id': 'cash-1',
+      'p_actual_payment_method_id': 'card-1',
       'p_envelope_allocations': [
         {'envelope_id': 'food', 'amount': '60.00'},
         {'envelope_id': 'transport', 'amount': '40.00'},

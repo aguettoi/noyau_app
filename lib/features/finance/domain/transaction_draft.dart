@@ -117,6 +117,7 @@ class FinancialTransactionDraft {
     required this.description,
     required this.amount,
     this.sourceAccountId,
+    this.actualPaymentMethodId,
     this.destinationAccountId,
     this.categoryId,
     this.notes,
@@ -129,6 +130,7 @@ class FinancialTransactionDraft {
   final String description;
   final Money amount;
   final String? sourceAccountId;
+  final String? actualPaymentMethodId;
   final String? destinationAccountId;
   final String? categoryId;
   final String? notes;

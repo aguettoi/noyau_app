@@ -966,8 +966,21 @@ class _EnvelopeTransferDialogState
   String? _sourceId;
   String? _destinationId;
   final _idempotencyKey = newEnvelopeDistributionIdempotencyKey();
+  DateTime _economicDate = DateTime.now();
   var _submitting = false;
   String? _error;
+
+  Future<void> _pickEconomicDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _economicDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (selected != null && mounted) {
+      setState(() => _economicDate = selected);
+    }
+  }
 
   @override
   void dispose() {
@@ -1001,7 +1014,12 @@ class _EnvelopeTransferDialogState
         sourceEnvelopeId: _sourceId!,
         destinationEnvelopeId: _destinationId!,
         amount: Money.fromMinorUnits(cents),
-        occurredAt: DateTime.now(),
+        occurredAt: DateTime(
+          _economicDate.year,
+          _economicDate.month,
+          _economicDate.day,
+          12,
+        ),
         description: _description.text.trim(),
         idempotencyKey: _idempotencyKey,
       );
@@ -1030,6 +1048,14 @@ class _EnvelopeTransferDialogState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                key: const Key('envelope-transfer-economic-date-field'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Date économique *'),
+                subtitle: Text(_date(_economicDate)),
+                trailing: const Icon(Icons.calendar_today_outlined),
+                onTap: _submitting ? null : _pickEconomicDate,
+              ),
               _EnvelopeDropdown(
                 key: const Key('transfer-source-envelope-field'),
                 label: 'Enveloppe source *',

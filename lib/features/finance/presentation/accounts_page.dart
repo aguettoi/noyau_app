@@ -1158,7 +1158,6 @@ class _CreateAccountDialog extends StatefulWidget {
 class _CreateAccountDialogState extends State<_CreateAccountDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _balanceController = TextEditingController(text: '0');
   FinancialAccountType? _type;
   var _ownershipType = AccountOwnershipType.household;
   final _holderUserIds = <String>{};
@@ -1181,7 +1180,6 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
   @override
   void dispose() {
     _nameController.dispose();
-    _balanceController.dispose();
     super.dispose();
   }
 
@@ -1202,11 +1200,6 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
       setState(() => _error = 'Sélectionnez au moins deux titulaires.');
       return;
     }
-    final cents = _madToCents(_balanceController.text.trim());
-    if (cents == null) {
-      setState(() => _error = 'Saisissez un solde d’ouverture valide en MAD.');
-      return;
-    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -1216,7 +1209,7 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
         CreateRemoteAccountRequest(
           name: _nameController.text.trim(),
           type: _type!,
-          openingBalanceCents: cents,
+          openingBalanceCents: 0,
           archived: _archived,
           ownershipType: _ownershipType,
           holderUserIds: List.unmodifiable(_holderUserIds),
@@ -1363,21 +1356,6 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
                 onChanged: _submitting
                     ? null
                     : (value) => setState(() => _archived = value!),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextFormField(
-                key: const Key('account-opening-balance-field'),
-                controller: _balanceController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Solde d’ouverture (MAD)',
-                ),
-                validator: (value) => _madToCents(value?.trim() ?? '') == null
-                    ? 'Saisissez un montant MAD valide.'
-                    : null,
               ),
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.sm),

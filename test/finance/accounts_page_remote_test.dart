@@ -81,17 +81,17 @@ void main() {
       'Compte principal',
     );
     await selectType(tester, 'Banque');
-    await tester.enterText(
-      find.byKey(const Key('account-opening-balance-field')),
-      '1000,50',
-    );
     await tester.tap(find.byKey(const Key('create-remote-account-button')));
     await tester.pumpAndSettle();
 
     expect(gateway.createCalls, 1);
     expect(gateway.createdValues.single['name'], 'Compte principal');
     expect(gateway.createdValues.single['kind'], 'bank');
-    expect(gateway.createdValues.single['opening_balance'], '1000.50');
+    expect(gateway.createdValues.single['opening_balance'], '0.00');
+    expect(
+      find.byKey(const Key('account-opening-balance-field')),
+      findsNothing,
+    );
     expect(gateway.createdOwnershipType, AccountOwnershipType.household);
     expect(gateway.createdHolderUserIds, isEmpty);
     expect(gateway.fetchCalls, greaterThanOrEqualTo(2));
@@ -181,7 +181,7 @@ void main() {
     );
   });
 
-  testWidgets('type obligatoire et solde MAD invalide sont refuses', (
+  testWidgets('type obligatoire et ouverture legacy non exposée', (
     tester,
   ) async {
     await pumpPage(tester, _Gateway());
@@ -195,14 +195,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Choisissez un type de compte.'), findsOneWidget);
 
-    await selectType(tester, 'Banque');
-    await tester.enterText(
+    expect(
       find.byKey(const Key('account-opening-balance-field')),
-      '12,345',
+      findsNothing,
     );
-    await tester.tap(find.byKey(const Key('create-remote-account-button')));
-    await tester.pumpAndSettle();
-    expect(find.text('Saisissez un montant MAD valide.'), findsOneWidget);
   });
 
   testWidgets('compte individuel sans titulaire est refuse', (tester) async {

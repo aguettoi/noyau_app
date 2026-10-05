@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_accounts_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/financial_event_provider.dart';
+import 'package:noyau_app/features/finance/application/providers/payment_methods_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_transactions_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_debts_provider.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
@@ -29,15 +30,102 @@ void main() {
     isSystem: system,
   );
 
-  RemoteEnvelopeBalance envelope({required String id, required String name}) =>
-      RemoteEnvelopeBalance(
-        id: id,
-        name: name,
-        inflows: Money.fromMinorUnits(0),
-        outflows: Money.fromMinorUnits(0),
-        balance: Money.fromMinorUnits(0),
-        isSystem: false,
-      );
+  RemoteEnvelopeBalance envelope({
+    required String id,
+    required String name,
+    String? recommendedAccountId,
+    String? recommendedPaymentMethodId,
+  }) => RemoteEnvelopeBalance(
+    id: id,
+    name: name,
+    inflows: Money.fromMinorUnits(0),
+    outflows: Money.fromMinorUnits(0),
+    balance: Money.fromMinorUnits(0),
+    isSystem: false,
+    recommendedAccountId: recommendedAccountId,
+    recommendedPaymentMethodId: recommendedPaymentMethodId,
+  );
+
+  testWidgets('PAY-03 propose le recommandé et masque Ajustement legacy', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final gateway = _FinancialGateway();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          remoteAccountsProvider.overrideWith(
+            (ref) async => [account(id: 'account-1', name: 'Compte réel')],
+          ),
+          remoteTransactionsProvider.overrideWith(
+            (ref) async => const <TransactionHistoryItem>[],
+          ),
+          remoteEnvelopeBalancesProvider.overrideWith(
+            (ref) async => [
+              envelope(
+                id: 'food',
+                name: 'Courses',
+                recommendedAccountId: 'account-1',
+                recommendedPaymentMethodId: 'card-1',
+              ),
+            ],
+          ),
+          paymentMethodsProvider.overrideWith(
+            (ref) async => const [
+              PaymentMethod(
+                id: 'card-1',
+                label: 'Carte réelle',
+                type: 'bank_card',
+                accountId: 'account-1',
+                active: true,
+              ),
+              PaymentMethod(
+                id: 'old-card',
+                label: 'Carte archivée',
+                type: 'bank_card',
+                accountId: 'account-1',
+                active: false,
+              ),
+            ],
+          ),
+          financialEventRepositoryProvider.overrideWith(
+            (ref) async => FinancialEventSupabaseRepository(
+              gateway: gateway,
+              householdId: 'home-1',
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: TransactionsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-transaction-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ajustement'), findsNothing);
+    expect(
+      find.byKey(const Key('transaction-economic-date-field')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('transaction-envelope-field')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Courses').last);
+    await tester.pumpAndSettle();
+
+    final methodField = find.byKey(
+      const Key('transaction-payment-method-field'),
+    );
+    await tester.ensureVisible(methodField);
+    expect(
+      tester.widget<DropdownButtonFormField<String?>>(methodField).initialValue,
+      'card-1',
+    );
+    await tester.tap(methodField);
+    await tester.pumpAndSettle();
+    expect(find.text('Carte réelle'), findsWidgets);
+    expect(find.text('Carte archivée'), findsNothing);
+  });
 
   testWidgets('les comptes système ne sont jamais proposés à la saisie', (
     tester,
@@ -223,7 +311,7 @@ void main() {
       await tester.tap(find.byKey(const Key('create-transaction-button')));
       await tester.pumpAndSettle();
 
-      expect(gateway.function, 'create_cash_expense_event');
+      expect(gateway.function, 'create_cash_expense_with_payment_context');
       expect(returned, isTrue);
       expect(find.text('Ouvrir le flux canonique'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -292,7 +380,10 @@ void main() {
     await tester.tap(find.byKey(const Key('create-transaction-button')));
     await tester.pumpAndSettle();
 
-    expect(financialGateway.function, 'create_cash_expense_event');
+    expect(
+      financialGateway.function,
+      'create_cash_expense_with_payment_context',
+    );
     expect(financialGateway.parameters!['p_envelope_allocations'], [
       {'envelope_id': 'food', 'amount': '45.99'},
     ]);
