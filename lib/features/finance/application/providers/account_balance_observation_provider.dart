@@ -108,6 +108,14 @@ abstract interface class AccountBalanceObservationGateway {
     required String comment,
     required String idempotencyKey,
   });
+  Future<void> regularize({
+    required String observationId,
+    required Money amount,
+    required String reasonCode,
+    required String reason,
+    required List<Map<String, Object?>> allocations,
+    required String idempotencyKey,
+  });
 }
 
 class SupabaseAccountBalanceObservationGateway
@@ -343,6 +351,27 @@ class SupabaseAccountBalanceObservationGateway
   );
 
   @override
+  Future<void> regularize({
+    required String observationId,
+    required Money amount,
+    required String reasonCode,
+    required String reason,
+    required List<Map<String, Object?>> allocations,
+    required String idempotencyKey,
+  }) => _client.rpc(
+    'regularize_account_reconciliation',
+    params: {
+      'p_observation_id': observationId,
+      'p_amount': amount.dirhams.toStringAsFixed(2),
+      'p_reason_code': reasonCode,
+      'p_reason': reason.trim(),
+      'p_envelope_allocations': allocations,
+      'p_occurred_at': DateTime.now().toUtc().toIso8601String(),
+      'p_idempotency_key': idempotencyKey,
+    },
+  );
+
+  @override
   Future<void> record({
     required String accountId,
     required DateTime observedAt,
@@ -523,6 +552,32 @@ final resolveAccountReconciliationFollowUpProvider =
             ref.invalidate(accountReconciliationHistoryProvider(accountId));
           },
     );
+
+final regularizeAccountReconciliationProvider = Provider(
+  (ref) =>
+      ({
+        required String accountId,
+        required String observationId,
+        required Money amount,
+        required String reasonCode,
+        required String reason,
+        required List<Map<String, Object?>> allocations,
+        required String idempotencyKey,
+      }) async {
+        await ref
+            .read(accountBalanceObservationGatewayProvider)
+            .regularize(
+              observationId: observationId,
+              amount: amount,
+              reasonCode: reasonCode,
+              reason: reason,
+              allocations: allocations,
+              idempotencyKey: idempotencyKey,
+            );
+        ref.invalidate(latestAccountBalanceObservationProvider(accountId));
+        ref.invalidate(accountReconciliationHistoryProvider(accountId));
+      },
+);
 
 Money _money(Object? value) {
   final match = RegExp(

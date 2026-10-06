@@ -312,6 +312,16 @@ class _ObservationGateway implements AccountBalanceObservationGateway {
   }) async {}
 
   @override
+  Future<void> regularize({
+    required String observationId,
+    required Money amount,
+    required String reasonCode,
+    required String reason,
+    required List<Map<String, Object?>> allocations,
+    required String idempotencyKey,
+  }) async {}
+
+  @override
   Future<void> record({
     required String accountId,
     required DateTime observedAt,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/finance_shell_navigation.dart';
 import '../../../core/theme/app_design_system.dart';
 import 'transactions_page.dart';
+import 'member_compensations_page.dart';
 import '../../budget_intelligence/presentation/budget_page.dart';
 
 class FinanceOverviewPage extends ConsumerWidget {
@@ -43,6 +44,17 @@ class FinanceOverviewPage extends ConsumerWidget {
                 child: ResponsiveGrid(
                   minItemWidth: 300,
                   children: [
+                    CompactListRow(
+                      leading: const Icon(Icons.compare_arrows),
+                      title: 'Compensations internes',
+                      subtitle: 'À verser, en attente, soldées et abandonnées',
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const MemberCompensationsPage(),
+                        ),
+                      ),
+                    ),
                     CompactListRow(
                       leading: const Icon(Icons.upload_file_outlined),
                       title: 'Import & migration',

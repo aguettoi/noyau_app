@@ -672,6 +672,11 @@ class _ReconciliationDetailDialogState
         ),
         if (remaining.minorUnits != 0)
           TextButton(
+            onPressed: _saving ? null : _regularize,
+            child: const Text('Régulariser explicitement'),
+          ),
+        if (remaining.minorUnits != 0)
+          TextButton(
             onPressed: _saving ? null : _attachFinancialEvent,
             child: const Text('Rattacher une opération existante'),
           ),
@@ -729,6 +734,61 @@ class _ReconciliationDetailDialogState
       );
       if (mounted) Navigator.pop(context);
     } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _regularize() async {
+    final reason = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Régulariser l’écart'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Montant : ${_frenchMoney(widget.item.remainingDifference ?? widget.item.observation.differenceSnapshot!)}',
+            ),
+            const Text(
+              'Cette action crée un FinancialEvent canonique, jamais une mise à jour directe du solde.',
+            ),
+            TextField(
+              controller: reason,
+              decoration: const InputDecoration(labelText: 'Motif détaillé'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || reason.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      final amount =
+          widget.item.remainingDifference ??
+          widget.item.observation.differenceSnapshot!;
+      await ref.read(regularizeAccountReconciliationProvider)(
+        accountId: widget.account.id,
+        observationId: widget.item.observation.id,
+        amount: Money.fromMinorUnits(amount.minorUnits.abs()),
+        reasonCode: 'unexplained',
+        reason: reason.text,
+        allocations: const [],
+        idempotencyKey: '$_key-regularization',
+      );
+      if (mounted) Navigator.pop(context);
+    } finally {
+      reason.dispose();
       if (mounted) setState(() => _saving = false);
     }
   }
