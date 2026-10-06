@@ -297,9 +297,18 @@ class _AccountDetailPage extends ConsumerWidget {
                       .map(
                         (item) => ListTile(
                           title: Text(item.description),
-                          subtitle: Text(_accountHistoryLabel(item.type)),
+                          subtitle: Text(
+                            '${_formatObservationDate(item.occurredAt)} • ${_accountHistoryLabel(item.type)}'
+                            '${item.paymentMethodName == null ? '' : ' • ${item.paymentMethodName}'}'
+                            '${item.envelopes.isEmpty ? '' : ' • ${item.envelopes.map((e) => e.name).join(', ')}'}'
+                            '${item.isReversed
+                                ? ' • Annulée'
+                                : item.isReversal
+                                ? ' • Contrepassation'
+                                : ''}',
+                          ),
                           trailing: Text(
-                            '${item.amount.dirhams.toStringAsFixed(2)} MAD',
+                            '${item.sourceAccountId == account.id ? '−' : '+'}${item.amount.dirhams.abs().toStringAsFixed(2)} MAD',
                           ),
                         ),
                       )

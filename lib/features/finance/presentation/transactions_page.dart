@@ -1,7 +1,9 @@
 import 'dart:math';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
@@ -11,6 +13,7 @@ import '../application/providers/remote_accounts_provider.dart';
 import '../application/providers/remote_transactions_provider.dart';
 import '../application/providers/payment_methods_provider.dart';
 import '../application/providers/financial_event_provider.dart';
+import '../application/providers/financial_history_actions_provider.dart';
 import '../application/providers/remote_debts_provider.dart';
 import '../application/financial_event_contract.dart';
 import '../domain/financial_account.dart';
@@ -235,45 +238,280 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
   }
 }
 
-class _TransactionList extends StatelessWidget {
+class _TransactionList extends ConsumerStatefulWidget {
   const _TransactionList({required this.items});
 
   final List<TransactionHistoryItem> items;
 
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: AppSpacing.page,
-    children: [
-      Text('Grand Livre', style: Theme.of(context).textTheme.headlineSmall),
-      const SizedBox(height: AppSpacing.xs),
-      const Text('Historique validé et immuable des opérations financières.'),
-      const SizedBox(height: AppSpacing.lg),
-      if (items.isEmpty)
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.receipt_long_outlined),
-            title: Text('Aucune transaction'),
-            subtitle: Text('Ajoutez votre première opération financière.'),
-          ),
-        ),
-      ...items.map(
-        (item) => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Card(
-            child: ListTile(
-              onTap: () => showDialog<void>(
-                context: context,
-                builder: (_) => _TransactionDetailDialog(item: item),
-              ),
-              leading: Icon(_iconFor(item.type)),
-              title: Text(item.description),
-              subtitle: Text(_historySubtitle(item)),
-              trailing: Text('${item.amount.dirhams.toStringAsFixed(2)} MAD'),
+  ConsumerState<_TransactionList> createState() => _TransactionListState();
+}
+
+class _TransactionListState extends ConsumerState<_TransactionList> {
+  final _query = TextEditingController();
+  String? _accountId, _envelopeId, _methodId, _eventType, _reversalState;
+  DateTime? _from, _to;
+  var _page = 0;
+  bool _filtering = false;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  TransactionHistoryFilter get _filter => TransactionHistoryFilter(
+    query: _query.text.trim().isEmpty ? null : _query.text.trim(),
+    from: _from,
+    to: _to == null ? null : DateTime(_to!.year, _to!.month, _to!.day + 1),
+    accountId: _accountId,
+    envelopeId: _envelopeId,
+    paymentMethodId: _methodId,
+    eventType: _eventType,
+    reversalState: _reversalState,
+    page: _page,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtering
+        ? ref.watch(filteredTransactionsProvider(_filter))
+        : AsyncData(widget.items);
+    final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
+    final envelopes =
+        ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];
+    final methods = ref.watch(paymentMethodsProvider).valueOrNull ?? const [];
+    return ListView(
+      padding: AppSpacing.page,
+      children: [
+        Text('Grand Livre', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: AppSpacing.xs),
+        const Text('Historique validé et immuable des opérations financières.'),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          key: const Key('transaction-search-field'),
+          controller: _query,
+          decoration: InputDecoration(
+            labelText: 'Rechercher',
+            suffixIcon: IconButton(
+              onPressed: () => setState(() {
+                _filtering = true;
+                _page = 0;
+              }),
+              icon: const Icon(Icons.search),
             ),
           ),
         ),
-      ),
-    ],
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _filterDropdown(
+              'Compte',
+              _accountId,
+              [
+                for (final a in accounts)
+                  DropdownMenuItem(value: a.id, child: Text(a.name)),
+              ],
+              (v) => setState(() {
+                _accountId = v;
+                _filtering = true;
+                _page = 0;
+              }),
+            ),
+            _filterDropdown(
+              'Enveloppe',
+              _envelopeId,
+              [
+                for (final e in envelopes)
+                  DropdownMenuItem(value: e.id, child: Text(e.name)),
+              ],
+              (v) => setState(() {
+                _envelopeId = v;
+                _filtering = true;
+                _page = 0;
+              }),
+            ),
+            _filterDropdown(
+              'Moyen',
+              _methodId,
+              [
+                for (final m in methods)
+                  DropdownMenuItem(value: m.id, child: Text(m.label)),
+              ],
+              (v) => setState(() {
+                _methodId = v;
+                _filtering = true;
+                _page = 0;
+              }),
+            ),
+            _filterDropdown(
+              'Type',
+              _eventType,
+              const [
+                DropdownMenuItem(value: 'cash_expense', child: Text('Dépense')),
+                DropdownMenuItem(value: 'cash_income', child: Text('Revenu')),
+                DropdownMenuItem(
+                  value: 'account_transfer',
+                  child: Text('Virement compte'),
+                ),
+                DropdownMenuItem(
+                  value: 'envelope_transfer',
+                  child: Text('Transfert enveloppe'),
+                ),
+              ],
+              (v) => setState(() {
+                _eventType = v;
+                _filtering = true;
+                _page = 0;
+              }),
+            ),
+            _filterDropdown(
+              'Statut',
+              _reversalState,
+              const [
+                DropdownMenuItem(value: 'active', child: Text('Actives')),
+                DropdownMenuItem(value: 'reversed', child: Text('Annulées')),
+                DropdownMenuItem(
+                  value: 'reversal',
+                  child: Text('Contrepassations'),
+                ),
+              ],
+              (v) => setState(() {
+                _reversalState = v;
+                _filtering = true;
+                _page = 0;
+              }),
+            ),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final d = await showDatePicker(
+                  context: context,
+                  initialDate: _from ?? DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                );
+                if (d != null) {
+                  setState(() {
+                    _from = d;
+                    _filtering = true;
+                  });
+                }
+              },
+              icon: const Icon(Icons.date_range),
+              label: Text(_from == null ? 'Du' : _formatDate(_from!)),
+            ),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final d = await showDatePicker(
+                  context: context,
+                  initialDate: _to ?? DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                );
+                if (d != null) {
+                  setState(() {
+                    _to = d;
+                    _filtering = true;
+                  });
+                }
+              },
+              icon: const Icon(Icons.event),
+              label: Text(_to == null ? 'Au' : _formatDate(_to!)),
+            ),
+            TextButton(
+              onPressed: () => setState(() {
+                _query.clear();
+                _accountId = null;
+                _envelopeId = null;
+                _methodId = null;
+                _eventType = null;
+                _reversalState = null;
+                _from = null;
+                _to = null;
+                _page = 0;
+                _filtering = false;
+              }),
+              child: const Text('Effacer les filtres'),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        ...filtered.when(
+          loading: () => [const Center(child: CircularProgressIndicator())],
+          error: (e, _) => [Text('Recherche impossible : $e')],
+          data: (items) => [
+            if (items.isEmpty)
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.receipt_long_outlined),
+                  title: Text('Aucune transaction'),
+                  subtitle: Text(
+                    'Ajoutez votre première opération financière.',
+                  ),
+                ),
+              ),
+            ...items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Card(
+                  child: ListTile(
+                    onTap: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => _TransactionDetailDialog(item: item),
+                    ),
+                    leading: Icon(_iconFor(item.type)),
+                    title: Text(item.description),
+                    subtitle: Text(_historySubtitle(item)),
+                    trailing: Text(
+                      '${item.amount.dirhams.toStringAsFixed(2)} MAD',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (_filtering)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _page == 0
+                        ? null
+                        : () => setState(() => _page--),
+                    child: const Text('Précédent'),
+                  ),
+                  TextButton(
+                    onPressed: items.length < 50
+                        ? null
+                        : () => setState(() => _page++),
+                    child: const Text('Suivant'),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _filterDropdown(
+    String label,
+    String? value,
+    List<DropdownMenuItem<String>> items,
+    ValueChanged<String?> changed,
+  ) => SizedBox(
+    width: 190,
+    child: DropdownButtonFormField<String>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: [
+        const DropdownMenuItem(value: null, child: Text('Tous')),
+        ...items,
+      ],
+      onChanged: changed,
+    ),
   );
 }
 
@@ -1165,33 +1403,289 @@ int? _madToCents(String value) {
       (parts.length == 1 ? 0 : int.parse(parts.last.padRight(2, '0')));
 }
 
-class _TransactionDetailDialog extends StatelessWidget {
+class _TransactionDetailDialog extends ConsumerStatefulWidget {
   const _TransactionDetailDialog({required this.item});
   final TransactionHistoryItem item;
 
   @override
+  ConsumerState<_TransactionDetailDialog> createState() =>
+      _TransactionDetailDialogState();
+}
+
+class _TransactionDetailDialogState
+    extends ConsumerState<_TransactionDetailDialog> {
+  bool _busy = false;
+  TransactionHistoryItem get item => widget.item;
+
+  Future<void> _reverse() async {
+    final result = await showDialog<(String, String)?>(
+      context: context,
+      builder: (_) => const _DailyReversalDialog(),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(financialHistoryActionsProvider)
+          .reverse(
+            eventId: item.financialEventId!,
+            occurredAt: DateTime.now(),
+            reasonCode: result.$1,
+            reason: result.$2,
+            idempotencyKey: newFinancialHistoryIdempotencyKey(),
+          );
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Annulation impossible : $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _upload() async {
+    final picked = await FilePicker.platform.pickFiles(
+      withData: true,
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+    );
+    if (picked == null || picked.files.single.bytes == null) return;
+    final f = picked.files.single;
+    final ext = (f.extension ?? '').toLowerCase();
+    final mime = switch (ext) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'pdf' => 'application/pdf',
+      _ => null,
+    };
+    if (mime == null || f.size > 10485760) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Format refusé ou fichier supérieur à 10 Mo.'),
+          ),
+        );
+      }
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(financialHistoryActionsProvider)
+          .upload(
+            eventId: item.financialEventId!,
+            filename: f.name,
+            mimeType: mime,
+            bytes: f.bytes!,
+          );
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Ajout impossible : $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Détail de l’opération'),
+    content: SizedBox(
+      width: 560,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.description,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text('Type : ${_labelFor(item.type)}'),
+            Text('Date : ${_formatDate(item.occurredAt)}'),
+            Text('Montant : ${item.amount.dirhams.toStringAsFixed(2)} MAD'),
+            Text(
+              'Compte : ${item.sourceAccountName ?? item.destinationAccountName ?? 'Non renseigné'}',
+            ),
+            Text('Moyen : ${item.paymentMethodName ?? 'Moyen non renseigné'}'),
+            if (item.envelopes.isNotEmpty)
+              Text(
+                'Enveloppe(s) : ${item.envelopes.map((e) => e.name).join(', ')}',
+              ),
+            if (item.actorId != null) Text('Acteur : ${item.actorId}'),
+            if (item.recommendationSnapshot.isNotEmpty)
+              Text(
+                item.recommendationSnapshot.every(
+                      (e) =>
+                          e['actual_account_matches'] == true &&
+                          e['actual_payment_method_matches'] == true,
+                    )
+                    ? 'Recommandation : conforme'
+                    : 'Recommandation : différente du réel',
+              ),
+            Text(
+              'Statut : ${item.isReversed
+                  ? 'Annulée'
+                  : item.isReversal
+                  ? 'Contrepassation'
+                  : 'Comptabilisée'}',
+            ),
+            if (item.reversalReason != null)
+              Text('Motif : ${item.reversalReason}'),
+            Text(
+              item.hasEnvelopeMovement
+                  ? 'Ventilation d’enveloppe enregistrée.'
+                  : 'Historique sans mouvement d’enveloppe.',
+            ),
+            const Divider(),
+            Text(
+              'Justificatifs',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            if (item.attachments.isEmpty) const Text('Aucun justificatif.'),
+            for (final a in item.attachments)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  a.mimeType == 'application/pdf'
+                      ? Icons.picture_as_pdf
+                      : Icons.image,
+                ),
+                title: Text(a.filename),
+                subtitle: Text(
+                  '${(a.fileSize / 1024).toStringAsFixed(1)} Ko • ${_formatDate(a.uploadedAt)}',
+                ),
+                onTap: () async {
+                  final u = await ref
+                      .read(financialHistoryActionsProvider)
+                      .signedUrl(a.storagePath);
+                  if (!context.mounted) return;
+                  await launchUrl(Uri.parse(u));
+                },
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: _busy
+                      ? null
+                      : () async {
+                          await ref
+                              .read(financialHistoryActionsProvider)
+                              .delete(a.id);
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      if (item.financialEventId != null)
+        TextButton.icon(
+          onPressed: _busy ? null : _upload,
+          icon: const Icon(Icons.attach_file),
+          label: const Text('Ajouter un justificatif'),
+        ),
+      if (item.financialEventId != null &&
+          !item.isReversed &&
+          !item.isReversal &&
+          const [
+            LedgerTransactionType.expense,
+            LedgerTransactionType.income,
+            LedgerTransactionType.accountTransfer,
+            LedgerTransactionType.envelopeTransfer,
+          ].contains(item.type))
+        TextButton.icon(
+          key: const Key('reverse-daily-operation-button'),
+          onPressed: _busy ? null : _reverse,
+          icon: const Icon(Icons.undo),
+          label: const Text('Annuler l’opération'),
+        ),
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Fermer'),
+      ),
+    ],
+  );
+}
+
+class _DailyReversalDialog extends StatefulWidget {
+  const _DailyReversalDialog();
+  @override
+  State<_DailyReversalDialog> createState() => _DailyReversalDialogState();
+}
+
+class _DailyReversalDialogState extends State<_DailyReversalDialog> {
+  String _code = 'wrong_amount';
+  final _reason = TextEditingController();
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Annuler l’opération'),
     content: Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(item.description, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.sm),
-        Text('Type : ${_labelFor(item.type)}'),
-        Text('Date : ${_formatDate(item.occurredAt)}'),
-        Text('Montant : ${item.amount.dirhams.toStringAsFixed(2)} MAD'),
-        Text(
-          item.hasEnvelopeMovement
-              ? 'Ventilation d’enveloppe enregistrée.'
-              : 'Historique sans mouvement d’enveloppe.',
+        DropdownButtonFormField<String>(
+          initialValue: _code,
+          decoration: const InputDecoration(labelText: 'Motif'),
+          items: const [
+            DropdownMenuItem(
+              value: 'wrong_amount',
+              child: Text('Erreur de montant'),
+            ),
+            DropdownMenuItem(
+              value: 'wrong_account',
+              child: Text('Mauvais compte'),
+            ),
+            DropdownMenuItem(
+              value: 'wrong_envelope',
+              child: Text('Mauvaise enveloppe'),
+            ),
+            DropdownMenuItem(value: 'duplicate', child: Text('Doublon')),
+            DropdownMenuItem(
+              value: 'cancelled',
+              child: Text('Opération annulée'),
+            ),
+            DropdownMenuItem(value: 'other', child: Text('Autre')),
+          ],
+          onChanged: (v) => setState(() => _code = v!),
+        ),
+        TextField(
+          key: const Key('daily-reversal-reason-field'),
+          controller: _reason,
+          onChanged: (_) => setState(() {}),
+          maxLength: 500,
+          decoration: const InputDecoration(labelText: 'Explication *'),
         ),
       ],
     ),
     actions: [
       TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Fermer'),
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Retour'),
+      ),
+      FilledButton(
+        key: const Key('daily-reversal-submit-button'),
+        onPressed: _reason.text.trim().isEmpty
+            ? null
+            : () => Navigator.pop(context, (_code, _reason.text.trim())),
+        child: const Text('Confirmer l’annulation'),
       ),
     ],
   );

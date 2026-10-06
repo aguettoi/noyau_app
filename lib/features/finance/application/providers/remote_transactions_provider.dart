@@ -14,17 +14,25 @@ class SupabaseTransactionsGateway implements TransactionsSupabaseGateway {
 
   @override
   Future<List<Map<String, Object?>>> fetchTransactions(
-    String householdId,
-  ) async {
-    final response = await _client
-        .from('financial_transactions')
-        .select(
-          'id, event_id, type, occurred_at, description, amount, created_at, envelope_movements(id)',
-        )
-        .eq('household_id', householdId)
-        .isFilter('archived_at', null)
-        .order('occurred_at', ascending: false)
-        .order('created_at', ascending: false);
+    String householdId, {
+    TransactionHistoryFilter filter = const TransactionHistoryFilter(),
+  }) async {
+    final response = await _client.rpc(
+      'search_financial_event_history',
+      params: {
+        'p_household_id': householdId,
+        'p_query': filter.query,
+        'p_from': filter.from?.toUtc().toIso8601String(),
+        'p_to': filter.to?.toUtc().toIso8601String(),
+        'p_account_id': filter.accountId,
+        'p_envelope_id': filter.envelopeId,
+        'p_payment_method_id': filter.paymentMethodId,
+        'p_event_type': filter.eventType,
+        'p_reversal_state': filter.reversalState,
+        'p_limit': filter.pageSize,
+        'p_offset': filter.page * filter.pageSize,
+      },
+    );
     return (response as List<dynamic>)
         .map((row) => Map<String, Object?>.from(row as Map))
         .toList(growable: false);
@@ -75,6 +83,20 @@ final remoteTransactionsProvider = FutureProvider<List<TransactionHistoryItem>>(
   },
 );
 
+final filteredTransactionsProvider =
+    FutureProvider.family<
+      List<TransactionHistoryItem>,
+      TransactionHistoryFilter
+    >((ref, filter) async {
+      final household = await ref.watch(activeHouseholdProvider.future);
+      if (!household.hasActiveHousehold) {
+        throw StateError('Aucun foyer actif sans ambiguïté.');
+      }
+      return ref
+          .watch(transactionsSupabaseRepositoryProvider)
+          .all(filter: filter);
+    });
+
 final createRemoteTransactionProvider =
     Provider<Future<String> Function(FinancialTransactionDraft draft)>((ref) {
       return (draft) =>
@@ -91,25 +113,12 @@ final accountTransactionHistoryProvider =
       if (!household.hasActiveHousehold || householdId == null) {
         throw StateError('Aucun foyer actif sans ambiguïté.');
       }
-      final rows = await ref
-          .watch(supabaseClientProvider)
-          .from('financial_transactions')
-          .select(
-            'id, event_id, type, occurred_at, description, amount, created_at, envelope_movements(id)',
-          )
-          .eq('household_id', householdId)
-          .or(
-            'source_account_id.eq.$accountId,destination_account_id.eq.$accountId',
-          )
-          .isFilter('archived_at', null)
-          .order('occurred_at', ascending: false);
-      return List.unmodifiable(
-        (rows as List<dynamic>)
-            .map(
-              (raw) => TransactionsSupabaseRepository.mapRow(
-                Map<String, Object?>.from(raw as Map),
-              ),
-            )
-            .toList(growable: false),
-      );
+      return ref
+          .watch(transactionsSupabaseRepositoryProvider)
+          .all(
+            filter: TransactionHistoryFilter(
+              accountId: accountId,
+              pageSize: 100,
+            ),
+          );
     });

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_transactions_provider.dart';
 import 'package:noyau_app/features/finance/domain/transaction_draft.dart';
+import 'package:noyau_app/features/finance/domain/transaction_history_item.dart';
 import 'package:noyau_app/features/finance/infrastructure/transactions_supabase_repository.dart';
 
 void main() {
@@ -43,8 +44,9 @@ class _Gateway implements TransactionsSupabaseGateway {
 
   @override
   Future<List<Map<String, Object?>>> fetchTransactions(
-    String householdId,
-  ) async {
+    String householdId, {
+    TransactionHistoryFilter filter = const TransactionHistoryFilter(),
+  }) async {
     this.householdId = householdId;
     return [
       {

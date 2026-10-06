@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/finance/domain/transaction_draft.dart';
+import 'package:noyau_app/features/finance/domain/transaction_history_item.dart';
 import 'package:noyau_app/features/finance/infrastructure/transactions_supabase_repository.dart';
 
 void main() {
@@ -183,6 +184,9 @@ void main() {
 
   for (final type in [
     'expense',
+    'cash_expense',
+    'cash_income',
+    'account_opening',
     'debt_expense',
     'income_receivable',
     'recovery',
@@ -256,6 +260,7 @@ class _Gateway implements TransactionsSupabaseGateway {
 
   @override
   Future<List<Map<String, Object?>>> fetchTransactions(
-    String householdId,
-  ) async => rows;
+    String householdId, {
+    TransactionHistoryFilter filter = const TransactionHistoryFilter(),
+  }) async => rows;
 }

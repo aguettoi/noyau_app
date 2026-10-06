@@ -127,6 +127,77 @@ void main() {
     expect(find.text('Carte archivée'), findsNothing);
   });
 
+  testWidgets('F2C affiche recherche, détail enrichi et reversal quotidien', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          remoteAccountsProvider.overrideWith(
+            (ref) async => [account(id: 'account-1', name: 'Compte réel')],
+          ),
+          remoteEnvelopeBalancesProvider.overrideWith(
+            (ref) async => [envelope(id: 'food', name: 'Courses')],
+          ),
+          paymentMethodsProvider.overrideWith(
+            (ref) async => const [
+              PaymentMethod(
+                id: 'card-1',
+                label: 'Carte',
+                type: 'bank_card',
+                accountId: 'account-1',
+                active: true,
+              ),
+            ],
+          ),
+          remoteTransactionsProvider.overrideWith(
+            (ref) async => [
+              TransactionHistoryItem(
+                id: 'tx-1',
+                financialEventId: 'event-1',
+                type: LedgerTransactionType.expense,
+                occurredAt: DateTime.utc(2026, 10, 2, 12),
+                createdAt: DateTime.utc(2026, 10, 2, 13),
+                description: 'Courses semaine',
+                amount: Money.fromMinorUnits(10000),
+                sourceAccountId: 'account-1',
+                sourceAccountName: 'Compte réel',
+                paymentMethodId: 'card-1',
+                paymentMethodName: 'Carte',
+                envelopes: const [
+                  TransactionEnvelopeReference(id: 'food', name: 'Courses'),
+                ],
+                recommendationSnapshot: const [
+                  {
+                    'actual_account_matches': true,
+                    'actual_payment_method_matches': true,
+                  },
+                ],
+              ),
+            ],
+          ),
+        ],
+        child: const MaterialApp(home: TransactionsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('transaction-search-field')), findsOneWidget);
+    await tester.tap(find.text('Courses semaine'));
+    await tester.pumpAndSettle();
+    expect(find.text('Compte : Compte réel'), findsOneWidget);
+    expect(find.text('Moyen : Carte'), findsOneWidget);
+    expect(find.text('Enveloppe(s) : Courses'), findsOneWidget);
+    expect(find.text('Recommandation : conforme'), findsOneWidget);
+    expect(
+      find.byKey(const Key('reverse-daily-operation-button')),
+      findsOneWidget,
+    );
+    expect(find.text('Ajouter un justificatif'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('les comptes système ne sont jamais proposés à la saisie', (
     tester,
   ) async {
