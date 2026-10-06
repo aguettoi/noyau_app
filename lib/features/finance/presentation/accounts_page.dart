@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
+import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/providers/remote_account_balances_provider.dart';
 import '../application/providers/account_balance_observation_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
@@ -13,6 +14,7 @@ import '../domain/household_member.dart';
 import '../domain/financial_account.dart';
 import '../infrastructure/accounts_supabase_repository.dart';
 import 'transactions_page.dart';
+import 'widgets/envelope_allocation_dialog.dart';
 
 class AccountsPage extends ConsumerStatefulWidget {
   const AccountsPage({super.key});
@@ -639,7 +641,15 @@ class _ReconciliationDetailDialogState
                   subtitle: Text(
                     '${r.comment}\n${r.actorName} • ${_formatObservationDate(r.createdAt)}',
                   ),
-                  trailing: r.effectiveAmount.minorUnits == 0
+                  trailing:
+                      r.kind == 'regularization' && r.financialEventId != null
+                      ? TextButton(
+                          onPressed: _saving
+                              ? null
+                              : () => _reverseRegularization(r),
+                          child: const Text('Contrepasser'),
+                        )
+                      : r.effectiveAmount.minorUnits == 0
                       ? null
                       : Text(_frenchMoney(r.effectiveAmount)),
                 ),
@@ -772,19 +782,73 @@ class _ReconciliationDetailDialogState
       ),
     );
     if (confirmed != true || reason.text.trim().isEmpty) return;
+    final amount =
+        widget.item.remainingDifference ??
+        widget.item.observation.differenceSnapshot!;
+    final envelopes = await ref.read(remoteEnvelopeBalancesProvider.future);
+    if (!mounted) return;
+    final allocation = await showDialog<EnvelopeAllocationResult>(
+      context: context,
+      builder: (_) => EnvelopeAllocationDialog(
+        amountCents: amount.minorUnits.abs(),
+        envelopes: envelopes,
+        allowNoImpact: true,
+      ),
+    );
+    if (allocation == null || !mounted) return;
     setState(() => _saving = true);
     try {
-      final amount =
-          widget.item.remainingDifference ??
-          widget.item.observation.differenceSnapshot!;
       await ref.read(regularizeAccountReconciliationProvider)(
         accountId: widget.account.id,
         observationId: widget.item.observation.id,
         amount: Money.fromMinorUnits(amount.minorUnits.abs()),
         reasonCode: 'unexplained',
         reason: reason.text,
-        allocations: const [],
+        allocations: allocation.allocations,
         idempotencyKey: '$_key-regularization',
+      );
+      if (mounted) Navigator.pop(context);
+    } finally {
+      reason.dispose();
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _reverseRegularization(
+    AccountReconciliationResolution resolution,
+  ) async {
+    final reason = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Contrepasser la régularisation'),
+        content: TextField(
+          controller: reason,
+          decoration: const InputDecoration(labelText: 'Motif obligatoire'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Contrepasser'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || reason.text.trim().isEmpty) {
+      reason.dispose();
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref.read(reverseAccountReconciliationRegularizationProvider)(
+        accountId: widget.account.id,
+        financialEventId: resolution.financialEventId!,
+        reason: reason.text,
+        idempotencyKey: '$_key-reversal-${resolution.id}',
       );
       if (mounted) Navigator.pop(context);
     } finally {

@@ -14,11 +14,14 @@ import '../application/providers/remote_transactions_provider.dart';
 import '../application/providers/payment_methods_provider.dart';
 import '../application/providers/financial_event_provider.dart';
 import '../application/providers/financial_history_actions_provider.dart';
+import '../application/providers/member_compensations_provider.dart';
+import '../application/providers/remote_household_members_provider.dart';
 import '../application/providers/remote_debts_provider.dart';
 import '../application/financial_event_contract.dart';
 import '../domain/financial_account.dart';
 import '../domain/transaction_draft.dart';
 import '../domain/transaction_history_item.dart';
+import 'member_compensations_page.dart';
 
 class TransactionsPage extends ConsumerStatefulWidget {
   const TransactionsPage({
@@ -1417,6 +1420,153 @@ class _TransactionDetailDialogState
   bool _busy = false;
   TransactionHistoryItem get item => widget.item;
 
+  Future<void> _createCompensation() async {
+    final members = await ref.read(remoteHouseholdMembersProvider.future);
+    final accounts = await ref.read(remoteAccountsProvider.future);
+    final actual = accounts
+        .where((a) => a.id == item.sourceAccountId)
+        .firstOrNull;
+    final recommendedId = item.recommendationSnapshot
+        .map((e) => e['recommended_account_id']?.toString())
+        .whereType<String>()
+        .firstOrNull;
+    final recommended = accounts
+        .where((a) => a.id == recommendedId)
+        .firstOrNull;
+    final actualOwners = actual?.holders.map((e) => e.userId).toSet() ?? {};
+    final recommendedOwners =
+        recommended?.holders.map((e) => e.userId).toSet() ?? {};
+    if (!mounted) return;
+    if (actualOwners.length == 1 &&
+        recommendedOwners.length == 1 &&
+        actualOwners.single == recommendedOwners.single) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Même membre économique : aucune compensation nécessaire.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    String? debtor = recommendedOwners.length == 1
+        ? recommendedOwners.single
+        : null;
+    String? creditor = actualOwners.length == 1 ? actualOwners.single : null;
+    final result = await showDialog<(String, String, double, String)?>(
+      context: context,
+      builder: (c) {
+        final amount = TextEditingController(
+          text: item.amount.dirhams.toStringAsFixed(2),
+        );
+        final reason = TextEditingController(
+          text: 'Charge payée par un autre membre',
+        );
+        return StatefulBuilder(
+          builder: (c, setLocal) => AlertDialog(
+            title: const Text('Créer une compensation'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: debtor,
+                  decoration: const InputDecoration(
+                    labelText: 'Qui doit verser ?',
+                  ),
+                  items: members
+                      .map(
+                        (m) => DropdownMenuItem(
+                          value: m.id,
+                          child: Text(m.displayName),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setLocal(() => debtor = v),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: creditor,
+                  decoration: const InputDecoration(
+                    labelText: 'Qui doit recevoir ?',
+                  ),
+                  items: members
+                      .map(
+                        (m) => DropdownMenuItem(
+                          value: m.id,
+                          child: Text(m.displayName),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setLocal(() => creditor = v),
+                ),
+                TextField(
+                  controller: amount,
+                  decoration: const InputDecoration(labelText: 'Montant (MAD)'),
+                ),
+                TextField(
+                  controller: reason,
+                  decoration: const InputDecoration(labelText: 'Motif'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final value = double.tryParse(
+                    amount.text.replaceAll(',', '.'),
+                  );
+                  if (debtor != null &&
+                      creditor != null &&
+                      debtor != creditor &&
+                      value != null &&
+                      value > 0 &&
+                      value <= item.amount.dirhams) {
+                    Navigator.pop(c, (
+                      debtor!,
+                      creditor!,
+                      value,
+                      reason.text.trim(),
+                    ));
+                  }
+                },
+                child: const Text('Créer la compensation'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (result == null || item.financialEventId == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(createMemberCompensationProvider)(
+        sourceEventId: item.financialEventId!,
+        debtorUserId: result.$1,
+        creditorUserId: result.$2,
+        amount: result.$3,
+        reason: result.$4,
+        envelopeId: item.envelopes.length == 1
+            ? item.envelopes.single.id
+            : null,
+        actualAccountId: item.sourceAccountId,
+        recommendedAccountId: recommendedId,
+        actualPaymentMethodId: item.paymentMethodId,
+        recommendedPaymentMethodId: item.recommendationSnapshot
+            .map((e) => e['recommended_payment_method_id']?.toString())
+            .whereType<String>()
+            .firstOrNull,
+      );
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _reverse() async {
     final result = await showDialog<(String, String)?>(
       context: context,
@@ -1499,125 +1649,185 @@ class _TransactionDetailDialogState
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Détail de l’opération'),
-    content: SizedBox(
-      width: 560,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item.description,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text('Type : ${_labelFor(item.type)}'),
-            Text('Date : ${_formatDate(item.occurredAt)}'),
-            Text('Montant : ${item.amount.dirhams.toStringAsFixed(2)} MAD'),
-            Text(
-              'Compte : ${item.sourceAccountName ?? item.destinationAccountName ?? 'Non renseigné'}',
-            ),
-            Text('Moyen : ${item.paymentMethodName ?? 'Moyen non renseigné'}'),
-            if (item.envelopes.isNotEmpty)
+  Widget build(BuildContext context) {
+    final accounts =
+        ref.watch(remoteAccountsProvider).valueOrNull ??
+        const <FinancialAccount>[];
+    final actual = accounts
+        .where((a) => a.id == item.sourceAccountId)
+        .firstOrNull;
+    final recommendedId = item.recommendationSnapshot
+        .map((e) => e['recommended_account_id']?.toString())
+        .whereType<String>()
+        .firstOrNull;
+    final recommended = accounts
+        .where((a) => a.id == recommendedId)
+        .firstOrNull;
+    final sameEconomicMember =
+        actual != null &&
+        recommended != null &&
+        actual.holders.length == 1 &&
+        recommended.holders.length == 1 &&
+        actual.holders.single.userId == recommended.holders.single.userId;
+    final compensations =
+        ref.watch(memberCompensationsProvider).valueOrNull ??
+        const <MemberCompensation>[];
+    final existing = item.financialEventId == null
+        ? null
+        : compensations
+              .where((c) => c.sourceFinancialEventId == item.financialEventId)
+              .firstOrNull;
+    final mismatch = item.recommendationSnapshot.any(
+      (e) =>
+          e['actual_account_matches'] == false ||
+          e['actual_payment_method_matches'] == false,
+    );
+    return AlertDialog(
+      title: const Text('Détail de l’opération'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                'Enveloppe(s) : ${item.envelopes.map((e) => e.name).join(', ')}',
+                item.description,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-            if (item.actorId != null) Text('Acteur : ${item.actorId}'),
-            if (item.recommendationSnapshot.isNotEmpty)
+              const SizedBox(height: AppSpacing.sm),
+              Text('Type : ${_labelFor(item.type)}'),
+              Text('Date : ${_formatDate(item.occurredAt)}'),
+              Text('Montant : ${item.amount.dirhams.toStringAsFixed(2)} MAD'),
               Text(
-                item.recommendationSnapshot.every(
-                      (e) =>
-                          e['actual_account_matches'] == true &&
-                          e['actual_payment_method_matches'] == true,
-                    )
-                    ? 'Recommandation : conforme'
-                    : 'Recommandation : différente du réel',
+                'Compte : ${item.sourceAccountName ?? item.destinationAccountName ?? 'Non renseigné'}',
               ),
-            Text(
-              'Statut : ${item.isReversed
-                  ? 'Annulée'
-                  : item.isReversal
-                  ? 'Contrepassation'
-                  : 'Comptabilisée'}',
-            ),
-            if (item.reversalReason != null)
-              Text('Motif : ${item.reversalReason}'),
-            Text(
-              item.hasEnvelopeMovement
-                  ? 'Ventilation d’enveloppe enregistrée.'
-                  : 'Historique sans mouvement d’enveloppe.',
-            ),
-            const Divider(),
-            Text(
-              'Justificatifs',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            if (item.attachments.isEmpty) const Text('Aucun justificatif.'),
-            for (final a in item.attachments)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  a.mimeType == 'application/pdf'
-                      ? Icons.picture_as_pdf
-                      : Icons.image,
-                ),
-                title: Text(a.filename),
-                subtitle: Text(
-                  '${(a.fileSize / 1024).toStringAsFixed(1)} Ko • ${_formatDate(a.uploadedAt)}',
-                ),
-                onTap: () async {
-                  final u = await ref
-                      .read(financialHistoryActionsProvider)
-                      .signedUrl(a.storagePath);
-                  if (!context.mounted) return;
-                  await launchUrl(Uri.parse(u));
-                },
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          await ref
-                              .read(financialHistoryActionsProvider)
-                              .delete(a.id);
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                ),
+              Text(
+                'Moyen : ${item.paymentMethodName ?? 'Moyen non renseigné'}',
               ),
-          ],
+              if (item.envelopes.isNotEmpty)
+                Text(
+                  'Enveloppe(s) : ${item.envelopes.map((e) => e.name).join(', ')}',
+                ),
+              if (item.actorId != null) Text('Acteur : ${item.actorId}'),
+              if (item.recommendationSnapshot.isNotEmpty)
+                Text(
+                  item.recommendationSnapshot.every(
+                        (e) =>
+                            e['actual_account_matches'] == true &&
+                            e['actual_payment_method_matches'] == true,
+                      )
+                      ? 'Recommandation : conforme'
+                      : 'Recommandation : différente du réel',
+                ),
+              Text(
+                'Statut : ${item.isReversed
+                    ? 'Annulée'
+                    : item.isReversal
+                    ? 'Contrepassation'
+                    : 'Comptabilisée'}',
+              ),
+              if (item.reversalReason != null)
+                Text('Motif : ${item.reversalReason}'),
+              Text(
+                item.hasEnvelopeMovement
+                    ? 'Ventilation d’enveloppe enregistrée.'
+                    : 'Historique sans mouvement d’enveloppe.',
+              ),
+              const Divider(),
+              Text(
+                'Justificatifs',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              if (item.attachments.isEmpty) const Text('Aucun justificatif.'),
+              for (final a in item.attachments)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    a.mimeType == 'application/pdf'
+                        ? Icons.picture_as_pdf
+                        : Icons.image,
+                  ),
+                  title: Text(a.filename),
+                  subtitle: Text(
+                    '${(a.fileSize / 1024).toStringAsFixed(1)} Ko • ${_formatDate(a.uploadedAt)}',
+                  ),
+                  onTap: () async {
+                    final u = await ref
+                        .read(financialHistoryActionsProvider)
+                        .signedUrl(a.storagePath);
+                    if (!context.mounted) return;
+                    await launchUrl(Uri.parse(u));
+                  },
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: _busy
+                        ? null
+                        : () async {
+                            await ref
+                                .read(financialHistoryActionsProvider)
+                                .delete(a.id);
+                            if (context.mounted) Navigator.pop(context);
+                          },
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
-    ),
-    actions: [
-      if (item.financialEventId != null)
-        TextButton.icon(
-          onPressed: _busy ? null : _upload,
-          icon: const Icon(Icons.attach_file),
-          label: const Text('Ajouter un justificatif'),
+      actions: [
+        if (existing != null)
+          TextButton.icon(
+            key: const Key('view-expense-compensation'),
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const MemberCompensationsPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.open_in_new),
+            label: const Text('Voir la compensation'),
+          )
+        else if (item.type == LedgerTransactionType.expense &&
+            item.financialEventId != null &&
+            mismatch &&
+            !sameEconomicMember)
+          TextButton.icon(
+            key: const Key('create-compensation-from-expense'),
+            onPressed: _busy ? null : _createCompensation,
+            icon: const Icon(Icons.swap_horiz),
+            label: const Text('Créer une compensation'),
+          ),
+        if (item.financialEventId != null)
+          TextButton.icon(
+            onPressed: _busy ? null : _upload,
+            icon: const Icon(Icons.attach_file),
+            label: const Text('Ajouter un justificatif'),
+          ),
+        if (item.financialEventId != null &&
+            !item.isReversed &&
+            !item.isReversal &&
+            const [
+              LedgerTransactionType.expense,
+              LedgerTransactionType.income,
+              LedgerTransactionType.accountTransfer,
+              LedgerTransactionType.envelopeTransfer,
+            ].contains(item.type))
+          TextButton.icon(
+            key: const Key('reverse-daily-operation-button'),
+            onPressed: _busy ? null : _reverse,
+            icon: const Icon(Icons.undo),
+            label: const Text('Annuler l’opération'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Fermer'),
         ),
-      if (item.financialEventId != null &&
-          !item.isReversed &&
-          !item.isReversal &&
-          const [
-            LedgerTransactionType.expense,
-            LedgerTransactionType.income,
-            LedgerTransactionType.accountTransfer,
-            LedgerTransactionType.envelopeTransfer,
-          ].contains(item.type))
-        TextButton.icon(
-          key: const Key('reverse-daily-operation-button'),
-          onPressed: _busy ? null : _reverse,
-          icon: const Icon(Icons.undo),
-          label: const Text('Annuler l’opération'),
-        ),
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Fermer'),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 class _DailyReversalDialog extends StatefulWidget {

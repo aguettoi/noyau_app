@@ -579,6 +579,30 @@ final regularizeAccountReconciliationProvider = Provider(
       },
 );
 
+final reverseAccountReconciliationRegularizationProvider = Provider(
+  (ref) =>
+      ({
+        required String accountId,
+        required String financialEventId,
+        required String reason,
+        required String idempotencyKey,
+      }) async {
+        await ref
+            .read(supabaseClientProvider)
+            .rpc(
+              'reverse_reconciliation_regularization',
+              params: {
+                'p_original_event_id': financialEventId,
+                'p_occurred_at': DateTime.now().toUtc().toIso8601String(),
+                'p_reason': reason.trim(),
+                'p_idempotency_key': idempotencyKey,
+              },
+            );
+        ref.invalidate(latestAccountBalanceObservationProvider(accountId));
+        ref.invalidate(accountReconciliationHistoryProvider(accountId));
+      },
+);
+
 Money _money(Object? value) {
   final match = RegExp(
     r'^(-?)(\d+)(?:[.,](\d{1,2}))?$',
