@@ -85,6 +85,7 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
       await repository.approveRun(run.id);
       if (mounted) setState(() => _approved = true);
       ref.invalidate(remoteBudgetRunsProvider);
+      ref.invalidate(budgetApprovalProgressProvider(run.id));
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -211,6 +212,7 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
     final envelopes = ref.watch(remoteEnvelopeHistoryProvider);
     final periods = ref.watch(remoteBudgetPeriodsProvider);
     final scenarios = ref.watch(remoteBudgetScenariosProvider);
+    final approval = ref.watch(budgetApprovalProgressProvider(widget.runId));
     return runs.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -257,6 +259,16 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
               ],
               if (run.approvedAt != null)
                 Text('Validation : ${_date(run.approvedAt!)}'),
+              if (run.status == 'simulated')
+                Text(
+                  approval.when(
+                    data: (value) => value.complete
+                        ? 'Validations complètes'
+                        : 'En attente de validation : ${value.approved}/${value.required}',
+                    loading: () => 'Validations en cours de chargement…',
+                    error: (_, _) => 'Validations indisponibles',
+                  ),
+                ),
               if (run.appliedAt != null)
                 Text('Application : ${_date(run.appliedAt!)}'),
               if (blocked)

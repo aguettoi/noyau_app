@@ -6,6 +6,7 @@ import '../../../core/theme/app_design_system.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../financial_availability/application/providers/financial_availability_provider.dart';
 import '../../financial_availability/domain/financial_availability.dart';
+import '../../financial_availability/application/providers/f4_planning_provider.dart';
 import '../../savings_goals/domain/savings_goal.dart';
 import '../../shopping_list/application/providers/remote_shopping_list_provider.dart';
 import '../../shopping_list/domain/shopping_item.dart';
@@ -345,7 +346,7 @@ class _PrioritySequence extends ConsumerWidget {
   }
 }
 
-class _PriorityEntryCard extends StatelessWidget {
+class _PriorityEntryCard extends ConsumerWidget {
   const _PriorityEntryCard({
     super.key,
     required this.entry,
@@ -361,9 +362,12 @@ class _PriorityEntryCard extends StatelessWidget {
   final VoidCallback onRemove;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final source = entry.item.source;
     final date = entry.estimatedCompletionDate ?? source.date;
+    final decision = ref
+        .watch(priorityItemDecisionsProvider)
+        .valueOrNull?[entry.item.item.id];
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: CompactListRow(
@@ -379,6 +383,8 @@ class _PriorityEntryCard extends StatelessWidget {
             '${entry.estimatedMonths} mois de financement estimé${entry.estimatedMonths == 1 ? '' : 's'}',
           if (date != null) 'Prévision : ${_date(date)}',
           if (entry.reason != null) entry.reason!,
+          if (decision != null)
+            'Décision : ${PriorityDecision.values.firstWhere((value) => value.databaseValue == decision).label}',
           'Statut : ${source.status}',
         ].join(' · '),
         trailing: !editable
@@ -387,6 +393,20 @@ class _PriorityEntryCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (dragHandle case final Widget handle) handle,
+                  PopupMenuButton<PriorityDecision>(
+                    key: ValueKey('priority-decision-${entry.item.item.id}'),
+                    tooltip: 'Décision financière',
+                    onSelected: (value) => savePriorityDecision(
+                      ref,
+                      itemId: entry.item.item.id,
+                      decision: value,
+                    ),
+                    itemBuilder: (_) => [
+                      for (final value in PriorityDecision.values)
+                        PopupMenuItem(value: value, child: Text(value.label)),
+                    ],
+                    icon: const Icon(Icons.rule_outlined),
+                  ),
                   IconButton(
                     tooltip: 'Retirer du plan',
                     onPressed: onRemove,

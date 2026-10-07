@@ -32,6 +32,28 @@ class BudgetSupabaseRepository {
   final String householdId;
   final String userId;
 
+  /// Creates one monthly planning shell. This copies configuration references
+  /// only; financial activity and envelope balances always remain in ledgers.
+  Future<String> prepareMonthlyPeriodV2(
+    DateTime month, {
+    required String mode,
+    String? sourcePeriodId,
+  }) async {
+    final startsOn = DateTime(month.year, month.month);
+    final result = await gateway.rpc('prepare_budget_period_v2', {
+      'p_household_id': householdId,
+      'p_starts_on': startsOn.toIso8601String().substring(0, 10),
+      'p_mode': mode,
+      'p_source_period_id': sourcePeriodId,
+    });
+    if (result is! String || result.isEmpty) {
+      throw StateError(
+        'La préparation mensuelle n’a retourné aucun identifiant.',
+      );
+    }
+    return result;
+  }
+
   Future<String> prepareMonthlyPeriod(DateTime month) async {
     final startsOn = DateTime(month.year, month.month);
     final startsOnIso = startsOn.toIso8601String().substring(0, 10);

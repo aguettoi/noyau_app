@@ -78,7 +78,10 @@ class _BudgetMonthlyPreparationPageState
     }
   }
 
-  Future<void> _preparePeriod() async {
+  Future<void> _preparePeriod({
+    String mode = 'empty',
+    String? sourcePeriodId,
+  }) async {
     if (_preparingPeriod) return;
     setState(() {
       _preparingPeriod = true;
@@ -88,7 +91,13 @@ class _BudgetMonthlyPreparationPageState
       final repository = await ref.read(
         budgetSupabaseRepositoryProvider.future,
       );
-      final id = await repository.prepareMonthlyPeriod(_month);
+      final id = mode == 'empty'
+          ? await repository.prepareMonthlyPeriod(_month)
+          : await repository.prepareMonthlyPeriodV2(
+              _month,
+              mode: mode,
+              sourcePeriodId: sourcePeriodId,
+            );
       ref.read(selectedBudgetPeriodIdProvider.notifier).state = id;
       ref.invalidate(remoteBudgetPeriodsProvider);
     } catch (_) {
@@ -293,6 +302,9 @@ class _BudgetMonthlyPreparationPageState
               )
               .firstOrNull;
           if (period == null) {
+            final previous = items
+                .where((item) => item.startsOn.isBefore(_month))
+                .firstOrNull;
             return _UnpreparedMonth(
               month: _month,
               preparing: _preparingPeriod,
@@ -300,7 +312,13 @@ class _BudgetMonthlyPreparationPageState
               onPrevious: () => _shiftMonth(-1),
               onNext: () => _shiftMonth(1),
               onPick: _pickMonth,
-              onPrepare: _preparePeriod,
+              onPrepare: () => _preparePeriod(),
+              onCopyPrevious: previous == null
+                  ? null
+                  : () => _preparePeriod(
+                      mode: 'copy_previous',
+                      sourcePeriodId: previous.id,
+                    ),
             );
           }
           return scenarios.when(
@@ -469,6 +487,7 @@ class _UnpreparedMonth extends StatelessWidget {
     required this.onNext,
     required this.onPick,
     required this.onPrepare,
+    this.onCopyPrevious,
     this.error,
   });
 
@@ -478,6 +497,7 @@ class _UnpreparedMonth extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onPick;
   final VoidCallback onPrepare;
+  final VoidCallback? onCopyPrevious;
   final String? error;
 
   @override
@@ -498,10 +518,28 @@ class _UnpreparedMonth extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             const Text('Aucun budget n’a encore été préparé pour ce mois.'),
             const SizedBox(height: AppSpacing.md),
-            FilledButton(
-              key: const Key('prepare-current-month'),
-              onPressed: preparing ? null : onPrepare,
-              child: Text(preparing ? 'Préparation…' : 'Préparer $label'),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                OutlinedButton(
+                  key: const Key('prepare-current-month'),
+                  onPressed: preparing ? null : onPrepare,
+                  child: Text('Nouveau mois vide — $label'),
+                ),
+                if (onCopyPrevious != null)
+                  FilledButton.icon(
+                    key: const Key('copy-previous-month'),
+                    onPressed: preparing ? null : onCopyPrevious,
+                    icon: const Icon(Icons.copy_outlined),
+                    label: Text(
+                      preparing
+                          ? 'Préparation…'
+                          : 'Reprendre le mois précédent',
+                    ),
+                  ),
+              ],
             ),
             if (error != null) Text(error!),
           ],

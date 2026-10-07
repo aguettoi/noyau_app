@@ -9,6 +9,7 @@ import '../../finance/application/providers/remote_household_members_provider.da
 import '../../finance/domain/household_member.dart';
 import '../../finance/domain/transaction_draft.dart';
 import '../../finance/presentation/transactions_page.dart';
+import '../../financial_availability/application/providers/f4_planning_provider.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../savings_goals/domain/savings_goal.dart';
 import '../application/providers/remote_shopping_list_provider.dart';
@@ -285,104 +286,161 @@ class _ItemCard extends ConsumerWidget {
   final VoidCallback? onArchive;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Card(
-    child: Padding(
-      padding: AppSpacing.card,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final funding = ref
+        .watch(shoppingFundingPlansProvider)
+        .valueOrNull?[item.item.id];
+    return Card(
+      child: Padding(
+        padding: AppSpacing.card,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.item.label,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                _Badge(status: item.item.status),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (item.item.estimatedAmount != null)
+              Text('Estimation : ${_money(item.item.estimatedAmount!)}'),
+            if (item.purchase case final purchase?) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text('Montant réel : ${_money(purchase.amount)}'),
+              Text('Acheté le : ${_date(purchase.occurredAt)}'),
+              Text('Opération : ${purchase.description}'),
+              Text('Effectué par : ${purchase.actorName}'),
+            ],
+            if (item.item.finalPriority != null &&
+                item.memberPriorities.isEmpty)
+              Text(
+                'Priorité finale : ${item.item.finalPriority} (0 = prioritaire)',
+              ),
+            if (item.item.desiredDate != null)
+              Text('Date souhaitée : ${_date(item.item.desiredDate!)}'),
+            if (item.envelopeName != null) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Enveloppe liée : ${item.envelopeName} · ${_money(item.envelopeBalance!)} disponibles',
+              ),
+              if (item.estimatedGap case final gap?)
+                Text('Écart théorique : ${_money(gap)}'),
+            ],
+            if (item.goalName != null)
+              Text(
+                'Objectif lié : ${item.goalName} · ${((item.goalProgress ?? 0) * 100).toStringAsFixed(0)} %',
+              ),
+            if (item.memberPriorities.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                '${item.memberPriorities.map((p) => '${p.memberName} : ${p.priority}').join(' | ')}${item.item.finalPriority == null ? '' : ' | Commune : ${item.item.finalPriority}'}',
+              ),
+            ],
+            if (item.item.notes?.isNotEmpty ?? false) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(item.item.notes!),
+            ],
+            if (funding != null)
+              Text(
+                'Financement prévu : ${funding.strategy.label}. Projection uniquement — aucun solde réel n’est augmenté.',
+              ),
+            if (item.item.cancellationReason != null)
+              Text('Motif : ${item.item.cancellationReason}'),
+            const SizedBox(height: AppSpacing.md),
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                if (onEdit != null)
+                  OutlinedButton.icon(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Modifier'),
+                  ),
+                if (onPriority != null)
+                  OutlinedButton.icon(
+                    onPressed: onPriority,
+                    icon: const Icon(Icons.how_to_vote_outlined),
+                    label: const Text('Ma priorité'),
+                  ),
+                if (item.item.status == ShoppingItemStatus.planned)
+                  OutlinedButton.icon(
+                    key: ValueKey('shopping-funding-${item.item.id}'),
+                    onPressed: () => _chooseFunding(context, ref),
+                    icon: const Icon(Icons.savings_outlined),
+                    label: const Text('Stratégie de financement'),
+                  ),
+                if (onBuy != null)
+                  FilledButton.icon(
+                    onPressed: onBuy,
+                    icon: const Icon(Icons.shopping_bag_outlined),
+                    label: const Text('Acheter'),
+                  ),
+                if (onCancel != null)
+                  TextButton(onPressed: onCancel, child: const Text('Annuler')),
+                if (onArchive != null)
+                  TextButton(
+                    onPressed: onArchive,
+                    child: const Text('Archiver'),
+                  ),
+                TextButton.icon(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) =>
+                        _ShoppingHistoryDialog(itemId: item.item.id),
+                  ),
+                  icon: const Icon(Icons.history_outlined),
+                  label: const Text('Historique'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _chooseFunding(BuildContext context, WidgetRef ref) async {
+    final strategy = await showDialog<ShoppingFundingStrategy>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Stratégie de financement'),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.item.label,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              _Badge(status: item.item.status),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          if (item.item.estimatedAmount != null)
-            Text('Estimation : ${_money(item.item.estimatedAmount!)}'),
-          if (item.purchase case final purchase?) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text('Montant réel : ${_money(purchase.amount)}'),
-            Text('Acheté le : ${_date(purchase.occurredAt)}'),
-            Text('Opération : ${purchase.description}'),
-            Text('Effectué par : ${purchase.actorName}'),
-          ],
-          if (item.item.finalPriority != null && item.memberPriorities.isEmpty)
-            Text(
-              'Priorité finale : ${item.item.finalPriority} (0 = prioritaire)',
+          for (final value in ShoppingFundingStrategy.values)
+            SimpleDialogOption(
+              key: ValueKey('funding-${value.databaseValue}'),
+              onPressed: () => Navigator.pop(context, value),
+              child: Text(value.label),
             ),
-          if (item.item.desiredDate != null)
-            Text('Date souhaitée : ${_date(item.item.desiredDate!)}'),
-          if (item.envelopeName != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Enveloppe liée : ${item.envelopeName} · ${_money(item.envelopeBalance!)} disponibles',
+          const Padding(
+            padding: AppSpacing.card,
+            child: Text(
+              'Une prime projetée ou un surplus reste une hypothèse. Le réel passe toujours par un revenu ou une dépense canonique.',
             ),
-            if (item.estimatedGap case final gap?)
-              Text('Écart théorique : ${_money(gap)}'),
-          ],
-          if (item.goalName != null)
-            Text(
-              'Objectif lié : ${item.goalName} · ${((item.goalProgress ?? 0) * 100).toStringAsFixed(0)} %',
-            ),
-          if (item.memberPriorities.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              '${item.memberPriorities.map((p) => '${p.memberName} : ${p.priority}').join(' | ')}${item.item.finalPriority == null ? '' : ' | Commune : ${item.item.finalPriority}'}',
-            ),
-          ],
-          if (item.item.notes?.isNotEmpty ?? false) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(item.item.notes!),
-          ],
-          if (item.item.cancellationReason != null)
-            Text('Motif : ${item.item.cancellationReason}'),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            children: [
-              if (onEdit != null)
-                OutlinedButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Modifier'),
-                ),
-              if (onPriority != null)
-                OutlinedButton.icon(
-                  onPressed: onPriority,
-                  icon: const Icon(Icons.how_to_vote_outlined),
-                  label: const Text('Ma priorité'),
-                ),
-              if (onBuy != null)
-                FilledButton.icon(
-                  onPressed: onBuy,
-                  icon: const Icon(Icons.shopping_bag_outlined),
-                  label: const Text('Acheter'),
-                ),
-              if (onCancel != null)
-                TextButton(onPressed: onCancel, child: const Text('Annuler')),
-              if (onArchive != null)
-                TextButton(onPressed: onArchive, child: const Text('Archiver')),
-              TextButton.icon(
-                onPressed: () => showDialog<void>(
-                  context: context,
-                  builder: (_) => _ShoppingHistoryDialog(itemId: item.item.id),
-                ),
-                icon: const Icon(Icons.history_outlined),
-                label: const Text('Historique'),
-              ),
-            ],
           ),
         ],
       ),
-    ),
-  );
+    );
+    if (strategy == null || !context.mounted) return;
+    await saveShoppingFundingPlan(
+      ref,
+      itemId: item.item.id,
+      strategy: strategy,
+      plannedAmount: item.item.estimatedAmount?.dirhams,
+      projectedBonusAmount: strategy == ShoppingFundingStrategy.projectedBonus
+          ? item.item.estimatedAmount?.dirhams
+          : null,
+      sourceEnvelopeId: strategy == ShoppingFundingStrategy.selectedEnvelope
+          ? item.item.envelopeId
+          : null,
+    );
+  }
 }
 
 class _ShoppingHistoryDialog extends ConsumerWidget {

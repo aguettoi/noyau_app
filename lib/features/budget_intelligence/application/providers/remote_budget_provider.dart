@@ -204,6 +204,45 @@ final remoteBudgetPeriodsProvider = FutureProvider<List<RemoteBudgetPeriod>>((
 final selectedBudgetPeriodIdProvider = StateProvider<String?>((_) => null);
 final selectedBudgetScenarioIdProvider = StateProvider<String?>((_) => null);
 
+class BudgetApprovalProgress {
+  const BudgetApprovalProgress({
+    required this.approved,
+    required this.required,
+  });
+  final int approved;
+  final int required;
+  bool get complete => approved >= required;
+}
+
+final budgetApprovalProgressProvider =
+    FutureProvider.family<BudgetApprovalProgress, String>((ref, runId) async {
+      final repository = await ref.watch(
+        budgetSupabaseRepositoryProvider.future,
+      );
+      final client = ref.watch(supabaseClientProvider);
+      final settings = await client
+          .from('households')
+          .select('budget_validation_mode')
+          .eq('id', repository.householdId)
+          .single();
+      final approvals = await client
+          .from('budget_run_approvals')
+          .select('member_user_id')
+          .eq('household_id', repository.householdId)
+          .eq('run_id', runId);
+      final members = await client
+          .from('household_members')
+          .select('user_id')
+          .eq('household_id', repository.householdId);
+      final required = settings['budget_validation_mode'] == 'joint_required'
+          ? (members as List).length
+          : 1;
+      return BudgetApprovalProgress(
+        approved: (approvals as List).length,
+        required: required,
+      );
+    });
+
 /// The versioned programmable model is intentionally isolated from the
 /// legacy scenario query: 080006 is not deployed everywhere yet.
 final budgetScenarioVersionsProvider =
