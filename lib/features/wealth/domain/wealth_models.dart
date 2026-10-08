@@ -17,6 +17,7 @@ class WealthAsset {
     required this.type,
     required this.ownershipType,
     required this.currentValue,
+    this.acquisitionValue = const Money.fromMinorUnits(0),
     this.valuationDate,
   });
   final String id;
@@ -24,6 +25,7 @@ class WealthAsset {
   final WealthAssetType type;
   final WealthOwnershipType ownershipType;
   final Money currentValue;
+  final Money acquisitionValue;
   final DateTime? valuationDate;
 }
 

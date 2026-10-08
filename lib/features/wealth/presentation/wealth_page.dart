@@ -7,6 +7,7 @@ import '../../finance/application/providers/remote_debts_provider.dart';
 import '../../finance/presentation/transactions_page.dart';
 import '../application/providers/wealth_provider.dart';
 import '../domain/wealth_models.dart';
+import 'home_auto_panels.dart';
 
 class WealthPage extends ConsumerWidget {
   const WealthPage({super.key});
@@ -21,7 +22,7 @@ class WealthPage extends ConsumerWidget {
           error: (error, _) =>
               Center(child: Text('Chargement impossible : $error')),
           data: (data) => DefaultTabController(
-            length: 3,
+            length: 5,
             child: Column(
               children: [
                 const TabBar(
@@ -29,6 +30,8 @@ class WealthPage extends ConsumerWidget {
                     Tab(text: 'Patrimoine'),
                     Tab(text: 'Investissements'),
                     Tab(text: 'Financements'),
+                    Tab(text: 'Logement'),
+                    Tab(text: 'Véhicules'),
                   ],
                 ),
                 Expanded(
@@ -37,6 +40,8 @@ class WealthPage extends ConsumerWidget {
                       _WealthOverview(data, ref),
                       _Investments(data, ref),
                       _Financings(data),
+                      HomePanel(wealth: data),
+                      VehiclePanel(wealth: data),
                     ],
                   ),
                 ),

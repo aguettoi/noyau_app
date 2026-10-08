@@ -374,6 +374,7 @@ WealthAsset _asset(Map<String, Object?> row) => WealthAsset(
   currentValue: _money(
     row['current_estimated_value'] ?? row['acquisition_value'],
   ),
+  acquisitionValue: _money(row['acquisition_value']),
   valuationDate: DateTime.tryParse(row['valuation_date']?.toString() ?? ''),
 );
 InvestmentPosition _investment(Map<String, Object?> row) => InvestmentPosition(
