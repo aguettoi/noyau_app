@@ -79,6 +79,10 @@ enum CalendarSource {
   investment,
 }
 
+enum CalendarEntryStatus { active, resolved, cancelled }
+
+enum CalendarPeriod { all, today, nextSevenDays, currentMonth, custom }
+
 class CalendarEntry {
   const CalendarEntry({
     required this.key,
@@ -88,6 +92,7 @@ class CalendarEntry {
     this.assigneeUserId,
     this.sourceId,
     this.detail,
+    this.status = CalendarEntryStatus.active,
   });
   final String key;
   final String title;
@@ -96,6 +101,7 @@ class CalendarEntry {
   final String? assigneeUserId;
   final String? sourceId;
   final String? detail;
+  final CalendarEntryStatus status;
 }
 
 class AppAlert {
@@ -105,10 +111,58 @@ class AppAlert {
     required this.detail,
     required this.category,
     this.read = false,
+    this.source,
+    this.sourceId,
   });
   final String key;
   final String title;
   final String detail;
   final String category;
   final bool read;
+  final CalendarSource? source;
+  final String? sourceId;
+}
+
+List<CalendarEntry> filterCalendarEntries(
+  Iterable<CalendarEntry> entries, {
+  CalendarSource? source,
+  String? memberId,
+  CalendarEntryStatus? status,
+  CalendarPeriod period = CalendarPeriod.all,
+  DateTime? now,
+  DateTime? customStart,
+  DateTime? customEnd,
+}) {
+  final today = dateOnly(now ?? DateTime.now());
+  bool inPeriod(DateTime raw) {
+    final date = dateOnly(raw);
+    return switch (period) {
+      CalendarPeriod.all => true,
+      CalendarPeriod.today => date == today,
+      CalendarPeriod.nextSevenDays =>
+        !date.isBefore(today) &&
+            !date.isAfter(today.add(const Duration(days: 7))),
+      CalendarPeriod.currentMonth =>
+        date.year == today.year && date.month == today.month,
+      CalendarPeriod.custom =>
+        customStart != null &&
+            customEnd != null &&
+            !date.isBefore(dateOnly(customStart)) &&
+            !date.isAfter(dateOnly(customEnd)),
+    };
+  }
+
+  return entries
+      .where((entry) => source == null || entry.source == source)
+      // Household-wide entries remain visible when filtering a member.
+      .where(
+        (entry) =>
+            memberId == null ||
+            entry.assigneeUserId == null ||
+            entry.assigneeUserId == memberId,
+      )
+      .where((entry) => status == null || entry.status == status)
+      .where((entry) => inPeriod(entry.date))
+      .toList(growable: false)
+    ..sort((a, b) => a.date.compareTo(b.date));
 }

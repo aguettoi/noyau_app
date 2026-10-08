@@ -27,4 +27,38 @@ void main() {
     );
     expect(task.isOverdue(DateTime(2026, 10, 8)), isTrue);
   });
+
+  test('calendar filters compose and keep household-wide entries', () {
+    final entries = [
+      CalendarEntry(
+        key: 'member',
+        title: 'Member task',
+        date: DateTime(2026, 10, 10),
+        source: CalendarSource.task,
+        assigneeUserId: 'a',
+      ),
+      CalendarEntry(
+        key: 'household',
+        title: 'Household due date',
+        date: DateTime(2026, 10, 11),
+        source: CalendarSource.obligation,
+      ),
+      CalendarEntry(
+        key: 'done',
+        title: 'Done',
+        date: DateTime(2026, 10, 12),
+        source: CalendarSource.task,
+        assigneeUserId: 'b',
+        status: CalendarEntryStatus.resolved,
+      ),
+    ];
+    final filtered = filterCalendarEntries(
+      entries,
+      memberId: 'a',
+      status: CalendarEntryStatus.active,
+      period: CalendarPeriod.currentMonth,
+      now: DateTime(2026, 10, 8),
+    );
+    expect(filtered.map((e) => e.key), ['member', 'household']);
+  });
 }

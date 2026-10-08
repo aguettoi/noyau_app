@@ -5,6 +5,7 @@ import '../../dashboard/application/providers/remote_financial_dashboard_provide
 import '../../budget_intelligence/application/providers/remote_budget_provider.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/remote_debts_provider.dart';
+import '../../finance/application/providers/member_compensations_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../shopping_list/application/providers/remote_shopping_list_provider.dart';
@@ -168,7 +169,7 @@ final organizationCalendarProvider = FutureProvider<List<CalendarEntry>>((
   final shopping = await ref.watch(shoppingItemsProvider.future);
   final entries = <CalendarEntry>[
     for (final task in tasks)
-      if (task.isActive && task.dueDate != null)
+      if (task.dueDate != null)
         CalendarEntry(
           key: 'task:${task.id}',
           title: task.title,
@@ -176,6 +177,11 @@ final organizationCalendarProvider = FutureProvider<List<CalendarEntry>>((
           source: CalendarSource.task,
           assigneeUserId: task.assigneeUserId,
           sourceId: task.id,
+          status: task.status == HouseholdTaskStatus.cancelled
+              ? CalendarEntryStatus.cancelled
+              : task.isActive
+              ? CalendarEntryStatus.active
+              : CalendarEntryStatus.resolved,
         ),
     for (final plan in homeAuto.costPlans)
       CalendarEntry(
@@ -230,6 +236,7 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
   if (household.householdId == null || userId == null) return const [];
   final tasks = await ref.watch(householdTasksProvider.future);
   final dashboard = await ref.watch(financialDashboardProvider.future);
+  final compensations = await ref.watch(memberCompensationsProvider.future);
   final read = await ref
       .watch(organizationGatewayProvider)
       .fetchReadAlertKeys(household.householdId!, userId);
@@ -254,11 +261,45 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
           'financial:${dashboard.alerts[i].destination.name}:${dashboard.alerts[i].title}',
         ),
       ),
+    ...buildCompensationAlerts(compensations, userId, read),
   ];
   return List.unmodifiable(
     alerts.where((alert) => preferences[alert.category] ?? true),
   );
 });
+
+List<AppAlert> buildCompensationAlerts(
+  Iterable<MemberCompensation> compensations,
+  String userId,
+  Set<String> read,
+) => [
+  for (final item in compensations)
+    if (item.status == 'to_pay' && item.debtorUserId == userId)
+      AppAlert(
+        key: 'compensation:pay:${item.id}',
+        title: 'Compensation à verser',
+        detail:
+            '${item.remaining.toStringAsFixed(2)} MAD restant — ${item.reason}',
+        category: 'compensations',
+        read: read.contains('compensation:pay:${item.id}'),
+        source: CalendarSource.compensation,
+        sourceId: item.id,
+      ),
+  for (final item in compensations)
+    if (item.status == 'transfer_sent' &&
+        item.pendingReceipt > 0 &&
+        item.creditorUserId == userId)
+      AppAlert(
+        key: 'compensation:receipt:${item.id}',
+        title: 'Réception à confirmer',
+        detail:
+            '${item.pendingReceipt.toStringAsFixed(2)} MAD — ${item.reason}',
+        category: 'compensations',
+        read: read.contains('compensation:receipt:${item.id}'),
+        source: CalendarSource.compensation,
+        sourceId: item.id,
+      ),
+];
 
 final notificationPreferencesProvider = FutureProvider<Map<String, bool>>((
   ref,

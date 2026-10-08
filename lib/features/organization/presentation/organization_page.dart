@@ -8,6 +8,7 @@ import '../../../core/theme/app_design_system.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../application/organization_provider.dart';
 import '../domain/organization_models.dart';
+import 'calendar_source_navigator.dart';
 
 class OrganizationPage extends ConsumerWidget {
   const OrganizationPage({super.key});
@@ -67,6 +68,7 @@ Future<void> _showPreferences(BuildContext context, WidgetRef ref) async {
                       'tasks': 'Tâches',
                       'budget': 'Budget',
                       'finance': 'Finance',
+                      'compensations': 'Compensations',
                       'goals': 'Objectifs',
                       'home_auto': 'Logement / auto',
                     }.entries)
@@ -163,6 +165,22 @@ class _CalendarTab extends ConsumerStatefulWidget {
 
 class _CalendarTabState extends ConsumerState<_CalendarTab> {
   CalendarSource? source;
+  String? memberId;
+  CalendarEntryStatus? status;
+  CalendarPeriod period = CalendarPeriod.all;
+  DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime selectedDay = dateOnly(DateTime.now());
+  DateTimeRange? customRange;
+  bool monthly = false;
+
+  void reset() => setState(() {
+    source = null;
+    memberId = null;
+    status = null;
+    period = CalendarPeriod.all;
+    customRange = null;
+  });
+
   @override
   Widget build(BuildContext context) => ref
       .watch(organizationCalendarProvider)
@@ -171,56 +189,367 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
         error: (_, _) =>
             const Center(child: Text('Impossible de charger le calendrier.')),
         data: (all) {
-          final entries = source == null
-              ? all
-              : all.where((e) => e.source == source).toList();
+          final entries = filterCalendarEntries(
+            all,
+            source: source,
+            memberId: memberId,
+            status: status,
+            period: monthly ? CalendarPeriod.all : period,
+            customStart: customRange?.start,
+            customEnd: customRange?.end,
+          );
+          final members =
+              ref.watch(remoteHouseholdMembersProvider).valueOrNull ?? const [];
           return Column(
             children: [
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.sm),
-                child: DropdownButtonFormField<CalendarSource?>(
-                  initialValue: source,
-                  decoration: const InputDecoration(
-                    labelText: 'Filtrer par source',
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text('Toutes les sources'),
+                child: Column(
+                  children: [
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('À venir')),
+                        ButtonSegment(value: true, label: Text('Mois')),
+                      ],
+                      selected: {monthly},
+                      onSelectionChanged: (v) =>
+                          setState(() => monthly = v.first),
                     ),
-                    for (final s in CalendarSource.values)
-                      DropdownMenuItem(value: s, child: Text(_sourceLabel(s))),
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        SizedBox(
+                          width: 210,
+                          child: DropdownButtonFormField<CalendarSource?>(
+                            isExpanded: true,
+                            initialValue: source,
+                            decoration: const InputDecoration(
+                              labelText: 'Source',
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text('Toutes'),
+                              ),
+                              for (final s in CalendarSource.values)
+                                DropdownMenuItem(
+                                  value: s,
+                                  child: Text(_sourceLabel(s)),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => source = value),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 210,
+                          child: DropdownButtonFormField<String?>(
+                            isExpanded: true,
+                            initialValue: memberId,
+                            decoration: const InputDecoration(
+                              labelText: 'Membre',
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text('Tous les membres'),
+                              ),
+                              for (final member in members)
+                                DropdownMenuItem(
+                                  value: member.id,
+                                  child: Text(member.displayName),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => memberId = value),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 190,
+                          child: DropdownButtonFormField<CalendarEntryStatus?>(
+                            isExpanded: true,
+                            initialValue: status,
+                            decoration: const InputDecoration(
+                              labelText: 'Statut',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: null,
+                                child: Text('Tous'),
+                              ),
+                              DropdownMenuItem(
+                                value: CalendarEntryStatus.active,
+                                child: Text('Actif / à venir'),
+                              ),
+                              DropdownMenuItem(
+                                value: CalendarEntryStatus.resolved,
+                                child: Text('Terminé / résolu'),
+                              ),
+                              DropdownMenuItem(
+                                value: CalendarEntryStatus.cancelled,
+                                child: Text('Annulé'),
+                              ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => status = value),
+                          ),
+                        ),
+                        if (!monthly)
+                          SizedBox(
+                            width: 190,
+                            child: DropdownButtonFormField<CalendarPeriod>(
+                              isExpanded: true,
+                              initialValue: period,
+                              decoration: const InputDecoration(
+                                labelText: 'Période',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: CalendarPeriod.all,
+                                  child: Text('Toutes'),
+                                ),
+                                DropdownMenuItem(
+                                  value: CalendarPeriod.today,
+                                  child: Text("Aujourd'hui"),
+                                ),
+                                DropdownMenuItem(
+                                  value: CalendarPeriod.nextSevenDays,
+                                  child: Text('7 prochains jours'),
+                                ),
+                                DropdownMenuItem(
+                                  value: CalendarPeriod.currentMonth,
+                                  child: Text('Mois courant'),
+                                ),
+                                DropdownMenuItem(
+                                  value: CalendarPeriod.custom,
+                                  child: Text('Personnalisée'),
+                                ),
+                              ],
+                              onChanged: (value) async {
+                                if (value == CalendarPeriod.custom) {
+                                  final range = await showDateRangePicker(
+                                    context: context,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (range == null) return;
+                                  setState(() => customRange = range);
+                                }
+                                setState(() => period = value!);
+                              },
+                            ),
+                          ),
+                        TextButton.icon(
+                          key: const Key('calendar-reset-filters'),
+                          onPressed: reset,
+                          icon: const Icon(Icons.filter_alt_off),
+                          label: const Text('Réinitialiser'),
+                        ),
+                      ],
+                    ),
                   ],
-                  onChanged: (value) => setState(() => source = value),
                 ),
               ),
-              Expanded(
-                child: entries.isEmpty
-                    ? const _Empty(
-                        icon: Icons.calendar_month,
-                        title: 'Aucune échéance',
-                        detail:
-                            'Les échéances apparaîtront ici sans créer de nouvelle donnée financière.',
-                      )
-                    : ListView.builder(
-                        itemCount: entries.length,
-                        itemBuilder: (_, i) {
-                          final e = entries[i];
-                          return ListTile(
-                            key: Key('calendar-entry-${e.key}'),
-                            leading: const Icon(Icons.event_outlined),
-                            title: Text(e.title),
-                            subtitle: Text(
-                              '${DateFormat.yMMMd('fr').format(e.date)} • ${_sourceLabel(e.source)}',
-                            ),
-                          );
-                        },
-                      ),
-              ),
+              if (monthly)
+                Expanded(
+                  child: _MonthAgenda(
+                    month: month,
+                    selectedDay: selectedDay,
+                    entries: entries,
+                    onMonth: (value) => setState(() {
+                      month = value;
+                      selectedDay = DateTime(value.year, value.month, 1);
+                    }),
+                    onDay: (value) => setState(() => selectedDay = value),
+                    onOpen: (entry) => _openEntry(context, entry, all),
+                  ),
+                ),
+              if (!monthly)
+                Expanded(
+                  child: entries.isEmpty
+                      ? const _Empty(
+                          icon: Icons.calendar_month,
+                          title: 'Aucune échéance',
+                          detail:
+                              'Les échéances apparaîtront ici sans créer de nouvelle donnée financière.',
+                        )
+                      : ListView.builder(
+                          itemCount: entries.length,
+                          itemBuilder: (_, i) {
+                            final e = entries[i];
+                            return ListTile(
+                              key: Key('calendar-entry-${e.key}'),
+                              leading: const Icon(Icons.event_outlined),
+                              title: Text(e.title),
+                              subtitle: Text(
+                                '${DateFormat.yMMMd('fr').format(e.date)} • ${_sourceLabel(e.source)}',
+                              ),
+                              onTap: () => _openEntry(context, e, all),
+                            );
+                          },
+                        ),
+                ),
             ],
           );
         },
       );
+
+  Future<void> _openEntry(
+    BuildContext context,
+    CalendarEntry entry,
+    List<CalendarEntry> all,
+  ) async {
+    if (entry.source == CalendarSource.task) {
+      final tasks = ref.read(householdTasksProvider).valueOrNull ?? const [];
+      final task = tasks.where((t) => t.id == entry.sourceId).firstOrNull;
+      if (task == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Cet élément n'est plus disponible.")),
+        );
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text(task.title),
+          content: Text(task.description ?? 'Aucune description.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    await const CalendarSourceNavigator().open(
+      context,
+      entry.source,
+      entry.sourceId,
+    );
+  }
+}
+
+class _MonthAgenda extends StatelessWidget {
+  const _MonthAgenda({
+    required this.month,
+    required this.selectedDay,
+    required this.entries,
+    required this.onMonth,
+    required this.onDay,
+    required this.onOpen,
+  });
+  final DateTime month, selectedDay;
+  final List<CalendarEntry> entries;
+  final ValueChanged<DateTime> onMonth, onDay;
+  final ValueChanged<CalendarEntry> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = DateTime(month.year, month.month, 1);
+    final gridStart = first.subtract(Duration(days: first.weekday - 1));
+    final selectedEntries = entries
+        .where((e) => dateOnly(e.date) == dateOnly(selectedDay))
+        .toList();
+    return LayoutBuilder(
+      builder: (context, constraints) => ListView(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        children: [
+          Row(
+            children: [
+              IconButton(
+                key: const Key('calendar-previous-month'),
+                onPressed: () => onMonth(DateTime(month.year, month.month - 1)),
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: Text(
+                  DateFormat.yMMMM('fr').format(month),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              TextButton(
+                key: const Key('calendar-current-month'),
+                onPressed: () => onMonth(
+                  DateTime(DateTime.now().year, DateTime.now().month),
+                ),
+                child: const Text("Aujourd'hui"),
+              ),
+              IconButton(
+                key: const Key('calendar-next-month'),
+                onPressed: () => onMonth(DateTime(month.year, month.month + 1)),
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              childAspectRatio: 1,
+            ),
+            itemCount: 42,
+            itemBuilder: (_, index) {
+              final day = gridStart.add(Duration(days: index));
+              final count = entries
+                  .where((e) => dateOnly(e.date) == day)
+                  .length;
+              final selected = day == dateOnly(selectedDay);
+              return InkWell(
+                key: Key(
+                  'calendar-day-${DateFormat('yyyy-MM-dd').format(day)}',
+                ),
+                onTap: () => onDay(day),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Theme.of(context).colorScheme.primaryContainer
+                        : null,
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${day.day}',
+                        style: TextStyle(
+                          color: day.month == month.month ? null : Colors.grey,
+                        ),
+                      ),
+                      if (count > 0)
+                        Semantics(
+                          label: '$count événement(s)',
+                          child: const Icon(Icons.circle, size: 7),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            DateFormat.yMMMMd('fr').format(selectedDay),
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          if (selectedEntries.isEmpty)
+            const ListTile(title: Text('Aucun événement ce jour.')),
+          for (final entry in selectedEntries)
+            ListTile(
+              key: Key('month-entry-${entry.key}'),
+              title: Text(entry.title),
+              subtitle: Text(_sourceLabel(entry.source)),
+              onTap: () => onOpen(entry),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AlertsTab extends ConsumerWidget {
@@ -260,6 +589,13 @@ class _AlertsTab extends ConsumerWidget {
                                   .read(organizationActionsProvider)
                                   .markRead(alert.key),
                               child: const Text('Marquer lue'),
+                            ),
+                      onTap: alert.source == null
+                          ? null
+                          : () => const CalendarSourceNavigator().open(
+                              context,
+                              alert.source!,
+                              alert.sourceId,
                             ),
                     ),
                   );
