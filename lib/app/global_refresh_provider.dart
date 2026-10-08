@@ -15,6 +15,7 @@ import '../features/financial_availability/application/providers/financial_avail
 import '../features/priorities/application/providers/remote_priority_plans_provider.dart';
 import '../features/savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../features/shopping_list/application/providers/remote_shopping_list_provider.dart';
+import '../features/wealth/application/providers/wealth_provider.dart';
 
 typedef GlobalRefreshAction = Future<void> Function();
 
@@ -51,6 +52,7 @@ final globalRefreshActionProvider = Provider<GlobalRefreshAction>((ref) {
     ref.invalidate(dashboardReconciliationsProvider);
     ref.invalidate(financialAvailabilityProvider);
     ref.invalidate(financialDashboardProvider);
+    ref.invalidate(wealthDataProvider);
 
     await Future.wait<Object?>([
       ref.read(remoteAccountsProvider.future),

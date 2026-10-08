@@ -6,6 +6,7 @@ import '../../../core/theme/app_design_system.dart';
 import 'transactions_page.dart';
 import 'member_compensations_page.dart';
 import '../../budget_intelligence/presentation/budget_page.dart';
+import '../../wealth/presentation/wealth_page.dart';
 
 class FinanceOverviewPage extends ConsumerWidget {
   const FinanceOverviewPage({super.key});
@@ -44,6 +45,20 @@ class FinanceOverviewPage extends ConsumerWidget {
                 child: ResponsiveGrid(
                   minItemWidth: 300,
                   children: [
+                    CompactListRow(
+                      leading: const Icon(
+                        Icons.account_balance_wallet_outlined,
+                      ),
+                      title: 'Patrimoine & financements',
+                      subtitle:
+                          'Valeur nette, actifs, investissements et échéanciers',
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const WealthPage(),
+                        ),
+                      ),
+                    ),
                     CompactListRow(
                       leading: const Icon(Icons.compare_arrows),
                       title: 'Compensations internes',
