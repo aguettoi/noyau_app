@@ -407,9 +407,6 @@ void main() {
           remoteEnvelopeBalancesProvider.overrideWith(
             (ref) async => [envelope(id: 'food', name: 'Courses')],
           ),
-          createRemoteTransactionProvider.overrideWithValue((draft) async {
-            return 'transaction-1';
-          }),
           financialEventRepositoryProvider.overrideWith(
             (ref) async => FinancialEventSupabaseRepository(
               gateway: financialGateway,
@@ -514,7 +511,6 @@ void main() {
     tester,
   ) async {
     final gateway = _FinancialGateway();
-    var legacyCalls = 0;
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -527,10 +523,6 @@ void main() {
           remoteEnvelopeBalancesProvider.overrideWith(
             (ref) async => [envelope(id: 'food', name: 'Courses')],
           ),
-          createRemoteTransactionProvider.overrideWithValue((draft) async {
-            legacyCalls++;
-            return 'legacy';
-          }),
           financialEventRepositoryProvider.overrideWith(
             (ref) async => FinancialEventSupabaseRepository(
               gateway: gateway,
@@ -567,14 +559,12 @@ void main() {
 
     expect(gateway.function, 'create_cash_income_event');
     expect(gateway.parameters!['p_envelope_allocations'], isEmpty);
-    expect(legacyCalls, 0);
   });
 
   testWidgets('un virement visible utilise seulement la RPC canonique', (
     tester,
   ) async {
     final gateway = _FinancialGateway();
-    var legacyCalls = 0;
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -590,10 +580,6 @@ void main() {
           remoteEnvelopeBalancesProvider.overrideWith(
             (ref) async => [envelope(id: 'food', name: 'Courses')],
           ),
-          createRemoteTransactionProvider.overrideWithValue((draft) async {
-            legacyCalls++;
-            return 'legacy';
-          }),
           financialEventRepositoryProvider.overrideWith(
             (ref) async => FinancialEventSupabaseRepository(
               gateway: gateway,
@@ -638,7 +624,6 @@ void main() {
     expect(gateway.parameters!['p_source_account_id'], 'source');
     expect(gateway.parameters!['p_destination_account_id'], 'destination');
     expect(gateway.parameters!['p_idempotency_key'], isNotEmpty);
-    expect(legacyCalls, 0);
   });
 
   testWidgets('un retry de virement conserve la même clé idempotente', (

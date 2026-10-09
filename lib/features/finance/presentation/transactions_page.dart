@@ -19,6 +19,7 @@ import '../application/providers/remote_household_members_provider.dart';
 import '../application/providers/remote_debts_provider.dart';
 import '../application/financial_event_contract.dart';
 import '../domain/financial_account.dart';
+import '../domain/household_member.dart';
 import '../domain/transaction_draft.dart';
 import '../domain/transaction_history_item.dart';
 import 'member_compensations_page.dart';
@@ -151,9 +152,10 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         );
         _accountTransferIdempotencyKey = _newIdempotencyKey();
         return eventId;
-      } else {
-        return ref.read(createRemoteTransactionProvider)(draft);
       }
+      throw StateError(
+        'Ce type de transaction ne possède aucun flux canonique.',
+      );
     } finally {
       if (mounted) {
         setState(() => _creating = false);
@@ -1672,6 +1674,9 @@ class _TransactionDetailDialogState
     final compensations =
         ref.watch(memberCompensationsProvider).valueOrNull ??
         const <MemberCompensation>[];
+    final activeMembers =
+        ref.watch(remoteHouseholdMembersProvider).valueOrNull ??
+        const <HouseholdMember>[];
     final existing = item.financialEventId == null
         ? null
         : compensations
@@ -1793,6 +1798,7 @@ class _TransactionDetailDialogState
         else if (item.type == LedgerTransactionType.expense &&
             item.financialEventId != null &&
             mismatch &&
+            activeMembers.length > 1 &&
             !sameEconomicMember)
           TextButton.icon(
             key: const Key('create-compensation-from-expense'),

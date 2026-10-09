@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -136,7 +134,7 @@ void main() {
     expect(find.textContaining('Sélectionnez un foyer'), findsOneWidget);
   });
 
-  testWidgets('import transmet plan et identifiant puis affiche le succes', (
+  testWidgets('la matérialisation CSV legacy reste neutralisée', (
     tester,
   ) async {
     final transaction = _Transaction();
@@ -149,92 +147,23 @@ void main() {
     );
 
     await selectFileAndRevealImport(tester);
-    await tester.tap(find.byKey(const Key('accounts-import-button')));
-    await tester.pumpAndSettle();
-
-    expect(transaction.executionIds, ['11111111-1111-4111-8111-111111111111']);
-    expect(transaction.created, ['Compte importe']);
-    expect(find.textContaining('Import terminé dans Supabase'), findsOneWidget);
+    expect(
+      find.textContaining('Matérialisation CSV legacy désactivée'),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('accounts-import-button')))
           .onPressed,
       isNull,
     );
-  });
-
-  testWidgets('politique remplacer transmet le remplacement explicite zero', (
-    tester,
-  ) async {
-    final transaction = _Transaction();
-    await mount(
-      tester,
-      household: activeHousehold,
-      executor: _executor(transaction),
-      importPlan: plan(existing: true),
-      idGenerator: () => '22222222-2222-4222-8222-222222222222',
+    expect(
+      find.byKey(const Key('opening-balance-replace-option')),
+      findsNothing,
     );
-
-    await selectFileAndRevealImport(tester);
-    final replace = find.byKey(const Key('opening-balance-replace-option'));
-    await tester.ensureVisible(replace);
-    await tester.tap(replace);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('accounts-import-button')));
-    await tester.pumpAndSettle();
-
-    expect(transaction.replaced, ['Compte importe:0']);
-  });
-
-  testWidgets('import bloque le double clic pendant execution', (tester) async {
-    final pending = Completer<void>();
-    final transaction = _Transaction(pending: pending);
-    await mount(
-      tester,
-      household: activeHousehold,
-      executor: _executor(transaction),
-      importPlan: plan(),
-      idGenerator: () => '33333333-3333-4333-8333-333333333333',
-    );
-
-    await selectFileAndRevealImport(tester);
-    final button = find.byKey(const Key('accounts-import-button'));
-    await tester.tap(button);
-    await tester.pump();
-
-    expect(find.byKey(const Key('accounts-import-progress')), findsOneWidget);
-    expect(transaction.executionIds, hasLength(1));
-    expect(tester.widget<FilledButton>(button).onPressed, isNull);
-
-    pending.complete();
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('echec conserve identifiant et autorise un retry', (
-    tester,
-  ) async {
-    final transaction = _Transaction(failFirst: true);
-    await mount(
-      tester,
-      household: activeHousehold,
-      executor: _executor(transaction),
-      importPlan: plan(),
-      idGenerator: () => '44444444-4444-4444-8444-444444444444',
-    );
-
-    await selectFileAndRevealImport(tester);
-    final button = find.byKey(const Key('accounts-import-button'));
-    await tester.tap(button);
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Erreur d’import'), findsOneWidget);
-    expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
-
-    await tester.tap(button);
-    await tester.pumpAndSettle();
-    expect(transaction.executionIds, [
-      '44444444-4444-4444-8444-444444444444',
-      '44444444-4444-4444-8444-444444444444',
-    ]);
+    expect(transaction.executionIds, isEmpty);
+    expect(transaction.created, isEmpty);
+    expect(transaction.replaced, isEmpty);
   });
 }
 
@@ -242,9 +171,6 @@ AccountsImportExecutor _executor(_Transaction transaction) =>
     AccountsImportExecutor(
       runTransaction: ({required importExecutionId, required operation}) async {
         transaction.executionIds.add(importExecutionId);
-        if (transaction.failFirst && transaction.executionIds.length == 1) {
-          throw Exception('indisponible');
-        }
         await transaction.waitIfNeeded();
         await operation(transaction);
         return const AccountsImportTransactionResult(
@@ -254,15 +180,11 @@ AccountsImportExecutor _executor(_Transaction transaction) =>
     );
 
 class _Transaction implements AccountsImportTransaction {
-  _Transaction({this.pending, this.failFirst = false});
-
-  final Completer<void>? pending;
-  final bool failFirst;
   final List<String> executionIds = [];
   final List<String> created = [];
   final List<String> replaced = [];
 
-  Future<void> waitIfNeeded() => pending?.future ?? Future.value();
+  Future<void> waitIfNeeded() => Future.value();
 
   @override
   Future<void> createAccount(ImportAccount account) async {

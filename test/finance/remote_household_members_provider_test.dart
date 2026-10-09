@@ -48,4 +48,12 @@ void main() {
       isFalse,
     );
   });
+
+  test('la liste conserve un nombre arbitraire de membres et leur ordre', () {
+    final members = householdMembersForDisplay(
+      userIds: const ['a', 'b', 'c', 'd'],
+      displayNamesByUserId: const {'a': 'A', 'b': 'B', 'c': 'C', 'd': 'D'},
+    );
+    expect(members.map((member) => member.id), ['a', 'b', 'c', 'd']);
+  });
 }

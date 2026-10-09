@@ -172,7 +172,7 @@ void main() {
   });
 
   testWidgets(
-    'Reinitialiser remet le choix du solde par defaut et accepte le meme fichier',
+    'Reinitialiser accepte le meme fichier sans réactiver le remplacement legacy',
     (tester) async {
       var selections = 0;
       final conflictPlan = AccountsImportPlan(
@@ -204,11 +204,10 @@ void main() {
       await selectCsv(tester);
       await tester.drag(find.byType(ListView), const Offset(0, -800));
       await tester.pumpAndSettle();
-      final replace = find.byKey(const Key('opening-balance-replace-option'));
-      expect(replace, findsOneWidget);
-      await tester.ensureVisible(replace);
-      await tester.tap(replace);
-      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('opening-balance-replace-option')),
+        findsNothing,
+      );
 
       final reset = find.byType(OutlinedButton).last;
       await tester.ensureVisible(reset);
@@ -223,13 +222,9 @@ void main() {
       expect(selections, 2);
       await tester.drag(find.byType(ListView), const Offset(0, -800));
       await tester.pumpAndSettle();
-      final radioGroup = find.byType(RadioGroup<OpeningBalanceConflictChoice>);
-      expect(radioGroup, findsOneWidget);
       expect(
-        tester
-            .widget<RadioGroup<OpeningBalanceConflictChoice>>(radioGroup)
-            .groupValue,
-        OpeningBalanceConflictChoice.ignoreFileBalance,
+        find.textContaining('Matérialisation CSV legacy désactivée'),
+        findsOneWidget,
       );
     },
   );

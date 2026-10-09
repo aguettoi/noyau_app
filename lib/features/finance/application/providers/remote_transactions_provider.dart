@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../domain/transaction_draft.dart';
 import '../../domain/transaction_history_item.dart';
 import '../../infrastructure/transactions_supabase_repository.dart';
 import 'active_household_provider.dart';
@@ -36,22 +35,6 @@ class SupabaseTransactionsGateway implements TransactionsSupabaseGateway {
     return (response as List<dynamic>)
         .map((row) => Map<String, Object?>.from(row as Map))
         .toList(growable: false);
-  }
-
-  @override
-  Future<String> createLedgerTransaction({
-    required Map<String, Object?> parameters,
-  }) async {
-    final result = await _client.rpc(
-      'create_financial_transaction_with_envelopes',
-      params: parameters,
-    );
-    if (result is! String || result.isEmpty) {
-      throw StateError(
-        'La création de la transaction n’a retourné aucun identifiant.',
-      );
-    }
-    return result;
   }
 }
 
@@ -95,12 +78,6 @@ final filteredTransactionsProvider =
       return ref
           .watch(transactionsSupabaseRepositoryProvider)
           .all(filter: filter);
-    });
-
-final createRemoteTransactionProvider =
-    Provider<Future<String> Function(FinancialTransactionDraft draft)>((ref) {
-      return (draft) =>
-          ref.read(transactionsSupabaseRepositoryProvider).create(draft);
     });
 
 final accountTransactionHistoryProvider =

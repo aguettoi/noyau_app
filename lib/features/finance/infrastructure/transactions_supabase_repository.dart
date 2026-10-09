@@ -7,10 +7,6 @@ abstract interface class TransactionsSupabaseGateway {
     String householdId, {
     TransactionHistoryFilter filter = const TransactionHistoryFilter(),
   });
-
-  Future<String> createLedgerTransaction({
-    required Map<String, Object?> parameters,
-  });
 }
 
 class TransactionsSupabaseRepository {
@@ -27,36 +23,6 @@ class TransactionsSupabaseRepository {
   }) async {
     final rows = await gateway.fetchTransactions(householdId, filter: filter);
     return List.unmodifiable(rows.map(mapRow));
-  }
-
-  Future<String> create(FinancialTransactionDraft draft) {
-    final validationError = draft.validate();
-    if (validationError != null) {
-      return Future.error(StateError(validationError));
-    }
-    return gateway.createLedgerTransaction(
-      parameters: {
-        'p_household_id': householdId,
-        'p_type': _sqlType(draft.type),
-        'p_occurred_at': draft.occurredAt.toUtc().toIso8601String(),
-        'p_description': draft.description.trim(),
-        'p_amount': _madFromCents(draft.amount.minorUnits),
-        'p_source_account_id': draft.sourceAccountId,
-        'p_destination_account_id': draft.destinationAccountId,
-        'p_category_id': draft.categoryId,
-        'p_notes': draft.notes?.trim().isEmpty ?? true
-            ? null
-            : draft.notes?.trim(),
-        'p_direction': draft.direction.name,
-        'p_envelope_allocations': [
-          for (final allocation in draft.envelopeAllocations)
-            {
-              'envelope_id': allocation.envelopeId,
-              'amount': _madFromCents(allocation.amount.minorUnits),
-            },
-        ],
-      },
-    );
   }
 
   static TransactionHistoryItem mapRow(Map<String, Object?> row) =>
@@ -149,12 +115,6 @@ class TransactionsSupabaseRepository {
     return match.group(1) == '-' ? -cents : cents;
   }
 
-  static String _madFromCents(int cents) {
-    final sign = cents < 0 ? '-' : '';
-    final absolute = cents.abs();
-    return '$sign${absolute ~/ 100}.${(absolute % 100).toString().padLeft(2, '0')}';
-  }
-
   static LedgerTransactionType _type(String value) => switch (value) {
     'expense' || 'cash_expense' => LedgerTransactionType.expense,
     'income' || 'cash_income' => LedgerTransactionType.income,
@@ -175,25 +135,5 @@ class TransactionsSupabaseRepository {
     'envelope_transfer' => LedgerTransactionType.envelopeTransfer,
     'daily_reversal' => LedgerTransactionType.correction,
     _ => LedgerTransactionType.unknown,
-  };
-
-  static String _sqlType(LedgerTransactionType type) => switch (type) {
-    LedgerTransactionType.expense => 'expense',
-    LedgerTransactionType.income => 'income',
-    LedgerTransactionType.transfer => 'transfer',
-    LedgerTransactionType.adjustment => 'adjustment',
-    LedgerTransactionType.openingBalance => 'opening_balance',
-    LedgerTransactionType.correction => 'correction',
-    LedgerTransactionType.debtExpense => 'debt_expense',
-    LedgerTransactionType.incomeReceivable => 'income_receivable',
-    LedgerTransactionType.recovery => 'recovery',
-    LedgerTransactionType.recoveryReceivable => 'recovery_receivable',
-    LedgerTransactionType.debtSettlement => 'debt_settlement',
-    LedgerTransactionType.receivableSettlement => 'receivable_settlement',
-    LedgerTransactionType.recoverySettlement => 'recovery_settlement',
-    LedgerTransactionType.allocation => 'allocation',
-    LedgerTransactionType.accountTransfer => 'account_transfer',
-    LedgerTransactionType.envelopeTransfer => 'envelope_transfer',
-    LedgerTransactionType.unknown => 'unknown',
   };
 }

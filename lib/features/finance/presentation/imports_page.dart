@@ -45,6 +45,8 @@ enum AccountsImportUiState { idle, importing, success, failure }
 
 enum AccountsImportMode { initialImport, accountFunding }
 
+const _legacyCsvMaterializationEnabled = false;
+
 class CsvPickerConfiguration {
   const CsvPickerConfiguration(this.type, this.allowedExtensions);
   final FileType type;
@@ -479,11 +481,16 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       if (_envelopeImportError != null) Text(_envelopeImportError!),
       FilledButton(
         key: const Key('envelope-csv-import-button'),
-        onPressed: envelopes.isEmpty || _importingEnvelopes
+        onPressed:
+            !_legacyCsvMaterializationEnabled ||
+                envelopes.isEmpty ||
+                _importingEnvelopes
             ? null
             : _confirmEnvelopeImport,
         child: Text(
-          _importingEnvelopes
+          !_legacyCsvMaterializationEnabled
+              ? 'Matérialisation CSV legacy désactivée'
+              : _importingEnvelopes
               ? 'Import des enveloppes en cours...'
               : 'Importer les enveloppes',
         ),
@@ -878,31 +885,10 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             )
             .toList(),
       ),
-      if (plan.alreadyExistsCount > 0) ...[
-        const Text('Comptes existants'),
-        RadioGroup<OpeningBalanceConflictChoice>(
-          groupValue: _openingBalanceChoice,
-          onChanged: (value) {
-            if (value != null) {
-              setState(() => _openingBalanceChoice = value);
-            }
-          },
-          child: Column(
-            children: [
-              RadioListTile<OpeningBalanceConflictChoice>(
-                key: const Key('opening-balance-ignore-option'),
-                title: const Text('Ignorer le solde initial du fichier'),
-                value: OpeningBalanceConflictChoice.ignoreFileBalance,
-              ),
-              RadioListTile<OpeningBalanceConflictChoice>(
-                key: const Key('opening-balance-replace-option'),
-                title: const Text('Remplacer le solde initial existant'),
-                value: OpeningBalanceConflictChoice.replaceOpeningBalance,
-              ),
-            ],
-          ),
+      if (plan.alreadyExistsCount > 0)
+        const Text(
+          'Les soldes existants ne peuvent plus être remplacés par ce parcours legacy.',
         ),
-      ],
       if (householdMessage != null) Text(householdMessage),
       if (_accountsImportState == AccountsImportUiState.importing) ...[
         const SizedBox(height: 12),
@@ -924,11 +910,13 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       if (_accountsImportMessage != null) Text(_accountsImportMessage!),
       FilledButton(
         key: const Key('accounts-import-button'),
-        onPressed: canImport
+        onPressed: _legacyCsvMaterializationEnabled && canImport
             ? () => _executeAccountsImport(activeHousehold!)
             : null,
         child: Text(
-          _accountsImportState == AccountsImportUiState.importing
+          !_legacyCsvMaterializationEnabled
+              ? 'Matérialisation CSV legacy désactivée'
+              : _accountsImportState == AccountsImportUiState.importing
               ? 'Import en cours...'
               : 'Importer',
         ),

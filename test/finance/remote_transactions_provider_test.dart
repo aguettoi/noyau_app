@@ -38,11 +38,6 @@ class _Gateway implements TransactionsSupabaseGateway {
   String? householdId;
 
   @override
-  Future<String> createLedgerTransaction({
-    required Map<String, Object?> parameters,
-  }) async => 'unused';
-
-  @override
   Future<List<Map<String, Object?>>> fetchTransactions(
     String householdId, {
     TransactionHistoryFilter filter = const TransactionHistoryFilter(),

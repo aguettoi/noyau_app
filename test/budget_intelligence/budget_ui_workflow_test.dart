@@ -1098,6 +1098,37 @@ void main() {
   );
 
   testWidgets(
+    'single-member household omits the meaningless 100 percent split',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        scope(
+          gateway: _Gateway(),
+          child: const BudgetContributionWizardPage(scenarioId: 'scenario'),
+          extra: [
+            remoteHouseholdMembersProvider.overrideWith(
+              (ref) async => const [
+                HouseholdMember(id: 'solo', displayName: 'Membre unique'),
+              ],
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continuer').first);
+      await tester.tap(find.text('Continuer').first);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continuer').first);
+      await tester.tap(find.text('Continuer').first);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Clé automatique'), findsNothing);
+      expect(find.text('Membre unique'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'monthly preparation offers the default scenario and simulates without a financial event',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 1200));

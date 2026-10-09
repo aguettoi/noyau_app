@@ -59,6 +59,36 @@ void main() {
     },
   );
 
+  test('supports one member without inventing a second participant', () {
+    final members = calculator.calculate(
+      incomes: const [
+        BudgetScenarioMemberIncome(
+          memberUserId: 'solo',
+          netRecurringCents: 120000,
+        ),
+      ],
+      directChargesByMember: const {'solo': 20000},
+    );
+    expect(members, hasLength(1));
+    expect(members.single.contributionCapacityCents, 100000);
+    expect(
+      calculator.allocateSharedAuto(amountCents: 75000, members: members),
+      {'solo': 75000},
+    );
+  });
+
+  test('a zero denominator stays finite for every household member', () {
+    final members = calculator.calculate(
+      incomes: const [
+        BudgetScenarioMemberIncome(memberUserId: 'a', netRecurringCents: 0),
+        BudgetScenarioMemberIncome(memberUserId: 'b', netRecurringCents: 0),
+        BudgetScenarioMemberIncome(memberUserId: 'c', netRecurringCents: 0),
+      ],
+      directChargesByMember: const {},
+    );
+    expect(members.map((member) => member.autoShare), [0, 0, 0]);
+  });
+
   test('includes an exceptional income only when explicitly configured', () {
     final members = calculator.calculate(
       incomes: const [

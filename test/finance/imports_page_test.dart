@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/envelopes/application/envelope_business_import.dart';
-import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
 import 'package:noyau_app/features/finance/application/accounts_csv_business_validator.dart';
 import 'package:noyau_app/features/finance/application/csv_import_templates.dart';
 import 'package:noyau_app/features/finance/application/csv_import_validation_pipeline.dart';
@@ -319,59 +318,7 @@ void main() {
     expect(find.text('nom;solde_initial;statut;notes'), findsOneWidget);
   });
 
-  testWidgets(
-    'CSV Enveloppes confirme puis transmet uniquement les noms distincts',
-    (tester) async {
-      Iterable<String>? receivedNames;
-      String? receivedSessionId;
-      await mount(
-        tester,
-        pickCsvFile: () async => csvFile('enveloppes.csv'),
-        readCsvText: (_) async =>
-            'nom;solde_initial;statut;notes\nCourses;60;actif;A\n Courses ;40,00;actif;B\nMaison;;inactif;C\n',
-        importEnvelopes: ({required names, importSessionId}) async {
-          receivedNames = names;
-          receivedSessionId = importSessionId;
-          return const EnvelopeBusinessImportResult(
-            created: 2,
-            existing: 0,
-            ignored: 0,
-          );
-        },
-      );
-
-      await selectTemplate(tester, byType(ImportTemplateType.envelopes));
-      await selectCsv(tester);
-      expect(find.text('2 enveloppes détectées'), findsOneWidget);
-      expect(
-        find.text(
-          'Les soldes initiaux deviennent des mouvements d’ouverture immuables.',
-        ),
-        findsOneWidget,
-      );
-      final button = find.byKey(const Key('envelope-csv-import-button'));
-      await reveal(tester, button);
-      await tester.tap(button);
-      await tester.pumpAndSettle();
-      expect(receivedNames, isNull);
-      await tester.tap(
-        find.widgetWithText(FilledButton, 'Importer les enveloppes').last,
-      );
-      await tester.pumpAndSettle();
-
-      expect(receivedNames, ['Courses', 'Maison']);
-      expect(receivedSessionId, isNotEmpty);
-      expect(
-        find.text(
-          '2 créées • 0 initialisées • 0 déjà existantes • 0 ignorées.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.textContaining('00000000-'), findsNothing);
-    },
-  );
-
-  testWidgets('annulation de confirmation Enveloppes ne lance aucune RPC', (
+  testWidgets('CSV Enveloppes reste prévisualisable mais non matérialisable', (
     tester,
   ) async {
     var calls = 0;
@@ -379,7 +326,7 @@ void main() {
       tester,
       pickCsvFile: () async => csvFile('enveloppes.csv'),
       readCsvText: (_) async =>
-          'nom;solde_initial;statut;notes\nCourses;0;actif;\n',
+          'nom;solde_initial;statut;notes\nCourses;60;actif;A\n Courses ;40,00;actif;B\nMaison;;inactif;C\n',
       importEnvelopes: ({required names, importSessionId}) async {
         calls++;
         return const EnvelopeBusinessImportResult(
@@ -392,13 +339,14 @@ void main() {
 
     await selectTemplate(tester, byType(ImportTemplateType.envelopes));
     await selectCsv(tester);
+    expect(find.text('2 enveloppes détectées'), findsOneWidget);
     final button = find.byKey(const Key('envelope-csv-import-button'));
     await reveal(tester, button);
-    await tester.tap(button);
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Annuler'));
-    await tester.pumpAndSettle();
-
+    expect(tester.widget<FilledButton>(button).onPressed, isNull);
+    expect(
+      find.textContaining('Matérialisation CSV legacy désactivée'),
+      findsOneWidget,
+    );
     expect(calls, 0);
   });
 
@@ -428,49 +376,6 @@ void main() {
 
     expect(find.byKey(const Key('envelope-csv-import-button')), findsNothing);
     expect(calls, 0);
-  });
-
-  testWidgets('succès Enveloppes invalide réellement les soldes distants', (
-    tester,
-  ) async {
-    var balanceLoads = 0;
-    await mount(
-      tester,
-      pickCsvFile: () async => csvFile('enveloppes.csv'),
-      readCsvText: (_) async =>
-          'nom;solde_initial;statut;notes\nCourses;0;actif;\n',
-      importEnvelopes: ({required names, importSessionId}) async =>
-          const EnvelopeBusinessImportResult(
-            created: 0,
-            existing: 1,
-            ignored: 0,
-          ),
-      providerOverrides: [
-        remoteEnvelopeBalancesProvider.overrideWith((ref) async {
-          balanceLoads++;
-          return const [];
-        }),
-      ],
-    );
-
-    await selectTemplate(tester, byType(ImportTemplateType.envelopes));
-    await tester.pumpAndSettle();
-    expect(balanceLoads, 1);
-    await selectCsv(tester);
-    final button = find.byKey(const Key('envelope-csv-import-button'));
-    await reveal(tester, button);
-    await tester.tap(button);
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.widgetWithText(FilledButton, 'Importer les enveloppes').last,
-    );
-    await tester.pumpAndSettle();
-
-    expect(balanceLoads, 2);
-    expect(
-      find.text('0 créées • 0 initialisées • 1 déjà existantes • 0 ignorées.'),
-      findsOneWidget,
-    );
   });
 
   testWidgets('sélection CSV lit le fichier avec le chemin exact', (
@@ -950,47 +855,25 @@ void main() {
     ]);
   });
 
-  testWidgets('radio Ignorer sélectionnée par défaut', (tester) async {
+  testWidgets('les choix de solde legacy sont absents', (tester) async {
     await mountWithPlan(
       tester,
       importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
     );
     await selectCsv(tester);
-    final ignore = find.byKey(
-      const Key('opening-balance-ignore-option'),
-      skipOffstage: false,
-    );
-    await reveal(tester, ignore);
-    final radioGroup = find.byType(RadioGroup<OpeningBalanceConflictChoice>);
-    expect(radioGroup, findsOneWidget);
     expect(
-      tester
-          .widget<RadioGroup<OpeningBalanceConflictChoice>>(radioGroup)
-          .groupValue,
-      OpeningBalanceConflictChoice.ignoreFileBalance,
+      find.byKey(
+        const Key('opening-balance-ignore-option'),
+        skipOffstage: false,
+      ),
+      findsNothing,
     );
-  });
-
-  testWidgets('sélection de Remplacer fonctionne', (tester) async {
-    await mountWithPlan(
-      tester,
-      importPlan([decision('Existant', AccountImportAction.alreadyExists)]),
-    );
-    await selectCsv(tester);
-    final replace = find.byKey(
-      const Key('opening-balance-replace-option'),
-      skipOffstage: false,
-    );
-    await reveal(tester, replace);
-    await tester.tap(replace);
-    await tester.pumpAndSettle();
-    final radioGroup = find.byType(RadioGroup<OpeningBalanceConflictChoice>);
-    expect(radioGroup, findsOneWidget);
     expect(
-      tester
-          .widget<RadioGroup<OpeningBalanceConflictChoice>>(radioGroup)
-          .groupValue,
-      OpeningBalanceConflictChoice.replaceOpeningBalance,
+      find.byKey(
+        const Key('opening-balance-replace-option'),
+        skipOffstage: false,
+      ),
+      findsNothing,
     );
   });
 
@@ -1040,7 +923,7 @@ void main() {
     expect(tester.widget<FilledButton>(importButton).onPressed, isNull);
   });
 
-  testWidgets('nouveau fichier réinitialise le plan et le choix utilisateur', (
+  testWidgets('nouveau fichier réinitialise le plan legacy prévisualisé', (
     tester,
   ) async {
     var attempts = 0;
@@ -1062,13 +945,6 @@ void main() {
       },
     );
     await selectCsv(tester);
-    final replace = find.byKey(
-      const Key('opening-balance-replace-option'),
-      skipOffstage: false,
-    );
-    await reveal(tester, replace);
-    await tester.tap(replace);
-    await tester.pumpAndSettle();
     final importsScrollable = find.byWidgetPredicate(
       (widget) =>
           widget is Scrollable &&

@@ -21,6 +21,7 @@ class SupabaseHouseholdMembersGateway implements HouseholdMembersGateway {
           .from('household_members')
           .select('user_id, role')
           .eq('household_id', householdId)
+          .isFilter('inactive_at', null)
           .order('created_at', ascending: true);
       final rows = response as List<dynamic>;
       final memberRows = rows

@@ -432,20 +432,23 @@ class _ContributionCapacityStep extends StatelessWidget {
   final Map<String, String> names;
   final String Function(int) money;
   @override
-  Widget build(BuildContext context) => Column(
-    children: capacities
-        .map(
-          (member) => Card(
-            child: ListTile(
-              title: Text(names[member.memberUserId] ?? 'Membre du foyer'),
-              subtitle: Text(
-                'Revenus retenus : ${money(member.eligibleIncomeCents)}\nCharges directes : ${money(member.directChargesCents)}\nCapacité contributive : ${money(member.contributionCapacityCents)}${member.rawCapacityCents < 0 ? '\nDéficit personnel : ${money(-member.rawCapacityCents)}' : ''}\nClé automatique : ${(member.autoShare * 100).toStringAsFixed(2)} %',
+  Widget build(BuildContext context) {
+    final showDistributionKey = capacities.length > 1;
+    return Column(
+      children: capacities
+          .map(
+            (member) => Card(
+              child: ListTile(
+                title: Text(names[member.memberUserId] ?? 'Membre du foyer'),
+                subtitle: Text(
+                  'Revenus retenus : ${money(member.eligibleIncomeCents)}\nCharges directes : ${money(member.directChargesCents)}\nCapacité contributive : ${money(member.contributionCapacityCents)}${member.rawCapacityCents < 0 ? '\nDéficit personnel : ${money(-member.rawCapacityCents)}' : ''}${showDistributionKey ? '\nClé automatique : ${(member.autoShare * 100).toStringAsFixed(2)} %' : ''}',
+                ),
               ),
             ),
-          ),
-        )
-        .toList(),
-  );
+          )
+          .toList(),
+    );
+  }
 }
 
 class _SharedChargesStep extends StatelessWidget {
