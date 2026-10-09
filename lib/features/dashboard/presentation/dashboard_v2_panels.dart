@@ -526,41 +526,10 @@ class DashboardV2Panels extends StatelessWidget {
                 for (final k in kpis)
                   SizedBox(
                     width: (box.maxWidth - (columns - 1) * 12) / columns,
-                    child: Card(
-                      margin: EdgeInsets.zero,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              k.title,
-                              maxLines: 2,
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                            const SizedBox(height: 8),
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                k.value,
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              k.detail,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
+                    child: FpKpiCard(
+                      title: k.title,
+                      value: k.value,
+                      detail: k.detail,
                     ),
                   ),
               ],

@@ -17,6 +17,13 @@ abstract final class AppColors {
   static const warning = Color(0xFFF59E0B);
   static const danger = Color(0xFFD32F2F);
   static const info = Color(0xFF2C7FB8);
+  static const income = Color(0xFF2E7D32);
+  static const expense = Color(0xFFB5473C);
+  static const transfer = Color(0xFF2C7FB8);
+  static const savings = Color(0xFF4F6F52);
+  static const investment = Color(0xFF6B5B95);
+  static const debt = Color(0xFF9A5B35);
+  static const receivable = Color(0xFF397A78);
   // Les surfaces de contenu restent neutres : le bleu pétrole structure la
   // navigation et les CTA, sans créer de grands aplats bleu pastel.
   static const primaryContainer = Color(0xFFEEF1F4);
@@ -59,25 +66,356 @@ abstract final class AppSpacing {
   static const dialog = EdgeInsets.all(lg);
 }
 
+abstract final class AppControlSize {
+  static const minimumTouchTarget = 44.0;
+  static const buttonHeight = 46.0;
+  static const inputHeight = 46.0;
+  static const iconSmall = 18.0;
+  static const icon = 24.0;
+  static const iconLarge = 32.0;
+}
+
+enum AppWindowClass { compact, medium, expanded, large }
+
 /// Contraintes de lecture partagées pour éviter que les écrans desktop
 /// deviennent des formulaires étirés. Les pages restent fluides sur les
 /// formats intermédiaires et reprennent toute la largeur utile sur mobile.
 abstract final class AppLayout {
+  static const compactBreakpoint = 600.0;
+  static const mediumBreakpoint = 900.0;
+  static const expandedBreakpoint = 1200.0;
+  static const largeBreakpoint = 1440.0;
   static const contentMaxWidth = 1360.0;
   static const formMaxWidth = 1180.0;
   static const wideDialogMaxWidth = 1240.0;
 
   static EdgeInsets pagePaddingFor(double width) {
-    if (width < 700) return const EdgeInsets.all(AppSpacing.md);
-    if (width < 1200) return const EdgeInsets.all(AppSpacing.lg);
+    if (width < compactBreakpoint) {
+      return const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      );
+    }
+    if (width < expandedBreakpoint) return const EdgeInsets.all(AppSpacing.lg);
     return const EdgeInsets.symmetric(
       horizontal: AppSpacing.xl,
       vertical: AppSpacing.lg,
     );
   }
 
-  static bool isCompact(double width) => width < 700;
-  static bool isDesktop(double width) => width >= 1200;
+  static AppWindowClass windowClass(double width) => switch (width) {
+    < compactBreakpoint => AppWindowClass.compact,
+    < mediumBreakpoint => AppWindowClass.medium,
+    < largeBreakpoint => AppWindowClass.expanded,
+    _ => AppWindowClass.large,
+  };
+
+  static bool isCompact(double width) => width < compactBreakpoint;
+  static bool isDesktop(double width) => width >= expandedBreakpoint;
+  static bool isLarge(double width) => width >= largeBreakpoint;
+}
+
+class FpPageHeader extends StatelessWidget {
+  const FpPageHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.actions = const [],
+  });
+
+  final String title;
+  final String? subtitle;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final heading = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.headlineSmall),
+          if (subtitle != null) ...[
+            const SizedBox(height: AppSpacing.xxs),
+            SecondaryInfoText(subtitle!),
+          ],
+        ],
+      );
+      if (actions.isEmpty) return heading;
+      if (AppLayout.isCompact(constraints.maxWidth)) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            heading,
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: actions,
+            ),
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: heading),
+          const SizedBox(width: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: actions,
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class FpCard extends StatelessWidget {
+  const FpCard({
+    super.key,
+    required this.child,
+    this.padding = AppSpacing.card,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(padding: padding, child: child),
+  );
+}
+
+class FpKpiCard extends StatelessWidget {
+  const FpKpiCard({
+    super.key,
+    required this.title,
+    required this.value,
+    this.detail,
+    this.icon,
+    this.semanticColor,
+    this.onTap,
+  });
+
+  final String title;
+  final String value;
+  final String? detail;
+  final IconData? icon;
+  final Color? semanticColor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = semanticColor ?? Theme.of(context).colorScheme.primary;
+    return Semantics(
+      button: onTap != null,
+      label: '$title, $value${detail == null ? '' : ', $detail'}',
+      child: Card(
+        child: InkWell(
+          borderRadius: AppRadius.card,
+          onTap: onTap,
+          child: Padding(
+            padding: AppSpacing.card,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, size: AppControlSize.iconSmall, color: color),
+                      const SizedBox(width: AppSpacing.xs),
+                    ],
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: color,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                if (detail != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    detail!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum FpStatus { neutral, success, warning, error, info }
+
+class FpStatusChip extends StatelessWidget {
+  const FpStatusChip({
+    super.key,
+    required this.label,
+    this.status = FpStatus.neutral,
+  });
+
+  final String label;
+  final FpStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = switch (status) {
+      FpStatus.success => AppColors.success,
+      FpStatus.warning => AppColors.warning,
+      FpStatus.error => scheme.error,
+      FpStatus.info => AppColors.info,
+      FpStatus.neutral => scheme.onSurfaceVariant,
+    };
+    return Semantics(
+      label: label,
+      child: Chip(
+        avatar: Icon(Icons.circle, size: 10, color: color),
+        label: Text(label),
+        side: BorderSide(color: color.withValues(alpha: .35)),
+        backgroundColor: color.withValues(alpha: .08),
+      ),
+    );
+  }
+}
+
+class FpEmptyState extends StatelessWidget {
+  const FpEmptyState({
+    super.key,
+    required this.title,
+    required this.message,
+    this.icon = Icons.inbox_outlined,
+    this.action,
+  });
+
+  final String title;
+  final String message;
+  final IconData icon;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) =>
+      _FpStatePanel(icon: icon, title: title, message: message, action: action);
+}
+
+class FpErrorState extends StatelessWidget {
+  const FpErrorState({
+    super.key,
+    required this.message,
+    this.title = 'Impossible de charger les données',
+    this.action,
+  });
+
+  final String title;
+  final String message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => _FpStatePanel(
+    icon: Icons.error_outline,
+    iconColor: Theme.of(context).colorScheme.error,
+    title: title,
+    message: message,
+    action: action,
+  );
+}
+
+class FpLoadingState extends StatelessWidget {
+  const FpLoadingState({super.key, this.label = 'Chargement…'});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: label,
+    liveRegion: true,
+    child: Center(
+      child: Padding(
+        padding: AppSpacing.dialog,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: AppSpacing.md),
+            Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _FpStatePanel extends StatelessWidget {
+  const _FpStatePanel({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.iconColor,
+    this.action,
+  });
+
+  final IconData icon;
+  final Color? iconColor;
+  final String title;
+  final String message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 440),
+      child: Padding(
+        padding: AppSpacing.dialog,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 40,
+              color: iconColor ?? Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (action != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              action!,
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 /// Composition partagée des écrans desktop. Elle évite que les listes et les

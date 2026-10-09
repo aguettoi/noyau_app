@@ -202,7 +202,7 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                       Text(
                         _creatingAccount
                             ? 'Créer un compte'
-                            : 'Accéder à Noyau',
+                            : 'FINANCIEL PILOTE',
                         style: Theme.of(context).textTheme.headlineSmall,
                         textAlign: TextAlign.center,
                       ),
@@ -210,7 +210,7 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                       Text(
                         _creatingAccount
                             ? 'Créez votre identité personnelle. Votre foyer sera configuré ensuite.'
-                            : 'Connectez-vous pour accéder à votre foyer.',
+                            : 'Pilotez. Planifiez. Épargnez. Prospérez.\nConnectez-vous pour accéder à votre foyer.',
                         style: Theme.of(context).textTheme.bodyMedium,
                         textAlign: TextAlign.center,
                       ),

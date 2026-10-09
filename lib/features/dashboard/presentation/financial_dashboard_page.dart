@@ -22,25 +22,21 @@ class FinancialDashboardPage extends ConsumerWidget {
     final dashboard = ref.watch(financialDashboardProvider);
     return SafeArea(
       child: dashboard.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(
-          child: Text(
-            'Le tableau de bord ne peut pas être chargé. Vérifiez votre connexion.',
-          ),
+        loading: () => const FpLoadingState(label: 'Chargement du pilotage…'),
+        error: (_, _) => const FpErrorState(
+          message:
+              'Le tableau de bord ne peut pas être chargé. Vérifiez votre connexion.',
         ),
         data: (snapshot) => LayoutBuilder(
           builder: (context, constraints) {
             return ListView(
               key: const Key('financial-dashboard-page'),
-              padding: EdgeInsets.all(constraints.maxWidth < 600 ? 12 : 24),
+              padding: AppLayout.pagePaddingFor(constraints.maxWidth),
               children: [
-                Text(
-                  'Tableau de bord',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 4),
-                const SecondaryInfoText(
-                  'Vue Foyer • comptes, enveloppes et projections restent distincts.',
+                const FpPageHeader(
+                  title: 'Tableau de bord',
+                  subtitle:
+                      'Vue Foyer • comptes, enveloppes et projections restent distincts.',
                 ),
                 const SizedBox(height: 12),
                 Wrap(

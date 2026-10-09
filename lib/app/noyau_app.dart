@@ -29,7 +29,7 @@ class NoyauApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Noyau',
+    title: 'FINANCIEL PILOTE',
     debugShowCheckedModeBanner: false,
     theme: NoyauTheme.light,
     darkTheme: NoyauTheme.dark,
@@ -122,18 +122,21 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
       PrioritiesPage(),
       ImportsPage(),
     ];
-    final desktop = AppLayout.isDesktop(MediaQuery.sizeOf(context).width);
+    final width = MediaQuery.sizeOf(context).width;
+    final desktop = AppLayout.isDesktop(width);
+    final largeDesktop = AppLayout.isLarge(width);
     final compactNavigation =
         !desktop &&
         MediaQuery.sizeOf(context).width < _compactNavigationBreakpoint;
     final navigation = desktop
         ? Container(
-            width: 116,
+            width: largeDesktop ? 240 : 116,
             color: AppColors.primary,
             child: NavigationRail(
               backgroundColor: Colors.transparent,
+              extended: largeDesktop,
               selectedIndex: _selectedIndex,
-              labelType: NavigationRailLabelType.all,
+              labelType: largeDesktop ? null : NavigationRailLabelType.all,
               indicatorColor: AppColors.secondary,
               selectedIconTheme: const IconThemeData(color: Colors.white),
               unselectedIconTheme: const IconThemeData(
@@ -155,18 +158,50 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                   top: AppSpacing.md,
                   bottom: AppSpacing.lg,
                 ),
-                child: Tooltip(
-                  message: 'FINANCIEL PILOTE',
-                  child: ClipRRect(
-                    borderRadius: AppRadius.button,
-                    child: Image.asset(
-                      AppAssets.financialPiloteLogo,
-                      width: 58,
-                      height: 58,
-                      fit: BoxFit.cover,
-                      semanticLabel: 'FINANCIEL PILOTE',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(
+                      message: 'FINANCIEL PILOTE',
+                      child: ClipRRect(
+                        borderRadius: AppRadius.button,
+                        child: Image.asset(
+                          AppAssets.financialPiloteLogo,
+                          width: 58,
+                          height: 58,
+                          fit: BoxFit.cover,
+                          semanticLabel: 'FINANCIEL PILOTE',
+                        ),
+                      ),
                     ),
-                  ),
+                    if (largeDesktop) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      const Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'FINANCIEL PILOTE',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              'Pilotez. Planifiez. Épargnez. Prospérez.',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.darkTextSecondary,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               trailing: Expanded(

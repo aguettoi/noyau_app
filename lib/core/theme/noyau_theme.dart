@@ -90,13 +90,16 @@ abstract final class NoyauTheme {
         titleTextStyle: textTheme.titleLarge,
       ),
       cardTheme: CardThemeData(
-        elevation: 0,
+        elevation: 1,
         margin: EdgeInsets.zero,
         color: isDark
             ? AppColors.darkSurfaceSecondary
             : AppColors.surfaceSecondary,
-        shadowColor: AppColors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.card),
+        shadowColor: AppColors.shadow.withValues(alpha: .08),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.card,
+          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .75)),
+        ),
         clipBehavior: Clip.antiAlias,
       ),
       dialogTheme: DialogThemeData(
@@ -106,6 +109,18 @@ abstract final class NoyauTheme {
         shape: RoundedRectangleBorder(borderRadius: AppRadius.dialog),
         titleTextStyle: textTheme.titleLarge,
         contentTextStyle: textTheme.bodyMedium,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: isDark
+            ? AppColors.darkSurfaceSecondary
+            : AppColors.surfaceSecondary,
+        modalBackgroundColor: isDark
+            ? AppColors.darkSurfaceSecondary
+            : AppColors.surfaceSecondary,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         isDense: true,
@@ -137,7 +152,7 @@ abstract final class NoyauTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 46),
+          minimumSize: const Size(0, AppControlSize.buttonHeight),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
             vertical: AppSpacing.sm,
@@ -148,7 +163,7 @@ abstract final class NoyauTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 46),
+          minimumSize: const Size(0, AppControlSize.buttonHeight),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
             vertical: AppSpacing.sm,
@@ -160,6 +175,10 @@ abstract final class NoyauTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
+          minimumSize: const Size(
+            AppControlSize.minimumTouchTarget,
+            AppControlSize.minimumTouchTarget,
+          ),
           shape: const RoundedRectangleBorder(borderRadius: AppRadius.button),
           textStyle: textTheme.labelLarge,
         ),
@@ -184,6 +203,69 @@ abstract final class NoyauTheme {
           ),
         ),
       ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: AppColors.primary,
+        indicatorColor: AppColors.secondary,
+        selectedIconTheme: const IconThemeData(color: Colors.white),
+        unselectedIconTheme: const IconThemeData(
+          color: AppColors.darkTextSecondary,
+        ),
+        selectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+          color: AppColors.darkTextSecondary,
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: scheme.surfaceContainerHighest,
+        selectedColor: scheme.primaryContainer,
+        side: BorderSide(color: scheme.outlineVariant),
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.button),
+        labelStyle: textTheme.labelMedium,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      ),
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        minVerticalPadding: AppSpacing.xs,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.input),
+        iconColor: scheme.onSurfaceVariant,
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(AppControlSize.minimumTouchTarget),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.button),
+        ),
+      ),
+      dataTableTheme: DataTableThemeData(
+        headingRowColor: WidgetStatePropertyAll(
+          scheme.surfaceContainerHighest.withValues(alpha: .7),
+        ),
+        headingTextStyle: textTheme.labelLarge,
+        dataTextStyle: textTheme.bodyMedium?.copyWith(
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+        dividerThickness: 1,
+        decoration: BoxDecoration(
+          border: Border.all(color: scheme.outlineVariant),
+          borderRadius: AppRadius.card,
+        ),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: scheme.primary,
+        linearTrackColor: scheme.surfaceContainerHighest,
+        circularTrackColor: scheme.surfaceContainerHighest,
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: AppRadius.small,
+        ),
+        textStyle: textTheme.bodySmall?.copyWith(
+          color: scheme.onInverseSurface,
+        ),
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: isDark
@@ -197,6 +279,8 @@ abstract final class NoyauTheme {
         shape: const RoundedRectangleBorder(borderRadius: AppRadius.button),
       ),
       focusColor: scheme.primary.withValues(alpha: 0.12),
+      hoverColor: scheme.primary.withValues(alpha: 0.06),
+      highlightColor: scheme.primary.withValues(alpha: 0.08),
       splashFactory: InkSparkle.splashFactory,
     );
   }
