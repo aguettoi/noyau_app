@@ -6,6 +6,16 @@ final supabaseClientProvider = Provider<SupabaseClient>(
   (ref) => Supabase.instance.client,
 );
 
+/// Returns no client only in isolated widget/unit environments where the
+/// application bootstrap has intentionally not initialized Supabase.
+final optionalSupabaseClientProvider = Provider<SupabaseClient?>((ref) {
+  try {
+    return Supabase.instance.client;
+  } on AssertionError {
+    return null;
+  }
+});
+
 abstract interface class SupabaseAuthGateway {
   String? get currentUserId;
 

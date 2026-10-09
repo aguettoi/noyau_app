@@ -19,6 +19,8 @@ import '../features/envelopes/presentation/envelope_dashboard_page.dart';
 import '../features/savings_goals/presentation/savings_goals_page.dart';
 import '../features/shopping_list/presentation/shopping_list_page.dart';
 import '../features/priorities/presentation/priorities_page.dart';
+import '../features/portability/application/household_realtime_provider.dart';
+import '../features/portability/presentation/portability_page.dart';
 import 'finance_shell_navigation.dart';
 import 'global_refresh_provider.dart';
 
@@ -108,6 +110,8 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(householdRealtimeProvider);
+    final syncState = ref.watch(syncConnectionStateProvider);
     const pages = [
       FinancialDashboardPage(),
       AccountsPage(),
@@ -171,6 +175,12 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        key: const Key('portability-button'),
+                        tooltip: 'Recherche et portabilité',
+                        onPressed: _showPortability,
+                        icon: const Icon(Icons.manage_search),
+                      ),
                       IconButton(
                         tooltip: 'Membres du foyer',
                         onPressed: _showHouseholdMembers,
@@ -250,6 +260,19 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (syncState != SyncConnectionState.synchronized)
+                    Tooltip(
+                      message: syncState == SyncConnectionState.offline
+                          ? 'Hors ligne — aucune mutation non confirmée ne sera présentée comme réussie.'
+                          : 'Reconnexion en cours…',
+                      child: const Icon(Icons.cloud_off_outlined),
+                    ),
+                  IconButton(
+                    key: const Key('portability-button-mobile'),
+                    tooltip: 'Recherche et portabilité',
+                    onPressed: _showPortability,
+                    icon: const Icon(Icons.manage_search),
+                  ),
                   IconButton(
                     tooltip: 'Membres du foyer',
                     onPressed: _showHouseholdMembers,
@@ -346,6 +369,10 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
       ),
     );
   }
+
+  void _showPortability() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const PortabilityPage()));
 
   Future<void> _signOut() async {
     await ref.read(supabaseAuthGatewayProvider).signOut();
