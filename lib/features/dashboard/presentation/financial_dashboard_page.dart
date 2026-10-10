@@ -14,6 +14,7 @@ import '../application/providers/remote_financial_dashboard_provider.dart';
 import 'dashboard_v2_panels.dart';
 import '../../organization/application/organization_provider.dart';
 import '../../organization/presentation/organization_page.dart';
+import '../../monthly_close/presentation/monthly_close_page.dart';
 
 class FinancialDashboardPage extends ConsumerWidget {
   const FinancialDashboardPage({super.key});
@@ -63,6 +64,23 @@ class FinancialDashboardPage extends ConsumerWidget {
                   ),
                 const SizedBox(height: 12),
                 _OrganizationSummary(ref: ref),
+                const SizedBox(height: 12),
+                Card(
+                  key: const Key('dashboard-monthly-close'),
+                  child: ListTile(
+                    leading: const Icon(Icons.fact_check_outlined),
+                    title: const Text('Fin de mois'),
+                    subtitle: const Text(
+                      'Santé, actions, rapprochements et clôture guidée',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const MonthlyClosePage(),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 DashboardV2Panels(
                   snapshot: snapshot,
