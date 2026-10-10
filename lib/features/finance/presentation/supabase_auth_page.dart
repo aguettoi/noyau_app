@@ -57,8 +57,7 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
         return;
       }
       setState(() {
-        _errorMessage =
-            'Connexion impossible. Vérifiez votre e-mail et votre mot de passe.';
+        _errorMessage = _signInErrorMessage(error);
       });
     } finally {
       if (mounted) {
@@ -174,6 +173,27 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
       'type=${error.runtimeType}; statusCode=none; code=none; '
       'message=non-Auth client exception.',
     );
+  }
+
+  String _signInErrorMessage(Object error) {
+    if (error is AssertionError) {
+      return 'Configuration de connexion indisponible. Relancez une version configurée de FINANCIEL PILOTE.';
+    }
+    if (error case AuthException authError) {
+      return switch (authError.code) {
+        'invalid_credentials' =>
+          'Connexion impossible. Vérifiez votre e-mail et votre mot de passe.',
+        'email_not_confirmed' =>
+          'Votre adresse e-mail doit être confirmée avant la connexion.',
+        'user_banned' =>
+          'Ce compte ne peut pas se connecter. Contactez le responsable du foyer.',
+        _ when authError.statusCode == '429' =>
+          'Trop de tentatives. Patientez quelques instants puis réessayez.',
+        _ =>
+          'Le service de connexion est momentanément indisponible. Réessayez plus tard.',
+      };
+    }
+    return 'Connexion au service impossible. Vérifiez votre réseau puis réessayez.';
   }
 
   @override

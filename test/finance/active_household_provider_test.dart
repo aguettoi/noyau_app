@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
@@ -6,6 +8,20 @@ import 'package:noyau_app/features/finance/application/providers/supabase_client
 final _testSessionUserProvider = StateProvider<String?>((ref) => null);
 
 void main() {
+  test('la relation household PostgREST utilise la FK canonique explicite', () {
+    final source = File(
+      'lib/features/finance/application/providers/active_household_provider.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains(
+        'households!household_members_household_id_fkey(classification)',
+      ),
+    );
+    expect(source, isNot(contains('households!inner(classification)')));
+  });
+
   ProviderContainer container({
     String? userId,
     required HouseholdMembershipGateway gateway,

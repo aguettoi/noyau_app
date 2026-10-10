@@ -38,6 +38,36 @@ void main() {
     expect(find.text('Invalid login credentials'), findsNothing);
   });
 
+  testWidgets(
+    'reports a missing Supabase configuration without blaming credentials',
+    (tester) async {
+      final gateway = _ConfigurationFailingAuthGateway();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [supabaseAuthGatewayProvider.overrideWithValue(gateway)],
+          child: const MaterialApp(home: SupabaseAuthPage()),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('auth-email-field')),
+        'member@example.test',
+      );
+      await tester.enterText(
+        find.byKey(const Key('auth-password-field')),
+        'correct-password',
+      );
+      await tester.tap(find.byKey(const Key('auth-sign-in-button')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Configuration de connexion indisponible'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Vérifiez votre e-mail'), findsNothing);
+    },
+  );
+
   testWidgets('signup validates identity and forwards metadata', (
     tester,
   ) async {
@@ -174,4 +204,14 @@ class _RecordingAuthGateway implements SupabaseAuthGateway {
 
   @override
   Future<void> signOut() async {}
+}
+
+class _ConfigurationFailingAuthGateway extends _RecordingAuthGateway {
+  @override
+  Future<void> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    throw AssertionError('Supabase client not initialized');
+  }
 }

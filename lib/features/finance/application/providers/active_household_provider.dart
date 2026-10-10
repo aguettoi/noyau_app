@@ -54,7 +54,10 @@ class SupabaseHouseholdMembershipGateway implements HouseholdMembershipGateway {
     try {
       final response = await _client
           .from('household_members')
-          .select('household_id, households!inner(classification)')
+          .select(
+            'household_id, '
+            'households!household_members_household_id_fkey(classification)',
+          )
           .eq('user_id', userId)
           .isFilter('inactive_at', null);
       return (response as List<dynamic>)
