@@ -23,11 +23,17 @@ class MonthlyCloseSnapshot {
     required this.status,
     required this.issues,
     this.kpis,
+    this.periodId,
+    this.owner = false,
+    this.history = const [],
   });
   final DateTime month;
   final MonthlyCloseStatus status;
   final List<CloseIssue> issues;
   final ReliabilityKpis? kpis;
+  final String? periodId;
+  final bool owner;
+  final List<MonthlyCloseAuditEntry> history;
   int get blockers => issues
       .where((e) => e.severity == CloseIssueSeverity.blocker)
       .fold(0, (a, b) => a + b.count);
@@ -41,6 +47,34 @@ class MonthlyCloseSnapshot {
     final completed = issues.where((e) => e.count == 0).length;
     return ((completed / checks) * 100).round();
   }
+}
+
+class MonthlyCloseAuditEntry {
+  const MonthlyCloseAuditEntry({
+    required this.kind,
+    required this.actor,
+    required this.at,
+    this.reason,
+  });
+  final String kind, actor;
+  final DateTime at;
+  final String? reason;
+}
+
+class MonthlyEnvelopeAccountTarget {
+  const MonthlyEnvelopeAccountTarget({
+    required this.id,
+    required this.envelopeId,
+    required this.accountId,
+    required this.amount,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String envelopeId;
+  final String accountId;
+  final Money amount;
+  final DateTime createdAt;
 }
 
 class ReliabilityKpis {

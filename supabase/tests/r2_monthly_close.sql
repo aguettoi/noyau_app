@@ -21,6 +21,9 @@ begin
  if (select count(*) from public.monthly_close_periods where household_id=household_a)<>first_periods or (select count(*) from public.monthly_close_events where household_id=household_a)<>first_events then raise exception 'Double close duplicated state or audit'; end if;
  begin perform public.reopen_monthly_period(period_id,'',gen_random_uuid()); raise exception 'Empty reopen reason accepted'; exception when others then if sqlerrm='Empty reopen reason accepted' then raise; end if; end;
  perform public.reopen_monthly_period(period_id,'Correction démontrée',gen_random_uuid());
+ select count(*) into first_events from public.monthly_close_events where household_id=household_a;
+ perform public.reopen_monthly_period(period_id,'Double action',gen_random_uuid());
+ if (select count(*) from public.monthly_close_events where household_id=household_a)<>first_events then raise exception 'Double reopen duplicated audit'; end if;
  perform set_config('request.jwt.claim.sub',member_a::text,true);
  begin perform public.reopen_monthly_period(period_id,'Member attempt',gen_random_uuid()); raise exception 'Member reopened month'; exception when others then if sqlerrm='Member reopened month' then raise; end if; end;
  perform set_config('request.jwt.claim.sub',outsider::text,true);

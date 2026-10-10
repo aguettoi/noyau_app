@@ -7,8 +7,8 @@ L’ordre directeur de la Roadmap Master V2 est conservé. Le reporting R4 suit 
 | R0 | Master Scope V2 | Inventaire, gaps, arbitrages et dépendances | Référence de gel |
 | R1 continu | UI/UX évolutive | Toute nouvelle surface utilise le Design System | Évite une dette supplémentaire |
 | R2A | Clôture et checklist | IMPLÉMENTÉ — dossier mensuel, blockers/warnings, close/reopen audités | Fondation du cycle |
-| R2B | Centre À faire | IMPLÉMENTÉ — projection actionnable des sources canoniques | Réutilise F2/F3/F6 |
-| R2C | Régularisation globale | IMPLÉMENTÉ — cibles mensuelles et plan minimal read-only | Exécution via flux canoniques |
+| R2B | Centre À faire | PARTIEL — catégories actionnables vers les modules canoniques, ciblage objet absent | Réutilise F2/F3/F6 |
+| R2C | Régularisation globale | PARTIEL — cibles configurables et solveur minimal read-only | Position compte × enveloppe à canonicaliser avant exécution |
 | R2D | KPI qualité | IMPLÉMENTÉ — santé explicable, pièces, rapprochement, inventaires | Foyer/non attribué par défaut |
 | R3A | Récurrents confirmables | Attendu/réel/variation et échéancier | Alimente projection |
 | R3B | Projection J+30/J+90 | Cashflow expliqué et scénarios | Réutilise FinancialAvailability |

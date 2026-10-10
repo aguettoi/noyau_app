@@ -5,6 +5,9 @@ void main() {
   final sql = File(
     'supabase/migrations/20261010143000_r2_monthly_close_and_reliability.sql',
   ).readAsStringSync();
+  final reopenHardening = File(
+    'supabase/migrations/20261010213000_r2_1_reopen_idempotence.sql',
+  ).readAsStringSync();
   test('R2 storage is household scoped, RLS protected and additive', () {
     expect(sql, contains('monthly_close_periods'));
     expect(sql, contains('monthly_close_events'));
@@ -18,6 +21,9 @@ void main() {
     expect(sql, contains('Monthly close has hard blockers'));
     expect(sql, contains('Owner reason required for warning override'));
     expect(sql, contains('Reopen reason required'));
+    expect(reopenHardening, contains("v_period.status = 'reopened'"));
+    expect(reopenHardening, contains("v_period.status <> 'closed'"));
+    expect(reopenHardening, contains("role = 'owner'"));
   });
   test('R2 does not mutate financial ledgers', () {
     expect(sql, isNot(contains('insert into public.financial_events')));
