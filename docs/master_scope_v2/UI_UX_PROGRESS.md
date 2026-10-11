@@ -1,5 +1,14 @@
 # Progression UI/UX
 
+## R2.4
+
+- Paramétrage global des enveloppes dans une grille Desktop/Web et des cartes mobiles, sans configuration fenêtre par fenêtre.
+- Sélecteurs filtrés sur les comptes actifs et moyens de paiement actifs/compatibles avec compte et titulaire.
+- État visible `À configurer`, `Moyen inactif` ou `Configurée`.
+- Accès direct depuis Enveloppes et depuis l’alerte `Paramétrage minimal manquant` de Fin de mois, avec retour conservé.
+- Source Budget/scénario explicitement affichée ; absence de scénario reliée à la surface Budget canonique.
+- Cas multi-comptes renvoyé vers les règles structurelles du scénario, sans dérogation mensuelle permanente.
+
 ## R2.3
 
 - Parcours guidé transformé en étapes actionnables avec états et motifs de blocage.

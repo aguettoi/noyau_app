@@ -13,6 +13,16 @@ Statut : partiellement finalisé le 10/10/2026.
 - Le score Santé est explicable par domaine et reste distinct du verdict « prêt à clôturer ».
 - La régularisation et les virements restent une preview jusqu’à confirmation ; l’exécution utilise les transferts canoniques et revérifie les cibles côté serveur.
 
+## R2.4 — paramétrage canonique des enveloppes
+
+- Une surface centralisée expose toutes les enveloppes avec solde, règle de titularité, compte recommandé, moyen recommandé et état.
+- Le cas simple réutilise exclusivement `envelopes.recommended_account_id`, `recommended_payment_method_id` et `set_envelope_recommendation` de F2.
+- Les comptes archivés et moyens inactifs ne sont jamais proposés. Le serveur revérifie foyer, activité, compte lié et titulaire, puis inscrit l’évolution dans un audit non financier.
+- Une absence de recommandation renvoie depuis Fin de mois vers cette configuration structurelle. La dérogation mensuelle reste une exception OWNER motivée.
+- La source de cible est affichée comme `Budget MM/AAAA — Scénario …`. Sans scénario applicable, l’UI propose la configuration Budget et n’invente rien.
+- Une enveloppe structurellement multi-comptes reste décrite par les étapes du scénario Budget. Les montants `fixed` ou pourcentages homogènes sont répartis proportionnellement, avec correction du centime final ; tout cas ambigu reste bloqué.
+- Cette configuration ne crée ni FinancialEvent, ni transaction GL, ni mouvement d’enveloppe.
+
 ## Sources canoniques réutilisées
 
 - Grand Ledger et comptes pour les positions théoriques.
@@ -40,7 +50,7 @@ Le solveur Dart de régularisation est pur et produit seulement des propositions
 
 ## UI/UX
 
-La surface Fin de mois est accessible depuis Pilotage. Elle utilise le Design System partagé, une liste responsive, des états loading/error, un score explicable, une checklist guidée, un centre À faire et un contrôle final. La réouverture OWNER est désormais exposée avec motif, retour utilisateur et historique. Les catégories du centre ouvrent les surfaces canoniques Comptes, Transactions et Compensations. Les cibles mensuelles compte × enveloppe sont consultables et modifiables avant clôture via le RPC audité.
+La surface Fin de mois est accessible depuis Pilotage. Elle utilise le Design System partagé, une liste responsive, des états loading/error, un score explicable, une checklist guidée, un centre À faire et un contrôle final. La réouverture OWNER est désormais exposée avec motif, retour utilisateur et historique. Les catégories du centre ouvrent les surfaces canoniques Comptes, Transactions et Compensations. Les cibles mensuelles compte × enveloppe sont consultables avant clôture. Leur source normale est automatique ; seule une dérogation OWNER motivée est modifiable mensuellement.
 
 ## Limites
 
@@ -48,4 +58,5 @@ La surface Fin de mois est accessible depuis Pilotage. Elle utilise le Design Sy
 - Le snapshot ne fournit que des compteurs : le centre À faire ouvre le bon module, mais pas encore l'objet précis.
 - Le foyer pilote n'est volontairement pas initialisé automatiquement : aucun historique compte × enveloppe n'est inventé. Un OWNER doit effectuer l'inventaire humain initial avant que R2C soit utilisable sur ce foyer.
 - La recette visuelle humaine des surfaces R2 reste requise.
+- Le foyer pilote doit encore recevoir ses recommandations structurelles et, pour les enveloppes multi-comptes, les sources de financement du scénario réel ; aucun backfill n’est réalisé par R2.4.
 - La certification iOS réelle reste P1 faute d'environnement Apple.

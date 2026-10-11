@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
+import '../../envelopes/presentation/envelope_recommendations_page.dart';
+import '../../budget_intelligence/presentation/budget_scenarios_page.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/application/providers/remote_account_balances_provider.dart';
 import '../../finance/presentation/accounts_page.dart';
@@ -880,16 +882,30 @@ class _TargetConfiguration extends ConsumerWidget {
               children: [
                 SecondaryInfoText(
                   preview.scenarioName == null
-                      ? 'Cible calculée depuis les recommandations canoniques des enveloppes.'
-                      : 'Cible calculée automatiquement • Source : scénario/budget ${preview.scenarioName}.',
+                      ? 'Source : recommandations structurelles des enveloppes. Aucun scénario/budget applicable pour ${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year}.'
+                      : 'Source : Budget ${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year} — Scénario ${preview.scenarioName}.',
                 ),
-                if (preview.missingMappings.isNotEmpty)
+                if (preview.scenarioName == null)
+                  TextButton.icon(
+                    key: const Key('configure-budget-scenario'),
+                    onPressed: () => _openBudget(context, ref),
+                    icon: const Icon(Icons.event_note_outlined),
+                    label: const Text('Configurer le budget applicable'),
+                  ),
+                if (preview.missingMappings.isNotEmpty) ...[
                   Text(
                     'Paramétrage minimal manquant : ${preview.missingMappings.join(', ')}.',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
+                  TextButton.icon(
+                    key: const Key('configure-envelope-targets'),
+                    onPressed: () => _openEnvelopeConfiguration(context, ref),
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Configurer les enveloppes'),
+                  ),
+                ],
                 if (snapshot.owner)
                   Align(
                     alignment: Alignment.centerRight,
@@ -961,6 +977,26 @@ class _TargetConfiguration extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _openEnvelopeConfiguration(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const EnvelopeRecommendationsPage(),
+      ),
+    );
+    ref.invalidate(automaticTargetPreviewProvider);
+    ref.invalidate(monthlyCloseTargetsProvider);
+  }
+
+  Future<void> _openBudget(BuildContext context, WidgetRef ref) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const BudgetScenariosPage()),
+    );
+    ref.invalidate(automaticTargetPreviewProvider);
   }
 
   Future<void> _edit(

@@ -10,6 +10,7 @@ import 'package:noyau_app/features/finance/presentation/accounts_page.dart';
 import 'package:noyau_app/features/finance/presentation/member_compensations_page.dart';
 import 'package:noyau_app/features/finance/presentation/transactions_page.dart';
 import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
+import 'package:noyau_app/features/finance/application/providers/payment_methods_provider.dart';
 import 'package:noyau_app/core/money/money.dart';
 
 void main() {
@@ -223,6 +224,60 @@ void main() {
     await tester.tap(find.byKey(const Key('save-monthly-target')));
     await tester.pumpAndSettle();
     expect(saved, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Fin de mois ouvre le paramétrage structurel puis revient', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          monthlyCloseProvider.overrideWith(
+            (ref) async => MonthlyCloseSnapshot(
+              month: DateTime(2026, 10),
+              status: MonthlyCloseStatus.open,
+              issues: const [],
+            ),
+          ),
+          monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
+          automaticTargetPreviewProvider.overrideWith(
+            (ref) async => const AutomaticTargetPreview(
+              targets: [],
+              missingMappings: ['Besoin perso'],
+              complete: false,
+            ),
+          ),
+          remoteAccountsProvider.overrideWith((ref) async => const []),
+          remoteEnvelopeBalancesProvider.overrideWith(
+            (ref) async => const [
+              RemoteEnvelopeBalance(
+                id: 'envelope-1',
+                name: 'Besoin perso',
+                inflows: Money.fromMinorUnits(0),
+                outflows: Money.fromMinorUnits(0),
+                balance: Money.fromMinorUnits(52048),
+                isSystem: false,
+              ),
+            ],
+          ),
+          paymentMethodsProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: MonthlyClosePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('configure-envelope-targets')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const Key('configure-envelope-targets')));
+    await tester.pumpAndSettle();
+    expect(find.text('Paramétrage des enveloppes'), findsOneWidget);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('monthly-close-page')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

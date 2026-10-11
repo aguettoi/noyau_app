@@ -8,6 +8,7 @@ import '../../finance/application/providers/payment_methods_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/presentation/imports_page.dart';
 import '../application/providers/remote_envelopes_provider.dart';
+import 'envelope_recommendations_page.dart';
 
 class EnvelopeDashboardPage extends ConsumerWidget {
   const EnvelopeDashboardPage({super.key});
@@ -304,6 +305,16 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                       ),
                     ),
                     child: const Text('Enveloppes archivées'),
+                  ),
+                  OutlinedButton.icon(
+                    key: const Key('configure-envelope-recommendations'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const EnvelopeRecommendationsPage(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Paramétrer'),
                   ),
                   IconButton(
                     key: const Key('undo-last-envelope-import-button'),
