@@ -33,6 +33,17 @@ class MonthlyCloseGateway {
                   },
                 )
             as Map;
+    final todoRows =
+        await ref
+                .read(supabaseClientProvider)
+                .rpc(
+                  'monthly_close_todo_items',
+                  params: {
+                    'p_household_id': householdId,
+                    'p_month_start': month.toIso8601String().substring(0, 10),
+                  },
+                )
+            as List;
     final periods = await ref
         .read(supabaseClientProvider)
         .from('monthly_close_periods')
@@ -101,34 +112,21 @@ class MonthlyCloseGateway {
         attribution: raw['attribution'].toString(),
       ),
       issues: [
-        CloseIssue(
-          code: 'reconciliations',
-          label: 'Écarts de rapprochement ouverts',
-          count: (raw['open_reconciliations'] as num).toInt(),
-          severity: CloseIssueSeverity.blocker,
-          destination: 'Comptes',
-        ),
-        CloseIssue(
-          code: 'cash',
-          label: 'Inventaires espèces manquants',
-          count: (raw['missing_cash_inventories'] as num).toInt(),
-          severity: CloseIssueSeverity.blocker,
-          destination: 'Comptes',
-        ),
-        CloseIssue(
-          code: 'receipts',
-          label: 'Justificatifs manquants',
-          count: (raw['missing_receipts'] as num).toInt(),
-          severity: CloseIssueSeverity.warning,
-          destination: 'Fondation',
-        ),
-        CloseIssue(
-          code: 'compensations',
-          label: 'Compensations ouvertes',
-          count: (raw['open_compensations'] as num).toInt(),
-          severity: CloseIssueSeverity.warning,
-          destination: 'Fondation',
-        ),
+        for (final item in todoRows.cast<Map>())
+          CloseIssue(
+            code: item['code'].toString(),
+            label: item['label'].toString(),
+            count: 1,
+            severity: item['severity'] == 'blocker'
+                ? CloseIssueSeverity.blocker
+                : CloseIssueSeverity.warning,
+            destination: item['destination'].toString(),
+            contextId: item['context_id']?.toString(),
+            accountId: item['account_id']?.toString(),
+            financialEventId: item['financial_event_id']?.toString(),
+            reconciliationId: item['reconciliation_id']?.toString(),
+            compensationId: item['compensation_id']?.toString(),
+          ),
       ],
     );
   }
@@ -221,6 +219,96 @@ class MonthlyCloseGateway {
           },
         );
   }
+
+  Future<EnvelopeAccountMatrix> fetchMatrix() async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    if (household.householdId == null) throw StateError('Aucun foyer actif.');
+    final raw =
+        await ref
+                .read(supabaseClientProvider)
+                .rpc(
+                  'envelope_account_position_snapshot',
+                  params: {'p_household_id': household.householdId},
+                )
+            as Map;
+    final rows = (raw['positions'] as List? ?? const []);
+    return EnvelopeAccountMatrix(
+      positions: List.unmodifiable([
+        for (final row in rows.cast<Map>())
+          EnvelopeAccountPosition(
+            accountId: row['account_id'].toString(),
+            envelopeId: row['envelope_id'].toString(),
+            amount: Money.fromDirhams(double.parse(row['amount'].toString())),
+          ),
+      ]),
+      reliable: raw['reliable'] == true,
+      accountGap: Money.fromDirhams(
+        double.parse(raw['account_gap'].toString()),
+      ),
+      envelopeGap: Money.fromDirhams(
+        double.parse(raw['envelope_gap'].toString()),
+      ),
+      fingerprint: raw['fingerprint'].toString(),
+    );
+  }
+
+  Future<void> executeReallocation(
+    DateTime month,
+    EnvelopeAccountMatrix matrix,
+    List<EnvelopeAccountMove> moves,
+  ) async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    if (household.householdId == null) throw StateError('Aucun foyer actif.');
+    await ref
+        .read(supabaseClientProvider)
+        .rpc(
+          'execute_monthly_account_reallocation',
+          params: {
+            'p_household_id': household.householdId,
+            'p_month_start': DateTime(
+              month.year,
+              month.month,
+            ).toIso8601String().substring(0, 10),
+            'p_source_fingerprint': matrix.fingerprint,
+            'p_moves': [
+              for (final move in moves)
+                {
+                  'from_account_id': move.fromAccountId,
+                  'to_account_id': move.toAccountId,
+                  'envelope_id': move.envelopeId,
+                  'amount': move.amount.dirhams.toStringAsFixed(2),
+                },
+            ],
+            'p_idempotency_key': _uuid(),
+          },
+        );
+  }
+
+  Future<void> setPositionSnapshot(
+    List<EnvelopeAccountPosition> positions,
+    String note,
+  ) async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    if (household.householdId == null) throw StateError('Aucun foyer actif.');
+    await ref
+        .read(supabaseClientProvider)
+        .rpc(
+          'set_envelope_account_position_snapshot',
+          params: {
+            'p_household_id': household.householdId,
+            'p_positions': [
+              for (final p in positions)
+                {
+                  'account_id': p.accountId,
+                  'envelope_id': p.envelopeId,
+                  'amount': p.amount.dirhams.toStringAsFixed(2),
+                },
+            ],
+            'p_note': note,
+            'p_idempotency_key': _uuid(),
+          },
+        );
+  }
 }
 
 final monthlyCloseGatewayProvider = Provider((ref) => MonthlyCloseGateway(ref));
@@ -269,4 +357,27 @@ final monthlyCloseTargetsProvider =
       (ref) => ref
           .watch(monthlyCloseGatewayProvider)
           .fetchTargets(ref.watch(selectedCloseMonthProvider)),
+    );
+final envelopeAccountMatrixProvider = FutureProvider<EnvelopeAccountMatrix>(
+  (ref) => ref.watch(monthlyCloseGatewayProvider).fetchMatrix(),
+);
+final executeMonthlyReallocationProvider =
+    Provider<
+      Future<void> Function(
+        DateTime,
+        EnvelopeAccountMatrix,
+        List<EnvelopeAccountMove>,
+      )
+    >(
+      (ref) =>
+          (month, matrix, moves) => ref
+              .read(monthlyCloseGatewayProvider)
+              .executeReallocation(month, matrix, moves),
+    );
+final setEnvelopeAccountSnapshotProvider =
+    Provider<Future<void> Function(List<EnvelopeAccountPosition>, String)>(
+      (ref) =>
+          (positions, note) => ref
+              .read(monthlyCloseGatewayProvider)
+              .setPositionSnapshot(positions, note),
     );

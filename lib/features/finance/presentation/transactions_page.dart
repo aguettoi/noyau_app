@@ -31,12 +31,14 @@ class TransactionsPage extends ConsumerStatefulWidget {
     this.returnCreatedEventId = false,
     this.prefill,
     this.forceExpense = false,
+    this.initialFinancialEventId,
   });
 
   final bool returnAfterCreate;
   final bool returnCreatedEventId;
   final TransactionFormPrefill? prefill;
   final bool forceExpense;
+  final String? initialFinancialEventId;
 
   @override
   ConsumerState<TransactionsPage> createState() => _TransactionsPageState();
@@ -237,16 +239,20 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
             child: Text('Impossible de lire le Grand Livre : $error'),
           ),
         ),
-        data: (items) => _TransactionList(items: items),
+        data: (items) => _TransactionList(
+          items: items,
+          initialFinancialEventId: widget.initialFinancialEventId,
+        ),
       ),
     );
   }
 }
 
 class _TransactionList extends ConsumerStatefulWidget {
-  const _TransactionList({required this.items});
+  const _TransactionList({required this.items, this.initialFinancialEventId});
 
   final List<TransactionHistoryItem> items;
+  final String? initialFinancialEventId;
 
   @override
   ConsumerState<_TransactionList> createState() => _TransactionListState();
@@ -281,7 +287,17 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
   Widget build(BuildContext context) {
     final filtered = _filtering
         ? ref.watch(filteredTransactionsProvider(_filter))
-        : AsyncData(widget.items);
+        : AsyncData(
+            widget.initialFinancialEventId == null
+                ? widget.items
+                : widget.items
+                      .where(
+                        (item) =>
+                            item.financialEventId ==
+                            widget.initialFinancialEventId,
+                      )
+                      .toList(),
+          );
     final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
     final envelopes =
         ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];

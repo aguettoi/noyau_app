@@ -11,10 +11,55 @@ class CloseIssue {
     required this.count,
     required this.severity,
     required this.destination,
+    this.contextId,
+    this.accountId,
+    this.financialEventId,
+    this.reconciliationId,
+    this.compensationId,
   });
   final String code, label, destination;
+  final String? contextId,
+      accountId,
+      financialEventId,
+      reconciliationId,
+      compensationId;
   final int count;
   final CloseIssueSeverity severity;
+}
+
+class EnvelopeAccountPosition {
+  const EnvelopeAccountPosition({
+    required this.accountId,
+    required this.envelopeId,
+    required this.amount,
+  });
+  final String accountId, envelopeId;
+  final Money amount;
+}
+
+class EnvelopeAccountMatrix {
+  const EnvelopeAccountMatrix({
+    required this.positions,
+    required this.reliable,
+    required this.accountGap,
+    required this.envelopeGap,
+    required this.fingerprint,
+  });
+  final List<EnvelopeAccountPosition> positions;
+  final bool reliable;
+  final Money accountGap, envelopeGap;
+  final String fingerprint;
+}
+
+class EnvelopeAccountMove {
+  const EnvelopeAccountMove({
+    required this.fromAccountId,
+    required this.toAccountId,
+    required this.envelopeId,
+    required this.amount,
+  });
+  final String fromAccountId, toAccountId, envelopeId;
+  final Money amount;
 }
 
 class MonthlyCloseSnapshot {
@@ -157,6 +202,48 @@ List<SettlementProposal> proposeSettlements(
     deficits[j][1] = (deficits[j][1] as int) - amount;
     if (surpluses[i][1] == 0) i++;
     if (deficits[j][1] == 0) j++;
+  }
+  return List.unmodifiable(result);
+}
+
+/// Produces deterministic physical moves inside each envelope. No financial
+/// write occurs here; confirmation is a separate server-side operation.
+List<EnvelopeAccountMove> proposeEnvelopeAccountMoves(
+  List<EnvelopeAccountTarget> targets,
+) {
+  final byEnvelope = <String, List<EnvelopeAccountTarget>>{};
+  for (final target in targets) {
+    byEnvelope.putIfAbsent(target.envelopeId, () => []).add(target);
+  }
+  final result = <EnvelopeAccountMove>[];
+  for (final entry
+      in byEnvelope.entries.toList()..sort((a, b) => a.key.compareTo(b.key))) {
+    final rows = [...entry.value]
+      ..sort((a, b) => a.accountId.compareTo(b.accountId));
+    final sources = <List<Object>>[], destinations = <List<Object>>[];
+    for (final row in rows) {
+      final d = row.target.minorUnits - row.current.minorUnits;
+      if (d < 0) sources.add([row.accountId, -d]);
+      if (d > 0) destinations.add([row.accountId, d]);
+    }
+    var i = 0, j = 0;
+    while (i < sources.length && j < destinations.length) {
+      final amount = (sources[i][1] as int) < (destinations[j][1] as int)
+          ? sources[i][1] as int
+          : destinations[j][1] as int;
+      result.add(
+        EnvelopeAccountMove(
+          fromAccountId: sources[i][0] as String,
+          toAccountId: destinations[j][0] as String,
+          envelopeId: entry.key,
+          amount: Money.fromMinorUnits(amount),
+        ),
+      );
+      sources[i][1] = (sources[i][1] as int) - amount;
+      destinations[j][1] = (destinations[j][1] as int) - amount;
+      if (sources[i][1] == 0) i++;
+      if (destinations[j][1] == 0) j++;
+    }
   }
   return List.unmodifiable(result);
 }

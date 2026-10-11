@@ -9,7 +9,8 @@ import '../domain/financial_account.dart';
 import 'widgets/envelope_allocation_dialog.dart';
 
 class MemberCompensationsPage extends ConsumerWidget {
-  const MemberCompensationsPage({super.key});
+  const MemberCompensationsPage({super.key, this.initialCompensationId});
+  final String? initialCompensationId;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(memberCompensationsProvider);
@@ -27,61 +28,68 @@ class MemberCompensationsPage extends ConsumerWidget {
           error: (e, _) => Center(
             child: Text('Impossible de charger les compensations : $e'),
           ),
-          data: (items) => ListView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            children: [
-              const Text(
-                'Une compensation suit un financement entre membres. Elle ne crée ni dépense, ni revenu, ni consommation d’enveloppe.',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              if (!items.any(
-                (e) => e.status == 'to_pay' || e.status == 'transfer_sent',
-              ))
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(AppSpacing.lg),
-                    child: Text('Aucune compensation en attente.'),
-                  ),
+          data: (items) {
+            final ordered = initialCompensationId == null
+                ? [...items]
+                : items
+                      .where((item) => item.id == initialCompensationId)
+                      .toList(growable: false);
+            return ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                const Text(
+                  'Une compensation suit un financement entre membres. Elle ne crée ni dépense, ni revenu, ni consommation d’enveloppe.',
                 ),
-              for (final item in items.where(
-                (e) => e.status == 'to_pay' || e.status == 'transfer_sent',
-              ))
-                Card(
-                  child: ListTile(
-                    title: Text(
-                      '${item.debtor} doit verser à ${item.creditor}',
-                    ),
-                    subtitle: Text(
-                      '${item.reason}\nRestant : ${item.remaining.toStringAsFixed(2)} MAD',
-                    ),
-                    trailing: Chip(label: Text(_label(item.status))),
-                    onTap: () =>
-                        _detail(context, ref, item, accounts, envelopes),
-                  ),
-                ),
-              if (items.any(
-                (e) => e.status == 'settled' || e.status == 'abandoned',
-              )) ...[
                 const SizedBox(height: AppSpacing.md),
-                Text(
-                  'Historique',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                for (final item in items.where(
-                  (e) => e.status == 'settled' || e.status == 'abandoned',
+                if (!ordered.any(
+                  (e) => e.status == 'to_pay' || e.status == 'transfer_sent',
+                ))
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: Text('Aucune compensation en attente.'),
+                    ),
+                  ),
+                for (final item in ordered.where(
+                  (e) => e.status == 'to_pay' || e.status == 'transfer_sent',
                 ))
                   Card(
                     child: ListTile(
-                      title: Text('${item.debtor} → ${item.creditor}'),
-                      subtitle: Text(item.reason),
+                      title: Text(
+                        '${item.debtor} doit verser à ${item.creditor}',
+                      ),
+                      subtitle: Text(
+                        '${item.reason}\nRestant : ${item.remaining.toStringAsFixed(2)} MAD',
+                      ),
                       trailing: Chip(label: Text(_label(item.status))),
                       onTap: () =>
                           _detail(context, ref, item, accounts, envelopes),
                     ),
                   ),
+                if (ordered.any(
+                  (e) => e.status == 'settled' || e.status == 'abandoned',
+                )) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'Historique',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  for (final item in ordered.where(
+                    (e) => e.status == 'settled' || e.status == 'abandoned',
+                  ))
+                    Card(
+                      child: ListTile(
+                        title: Text('${item.debtor} → ${item.creditor}'),
+                        subtitle: Text(item.reason),
+                        trailing: Chip(label: Text(_label(item.status))),
+                        onTap: () =>
+                            _detail(context, ref, item, accounts, envelopes),
+                      ),
+                    ),
+                ],
               ],
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

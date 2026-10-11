@@ -234,6 +234,7 @@ void main() {
           count: 1,
           severity: CloseIssueSeverity.blocker,
           destination: 'Comptes',
+          accountId: 'account-context',
         ),
         CloseIssue(
           code: 'receipts',
@@ -241,6 +242,7 @@ void main() {
           count: 1,
           severity: CloseIssueSeverity.warning,
           destination: 'Transactions',
+          financialEventId: 'event-context',
         ),
         CloseIssue(
           code: 'compensations',
@@ -248,6 +250,7 @@ void main() {
           count: 1,
           severity: CloseIssueSeverity.warning,
           destination: 'Compensations',
+          compensationId: 'compensation-context',
         ),
       ],
     );
@@ -278,8 +281,123 @@ void main() {
       await tester.tap(find.byKey(route.$1));
       await tester.pumpAndSettle();
       expect(find.byType(route.$2), findsOneWidget);
+      final page = tester.widget(find.byType(route.$2));
+      if (page is AccountsPage) {
+        expect(page.initialAccountId, 'account-context');
+      } else if (page is TransactionsPage) {
+        expect(page.initialFinancialEventId, 'event-context');
+      } else if (page is MemberCompensationsPage) {
+        expect(page.initialCompensationId, 'compensation-context');
+      }
       await tester.pageBack();
       await tester.pumpAndSettle();
     }
   });
+
+  testWidgets(
+    'affiche actuel cible écart puis exige une confirmation explicite',
+    (tester) async {
+      var executed = false;
+      const matrix = EnvelopeAccountMatrix(
+        positions: [
+          EnvelopeAccountPosition(
+            accountId: 'a',
+            envelopeId: 'e',
+            amount: Money.fromMinorUnits(10000),
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'b',
+            envelopeId: 'e',
+            amount: Money.fromMinorUnits(0),
+          ),
+        ],
+        reliable: true,
+        accountGap: Money.fromMinorUnits(0),
+        envelopeGap: Money.fromMinorUnits(0),
+        fingerprint: 'fp',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            monthlyCloseProvider.overrideWith(
+              (ref) async => MonthlyCloseSnapshot(
+                month: DateTime(2026, 10),
+                status: MonthlyCloseStatus.open,
+                issues: const [],
+              ),
+            ),
+            envelopeAccountMatrixProvider.overrideWith((ref) async => matrix),
+            monthlyCloseTargetsProvider.overrideWith(
+              (ref) async => [
+                MonthlyEnvelopeAccountTarget(
+                  id: 't1',
+                  envelopeId: 'e',
+                  accountId: 'a',
+                  amount: Money.fromMinorUnits(4000),
+                  createdAt: DateTime(2026),
+                ),
+                MonthlyEnvelopeAccountTarget(
+                  id: 't2',
+                  envelopeId: 'e',
+                  accountId: 'b',
+                  amount: Money.fromMinorUnits(6000),
+                  createdAt: DateTime(2026),
+                ),
+              ],
+            ),
+            remoteAccountsProvider.overrideWith(
+              (ref) async => [
+                FinancialAccount(
+                  id: 'a',
+                  name: 'Compte A',
+                  type: FinancialAccountType.bank,
+                  openingBalance: const Money.fromMinorUnits(0),
+                ),
+                FinancialAccount(
+                  id: 'b',
+                  name: 'Compte B',
+                  type: FinancialAccountType.bank,
+                  openingBalance: const Money.fromMinorUnits(0),
+                ),
+              ],
+            ),
+            remoteEnvelopeBalancesProvider.overrideWith(
+              (ref) async => const [
+                RemoteEnvelopeBalance(
+                  id: 'e',
+                  name: 'Courses',
+                  inflows: Money.fromMinorUnits(10000),
+                  outflows: Money.fromMinorUnits(0),
+                  balance: Money.fromMinorUnits(10000),
+                  isSystem: false,
+                ),
+              ],
+            ),
+            executeMonthlyReallocationProvider.overrideWithValue((
+              month,
+              current,
+              moves,
+            ) async {
+              executed = moves.single.amount.minorUnits == 6000;
+            }),
+          ],
+          child: const MaterialApp(home: MonthlyClosePage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('confirm-reallocation')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.textContaining('ACTUEL'), findsWidgets);
+      await tester.tap(find.byKey(const Key('confirm-reallocation')));
+      await tester.pumpAndSettle();
+      expect(executed, isFalse);
+      await tester.tap(find.byKey(const Key('execute-reallocation')));
+      await tester.pumpAndSettle();
+      expect(executed, isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

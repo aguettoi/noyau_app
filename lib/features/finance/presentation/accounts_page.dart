@@ -17,7 +17,8 @@ import 'transactions_page.dart';
 import 'widgets/envelope_allocation_dialog.dart';
 
 class AccountsPage extends ConsumerStatefulWidget {
-  const AccountsPage({super.key});
+  const AccountsPage({super.key, this.initialAccountId});
+  final String? initialAccountId;
 
   @override
   ConsumerState<AccountsPage> createState() => _AccountsPageState();
@@ -90,65 +91,50 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
             child: Text('Impossible de lire les comptes distants : $error'),
           ),
         ),
-        data: (items) => ListView(
-          children: [
-            DesktopPageContainer(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _AccountsHero(
-                    accountCount: items.length,
-                    totalBalance: items.fold<Money>(
-                      const Money.fromMinorUnits(0),
-                      (total, account) =>
-                          total +
-                          (balancesAsync.valueOrNull?[account.id] ??
-                              account.openingBalance),
+        data: (items) {
+          final ordered = widget.initialAccountId == null
+              ? [...items]
+              : items
+                    .where((account) => account.id == widget.initialAccountId)
+                    .toList(growable: false);
+          return ListView(
+            children: [
+              DesktopPageContainer(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _AccountsHero(
+                      accountCount: ordered.length,
+                      totalBalance: ordered.fold<Money>(
+                        const Money.fromMinorUnits(0),
+                        (total, account) =>
+                            total +
+                            (balancesAsync.valueOrNull?[account.id] ??
+                                account.openingBalance),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  DesktopSection(
-                    title: 'Vos comptes',
-                    subtitle: items.isEmpty
-                        ? 'Ajoutez un compte ou importez vos comptes initiaux.'
-                        : '${items.length} compte${items.length > 1 ? 's' : ''} suivi${items.length > 1 ? 's' : ''}',
-                    child: items.isEmpty
-                        ? const CompactListRow(
-                            title: 'Aucun compte distant',
-                            subtitle:
-                                'La liste apparaîtra ici après création ou import.',
-                            leading: Icon(Icons.account_balance_outlined),
-                          )
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              final grid = constraints.maxWidth >= 900;
-                              return grid
-                                  ? ResponsiveGrid(
-                                      minItemWidth: 390,
-                                      children: items
-                                          .map(
-                                            (account) => _AccountRow(
-                                              account: account,
-                                              balance:
-                                                  balancesAsync
-                                                      .valueOrNull?[account
-                                                      .id] ??
-                                                  account.openingBalance,
-                                              members:
-                                                  membersAsync.valueOrNull ??
-                                                  const [],
-                                            ),
-                                          )
-                                          .toList(growable: false),
-                                    )
-                                  : Column(
-                                      children: items
-                                          .map(
-                                            (account) => Padding(
-                                              padding: const EdgeInsets.only(
-                                                bottom: AppSpacing.xs,
-                                              ),
-                                              child: _AccountRow(
+                    const SizedBox(height: AppSpacing.md),
+                    DesktopSection(
+                      title: 'Vos comptes',
+                      subtitle: ordered.isEmpty
+                          ? 'Ajoutez un compte ou importez vos comptes initiaux.'
+                          : '${ordered.length} compte${ordered.length > 1 ? 's' : ''} suivi${ordered.length > 1 ? 's' : ''}',
+                      child: ordered.isEmpty
+                          ? const CompactListRow(
+                              title: 'Aucun compte distant',
+                              subtitle:
+                                  'La liste apparaîtra ici après création ou import.',
+                              leading: Icon(Icons.account_balance_outlined),
+                            )
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                final grid = constraints.maxWidth >= 900;
+                                return grid
+                                    ? ResponsiveGrid(
+                                        minItemWidth: 390,
+                                        children: ordered
+                                            .map(
+                                              (account) => _AccountRow(
                                                 account: account,
                                                 balance:
                                                     balancesAsync
@@ -159,18 +145,41 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
                                                     membersAsync.valueOrNull ??
                                                     const [],
                                               ),
-                                            ),
-                                          )
-                                          .toList(growable: false),
-                                    );
-                            },
-                          ),
-                  ),
-                ],
+                                            )
+                                            .toList(growable: false),
+                                      )
+                                    : Column(
+                                        children: ordered
+                                            .map(
+                                              (account) => Padding(
+                                                padding: const EdgeInsets.only(
+                                                  bottom: AppSpacing.xs,
+                                                ),
+                                                child: _AccountRow(
+                                                  account: account,
+                                                  balance:
+                                                      balancesAsync
+                                                          .valueOrNull?[account
+                                                          .id] ??
+                                                      account.openingBalance,
+                                                  members:
+                                                      membersAsync
+                                                          .valueOrNull ??
+                                                      const [],
+                                                ),
+                                              ),
+                                            )
+                                            .toList(growable: false),
+                                      );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }

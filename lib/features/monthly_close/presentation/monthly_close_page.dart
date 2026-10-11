@@ -44,6 +44,8 @@ class MonthlyClosePage extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
                 _TargetConfiguration(snapshot),
                 const SizedBox(height: AppSpacing.md),
+                _CurrentTargetPanel(snapshot),
+                const SizedBox(height: AppSpacing.md),
                 _CloseAction(snapshot),
                 if (snapshot.history.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.md),
@@ -56,6 +58,427 @@ class MonthlyClosePage extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _CurrentTargetPanel extends ConsumerWidget {
+  const _CurrentTargetPanel(this.snapshot);
+  final MonthlyCloseSnapshot snapshot;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final matrix = ref.watch(envelopeAccountMatrixProvider);
+    final targets = ref.watch(monthlyCloseTargetsProvider);
+    final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
+    final envelopes =
+        ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];
+    String accountName(String id) =>
+        accounts.where((e) => e.id == id).map((e) => e.name).firstOrNull ??
+        'Compte';
+    String envelopeName(String id) =>
+        envelopes.where((e) => e.id == id).map((e) => e.name).firstOrNull ??
+        'Enveloppe';
+    return FpCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Actuel → cible',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          matrix.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (_, _) => const SecondaryInfoText(
+              'La position compte × enveloppe ne peut pas être chargée.',
+            ),
+            data: (value) {
+              if (!value.reliable) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Position actuelle à fiabiliser',
+                      key: Key('matrix-unreliable'),
+                    ),
+                    Text(
+                      'Écart comptes : ${value.accountGap.dirhams.toStringAsFixed(2)} MAD • écart enveloppes : ${value.envelopeGap.dirhams.toStringAsFixed(2)} MAD',
+                    ),
+                    const SecondaryInfoText(
+                      'Aucune répartition historique n’est inventée. Un OWNER doit établir un point de départ explicite après inventaire.',
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (snapshot.owner)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.tonalIcon(
+                          key: const Key('initialize-matrix'),
+                          onPressed: accounts.isEmpty || envelopes.isEmpty
+                              ? null
+                              : () => _initialize(
+                                  context,
+                                  ref,
+                                  accounts,
+                                  envelopes,
+                                ),
+                          icon: const Icon(Icons.fact_check_outlined),
+                          label: const Text('Établir le point de départ'),
+                        ),
+                      ),
+                  ],
+                );
+              }
+              final configured =
+                  targets.valueOrNull ?? const <MonthlyEnvelopeAccountTarget>[];
+              final keys = <(String, String)>{
+                for (final p in value.positions) (p.accountId, p.envelopeId),
+                for (final t in configured) (t.accountId, t.envelopeId),
+              };
+              final rows = [
+                for (final key in keys)
+                  EnvelopeAccountTarget(
+                    memberId: null,
+                    accountId: key.$1,
+                    envelopeId: key.$2,
+                    current:
+                        value.positions
+                            .where(
+                              (p) =>
+                                  p.accountId == key.$1 &&
+                                  p.envelopeId == key.$2,
+                            )
+                            .map((p) => p.amount)
+                            .firstOrNull ??
+                        const Money.fromMinorUnits(0),
+                    target:
+                        configured
+                            .where(
+                              (t) =>
+                                  t.accountId == key.$1 &&
+                                  t.envelopeId == key.$2,
+                            )
+                            .map((t) => t.amount)
+                            .firstOrNull ??
+                        const Money.fromMinorUnits(0),
+                  ),
+              ];
+              final moves = proposeEnvelopeAccountMoves(rows);
+              return Column(
+                children: [
+                  const SecondaryInfoText(
+                    'Position actuelle réconciliée avec les comptes et les enveloppes.',
+                  ),
+                  for (final row in rows)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        '${envelopeName(row.envelopeId)} • ${accountName(row.accountId)}',
+                      ),
+                      subtitle: const Text('ACTUEL  |  CIBLE  |  ÉCART'),
+                      trailing: Text(
+                        '${row.current.dirhams.toStringAsFixed(2)} | ${row.target.dirhams.toStringAsFixed(2)} | ${row.delta.dirhams.toStringAsFixed(2)}',
+                      ),
+                    ),
+                  const Divider(),
+                  Text(
+                    '${moves.length} opération(s) proposée(s)',
+                    key: const Key('reallocation-count'),
+                  ),
+                  for (final move in moves)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.swap_horiz),
+                      title: Text(
+                        '${accountName(move.fromAccountId)} → ${accountName(move.toAccountId)}',
+                      ),
+                      subtitle: Text(envelopeName(move.envelopeId)),
+                      trailing: Text(
+                        '${move.amount.dirhams.toStringAsFixed(2)} MAD',
+                      ),
+                    ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      key: const Key('confirm-reallocation'),
+                      onPressed:
+                          moves.isEmpty ||
+                              snapshot.status == MonthlyCloseStatus.closed
+                          ? null
+                          : () => _confirm(context, ref, value, moves),
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Prévisualiser et confirmer'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirm(
+    BuildContext context,
+    WidgetRef ref,
+    EnvelopeAccountMatrix matrix,
+    List<EnvelopeAccountMove> moves,
+  ) async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirmer les virements ?'),
+        content: Text(
+          '${moves.length} virement(s) canonique(s) seront enregistrés. Aucun mouvement d’enveloppe supplémentaire ne sera créé.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            key: const Key('execute-reallocation'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true) return;
+    try {
+      await ref.read(executeMonthlyReallocationProvider)(
+        snapshot.month,
+        matrix,
+        moves,
+      );
+      ref.invalidate(envelopeAccountMatrixProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Régularisation enregistrée.')),
+        );
+      }
+    } on Exception {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'La proposition a changé ou ne peut pas être exécutée.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _initialize(
+    BuildContext context,
+    WidgetRef ref,
+    List<dynamic> accounts,
+    List<dynamic> envelopes,
+  ) async {
+    final result =
+        await showDialog<
+          ({List<EnvelopeAccountPosition> positions, String note})
+        >(
+          context: context,
+          builder: (context) =>
+              _PositionSnapshotDialog(accounts: accounts, envelopes: envelopes),
+        );
+    if (result == null) return;
+    try {
+      await ref.read(setEnvelopeAccountSnapshotProvider)(
+        result.positions,
+        result.note,
+      );
+      ref.invalidate(envelopeAccountMatrixProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Point de départ vérifié et enregistré.'),
+          ),
+        );
+      }
+    } on Exception {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Les montants doivent réconcilier exactement tous les comptes et toutes les enveloppes.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _PositionSnapshotDialog extends StatefulWidget {
+  const _PositionSnapshotDialog({
+    required this.accounts,
+    required this.envelopes,
+  });
+  final List<dynamic> accounts, envelopes;
+  @override
+  State<_PositionSnapshotDialog> createState() =>
+      _PositionSnapshotDialogState();
+}
+
+class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
+  final rows = <_PositionDraft>[];
+  final note = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    rows.add(
+      _PositionDraft(
+        widget.accounts.first.id as String,
+        widget.envelopes.first.id as String,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final row in rows) {
+      row.amount.dispose();
+    }
+    note.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Point de départ compte × enveloppe'),
+    content: SizedBox(
+      width: 680,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SecondaryInfoText(
+              'Saisissez uniquement la répartition réellement vérifiée. Cette opération ne déplace aucun argent.',
+            ),
+            for (var i = 0; i < rows.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 190,
+                      child: DropdownButtonFormField<String>(
+                        initialValue: rows[i].accountId,
+                        decoration: const InputDecoration(labelText: 'Compte'),
+                        items: [
+                          for (final a in widget.accounts)
+                            DropdownMenuItem(
+                              value: a.id as String,
+                              child: Text(a.name as String),
+                            ),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => rows[i].accountId = v!),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 190,
+                      child: DropdownButtonFormField<String>(
+                        initialValue: rows[i].envelopeId,
+                        decoration: const InputDecoration(
+                          labelText: 'Enveloppe',
+                        ),
+                        items: [
+                          for (final e in widget.envelopes)
+                            DropdownMenuItem(
+                              value: e.id as String,
+                              child: Text(e.name as String),
+                            ),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => rows[i].envelopeId = v!),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 130,
+                      child: TextField(
+                        controller: rows[i].amount,
+                        decoration: const InputDecoration(
+                          labelText: 'Montant MAD',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: rows.length == 1
+                          ? null
+                          : () => setState(
+                              () => rows.removeAt(i).amount.dispose(),
+                            ),
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
+                ),
+              ),
+            TextButton.icon(
+              onPressed: () => setState(
+                () => rows.add(
+                  _PositionDraft(
+                    widget.accounts.first.id as String,
+                    widget.envelopes.first.id as String,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.add),
+              label: const Text('Ajouter une ligne'),
+            ),
+            TextField(
+              controller: note,
+              decoration: const InputDecoration(
+                labelText: 'Note d’inventaire obligatoire',
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Annuler'),
+      ),
+      FilledButton(
+        key: const Key('save-matrix-snapshot'),
+        onPressed: () => _save(context),
+        child: const Text('Vérifier et enregistrer'),
+      ),
+    ],
+  );
+  void _save(BuildContext context) {
+    if (note.text.trim().isEmpty) return;
+    final positions = <EnvelopeAccountPosition>[];
+    for (final row in rows) {
+      final amount = double.tryParse(row.amount.text.replaceAll(',', '.'));
+      if (amount == null || amount < 0) return;
+      positions.add(
+        EnvelopeAccountPosition(
+          accountId: row.accountId,
+          envelopeId: row.envelopeId,
+          amount: Money.fromDirhams(amount),
+        ),
+      );
+    }
+    Navigator.pop(context, (positions: positions, note: note.text.trim()));
+  }
+}
+
+class _PositionDraft {
+  _PositionDraft(this.accountId, this.envelopeId);
+  String accountId, envelopeId;
+  final amount = TextEditingController();
 }
 
 class _Kpis extends StatelessWidget {
@@ -217,9 +640,14 @@ class _Todo extends StatelessWidget {
 
   void _openDestination(BuildContext context, CloseIssue issue) {
     final page = switch (issue.code) {
-      'reconciliations' || 'cash' => const AccountsPage(),
-      'receipts' => const TransactionsPage(),
-      'compensations' => const MemberCompensationsPage(),
+      'reconciliations' ||
+      'cash' => AccountsPage(initialAccountId: issue.accountId),
+      'receipts' => TransactionsPage(
+        initialFinancialEventId: issue.financialEventId,
+      ),
+      'compensations' => MemberCompensationsPage(
+        initialCompensationId: issue.compensationId,
+      ),
       _ => null,
     };
     if (page == null) {

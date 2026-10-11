@@ -11,5 +11,7 @@
 - Réouverture OWNER : confirmation, motif obligatoire, état de chargement, succès/erreur et historique visibles.
 - Centre À faire : accès direct aux modules Comptes, Transactions et Compensations ; ciblage de l'objet précis encore à compléter.
 - Cibles compte × enveloppe : liste et formulaire responsive reliés au RPC canonique, verrouillés lorsque le mois est clôturé.
-- Régularisation globale confirmable : non exposée tant qu'une position canonique compte × enveloppe n'est pas définie par le backend.
+- Position actuelle / cible / écart : exposés avec état explicite « à fiabiliser » tant que le point de départ n'est pas réconcilié.
+- Point de départ : formulaire OWNER multi-lignes, contrôlé par les deux ledgers et sans écriture financière.
+- Régularisation globale : prévisualisation détaillée par enveloppe, confirmation explicite et virement canonique idempotent ; recette visuelle humaine restante.
 - Recette visuelle humaine multi-plateforme à réaliser dans P1/R8.

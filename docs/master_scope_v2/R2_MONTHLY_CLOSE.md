@@ -15,6 +15,14 @@ Statut : partiellement finalisé le 10/10/2026.
 
 `monthly_close_periods` conserve l'état mensuel. `monthly_close_events` constitue l'audit append-only des clôtures, dérogations et réouvertures. `monthly_envelope_account_targets` porte la cible mensuelle configurable compte × enveloppe sans recopier un solde.
 
+## Source compte × enveloppe
+
+L'étude R2.2 retient l'option B. La matrice n'est pas reconstructible exhaustivement : C3 a ouvert séparément les comptes et les enveloppes, tandis que les transferts historiques de compte ou d'enveloppe ne portent pas toujours l'autre dimension. `envelope_account_position_batches` et `envelope_account_position_entries` forment donc une projection analytique append-only minimale. Un point de départ est saisi explicitement après inventaire et n'écrit ni GL ni mouvement d'enveloppe. Sa validité exige que chaque somme par compte égale le Grand Ledger et que chaque somme par enveloppe égale l'envelope ledger. Toute différence rend la matrice non fiable et bloque R2C.
+
+Une régularisation R2C confirmée crée uniquement les virements de compte canoniques nécessaires puis inscrit, avec les mêmes `FinancialEvent`, les deltas analytiques compte × enveloppe. La simulation reste sans écriture. La confirmation est OWNER, atomique, idempotente et refuse un fingerprint devenu obsolète. La cible mensuelle reste strictement distincte de la position actuelle.
+
+Après le point de départ, les mouvements d'enveloppe liés à un événement comportant exactement un compte physique sont projetés automatiquement et référencent le mouvement source. Un transfert de compte sans ventilation d'enveloppe, un transfert d'enveloppe sans compte, ou tout événement ambigu n'est jamais attribué arbitrairement : les écarts deviennent visibles et la matrice repasse à l'état « à fiabiliser ».
+
 La fonction `monthly_close_snapshot` calcule les conditions depuis les sources métier. Une clôture refuse tout blocker. Un OWNER peut déroger aux warnings avec un motif obligatoire. Une réouverture est réservée à un OWNER et exige un motif.
 
 Le solveur Dart de régularisation est pur et produit seulement des propositions de transferts minimisées par compensation des surplus et déficits. Il ne crée aucun FinancialEvent.
@@ -27,5 +35,6 @@ La surface Fin de mois est accessible depuis Pilotage. Elle utilise le Design Sy
 
 - Les KPI par profil restent attribués au foyer tant que les données ne prouvent pas le membre responsable.
 - Le snapshot ne fournit que des compteurs : le centre À faire ouvre le bon module, mais pas encore l'objet précis.
-- Il n'existe pas encore de position canonique compte × enveloppe. Les ledgers donnent un solde par compte et un solde par enveloppe, sans matrice de propriété croisée complète. Le solveur pur ne doit donc pas être alimenté avec une position inventée et aucune confirmation financière R2C n'est exposée.
+- Le foyer pilote n'est volontairement pas initialisé automatiquement : aucun historique compte × enveloppe n'est inventé. Un OWNER doit effectuer l'inventaire humain initial avant que R2C soit utilisable sur ce foyer.
+- La recette visuelle humaine des surfaces R2 reste requise.
 - La certification iOS réelle reste P1 faute d'environnement Apple.

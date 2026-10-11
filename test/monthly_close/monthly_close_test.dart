@@ -75,4 +75,47 @@ void main() {
       expect(proposeSettlements(targets), isEmpty);
     }
   });
+
+  test('solver preserves envelope identity and intra-month remainder', () {
+    final moves = proposeEnvelopeAccountMoves([
+      EnvelopeAccountTarget(
+        memberId: 'a',
+        accountId: 'a',
+        envelopeId: 'food',
+        current: Money.fromDirhams(80),
+        target: Money.fromDirhams(30),
+      ),
+      EnvelopeAccountTarget(
+        memberId: 'b',
+        accountId: 'b',
+        envelopeId: 'food',
+        current: Money.fromDirhams(20),
+        target: Money.fromDirhams(70),
+      ),
+      EnvelopeAccountTarget(
+        memberId: 'a',
+        accountId: 'a',
+        envelopeId: 'cash',
+        current: Money.fromDirhams(10),
+        target: Money.fromDirhams(10),
+      ),
+    ]);
+    expect(moves, hasLength(1));
+    expect(moves.single.envelopeId, 'food');
+    expect(moves.single.fromAccountId, 'a');
+    expect(moves.single.toAccountId, 'b');
+    expect(moves.single.amount, Money.fromDirhams(50));
+  });
+
+  test('incomplete historical matrix is represented, never invented', () {
+    const matrix = EnvelopeAccountMatrix(
+      positions: [],
+      reliable: false,
+      accountGap: Money.fromMinorUnits(100),
+      envelopeGap: Money.fromMinorUnits(100),
+      fingerprint: 'x',
+    );
+    expect(matrix.positions, isEmpty);
+    expect(matrix.reliable, isFalse);
+  });
 }
