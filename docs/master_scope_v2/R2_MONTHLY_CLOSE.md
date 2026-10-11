@@ -72,4 +72,6 @@ La surface Fin de mois est accessible depuis Pilotage. Elle utilise le Design Sy
 - Le foyer pilote n'est volontairement pas initialisé automatiquement : aucun historique compte × enveloppe n'est inventé. Un OWNER doit effectuer l'inventaire humain initial avant que R2C soit utilisable sur ce foyer.
 - La recette visuelle humaine des surfaces R2 reste requise.
 - Les sources multi-comptes sont désormais matérialisées via `DEPART`. Le foyer pilote doit encore recevoir les recommandations structurelles humaines de `Epargne` et `Reste epargne (primes Ibrahim et Nora)` ; aucun historique n'est reconstruit.
+- R2.6 place toutes les charges personnelles avant les dépenses communes dans les six scénarios certifiés. Dans `DEPART`, Wifi est donc déduit de la capacité de Nora avant la répartition commune : 3 858,33 MAD pour Ibrahim et 7 350,00 MAD pour Nora, soit 34,42377232 % / 65,57622768 %. `Habits` reste une dépense commune répartie sur deux comptes et n'entre pas dans le calcul préalable de cette clé.
+- Cette correction porte uniquement sur le modèle réutilisable courant. Les périodes et snapshots mensuels déjà enregistrés restent immuables.
 - La certification iOS réelle reste P1 faute d'environnement Apple.

@@ -1989,12 +1989,12 @@ class _ScenarioTestSheetState extends State<ScenarioTestSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Capacité contributive',
+                    'Répartition des dépenses communes',
                     style: _simulationSectionStyle(context),
                   ),
                   const SizedBox(height: AppSpacing.xxs),
                   const Text(
-                    'La clé est calculée après les charges personnelles.',
+                    'Après vos dépenses personnelles :',
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: AppSpacing.sm),
@@ -2010,22 +2010,18 @@ class _ScenarioTestSheetState extends State<ScenarioTestSheet> {
                             title: name,
                             width: 250,
                             lines: [
-                              'Ressources retenues : ${_mad(capacity.resourcesCents)}',
-                              'Charges personnelles : ${_mad(capacity.directChargesCents)}',
-                              'Capacité brute : ${_mad(capacity.rawCapacityCents)}',
-                              'Capacité utilisée : ${_mad(capacity.contributionCapacityCents)}',
+                              '${_mad(capacity.contributionCapacityCents)} disponibles → ${(capacity.autoShare * 100).toStringAsFixed(2)} %',
                               if (capacity.rawCapacityCents < 0)
                                 'Déficit personnel : ${_mad(-capacity.rawCapacityCents)}',
-                              'Clé automatique : ${(capacity.autoShare * 100).toStringAsFixed(2)} %',
                             ],
                           );
                         })
                         .toList(growable: false),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Capacité contributive totale du foyer : ${_mad(result.householdContributionCapacityCents)}',
-                    style: Theme.of(context).textTheme.titleSmall,
+                  const Text(
+                    'Les dépenses communes sont réparties selon ce qu’il reste à chacun après ses dépenses personnelles.',
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                   if (!result.hasAutomaticContributionCapacity)
                     const Padding(

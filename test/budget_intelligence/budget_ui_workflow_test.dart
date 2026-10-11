@@ -2542,18 +2542,20 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Capacité contributive'), findsOneWidget);
+    expect(find.text('Répartition des dépenses communes'), findsOneWidget);
+    expect(find.text('Après vos dépenses personnelles :'), findsOneWidget);
     expect(find.text('Member Alpha'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -500));
     await tester.pump();
     expect(find.text('Member Beta'), findsOneWidget);
     expect(find.text('Member Gamma'), findsOneWidget);
-    expect(find.text('Capacité brute : 5000.00 MAD'), findsOneWidget);
-    expect(find.text('Clé automatique : 50.00 %'), findsOneWidget);
-    expect(find.text('Clé automatique : 30.00 %'), findsOneWidget);
-    expect(find.text('Clé automatique : 20.00 %'), findsOneWidget);
+    expect(find.text('5000.00 MAD disponibles → 50.00 %'), findsOneWidget);
+    expect(find.text('3000.00 MAD disponibles → 30.00 %'), findsOneWidget);
+    expect(find.text('2000.00 MAD disponibles → 20.00 %'), findsOneWidget);
     expect(
-      find.text('Capacité contributive totale du foyer : 10000.00 MAD'),
+      find.text(
+        'Les dépenses communes sont réparties selon ce qu’il reste à chacun après ses dépenses personnelles.',
+      ),
       findsOneWidget,
     );
   });

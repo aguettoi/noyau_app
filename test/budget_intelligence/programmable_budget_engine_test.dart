@@ -394,6 +394,140 @@ void main() {
   );
 
   test(
+    'DEPART preserves the certified common split after all personal costs',
+    () {
+      const ibrahim = 'ibrahim';
+      const nora = 'nora';
+      const version = 'depart';
+      BudgetAllocationStep personal(
+        String id,
+        int order,
+        int amount,
+        String member,
+      ) => BudgetAllocationStep(
+        id: id,
+        scenarioVersionId: version,
+        order: order,
+        groupName: 'Charges personnelles',
+        sourceId: member,
+        envelopeId: id,
+        method: BudgetAllocationMethod.fixed,
+        amountCents: amount,
+        contributionKey: ContributionKeyStrategy.singleMember,
+        memberUserId: member,
+        insufficientFundsPolicy: BudgetInsufficientFundsPolicy.strict,
+      );
+
+      BudgetAllocationStep common(String id, int order, int amount) =>
+          BudgetAllocationStep(
+            id: id,
+            scenarioVersionId: version,
+            order: order,
+            groupName: 'Charges communes',
+            sourceId: ibrahim,
+            envelopeId: id,
+            method: BudgetAllocationMethod.fixed,
+            amountCents: amount,
+            contributionKey: ContributionKeyStrategy.customPercentage,
+            keyDefinition: const {ibrahim: 34.42377232, nora: 65.57622768},
+            insufficientFundsPolicy: BudgetInsufficientFundsPolicy.strict,
+          );
+
+      final result = engine.simulate(
+        sources: const [
+          BudgetSource(
+            id: ibrahim,
+            scenarioVersionId: version,
+            type: BudgetSourceType.memberRecurringIncome,
+            name: 'Ibrahim',
+            expectedCents: 1280000,
+            memberUserId: ibrahim,
+          ),
+          BudgetSource(
+            id: nora,
+            scenarioVersionId: version,
+            type: BudgetSourceType.memberRecurringIncome,
+            name: 'Nora',
+            expectedCents: 1500000,
+            memberUserId: nora,
+          ),
+        ],
+        memberIds: const [ibrahim, nora],
+        steps: [
+          personal('home', 0, 360000, ibrahim),
+          personal('normal', 10, 250000, ibrahim),
+          personal('tsc', 20, 12500, ibrahim),
+          personal('syndic', 30, 56667, ibrahim),
+          personal('utilities', 40, 30000, ibrahim),
+          personal('mouton', 50, 35000, ibrahim),
+          personal('school', 60, 50000, ibrahim),
+          personal('parents-i', 70, 100000, ibrahim),
+          personal('car', 80, 500000, nora),
+          personal('personal', 90, 50000, nora),
+          personal('parents-n', 100, 150000, nora),
+          personal('wifi', 110, 65000, nora),
+          common('food', 120, 250000),
+          personal('habits-n', 130, 65576, nora),
+          personal('habits-i', 140, 34424, ibrahim),
+          common('unexpected', 150, 250000),
+          common('travel', 160, 72833),
+          common('weekend', 170, 100000),
+          common('holidays', 180, 25000),
+          common('shuttle', 190, 323000),
+        ],
+      );
+
+      expect(result.memberCapacities.map((item) => item.rawCapacityCents), [
+        385833,
+        735000,
+      ]);
+      expect(result.memberCapacities.map((item) => item.autoShare * 100), [
+        closeTo(34.42377232, 0.00000001),
+        closeTo(65.57622768, 0.00000001),
+      ]);
+      expect(
+        result.allocations
+            .firstWhere((item) => item.stepId == 'food')
+            .memberContributions,
+        {ibrahim: 86059, nora: 163941},
+      );
+      expect(
+        result.allocations
+            .firstWhere((item) => item.stepId == 'unexpected')
+            .memberContributions,
+        {ibrahim: 86059, nora: 163941},
+      );
+      expect(
+        result.allocations
+            .firstWhere((item) => item.stepId == 'travel')
+            .memberContributions,
+        {ibrahim: 25072, nora: 47761},
+      );
+      expect(
+        result.allocations
+            .firstWhere((item) => item.stepId == 'weekend')
+            .memberContributions,
+        {ibrahim: 34424, nora: 65576},
+      );
+      expect(
+        result.allocations
+            .firstWhere((item) => item.stepId == 'holidays')
+            .memberContributions,
+        {ibrahim: 8606, nora: 16394},
+      );
+      expect(
+        result.allocations
+            .firstWhere((item) => item.stepId == 'shuttle')
+            .memberContributions,
+        {ibrahim: 111189, nora: 211811},
+      );
+      expect(result.initialResourcesCents, 2780000);
+      expect(result.allocatedCents, 2780000);
+      expect(result.remainingCents, 0);
+    },
+  );
+
+  test(
     'uses overridden member resources for automatic shares without mutation',
     () {
       const original = [
