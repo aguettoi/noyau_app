@@ -1,6 +1,19 @@
 # R2 — clôture mensuelle et fiabilité
 
-Statut : partiellement finalisé le 10/10/2026.
+Statut : R2.5 matérialisé le 11/10/2026 ; recette humaine et deux rattachements structurels du foyer pilote restent requis avant le verdict PRÊT.
+
+## R2.5 — scénario budgétaire pilote
+
+- La source certifiée `SIMULATION_CUTOVER_FINAL_20260929.xlsx.xlsx` (SHA-256 `f3cbc99e335586d5628791017e5fd8119430a03d32674ba1d11f284157c8f8bc`) fournit six scénarios reconstructibles sans hypothèse.
+- `DEPART` est actif et par défaut du 01/10/2026 au 31/03/2027. Les cinq scénarios d'évolution sont disponibles mais inactifs.
+- Les sources de référence de `DEPART` sont 12 800 MAD pour Ibrahim et 15 000 MAD pour Nora. Elles décrivent la simulation pilote, pas les revenus réels actuels.
+- `Wifi Home` et `WIFI` sont consolidés dans l'unique enveloppe canonique `Wifi`. `Besoin personnel` est relié à `Besoin perso`.
+- `Habits` conserve deux comptes de financement dans le scénario. La preview R2 répartit le solde courant selon les poids du scénario, sans dérogation mensuelle.
+- `Reste epargne (primes Ibrahim et Nora)` est explicitement exclu du budget récurrent. Les primes/surplus futurs passent par les moteurs canoniques lorsqu'ils sont réellement constatés.
+- La configuration ne produit aucun FinancialEvent, transaction GL ni mouvement d'enveloppe.
+- Le scénario utilisé est figé sur `budget_periods.scenario_id` lors du premier snapshot mensuel. Octobre peut ainsi conserver `DEPART` même si novembre sélectionne ensuite `APRES ACQUISITION VOITURE`.
+- Le moyen de paiement recommandé reste facultatif : la cible compte × enveloppe dépend du compte canonique, pas d'une carte ou d'un moyen particulier.
+- Les soldes non nuls `Epargne` et `Reste epargne (primes Ibrahim et Nora)` n'ont pas de localisation compte certaine dans la source. Le produit les laisse donc à configurer humainement au lieu d'inventer une cible.
 
 ## R2.3 — corrections de recette humaine
 
@@ -58,5 +71,5 @@ La surface Fin de mois est accessible depuis Pilotage. Elle utilise le Design Sy
 - Le snapshot ne fournit que des compteurs : le centre À faire ouvre le bon module, mais pas encore l'objet précis.
 - Le foyer pilote n'est volontairement pas initialisé automatiquement : aucun historique compte × enveloppe n'est inventé. Un OWNER doit effectuer l'inventaire humain initial avant que R2C soit utilisable sur ce foyer.
 - La recette visuelle humaine des surfaces R2 reste requise.
-- Le foyer pilote doit encore recevoir ses recommandations structurelles et, pour les enveloppes multi-comptes, les sources de financement du scénario réel ; aucun backfill n’est réalisé par R2.4.
+- Les sources multi-comptes sont désormais matérialisées via `DEPART`. Le foyer pilote doit encore recevoir les recommandations structurelles humaines de `Epargne` et `Reste epargne (primes Ibrahim et Nora)` ; aucun historique n'est reconstruit.
 - La certification iOS réelle reste P1 faute d'environnement Apple.

@@ -1,5 +1,14 @@
 # Progression UI/UX
 
+## R2.5
+
+- La surface Scénarios budgétaires reçoit les six scénarios reconstruits depuis la source certifiée ; `DEPART` est le seul scénario actif et par défaut.
+- Les revenus 12 800 MAD / 15 000 MAD sont libellés comme paramètres de référence du scénario pilote, jamais comme revenus réels actuels.
+- `Reste epargne (primes Ibrahim et Nora)` reste hors budget mensuel récurrent ; aucune allocation de 1 500 MAD n'est créée.
+- Fin de mois affiche `Budget MM/AAAA — Scénario DEPART` et utilise les comptes de financement du scénario. Les répartitions multi-comptes, dont `Habits`, sont calculées proportionnellement avec correction déterministe du centime.
+- Le scénario est historisé sur le mois au premier snapshot ; un changement le mois suivant ne réécrit pas le mois précédent. Le moyen de paiement est une recommandation facultative et non un blocker de cible/clôture.
+- Les rattachements structurels réellement absents restent visibles et bloquants. Sur le foyer pilote, `Epargne` et `Reste epargne (primes Ibrahim et Nora)` exigent encore une décision humaine de compte cible avant une preview complète.
+
 ## R2.4
 
 - Paramétrage global des enveloppes dans une grille Desktop/Web et des cartes mobiles, sans configuration fenêtre par fenêtre.

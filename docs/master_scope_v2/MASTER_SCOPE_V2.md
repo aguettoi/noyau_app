@@ -1,8 +1,8 @@
 # Master Scope Final V2
 
-## Statut R2.3
+## Statut R2.5
 
-R2 demeure **PARTIEL** tant que le foyer pilote ne possède pas de scénario/budget actif avec compte cible canonique (ou recommandation d’enveloppe) pour chaque solde non nul. Le produit détecte désormais ce manque et refuse d’inventer la répartition. La mécanique automatique, les dérogations auditées, la matrice adaptative et les garde-fous de fiabilisation sont implémentés.
+R2 demeure **PARTIEL** jusqu'à la recette humaine finale. Le scénario pilote `DEPART` et les cinq scénarios d'évolution sont matérialisés depuis la source certifiée ; les répartitions multi-comptes sont exploitables sans dérogation. Deux soldes non nuls (`Epargne` et `Reste epargne (primes Ibrahim et Nora)`) n'ont toutefois aucune localisation compte certaine dans la source et doivent être configurés humainement. Le produit refuse de les inventer.
 
 ## Autorité et méthode
 
