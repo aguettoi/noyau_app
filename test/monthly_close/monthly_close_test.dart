@@ -34,7 +34,7 @@ void main() {
     expect(snapshot.blockers, 1);
     expect(snapshot.warnings, 2);
     expect(snapshot.ready, isFalse);
-    expect(snapshot.healthPercent, 33);
+    expect(snapshot.healthPercent, 86);
   });
 
   test('multi-account proposal nets transfers without financial write', () {

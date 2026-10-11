@@ -17,8 +17,13 @@ import 'transactions_page.dart';
 import 'widgets/envelope_allocation_dialog.dart';
 
 class AccountsPage extends ConsumerStatefulWidget {
-  const AccountsPage({super.key, this.initialAccountId});
+  const AccountsPage({
+    super.key,
+    this.initialAccountId,
+    this.openInitialAccount = false,
+  });
   final String? initialAccountId;
+  final bool openInitialAccount;
 
   @override
   ConsumerState<AccountsPage> createState() => _AccountsPageState();
@@ -26,6 +31,7 @@ class AccountsPage extends ConsumerStatefulWidget {
 
 class _AccountsPageState extends ConsumerState<AccountsPage> {
   var _creating = false;
+  var _initialOpened = false;
 
   Future<void> _openCreateDialog(
     List<FinancialAccount> accounts,
@@ -97,6 +103,25 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
               : items
                     .where((account) => account.id == widget.initialAccountId)
                     .toList(growable: false);
+          if (widget.openInitialAccount &&
+              !_initialOpened &&
+              ordered.length == 1) {
+            _initialOpened = true;
+            final account = ordered.single;
+            final balance =
+                balancesAsync.valueOrNull?[account.id] ??
+                account.openingBalance;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        _AccountDetailPage(account: account, balance: balance),
+                  ),
+                );
+              }
+            });
+          }
           return ListView(
             children: [
               DesktopPageContainer(
@@ -1090,12 +1115,17 @@ class _RecordAccountBalanceDialogState
   void initState() {
     super.initState();
     _actualBalance = TextEditingController(
-      text: widget.theoreticalBalance.dirhams.toStringAsFixed(2),
-    );
+      text: widget.account.type == FinancialAccountType.cash
+          ? ''
+          : widget.theoreticalBalance.dirhams.toStringAsFixed(2),
+    )..addListener(_refreshDifference);
   }
+
+  void _refreshDifference() => setState(() {});
 
   @override
   void dispose() {
+    _actualBalance.removeListener(_refreshDifference);
     _actualBalance.dispose();
     _reason.dispose();
     super.dispose();
@@ -1183,6 +1213,21 @@ class _RecordAccountBalanceDialogState
                     ? 'Saisissez un montant MAD valide.'
                     : null,
               ),
+              if (_madToCents(_actualBalance.text.trim())
+                  case final cents?) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Montant compté : ${_frenchMoney(Money.fromMinorUnits(cents))}',
+                ),
+                Text(
+                  'Écart : ${_frenchMoney(Money.fromMinorUnits(cents) - widget.theoreticalBalance)}',
+                ),
+                Text(
+                  cents == widget.theoreticalBalance.minorUnits
+                      ? 'Statut : Solde fiabilisé'
+                      : 'Statut : Écart à traiter',
+                ),
+              ],
               const SizedBox(height: AppSpacing.sm),
               OutlinedButton.icon(
                 onPressed: _submitting ? null : _pickDateTime,
@@ -1198,12 +1243,16 @@ class _RecordAccountBalanceDialogState
                 maxLength: 280,
                 minLines: 2,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Commentaire / justification *',
+                decoration: InputDecoration(
+                  labelText: _requiresReason
+                      ? 'Commentaire / justification *'
+                      : 'Commentaire / justification (facultatif)',
                 ),
                 validator: (value) {
                   final reason = value?.trim() ?? '';
-                  if (reason.isEmpty) return 'Le commentaire est obligatoire.';
+                  if (_requiresReason && reason.isEmpty) {
+                    return 'Le commentaire est obligatoire lorsqu’un écart existe.';
+                  }
                   if (reason.length > 280) return '280 caractères maximum.';
                   return null;
                 },
@@ -1235,6 +1284,11 @@ class _RecordAccountBalanceDialogState
       ),
     ],
   );
+
+  bool get _requiresReason {
+    final cents = _madToCents(_actualBalance.text.trim());
+    return cents != null && cents != widget.theoreticalBalance.minorUnits;
+  }
 }
 
 String _frenchMoney(Money amount) =>

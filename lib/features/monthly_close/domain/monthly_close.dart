@@ -87,12 +87,58 @@ class MonthlyCloseSnapshot {
       .fold(0, (a, b) => a + b.count);
   bool get ready => blockers == 0;
   int get healthPercent {
-    final checks = issues.length;
-    if (checks == 0) return 100;
-    final completed = issues.where((e) => e.count == 0).length;
-    return ((completed / checks) * 100).round();
+    const categories = {
+      'entries',
+      'receipts',
+      'reconciliations',
+      'cash',
+      'differences',
+      'compensations',
+      'reallocation',
+    };
+    var score = 0.0;
+    for (final category in categories) {
+      final matches = issues.where((e) => _healthCategory(e.code) == category);
+      if (matches.isEmpty) {
+        score += 1;
+      } else if (matches.every(
+        (e) => e.severity == CloseIssueSeverity.warning,
+      )) {
+        score += .5;
+      }
+    }
+    return ((score / categories.length) * 100).round();
   }
+
+  Map<String, int> get healthBreakdown => {
+    for (final category in const {
+      'entries',
+      'receipts',
+      'reconciliations',
+      'cash',
+      'differences',
+      'compensations',
+      'reallocation',
+    })
+      category: issues.any((e) => _healthCategory(e.code) == category)
+          ? (issues
+                    .where((e) => _healthCategory(e.code) == category)
+                    .every((e) => e.severity == CloseIssueSeverity.warning)
+                ? 50
+                : 0)
+          : 100,
+  };
 }
+
+String _healthCategory(String code) => switch (code) {
+  'receipts' => 'receipts',
+  'reconciliations' => 'reconciliations',
+  'cash' => 'cash',
+  'differences' => 'differences',
+  'compensations' => 'compensations',
+  'matrix' || 'targets' || 'reallocation' => 'reallocation',
+  _ => 'entries',
+};
 
 class MonthlyCloseAuditEntry {
   const MonthlyCloseAuditEntry({
@@ -113,6 +159,9 @@ class MonthlyEnvelopeAccountTarget {
     required this.accountId,
     required this.amount,
     required this.createdAt,
+    this.source = 'manual_override',
+    this.sourceLabel,
+    this.overrideReason,
   });
 
   final String id;
@@ -120,6 +169,23 @@ class MonthlyEnvelopeAccountTarget {
   final String accountId;
   final Money amount;
   final DateTime createdAt;
+  final String source;
+  final String? sourceLabel, overrideReason;
+  bool get automatic => source == 'automatic';
+}
+
+class AutomaticTargetPreview {
+  const AutomaticTargetPreview({
+    required this.targets,
+    required this.missingMappings,
+    required this.complete,
+    this.scenarioId,
+    this.scenarioName,
+  });
+  final List<MonthlyEnvelopeAccountTarget> targets;
+  final List<String> missingMappings;
+  final bool complete;
+  final String? scenarioId, scenarioName;
 }
 
 class ReliabilityKpis {

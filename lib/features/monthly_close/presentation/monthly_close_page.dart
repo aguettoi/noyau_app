@@ -4,6 +4,7 @@ import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
+import '../../finance/application/providers/remote_account_balances_provider.dart';
 import '../../finance/presentation/accounts_page.dart';
 import '../../finance/presentation/member_compensations_page.dart';
 import '../../finance/presentation/transactions_page.dart';
@@ -38,7 +39,7 @@ class MonthlyClosePage extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
                 _Kpis(snapshot.kpis),
                 const SizedBox(height: AppSpacing.md),
-                const _Workflow(),
+                _Workflow(snapshot),
                 const SizedBox(height: AppSpacing.md),
                 _Todo(snapshot),
                 const SizedBox(height: AppSpacing.md),
@@ -68,6 +69,8 @@ class _CurrentTargetPanel extends ConsumerWidget {
     final matrix = ref.watch(envelopeAccountMatrixProvider);
     final targets = ref.watch(monthlyCloseTargetsProvider);
     final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
+    final accountBalances =
+        ref.watch(remoteAccountBalancesProvider).valueOrNull ?? const {};
     final envelopes =
         ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];
     String accountName(String id) =>
@@ -105,19 +108,27 @@ class _CurrentTargetPanel extends ConsumerWidget {
                     const SecondaryInfoText(
                       'Aucune répartition historique n’est inventée. Un OWNER doit établir un point de départ explicite après inventaire.',
                     ),
+                    if (snapshot.blockers > 0)
+                      const SecondaryInfoText(
+                        'Initialisation indisponible : fiabilisez d’abord les soldes, rapprochements et espèces.',
+                      ),
                     const SizedBox(height: AppSpacing.sm),
                     if (snapshot.owner)
                       Align(
                         alignment: Alignment.centerRight,
                         child: FilledButton.tonalIcon(
                           key: const Key('initialize-matrix'),
-                          onPressed: accounts.isEmpty || envelopes.isEmpty
+                          onPressed:
+                              accounts.isEmpty ||
+                                  envelopes.isEmpty ||
+                                  snapshot.blockers > 0
                               ? null
                               : () => _initialize(
                                   context,
                                   ref,
                                   accounts,
                                   envelopes,
+                                  accountBalances,
                                 ),
                           icon: const Icon(Icons.fact_check_outlined),
                           label: const Text('Établir le point de départ'),
@@ -202,7 +213,8 @@ class _CurrentTargetPanel extends ConsumerWidget {
                       key: const Key('confirm-reallocation'),
                       onPressed:
                           moves.isEmpty ||
-                              snapshot.status == MonthlyCloseStatus.closed
+                              snapshot.status == MonthlyCloseStatus.closed ||
+                              snapshot.blockers > 0
                           ? null
                           : () => _confirm(context, ref, value, moves),
                       icon: const Icon(Icons.check_circle_outline),
@@ -275,14 +287,18 @@ class _CurrentTargetPanel extends ConsumerWidget {
     WidgetRef ref,
     List<dynamic> accounts,
     List<dynamic> envelopes,
+    Map<String, Money> accountBalances,
   ) async {
     final result =
         await showDialog<
           ({List<EnvelopeAccountPosition> positions, String note})
         >(
           context: context,
-          builder: (context) =>
-              _PositionSnapshotDialog(accounts: accounts, envelopes: envelopes),
+          builder: (context) => _PositionSnapshotDialog(
+            accounts: accounts,
+            envelopes: envelopes,
+            accountBalances: accountBalances,
+          ),
         );
     if (result == null) return;
     try {
@@ -316,8 +332,10 @@ class _PositionSnapshotDialog extends StatefulWidget {
   const _PositionSnapshotDialog({
     required this.accounts,
     required this.envelopes,
+    required this.accountBalances,
   });
   final List<dynamic> accounts, envelopes;
+  final Map<String, Money> accountBalances;
   @override
   State<_PositionSnapshotDialog> createState() =>
       _PositionSnapshotDialogState();
@@ -329,140 +347,204 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   @override
   void initState() {
     super.initState();
-    rows.add(
-      _PositionDraft(
-        widget.accounts.first.id as String,
-        widget.envelopes.first.id as String,
-      ),
-    );
+    note.addListener(_changed);
+    for (final envelope in widget.envelopes) {
+      for (final account in widget.accounts) {
+        final row = _PositionDraft(account.id as String, envelope.id as String);
+        row.amount.addListener(_changed);
+        rows.add(row);
+      }
+    }
   }
+
+  void _changed() => setState(() {});
 
   @override
   void dispose() {
     for (final row in rows) {
+      row.amount.removeListener(_changed);
       row.amount.dispose();
     }
+    note.removeListener(_changed);
     note.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Point de départ compte × enveloppe'),
-    content: SizedBox(
-      width: 680,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SecondaryInfoText(
-              'Saisissez uniquement la répartition réellement vérifiée. Cette opération ne déplace aucun argent.',
-            ),
-            for (var i = 0; i < rows.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 190,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: rows[i].accountId,
-                        decoration: const InputDecoration(labelText: 'Compte'),
-                        items: [
-                          for (final a in widget.accounts)
-                            DropdownMenuItem(
-                              value: a.id as String,
-                              child: Text(a.name as String),
-                            ),
-                        ],
-                        onChanged: (v) =>
-                            setState(() => rows[i].accountId = v!),
-                      ),
+  Widget build(BuildContext context) => Dialog.fullscreen(
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('Point de départ compte × enveloppe'),
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close),
+        ),
+        actions: [
+          FilledButton(
+            key: const Key('save-matrix-snapshot'),
+            onPressed: _balanced ? () => _save(context) : null,
+            child: const Text('Vérifier et enregistrer'),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+        ],
+      ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, box) => ListView(
+            padding: AppLayout.pagePaddingFor(box.maxWidth),
+            children: [
+              const SecondaryInfoText(
+                'Saisissez la matrice globale réellement vérifiée. Les totaux des lignes et colonnes doivent correspondre aux soldes canoniques.',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (box.maxWidth >= 760) _desktopMatrix() else _mobileMatrix(),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  for (final a in widget.accounts)
+                    Text(
+                      '${a.name}: réparti ${_money(_accountTotal(a.id as String))} / solde ${_money(widget.accountBalances[a.id as String]?.minorUnits ?? 0)} / écart ${_money(_accountTotal(a.id as String) - (widget.accountBalances[a.id as String]?.minorUnits ?? 0))}',
                     ),
-                    SizedBox(
-                      width: 190,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: rows[i].envelopeId,
-                        decoration: const InputDecoration(
-                          labelText: 'Enveloppe',
-                        ),
-                        items: [
-                          for (final e in widget.envelopes)
-                            DropdownMenuItem(
-                              value: e.id as String,
-                              child: Text(e.name as String),
-                            ),
-                        ],
-                        onChanged: (v) =>
-                            setState(() => rows[i].envelopeId = v!),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 130,
-                      child: TextField(
-                        controller: rows[i].amount,
-                        decoration: const InputDecoration(
-                          labelText: 'Montant MAD',
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: rows.length == 1
-                          ? null
-                          : () => setState(
-                              () => rows.removeAt(i).amount.dispose(),
-                            ),
-                      icon: const Icon(Icons.delete_outline),
-                    ),
-                  ],
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: note,
+                decoration: const InputDecoration(
+                  labelText: 'Note d’inventaire obligatoire',
                 ),
               ),
-            TextButton.icon(
-              onPressed: () => setState(
-                () => rows.add(
-                  _PositionDraft(
-                    widget.accounts.first.id as String,
-                    widget.envelopes.first.id as String,
+              if (!_balanced)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: Text(
+                    'Validation indisponible : corrigez les écarts de lignes et de colonnes.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
-              ),
-              icon: const Icon(Icons.add),
-              label: const Text('Ajouter une ligne'),
-            ),
-            TextField(
-              controller: note,
-              decoration: const InputDecoration(
-                labelText: 'Note d’inventaire obligatoire',
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Annuler'),
-      ),
-      FilledButton(
-        key: const Key('save-matrix-snapshot'),
-        onPressed: () => _save(context),
-        child: const Text('Vérifier et enregistrer'),
-      ),
+  );
+
+  Widget _desktopMatrix() => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: DataTable(
+      columns: [
+        const DataColumn(label: Text('Enveloppe')),
+        for (final a in widget.accounts)
+          DataColumn(label: Text(a.name as String)),
+        const DataColumn(label: Text('Total réparti')),
+        const DataColumn(label: Text('Solde enveloppe')),
+        const DataColumn(label: Text('Écart')),
+      ],
+      rows: [
+        for (final e in widget.envelopes)
+          DataRow(
+            cells: [
+              DataCell(Text(e.name as String)),
+              for (final a in widget.accounts)
+                DataCell(
+                  SizedBox(
+                    width: 105,
+                    child: _amountField(_row(a.id as String, e.id as String)),
+                  ),
+                ),
+              DataCell(Text(_money(_envelopeTotal(e.id as String)))),
+              DataCell(Text(_money((e.balance as Money).minorUnits))),
+              DataCell(
+                Text(
+                  _money(
+                    _envelopeTotal(e.id as String) -
+                        (e.balance as Money).minorUnits,
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    ),
+  );
+
+  Widget _mobileMatrix() => Column(
+    children: [
+      for (final e in widget.envelopes)
+        Card(
+          child: Padding(
+            padding: AppSpacing.card,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  e.name as String,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                for (final a in widget.accounts)
+                  Row(
+                    children: [
+                      Expanded(child: Text(a.name as String)),
+                      SizedBox(
+                        width: 130,
+                        child: _amountField(
+                          _row(a.id as String, e.id as String),
+                        ),
+                      ),
+                    ],
+                  ),
+                Text(
+                  'Réparti ${_money(_envelopeTotal(e.id as String))} / solde ${_money((e.balance as Money).minorUnits)} • écart ${_money(_envelopeTotal(e.id as String) - (e.balance as Money).minorUnits)}',
+                ),
+              ],
+            ),
+          ),
+        ),
     ],
   );
+
+  Widget _amountField(_PositionDraft row) => TextField(
+    key: Key('matrix-${row.envelopeId}-${row.accountId}'),
+    controller: row.amount,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    decoration: const InputDecoration(labelText: 'MAD', isDense: true),
+  );
+
+  _PositionDraft _row(String accountId, String envelopeId) => rows.firstWhere(
+    (r) => r.accountId == accountId && r.envelopeId == envelopeId,
+  );
+  int _cents(_PositionDraft row) =>
+      ((double.tryParse(row.amount.text.trim().replaceAll(',', '.')) ?? 0) *
+              100)
+          .round();
+  int _envelopeTotal(String id) => rows
+      .where((r) => r.envelopeId == id)
+      .fold(0, (sum, r) => sum + _cents(r));
+  int _accountTotal(String id) =>
+      rows.where((r) => r.accountId == id).fold(0, (sum, r) => sum + _cents(r));
+  String _money(int cents) => '${(cents / 100).toStringAsFixed(2)} MAD';
+  bool get _balanced =>
+      note.text.trim().isNotEmpty &&
+      widget.envelopes.every(
+        (e) =>
+            _envelopeTotal(e.id as String) == (e.balance as Money).minorUnits,
+      ) &&
+      widget.accounts.every(
+        (a) =>
+            _accountTotal(a.id as String) ==
+            (widget.accountBalances[a.id as String]?.minorUnits ?? 0),
+      );
   void _save(BuildContext context) {
-    if (note.text.trim().isEmpty) return;
+    if (!_balanced) return;
     final positions = <EnvelopeAccountPosition>[];
     for (final row in rows) {
       final amount = double.tryParse(row.amount.text.replaceAll(',', '.'));
       if (amount == null || amount < 0) return;
+      if (amount == 0) continue;
       positions.add(
         EnvelopeAccountPosition(
           accountId: row.accountId,
@@ -549,6 +631,21 @@ class _Health extends StatelessWidget {
               ? 'Prêt sous réserve des avertissements'
               : '${snapshot.blockers} condition(s) bloquante(s) à traiter',
         ),
+        const SizedBox(height: AppSpacing.xs),
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.xxs,
+          children: [
+            for (final entry in snapshot.healthBreakdown.entries)
+              Text(
+                '${_healthLabel(entry.key)} : ${entry.value} %',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ],
+        ),
+        const SecondaryInfoText(
+          'Le score décrit la qualité du mois. Le statut Prêt à clôturer dépend séparément des conditions bloquantes.',
+        ),
         Text(
           '${snapshot.warnings} avertissement(s)',
           style: Theme.of(context).textTheme.bodySmall,
@@ -558,8 +655,19 @@ class _Health extends StatelessWidget {
   );
 }
 
+String _healthLabel(String key) => switch (key) {
+  'entries' => 'Saisies',
+  'receipts' => 'Justificatifs',
+  'reconciliations' => 'Rapprochements',
+  'cash' => 'Espèces',
+  'differences' => 'Écarts',
+  'compensations' => 'Compensations',
+  _ => 'Régularisation',
+};
+
 class _Workflow extends StatelessWidget {
-  const _Workflow();
+  const _Workflow(this.snapshot);
+  final MonthlyCloseSnapshot snapshot;
   static const labels = [
     'Saisies',
     'Justificatifs',
@@ -579,20 +687,69 @@ class _Workflow extends StatelessWidget {
       children: [
         Text('Parcours guidé', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.xs),
-        Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
-          children: [
-            for (var i = 0; i < labels.length; i++)
-              Chip(
-                avatar: CircleAvatar(child: Text('${i + 1}')),
-                label: Text(labels[i]),
-              ),
-          ],
-        ),
+        for (var i = 0; i < labels.length; i++)
+          ListTile(
+            key: Key('workflow-step-${i + 1}'),
+            contentPadding: EdgeInsets.zero,
+            leading: CircleAvatar(child: Text('${i + 1}')),
+            title: Text(labels[i]),
+            subtitle: Text(_stepState(i)),
+            trailing: i < 6 ? const Icon(Icons.chevron_right) : null,
+            onTap: i < 6 ? () => _open(context, i) : null,
+          ),
       ],
     ),
   );
+
+  String _stepState(int index) {
+    if (index >= 6 && snapshot.blockers > 0) {
+      return 'BLOQUÉ — fiabilisez d’abord les soldes et écarts.';
+    }
+    final codes = switch (index) {
+      1 => const {'receipts'},
+      2 => const {'reconciliations'},
+      3 => const {'cash'},
+      4 => const {'differences'},
+      5 => const {'compensations'},
+      _ => const <String>{},
+    };
+    if (codes.isEmpty) {
+      return index == 9 && snapshot.ready ? 'TERMINÉ' : 'EN COURS';
+    }
+    return snapshot.issues.any((issue) => codes.contains(issue.code))
+        ? 'À FAIRE'
+        : 'TERMINÉ';
+  }
+
+  void _open(BuildContext context, int index) {
+    final issue = snapshot.issues
+        .where(
+          (e) => switch (index) {
+            1 => e.code == 'receipts',
+            2 => e.code == 'reconciliations',
+            3 => e.code == 'cash',
+            4 => e.code == 'differences',
+            5 => e.code == 'compensations',
+            _ => false,
+          },
+        )
+        .firstOrNull;
+    final page = switch (index) {
+      0 ||
+      1 => TransactionsPage(initialFinancialEventId: issue?.financialEventId),
+      2 || 3 || 4 => AccountsPage(
+        initialAccountId: issue?.accountId,
+        openInitialAccount: true,
+      ),
+      5 => MemberCompensationsPage(
+        initialCompensationId: issue?.compensationId,
+      ),
+      _ => null,
+    };
+    if (page != null) {
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+    }
+  }
 }
 
 class _Todo extends StatelessWidget {
@@ -640,8 +797,10 @@ class _Todo extends StatelessWidget {
 
   void _openDestination(BuildContext context, CloseIssue issue) {
     final page = switch (issue.code) {
-      'reconciliations' ||
-      'cash' => AccountsPage(initialAccountId: issue.accountId),
+      'reconciliations' || 'cash' => AccountsPage(
+        initialAccountId: issue.accountId,
+        openInitialAccount: true,
+      ),
       'receipts' => TransactionsPage(
         initialFinancialEventId: issue.financialEventId,
       ),
@@ -669,6 +828,7 @@ class _TargetConfiguration extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final targets = ref.watch(monthlyCloseTargetsProvider);
+    final automatic = ref.watch(automaticTargetPreviewProvider);
     final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
     final envelopes =
         ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];
@@ -705,13 +865,45 @@ class _TargetConfiguration extends ConsumerWidget {
                     ? null
                     : () => _edit(context, ref, accounts, envelopes),
                 icon: const Icon(Icons.add),
-                label: const Text('Définir'),
+                label: const Text('Dérogation'),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          const SecondaryInfoText(
-            'Définissez la répartition mensuelle attendue. Cette configuration ne déplace aucun argent.',
+          automatic.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (_, _) => const SecondaryInfoText(
+              'La cible automatique ne peut pas être calculée.',
+            ),
+            data: (preview) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SecondaryInfoText(
+                  preview.scenarioName == null
+                      ? 'Cible calculée depuis les recommandations canoniques des enveloppes.'
+                      : 'Cible calculée automatiquement • Source : scénario/budget ${preview.scenarioName}.',
+                ),
+                if (preview.missingMappings.isNotEmpty)
+                  Text(
+                    'Paramétrage minimal manquant : ${preview.missingMappings.join(', ')}.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                if (snapshot.owner)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      key: const Key('refresh-automatic-targets'),
+                      onPressed: preview.targets.isEmpty
+                          ? null
+                          : () => _refreshAutomatic(context, ref),
+                      icon: const Icon(Icons.auto_fix_high),
+                      label: const Text('Actualiser la cible calculée'),
+                    ),
+                  ),
+              ],
+            ),
           ),
           targets.when(
             loading: () => const LinearProgressIndicator(),
@@ -725,7 +917,7 @@ class _TargetConfiguration extends ConsumerWidget {
                     leading: Icon(Icons.account_tree_outlined),
                     title: Text('Aucune cible configurée'),
                     subtitle: Text(
-                      'Ajoutez une enveloppe et son compte cible.',
+                      'Actualisez la cible calculée ou ajoutez une dérogation motivée.',
                     ),
                   )
                 : Column(
@@ -734,13 +926,22 @@ class _TargetConfiguration extends ConsumerWidget {
                         ListTile(
                           key: Key('monthly-target-${item.id}'),
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.account_tree_outlined),
+                          leading: Icon(
+                            item.automatic
+                                ? Icons.auto_awesome
+                                : Icons.edit_note,
+                          ),
                           title: Text(envelopeName(item.envelopeId)),
-                          subtitle: Text(accountName(item.accountId)),
+                          subtitle: Text(
+                            '${accountName(item.accountId)}${item.sourceLabel == null ? '' : '\n${item.sourceLabel}'}',
+                          ),
+                          isThreeLine: item.sourceLabel != null,
                           trailing: Text(
                             '${item.amount.dirhams.toStringAsFixed(2)} MAD',
                           ),
-                          onTap: snapshot.status == MonthlyCloseStatus.closed
+                          onTap:
+                              snapshot.status == MonthlyCloseStatus.closed ||
+                                  item.automatic
                               ? null
                               : () => _edit(
                                   context,
@@ -774,6 +975,7 @@ class _TargetConfiguration extends ConsumerWidget {
     final amount = TextEditingController(
       text: existing?.amount.dirhams.toStringAsFixed(2) ?? '',
     );
+    final reason = TextEditingController(text: existing?.overrideReason ?? '');
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -821,6 +1023,14 @@ class _TargetConfiguration extends ConsumerWidget {
                     labelText: 'Montant cible (MAD)',
                   ),
                 ),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  key: const Key('target-override-reason'),
+                  controller: reason,
+                  decoration: const InputDecoration(
+                    labelText: 'Motif de la dérogation *',
+                  ),
+                ),
               ],
             ),
           ),
@@ -835,7 +1045,11 @@ class _TargetConfiguration extends ConsumerWidget {
                 final parsed = double.tryParse(
                   amount.text.replaceAll(',', '.'),
                 );
-                if (parsed == null || parsed < 0) return;
+                if (parsed == null ||
+                    parsed < 0 ||
+                    reason.text.trim().isEmpty) {
+                  return;
+                }
                 Navigator.pop(dialogContext, true);
               },
               child: const Text('Enregistrer'),
@@ -853,6 +1067,7 @@ class _TargetConfiguration extends ConsumerWidget {
         amount: Money.fromDirhams(
           double.parse(amount.text.replaceAll(',', '.')),
         ),
+        reason: reason.text.trim(),
       );
       ref.invalidate(monthlyCloseTargetsProvider);
       if (context.mounted) {
@@ -865,6 +1080,29 @@ class _TargetConfiguration extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('La cible n’a pas pu être enregistrée.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _refreshAutomatic(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(refreshAutomaticTargetsProvider)(snapshot.month);
+      ref.invalidate(monthlyCloseTargetsProvider);
+      ref.invalidate(automaticTargetPreviewProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cibles automatiques actualisées.')),
+        );
+      }
+    } on Exception {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Les cibles automatiques n’ont pas pu être actualisées.',
+            ),
           ),
         );
       }

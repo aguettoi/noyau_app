@@ -2,6 +2,17 @@
 
 Statut : partiellement finalisé le 10/10/2026.
 
+## R2.3 — corrections de recette humaine
+
+- La cible compte × enveloppe est calculée en priorité depuis le budget/scénario actif, les `funding_source_preference` et la recommandation canonique de l’enveloppe.
+- Si aucune source ne permet de déterminer un compte unique, le manque est affiché : aucune banque ni aucun membre n’est deviné.
+- Une cible saisie à la main est une dérogation mensuelle OWNER, auditée et assortie d’un motif.
+- Le point de départ reste OPTION B : matrice globale explicite, sans reconstruction historique. Les totaux par enveloppe et par compte doivent réconcilier les deux ledgers.
+- L’initialisation est indisponible tant que les rapprochements et inventaires du mois ne sont pas fiabilisés.
+- L’inventaire espèces affiche le théorique mais laisse le réel vide. Un écart exige un commentaire et ne corrige jamais silencieusement le GL.
+- Le score Santé est explicable par domaine et reste distinct du verdict « prêt à clôturer ».
+- La régularisation et les virements restent une preview jusqu’à confirmation ; l’exécution utilise les transferts canoniques et revérifie les cibles côté serveur.
+
 ## Sources canoniques réutilisées
 
 - Grand Ledger et comptes pour les positions théoriques.

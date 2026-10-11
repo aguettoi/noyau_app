@@ -1,5 +1,14 @@
 # Progression UI/UX
 
+## R2.3
+
+- Parcours guidé transformé en étapes actionnables avec états et motifs de blocage.
+- Centre À faire conserve le contexte précis et ouvre directement le compte concerné.
+- Matrice compte × enveloppe plein écran : grille Desktop/Web, cartes par enveloppe sur mobile, contrôles lignes/colonnes et absence d’overflow.
+- Cibles automatiques identifiées par leur source ; dérogations manuelles visuellement distinctes.
+- Inventaire espèces sécurisé : champ réel vide, écart live, motif conditionnel.
+- Santé du mois décomposée et séparée du statut de clôture.
+
 ## R2
 
 - Surface Fin de mois accessible depuis Pilotage.

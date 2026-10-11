@@ -196,6 +196,7 @@ void main() {
             required envelopeId,
             required accountId,
             required amount,
+            required reason,
           }) async {
             saved =
                 envelopeId == 'envelope-1' &&
@@ -215,6 +216,10 @@ void main() {
     await tester.tap(find.byKey(const Key('add-monthly-target')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('target-amount')), '250');
+    await tester.enterText(
+      find.byKey(const Key('target-override-reason')),
+      'Exception validée',
+    );
     await tester.tap(find.byKey(const Key('save-monthly-target')));
     await tester.pumpAndSettle();
     expect(saved, isTrue);
@@ -390,6 +395,8 @@ void main() {
         300,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.ensureVisible(find.byKey(const Key('confirm-reallocation')));
+      await tester.pumpAndSettle();
       expect(find.textContaining('ACTUEL'), findsWidgets);
       await tester.tap(find.byKey(const Key('confirm-reallocation')));
       await tester.pumpAndSettle();

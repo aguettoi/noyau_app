@@ -136,6 +136,29 @@ void main() {
     expect(find.text('Inventaire de caisse'), findsOneWidget);
     expect(find.text('Compter les espèces'), findsOneWidget);
     expect(find.text('Rapprochement bancaire'), findsNothing);
+    await tester.tap(
+      find.byKey(const Key('record-account-balance-observation-button')),
+    );
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextFormField>(
+      find.byKey(const Key('actual-account-balance-field')),
+    );
+    expect(field.controller?.text, isEmpty);
+    await tester.enterText(
+      find.byKey(const Key('actual-account-balance-field')),
+      '850',
+    );
+    await tester.pump();
+    expect(find.textContaining('Écart : -50,00 MAD'), findsOneWidget);
+    expect(find.text('Statut : Écart à traiter'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const Key('record-account-balance-observation-submit-button')),
+    );
+    await tester.pump();
+    expect(
+      find.text('Le commentaire est obligatoire lorsqu’un écart existe.'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

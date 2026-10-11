@@ -175,7 +175,9 @@ class MonthlyCloseGateway {
     final rows = await ref
         .read(supabaseClientProvider)
         .from('monthly_envelope_account_targets')
-        .select('id,envelope_id,account_id,target_amount,created_at')
+        .select(
+          'id,envelope_id,account_id,target_amount,created_at,target_source,source_label,override_reason',
+        )
         .eq('household_id', householdId)
         .eq('month_start', month.toIso8601String().substring(0, 10))
         .order('created_at', ascending: true);
@@ -189,6 +191,9 @@ class MonthlyCloseGateway {
             double.parse(row['target_amount'].toString()),
           ),
           createdAt: DateTime.parse(row['created_at'].toString()),
+          source: row['target_source']?.toString() ?? 'manual_override',
+          sourceLabel: row['source_label']?.toString(),
+          overrideReason: row['override_reason']?.toString(),
         ),
     ]);
   }
@@ -198,6 +203,7 @@ class MonthlyCloseGateway {
     required String envelopeId,
     required String accountId,
     required Money amount,
+    required String reason,
   }) async {
     final household = await ref.read(activeHouseholdProvider.future);
     final householdId = household.householdId;
@@ -205,7 +211,7 @@ class MonthlyCloseGateway {
     await ref
         .read(supabaseClientProvider)
         .rpc(
-          'set_monthly_envelope_account_target',
+          'set_monthly_envelope_account_target_override',
           params: {
             'p_household_id': householdId,
             'p_month_start': DateTime(
@@ -215,6 +221,67 @@ class MonthlyCloseGateway {
             'p_envelope_id': envelopeId,
             'p_account_id': accountId,
             'p_target_amount': amount.dirhams.toStringAsFixed(2),
+            'p_reason': reason,
+            'p_idempotency_key': _uuid(),
+          },
+        );
+  }
+
+  Future<AutomaticTargetPreview> automaticTargetPreview(DateTime value) async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final id = household.householdId;
+    if (id == null) throw StateError('Aucun foyer actif.');
+    final month = DateTime(value.year, value.month);
+    final raw =
+        await ref
+                .read(supabaseClientProvider)
+                .rpc(
+                  'monthly_close_automatic_target_preview',
+                  params: {
+                    'p_household_id': id,
+                    'p_month_start': month.toIso8601String().substring(0, 10),
+                  },
+                )
+            as Map;
+    final now = DateTime.now();
+    return AutomaticTargetPreview(
+      scenarioId: raw['scenario_id']?.toString(),
+      scenarioName: raw['scenario_name']?.toString(),
+      complete: raw['complete'] == true,
+      missingMappings: [
+        for (final row
+            in (raw['missing_mappings'] as List? ?? const []).cast<Map>())
+          row['envelope_name'].toString(),
+      ],
+      targets: [
+        for (final row in (raw['targets'] as List? ?? const []).cast<Map>())
+          MonthlyEnvelopeAccountTarget(
+            id: 'automatic-${row['envelope_id']}-${row['account_id']}',
+            envelopeId: row['envelope_id'].toString(),
+            accountId: row['account_id'].toString(),
+            amount: Money.fromDirhams(
+              double.parse(row['target_amount'].toString()),
+            ),
+            createdAt: now,
+            source: 'automatic',
+            sourceLabel: row['source_label']?.toString(),
+          ),
+      ],
+    );
+  }
+
+  Future<void> refreshAutomaticTargets(DateTime value) async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final id = household.householdId;
+    if (id == null) throw StateError('Aucun foyer actif.');
+    final month = DateTime(value.year, value.month);
+    await ref
+        .read(supabaseClientProvider)
+        .rpc(
+          'refresh_monthly_automatic_targets',
+          params: {
+            'p_household_id': id,
+            'p_month_start': month.toIso8601String().substring(0, 10),
             'p_idempotency_key': _uuid(),
           },
         );
@@ -325,6 +392,7 @@ final setMonthlyCloseTargetProvider =
         required String envelopeId,
         required String accountId,
         required Money amount,
+        required String reason,
       })
     >(
       (ref) =>
@@ -333,6 +401,7 @@ final setMonthlyCloseTargetProvider =
             required envelopeId,
             required accountId,
             required amount,
+            required reason,
           }) => ref
               .read(monthlyCloseGatewayProvider)
               .setTarget(
@@ -340,7 +409,20 @@ final setMonthlyCloseTargetProvider =
                 envelopeId: envelopeId,
                 accountId: accountId,
                 amount: amount,
+                reason: reason,
               ),
+    );
+final automaticTargetPreviewProvider = FutureProvider<AutomaticTargetPreview>(
+  (ref) => ref
+      .watch(monthlyCloseGatewayProvider)
+      .automaticTargetPreview(ref.watch(selectedCloseMonthProvider)),
+);
+final refreshAutomaticTargetsProvider =
+    Provider<Future<void> Function(DateTime)>(
+      (ref) =>
+          (month) => ref
+              .read(monthlyCloseGatewayProvider)
+              .refreshAutomaticTargets(month),
     );
 final monthlyCloseMutationBusyProvider = StateProvider<bool>((ref) => false);
 final selectedCloseMonthProvider = StateProvider<DateTime>((ref) {

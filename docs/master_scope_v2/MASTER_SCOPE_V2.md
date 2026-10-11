@@ -1,5 +1,9 @@
 # Master Scope Final V2
 
+## Statut R2.3
+
+R2 demeure **PARTIEL** tant que le foyer pilote ne possède pas de scénario/budget actif avec compte cible canonique (ou recommandation d’enveloppe) pour chaque solde non nul. Le produit détecte désormais ce manque et refuse d’inventer la répartition. La mécanique automatique, les dérogations auditées, la matrice adaptative et les garde-fous de fiabilisation sont implémentés.
+
 ## Autorité et méthode
 
 Ce document applique la Roadmap Master V2 du 10 octobre 2026 à l’état réel du dépôt. Les statuts portent sur la valeur fonctionnelle utilisable, pas sur le nombre de fichiers. Chaque fonction reçoit un seul statut et une preuve technique. Les moteurs F1 à F8 restent canoniques.
