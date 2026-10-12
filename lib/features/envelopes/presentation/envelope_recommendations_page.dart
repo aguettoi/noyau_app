@@ -138,7 +138,7 @@ class _DesktopRecommendations extends StatelessWidget {
               DataCell(
                 Text('${envelope.balance.dirhams.toStringAsFixed(2)} MAD'),
               ),
-              DataCell(_OwnershipText(envelope: envelope, accounts: accounts)),
+              DataCell(_OwnershipText(envelope: envelope)),
               DataCell(
                 SizedBox(
                   width: 210,
@@ -212,7 +212,7 @@ class _MobileRecommendations extends StatelessWidget {
                 Text(
                   'Solde actuel : ${envelope.balance.dirhams.toStringAsFixed(2)} MAD',
                 ),
-                _OwnershipText(envelope: envelope, accounts: accounts),
+                _OwnershipText(envelope: envelope),
                 const SizedBox(height: AppSpacing.xs),
                 _AccountField(
                   envelope: envelope,
@@ -359,28 +359,18 @@ class _MethodField extends ConsumerWidget {
 }
 
 class _OwnershipText extends StatelessWidget {
-  const _OwnershipText({required this.envelope, required this.accounts});
+  const _OwnershipText({required this.envelope});
   final RemoteEnvelopeBalance envelope;
-  final List<FinancialAccount> accounts;
 
   @override
   Widget build(BuildContext context) {
-    final structuralLabel = switch (envelope.effectiveRecommendationKind) {
-      'scenario_split' => 'Règle commune — plusieurs comptes',
+    final label = switch (envelope.economicRule) {
+      'individual' => 'Individuel — ${envelope.economicMemberName ?? 'Membre'}',
+      'household_scenario' => 'Foyer — clé du scénario',
+      'household_multi_account' => 'Foyer — plusieurs comptes',
       'member_beneficiary' => 'Selon le bénéficiaire / membre',
-      'system' => 'Enveloppe système — sans objet',
-      _ => null,
-    };
-    if (structuralLabel != null) return Text(structuralLabel);
-    final account = accounts
-        .where((item) => item.id == envelope.recommendedAccountId)
-        .firstOrNull;
-    final label = switch (account?.ownershipType) {
-      AccountOwnershipType.individual => 'Individuel',
-      AccountOwnershipType.shared =>
-        'Partagé (${account!.holders.length} titulaires)',
-      AccountOwnershipType.household => 'Foyer',
-      null => 'À définir',
+      'system' => 'Système',
+      _ => 'À définir',
     };
     return Text(label);
   }

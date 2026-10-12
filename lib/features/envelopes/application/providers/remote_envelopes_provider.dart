@@ -22,6 +22,8 @@ class RemoteEnvelopeBalance {
     this.recommendedPaymentMethodId,
     this.recommendationKind,
     this.recommendationDefinition = const {},
+    this.economicRule = 'unconfigured',
+    this.economicMemberName,
   });
 
   final String id;
@@ -38,6 +40,8 @@ class RemoteEnvelopeBalance {
   final String? recommendedPaymentMethodId;
   final String? recommendationKind;
   final Map<String, Object?> recommendationDefinition;
+  final String economicRule;
+  final String? economicMemberName;
 
   String get effectiveRecommendationKind =>
       recommendationKind ??
@@ -351,6 +355,34 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
       )
       .eq('household_id', householdId)
       .order('envelope_name', ascending: true);
+  final scenarioStepRows = await client
+      .from('budget_scenario_steps')
+      .select('envelope_id,contribution_key,member_user_id,group_name')
+      .eq('household_id', householdId)
+      .eq('active', true);
+  final memberIds = (scenarioStepRows as List<dynamic>)
+      .map((raw) => (raw as Map)['member_user_id']?.toString())
+      .whereType<String>()
+      .toSet();
+  final profileRows = memberIds.isEmpty
+      ? const <dynamic>[]
+      : await client
+            .from('profiles')
+            .select('id,display_name')
+            .inFilter('id', memberIds.toList());
+  final memberNames = <String, String>{
+    for (final raw in profileRows)
+      (raw as Map)['id'].toString(): (raw['display_name'] ?? 'Membre')
+          .toString(),
+  };
+  final stepsByEnvelope = <String, List<Map<String, Object?>>>{};
+  for (final raw in scenarioStepRows) {
+    final row = Map<String, Object?>.from(raw as Map);
+    final envelopeId = row['envelope_id']?.toString();
+    if (envelopeId != null) {
+      stepsByEnvelope.putIfAbsent(envelopeId, () => []).add(row);
+    }
+  }
   final balanceRowsByEnvelopeId = <String, Map<String, Object?>>{
     for (final raw in rows as List<dynamic>)
       (raw as Map)['envelope_id'] as String: Map<String, Object?>.from(raw),
@@ -360,6 +392,13 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
       final envelope = Map<String, Object?>.from(raw as Map);
       final id = envelope['id'] as String;
       final balance = balanceRowsByEnvelopeId[id];
+      final kind = envelope['recommendation_kind'] as String?;
+      final economic = deriveEnvelopeEconomicRule(
+        recommendationKind: kind,
+        isSystem: envelope['is_system'] == true,
+        scenarioSteps: stepsByEnvelope[id] ?? const [],
+        memberNames: memberNames,
+      );
       return RemoteEnvelopeBalance(
         id: id,
         name: envelope['name'] as String,
@@ -373,12 +412,14 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
         recommendedAccountId: envelope['recommended_account_id'] as String?,
         recommendedPaymentMethodId:
             envelope['recommended_payment_method_id'] as String?,
-        recommendationKind: envelope['recommendation_kind'] as String?,
+        recommendationKind: kind,
         recommendationDefinition: envelope['recommendation_definition'] is Map
             ? Map<String, Object?>.from(
                 envelope['recommendation_definition']! as Map,
               )
             : const {},
+        economicRule: economic.rule,
+        economicMemberName: economic.memberName,
         lastMovementAt: balance?['last_movement_at'] is String
             ? DateTime.tryParse(balance!['last_movement_at'] as String)
             : null,
@@ -386,6 +427,41 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
     }),
   );
 });
+
+({String rule, String? memberName}) deriveEnvelopeEconomicRule({
+  required String? recommendationKind,
+  required bool isSystem,
+  required List<Map<String, Object?>> scenarioSteps,
+  required Map<String, String> memberNames,
+}) {
+  if (isSystem || recommendationKind == 'system') {
+    return (rule: 'system', memberName: null);
+  }
+  if (recommendationKind == 'member_beneficiary') {
+    return (rule: 'member_beneficiary', memberName: null);
+  }
+  if (recommendationKind == 'scenario_split') {
+    return (rule: 'household_multi_account', memberName: null);
+  }
+  final keys = scenarioSteps
+      .map((row) => row['contribution_key']?.toString())
+      .whereType<String>()
+      .toSet();
+  final members = scenarioSteps
+      .map((row) => row['member_user_id']?.toString())
+      .whereType<String>()
+      .toSet();
+  if (keys.contains('custom_percentage') || members.length > 1) {
+    return (rule: 'household_scenario', memberName: null);
+  }
+  if (keys.length == 1 &&
+      keys.single == 'single_member' &&
+      members.length == 1) {
+    final memberId = members.single;
+    return (rule: 'individual', memberName: memberNames[memberId] ?? 'Membre');
+  }
+  return (rule: 'unconfigured', memberName: null);
+}
 
 final remoteEnvelopeBalancesProvider =
     FutureProvider<List<RemoteEnvelopeBalance>>((ref) async {

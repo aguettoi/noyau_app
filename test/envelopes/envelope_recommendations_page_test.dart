@@ -48,6 +48,16 @@ void main() {
     isSystem: false,
     recommendedAccountId: 'account-active',
   );
+  const householdEnvelope = RemoteEnvelopeBalance(
+    id: 'envelope-household',
+    name: 'Sorties WE',
+    inflows: Money.fromMinorUnits(100000),
+    outflows: Money.fromMinorUnits(0),
+    balance: Money.fromMinorUnits(100000),
+    isSystem: false,
+    recommendedAccountId: 'account-active',
+    economicRule: 'household_scenario',
+  );
 
   Future<List<({String envelope, String? account, String? method})>> pump(
     WidgetTester tester,
@@ -157,5 +167,52 @@ void main() {
     await tester.pumpAndSettle();
     expect(saves.single.account, 'account-other');
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('la règle économique ne provient pas du compte individuel', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const Size(1200, 800),
+      displayedEnvelope: householdEnvelope,
+    );
+    expect(find.text('Foyer — clé du scénario'), findsOneWidget);
+    expect(find.text('Individuel'), findsNothing);
+    expect(find.text('Compte actif'), findsOneWidget);
+  });
+
+  test('dérive les règles canoniques depuis les étapes Budget', () {
+    expect(
+      deriveEnvelopeEconomicRule(
+        recommendationKind: 'single_account',
+        isSystem: false,
+        scenarioSteps: const [
+          {'contribution_key': 'single_member', 'member_user_id': 'ibrahim'},
+        ],
+        memberNames: const {'ibrahim': 'Ibrahim'},
+      ),
+      (rule: 'individual', memberName: 'Ibrahim'),
+    );
+    expect(
+      deriveEnvelopeEconomicRule(
+        recommendationKind: 'single_account',
+        isSystem: false,
+        scenarioSteps: const [
+          {'contribution_key': 'custom_percentage'},
+        ],
+        memberNames: const {},
+      ).rule,
+      'household_scenario',
+    );
+    expect(
+      deriveEnvelopeEconomicRule(
+        recommendationKind: 'scenario_split',
+        isSystem: false,
+        scenarioSteps: const [],
+        memberNames: const {},
+      ).rule,
+      'household_multi_account',
+    );
   });
 }

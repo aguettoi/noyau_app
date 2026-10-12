@@ -12,6 +12,8 @@ Statut : R2.7 matérialisé le 12/10/2026 ; l'inventaire humain initial compte �
 - Le sweep réutilise `create_envelope_transfer_event`. Il ne produit aucun posting GL ni transfert bancaire. La projection compte × enveloppe déplace les montants vers `Epargne` sur les mêmes comptes physiques ; un transfert réel vers Arreda reste une action bancaire canonique distincte.
 - Le traitement est mensuel, append-only, verrouillé et idempotent par foyer/mois/source. Une clôture déjà effectuée ne rejoue jamais le sweep.
 - Une matrice compte × enveloppe fiable est obligatoire : R2.7 n'initialise aucune position historique arbitraire.
+- R2.7.1 sépare explicitement la règle économique de la localisation physique : la colonne « Titulaire / règle » est dérivée des étapes Budget (`single_member`, `custom_percentage`, membres associés), jamais de `recommended_account_id` ni de la titularité bancaire.
+- Les charges personnelles affichent le membre concerné. Les dépenses communes mono-compte affichent « Foyer — clé du scénario » ; `Habits` affiche « Foyer — plusieurs comptes » ; les primes restent « Selon le bénéficiaire / membre ».
 
 ## R2.5 — scénario budgétaire pilote
 

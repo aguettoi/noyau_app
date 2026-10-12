@@ -6,6 +6,7 @@
 - L'absence de moyen de paiement reste facultative et n'empêche plus l'état « Configurée » dès que la règle structurelle est connue.
 - `Habits` affiche « Règle commune — plusieurs comptes » ; `Reste epargne (primes Ibrahim et Nora)` affiche « Selon le bénéficiaire / membre » ; `À répartir` n'est plus présenté comme une enveloppe métier à paramétrer.
 - La localisation actuelle reste volontairement « à fiabiliser » jusqu'à l'inventaire humain initial ; la recommandation future n'est jamais présentée comme une preuve de position historique.
+- R2.7.1 : le compte recommandé n'influence plus le libellé économique. L'UI distingue désormais « Individuel — membre », « Foyer — clé du scénario », « Foyer — plusieurs comptes », « Selon bénéficiaire / membre » et « Système » depuis les règles Budget canoniques.
 
 ## R2.5
 
