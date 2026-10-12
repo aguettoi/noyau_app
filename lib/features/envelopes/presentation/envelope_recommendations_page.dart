@@ -245,6 +245,13 @@ class _AccountField extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (envelope.effectiveRecommendationKind != 'single_account' &&
+        envelope.effectiveRecommendationKind != 'unconfigured') {
+      return InputDecorator(
+        decoration: const InputDecoration(labelText: 'Compte recommandé'),
+        child: Text(_structuralAccountLabel(envelope)),
+      );
+    }
     final selected =
         accounts.any((item) => item.id == envelope.recommendedAccountId)
         ? envelope.recommendedAccountId
@@ -295,6 +302,13 @@ class _MethodField extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (envelope.effectiveRecommendationKind != 'single_account' &&
+        envelope.effectiveRecommendationKind != 'unconfigured') {
+      return const InputDecorator(
+        decoration: InputDecoration(labelText: 'Moyen recommandé'),
+        child: Text('Facultatif — selon l’opération'),
+      );
+    }
     final account = accounts
         .where((item) => item.id == envelope.recommendedAccountId)
         .firstOrNull;
@@ -351,6 +365,13 @@ class _OwnershipText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final structuralLabel = switch (envelope.effectiveRecommendationKind) {
+      'scenario_split' => 'Règle commune — plusieurs comptes',
+      'member_beneficiary' => 'Selon le bénéficiaire / membre',
+      'system' => 'Enveloppe système — sans objet',
+      _ => null,
+    };
+    if (structuralLabel != null) return Text(structuralLabel);
     final account = accounts
         .where((item) => item.id == envelope.recommendedAccountId)
         .firstOrNull;
@@ -377,6 +398,12 @@ class _StateChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final kind = envelope.effectiveRecommendationKind;
+    if (kind == 'scenario_split' ||
+        kind == 'member_beneficiary' ||
+        kind == 'system') {
+      return const Chip(label: Text('Configurée'));
+    }
     final accountValid =
         envelope.recommendedAccountId != null &&
         accounts.any((item) => item.id == envelope.recommendedAccountId);
@@ -394,6 +421,14 @@ class _StateChip extends StatelessWidget {
     return Chip(label: Text(label));
   }
 }
+
+String _structuralAccountLabel(RemoteEnvelopeBalance envelope) =>
+    switch (envelope.effectiveRecommendationKind) {
+      'scenario_split' => 'Répartition sur plusieurs comptes',
+      'member_beneficiary' => 'Compte du bénéficiaire de la prime',
+      'system' => 'Sans objet',
+      _ => 'Aucun',
+    };
 
 Future<void> _saveRecommendation(
   BuildContext context,

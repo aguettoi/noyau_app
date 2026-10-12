@@ -1,5 +1,12 @@
 # Progression UI/UX
 
+## R2.7
+
+- Le paramétrage centralisé distingue désormais une recommandation mono-compte, une règle multi-comptes, une règle selon bénéficiaire et l'enveloppe système.
+- L'absence de moyen de paiement reste facultative et n'empêche plus l'état « Configurée » dès que la règle structurelle est connue.
+- `Habits` affiche « Règle commune — plusieurs comptes » ; `Reste epargne (primes Ibrahim et Nora)` affiche « Selon le bénéficiaire / membre » ; `À répartir` n'est plus présenté comme une enveloppe métier à paramétrer.
+- La localisation actuelle reste volontairement « à fiabiliser » jusqu'à l'inventaire humain initial ; la recommandation future n'est jamais présentée comme une preuve de position historique.
+
 ## R2.5
 
 - La surface Scénarios budgétaires reçoit les six scénarios reconstruits depuis la source certifiée ; `DEPART` est le seul scénario actif et par défaut.

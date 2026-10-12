@@ -1,6 +1,17 @@
 # R2 — clôture mensuelle et fiabilité
 
-Statut : R2.5 matérialisé le 11/10/2026 ; recette humaine et deux rattachements structurels du foyer pilote restent requis avant le verdict PRÊT.
+Statut : R2.7 matérialisé le 12/10/2026 ; l'inventaire humain initial compte × enveloppe reste requis avant la première clôture pilote.
+
+## R2.7 — règles structurelles et épargne de fin de mois
+
+- Les 26 enveloppes sont classées sans inventer leur position physique actuelle : 23 règles mono-compte, `Habits` en répartition scénario, `Reste epargne (primes Ibrahim et Nora)` selon le bénéficiaire réel, et `À répartir` comme référentiel système.
+- `Epargne` est structurellement rattachée à `Islamique / Arreda Ibrahim`. Cela ne déplace pas son solde historique et ne prouve pas sa position bancaire actuelle.
+- `Habits` reste multi-comptes : dans `DEPART`, 344,24 MAD sont ciblés vers CIH Ibrahim et 655,76 MAD vers Banque Nora.
+- `Reste epargne (primes Ibrahim et Nora)` reste distincte, hors budget récurrent, sans allocation fixe ; sa localisation suit le membre et le compte réellement bénéficiaires.
+- À la clôture, seuls les reliquats positifs de `Navette`, `Nourriture` et `Sorties WE` sont transférés économiquement vers `Epargne`. Zéro et déficits produisent une trace à zéro ; aucune autre enveloppe n'est balayée.
+- Le sweep réutilise `create_envelope_transfer_event`. Il ne produit aucun posting GL ni transfert bancaire. La projection compte × enveloppe déplace les montants vers `Epargne` sur les mêmes comptes physiques ; un transfert réel vers Arreda reste une action bancaire canonique distincte.
+- Le traitement est mensuel, append-only, verrouillé et idempotent par foyer/mois/source. Une clôture déjà effectuée ne rejoue jamais le sweep.
+- Une matrice compte × enveloppe fiable est obligatoire : R2.7 n'initialise aucune position historique arbitraire.
 
 ## R2.5 — scénario budgétaire pilote
 

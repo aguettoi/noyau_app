@@ -20,6 +20,8 @@ class RemoteEnvelopeBalance {
     this.systemCode,
     this.recommendedAccountId,
     this.recommendedPaymentMethodId,
+    this.recommendationKind,
+    this.recommendationDefinition = const {},
   });
 
   final String id;
@@ -34,6 +36,16 @@ class RemoteEnvelopeBalance {
   final DateTime? lastMovementAt;
   final String? recommendedAccountId;
   final String? recommendedPaymentMethodId;
+  final String? recommendationKind;
+  final Map<String, Object?> recommendationDefinition;
+
+  String get effectiveRecommendationKind =>
+      recommendationKind ??
+      (isSystem
+          ? 'system'
+          : recommendedAccountId == null
+          ? 'unconfigured'
+          : 'single_account');
 }
 
 class RemoteEnvelopeMovement {
@@ -328,7 +340,7 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
   final envelopeRows = await client
       .from('envelopes')
       .select(
-        'id, name, notes, archived_at, is_system, system_code, recommended_account_id, recommended_payment_method_id',
+        'id, name, notes, archived_at, is_system, system_code, recommended_account_id, recommended_payment_method_id, recommendation_kind, recommendation_definition',
       )
       .eq('household_id', householdId)
       .order('name', ascending: true);
@@ -361,6 +373,12 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
         recommendedAccountId: envelope['recommended_account_id'] as String?,
         recommendedPaymentMethodId:
             envelope['recommended_payment_method_id'] as String?,
+        recommendationKind: envelope['recommendation_kind'] as String?,
+        recommendationDefinition: envelope['recommendation_definition'] is Map
+            ? Map<String, Object?>.from(
+                envelope['recommendation_definition']! as Map,
+              )
+            : const {},
         lastMovementAt: balance?['last_movement_at'] is String
             ? DateTime.tryParse(balance!['last_movement_at'] as String)
             : null,
