@@ -44,10 +44,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Local Supabase sandbox credentials
-.env.sandbox
-
-# Local Supabase sandbox credentials
-.env.sandbox
-
-.env.sandbox.flutter
+# Local credentials and generated audit artifacts
+.env
+.env.*
+!.env.example
+outputs/
+supabase/.temp/
+.dart-analytics/
+.codex_lot_b_run.exit

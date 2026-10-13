@@ -1,12 +1,14 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const _url = String.fromEnvironment('F7_SUPABASE_URL');
-const _publishableKey = String.fromEnvironment('F7_SUPABASE_PUBLISHABLE_KEY');
-const _secretKey = String.fromEnvironment('F7_SUPABASE_SECRET_KEY');
-const _runId = String.fromEnvironment('F7_RUNTIME_RUN_ID');
+String get _url => Platform.environment['F7_SUPABASE_URL'] ?? '';
+String get _publishableKey =>
+    Platform.environment['F7_SUPABASE_PUBLISHABLE_KEY'] ?? '';
+String get _secretKey => Platform.environment['F7_SUPABASE_ADMIN_KEY'] ?? '';
+String get _runId => Platform.environment['F7_RUNTIME_RUN_ID'] ?? '';
 
 Future<void> _subscribed(RealtimeChannel channel) {
   final completer = Completer<void>();
