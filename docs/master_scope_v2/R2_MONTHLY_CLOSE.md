@@ -70,6 +70,14 @@ Une régularisation R2C confirmée crée uniquement les virements de compte cano
 
 Après le point de départ, les mouvements d'enveloppe liés à un événement comportant exactement un compte physique sont projetés automatiquement et référencent le mouvement source. Un transfert de compte sans ventilation d'enveloppe, un transfert d'enveloppe sans compte, ou tout événement ambigu n'est jamais attribué arbitrairement : les écarts deviennent visibles et la matrice repasse à l'état « à fiabiliser ».
 
+### R2.8 — Inventaire initial contrôlé compte × enveloppe
+
+L'écran `Fin de mois → Établir le point de départ` permet à un OWNER de déclarer explicitement la localisation physique du stock existant. Il démarre vide : les recommandations structurelles ne préremplissent jamais la matrice. Elles sont affichées comme aide facultative et ne sont appliquées qu'après une action humaine explicite. Les enveloppes à solde nul ne demandent aucune saisie.
+
+La revue est disponible par enveloppe et par compte, avec progression, total affecté, total restant et écarts détaillés. La confirmation finale reste désactivée tant que chaque enveloppe, chaque compte et le total foyer ne sont pas exactement réconciliés. La RPC append-only existante enregistre atomiquement un batch historisé et idempotent sans FinancialEvent, Grand Ledger, mouvement d'enveloppe ni modification de solde.
+
+La maintenance future est partielle : une opération canonique non ambiguë (un compte physique et une enveloppe) alimente automatiquement la projection. Les opérations qui ne portent qu'une dimension ou dont l'attribution est ambiguë restent volontairement à fiabiliser et ne sont jamais ventilées arbitrairement.
+
 La fonction `monthly_close_snapshot` calcule les conditions depuis les sources métier. Une clôture refuse tout blocker. Un OWNER peut déroger aux warnings avec un motif obligatoire. Une réouverture est réservée à un OWNER et exige un motif.
 
 Le solveur Dart de régularisation est pur et produit seulement des propositions de transferts minimisées par compensation des surplus et déficits. Il ne crée aucun FinancialEvent.

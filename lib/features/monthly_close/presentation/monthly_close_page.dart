@@ -346,6 +346,7 @@ class _PositionSnapshotDialog extends StatefulWidget {
 class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   final rows = <_PositionDraft>[];
   final note = TextEditingController();
+  var _groupByAccount = false;
   @override
   void initState() {
     super.initState();
@@ -396,10 +397,35 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
             padding: AppLayout.pagePaddingFor(box.maxWidth),
             children: [
               const SecondaryInfoText(
-                'Saisissez la matrice globale réellement vérifiée. Les totaux des lignes et colonnes doivent correspondre aux soldes canoniques.',
+                'Déclarez où se trouvent réellement les soldes actuels. Le compte recommandé est une aide facultative : aucune localisation historique n’est déduite automatiquement.',
               ),
               const SizedBox(height: AppSpacing.sm),
-              if (box.maxWidth >= 760) _desktopMatrix() else _mobileMatrix(),
+              _summary(),
+              const SizedBox(height: AppSpacing.sm),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: false,
+                    icon: Icon(Icons.account_balance_wallet_outlined),
+                    label: Text('Par enveloppe'),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    icon: Icon(Icons.account_balance_outlined),
+                    label: Text('Par compte'),
+                  ),
+                ],
+                selected: {_groupByAccount},
+                onSelectionChanged: (value) =>
+                    setState(() => _groupByAccount = value.single),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (_groupByAccount)
+                _accountComposition()
+              else if (box.maxWidth >= 760)
+                _desktopMatrix()
+              else
+                _mobileMatrix(),
               const SizedBox(height: AppSpacing.sm),
               Wrap(
                 spacing: AppSpacing.md,
@@ -413,6 +439,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
+                key: const Key('matrix-inventory-note'),
                 controller: note,
                 decoration: const InputDecoration(
                   labelText: 'Note d’inventaire obligatoire',
@@ -435,9 +462,46 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     ),
   );
 
+  Widget _summary() {
+    final relevant = widget.envelopes
+        .where((e) => (e.balance as Money).minorUnits != 0)
+        .toList();
+    final completed = relevant
+        .where(
+          (e) =>
+              _envelopeTotal(e.id as String) == (e.balance as Money).minorUnits,
+        )
+        .length;
+    final envelopeTotal = widget.envelopes.fold<int>(
+      0,
+      (sum, e) => sum + (e.balance as Money).minorUnits,
+    );
+    final allocated = rows.fold<int>(0, (sum, row) => sum + _cents(row));
+    return FpCard(
+      child: Wrap(
+        spacing: AppSpacing.lg,
+        runSpacing: AppSpacing.xs,
+        children: [
+          Text(
+            '$completed / ${relevant.length} enveloppes inventoriées',
+            key: const Key('matrix-progress'),
+          ),
+          Text('Total affecté : ${_money(allocated)}'),
+          Text('Total restant : ${_money(envelopeTotal - allocated)}'),
+          Text(
+            _balanced ? 'État : équilibré' : 'État : non équilibré',
+            key: const Key('matrix-balance-state'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _desktopMatrix() => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     child: DataTable(
+      dataRowMinHeight: 76,
+      dataRowMaxHeight: 96,
       columns: [
         const DataColumn(label: Text('Enveloppe')),
         for (final a in widget.accounts)
@@ -450,12 +514,14 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         for (final e in widget.envelopes)
           DataRow(
             cells: [
-              DataCell(Text(e.name as String)),
+              DataCell(_envelopeHeading(e)),
               for (final a in widget.accounts)
                 DataCell(
                   SizedBox(
                     width: 105,
-                    child: _amountField(_row(a.id as String, e.id as String)),
+                    child: (e.balance as Money).minorUnits == 0
+                        ? const Text('—')
+                        : _amountField(_row(a.id as String, e.id as String)),
                   ),
                 ),
               DataCell(Text(_money(_envelopeTotal(e.id as String)))),
@@ -483,24 +549,113 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  e.name as String,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                for (final a in widget.accounts)
-                  Row(
-                    children: [
-                      Expanded(child: Text(a.name as String)),
-                      SizedBox(
-                        width: 130,
-                        child: _amountField(
-                          _row(a.id as String, e.id as String),
+                _envelopeHeading(e),
+                if ((e.balance as Money).minorUnits == 0)
+                  const SecondaryInfoText(
+                    'Solde nul : aucune saisie nécessaire.',
+                  )
+                else
+                  for (final a in widget.accounts)
+                    Row(
+                      children: [
+                        Expanded(child: Text(a.name as String)),
+                        SizedBox(
+                          width: 130,
+                          child: _amountField(
+                            _row(a.id as String, e.id as String),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                 Text(
                   'Réparti ${_money(_envelopeTotal(e.id as String))} / solde ${_money((e.balance as Money).minorUnits)} • écart ${_money(_envelopeTotal(e.id as String) - (e.balance as Money).minorUnits)}',
+                ),
+              ],
+            ),
+          ),
+        ),
+    ],
+  );
+
+  Widget _envelopeHeading(dynamic envelope) {
+    final recommendedId = envelope.recommendedAccountId as String?;
+    final recommended = recommendedId == null
+        ? null
+        : widget.accounts
+              .where((a) => a.id == recommendedId)
+              .map((a) => a.name as String)
+              .firstOrNull;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          envelope.name as String,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        if (recommended != null)
+          Wrap(
+            spacing: AppSpacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'Compte structurel recommandé : $recommended',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              TextButton(
+                key: Key('use-recommended-${envelope.id}'),
+                onPressed: (envelope.balance as Money).minorUnits == 0
+                    ? null
+                    : () => _useRecommendedAccount(envelope, recommendedId!),
+                child: const Text('Utiliser ce compte'),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  void _useRecommendedAccount(dynamic envelope, String accountId) {
+    for (final row in rows.where((r) => r.envelopeId == envelope.id)) {
+      row.amount.text = row.accountId == accountId
+          ? ((envelope.balance as Money).minorUnits / 100).toStringAsFixed(2)
+          : '';
+    }
+  }
+
+  Widget _accountComposition() => Column(
+    children: [
+      for (final account in widget.accounts)
+        Card(
+          key: Key('matrix-account-${account.id}'),
+          child: Padding(
+            padding: AppSpacing.card,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account.name as String,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                for (final envelope in widget.envelopes)
+                  if (_cents(
+                        _row(account.id as String, envelope.id as String),
+                      ) !=
+                      0)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(envelope.name as String),
+                      trailing: Text(
+                        _money(
+                          _cents(
+                            _row(account.id as String, envelope.id as String),
+                          ),
+                        ),
+                      ),
+                    ),
+                const Divider(),
+                Text(
+                  'Expliqué ${_money(_accountTotal(account.id as String))} / solde ${_money(widget.accountBalances[account.id as String]?.minorUnits ?? 0)} / écart ${_money(_accountTotal(account.id as String) - (widget.accountBalances[account.id as String]?.minorUnits ?? 0))}',
                 ),
               ],
             ),
@@ -540,11 +695,35 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
             _accountTotal(a.id as String) ==
             (widget.accountBalances[a.id as String]?.minorUnits ?? 0),
       );
-  void _save(BuildContext context) {
+  Future<void> _save(BuildContext context) async {
     if (!_balanced) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirmer l’inventaire initial ?'),
+        content: const Text(
+          'Cette déclaration analytique sera historisée. Elle ne modifiera aucun compte, aucune enveloppe et ne créera aucune opération financière.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Continuer la vérification'),
+          ),
+          FilledButton(
+            key: const Key('confirm-matrix-snapshot'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Confirmer définitivement'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
     final positions = <EnvelopeAccountPosition>[];
     for (final row in rows) {
-      final amount = double.tryParse(row.amount.text.replaceAll(',', '.'));
+      final raw = row.amount.text.trim();
+      final amount = raw.isEmpty
+          ? 0.0
+          : double.tryParse(raw.replaceAll(',', '.'));
       if (amount == null || amount < 0) return;
       if (amount == 0) continue;
       positions.add(

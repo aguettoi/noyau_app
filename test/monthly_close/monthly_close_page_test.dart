@@ -5,6 +5,7 @@ import 'package:noyau_app/features/monthly_close/application/monthly_close_provi
 import 'package:noyau_app/features/monthly_close/domain/monthly_close.dart';
 import 'package:noyau_app/features/monthly_close/presentation/monthly_close_page.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_accounts_provider.dart';
+import 'package:noyau_app/features/finance/application/providers/remote_account_balances_provider.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
 import 'package:noyau_app/features/finance/presentation/accounts_page.dart';
 import 'package:noyau_app/features/finance/presentation/member_compensations_page.dart';
@@ -459,6 +460,142 @@ void main() {
       await tester.tap(find.byKey(const Key('execute-reallocation')));
       await tester.pumpAndSettle();
       expect(executed, isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'inventaire initial reste vide, explicite, équilibré et lisible par compte',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      List<EnvelopeAccountPosition>? saved;
+      String? savedNote;
+      final account = FinancialAccount(
+        id: 'account-1',
+        name: 'Banque',
+        type: FinancialAccountType.bank,
+        openingBalance: Money.fromMinorUnits(0),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            monthlyCloseProvider.overrideWith(
+              (ref) async => MonthlyCloseSnapshot(
+                month: DateTime(2026, 10),
+                status: MonthlyCloseStatus.open,
+                issues: const [],
+                owner: true,
+              ),
+            ),
+            envelopeAccountMatrixProvider.overrideWith(
+              (ref) async => const EnvelopeAccountMatrix(
+                positions: [],
+                reliable: false,
+                accountGap: Money.fromMinorUnits(10000),
+                envelopeGap: Money.fromMinorUnits(10000),
+                fingerprint: 'empty',
+              ),
+            ),
+            remoteAccountsProvider.overrideWith((ref) async => [account]),
+            remoteAccountBalancesProvider.overrideWith(
+              (ref) async => const {'account-1': Money.fromMinorUnits(10000)},
+            ),
+            remoteEnvelopeBalancesProvider.overrideWith(
+              (ref) async => const [
+                RemoteEnvelopeBalance(
+                  id: 'envelope-1',
+                  name: 'Épargne',
+                  inflows: Money.fromMinorUnits(10000),
+                  outflows: Money.fromMinorUnits(0),
+                  balance: Money.fromMinorUnits(10000),
+                  isSystem: false,
+                  recommendedAccountId: 'account-1',
+                ),
+                RemoteEnvelopeBalance(
+                  id: 'system',
+                  name: 'À répartir',
+                  inflows: Money.fromMinorUnits(0),
+                  outflows: Money.fromMinorUnits(0),
+                  balance: Money.fromMinorUnits(0),
+                  isSystem: true,
+                ),
+              ],
+            ),
+            setEnvelopeAccountSnapshotProvider.overrideWithValue((
+              rows,
+              note,
+            ) async {
+              saved = rows;
+              savedNote = note;
+            }),
+          ],
+          child: const MaterialApp(home: MonthlyClosePage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('initialize-matrix')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('0 / 1 enveloppes inventoriées'), findsOneWidget);
+      expect(
+        find.text('Solde nul : aucune saisie nécessaire.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Compte structurel recommandé'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('matrix-envelope-1-account-1')),
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
+
+      await tester.tap(find.byKey(const Key('use-recommended-envelope-1')));
+      await tester.pump();
+      expect(find.text('1 / 1 enveloppes inventoriées'), findsOneWidget);
+      await tester.tap(find.text('Par compte'));
+      await tester.pump();
+      expect(find.byKey(const Key('matrix-account-account-1')), findsOneWidget);
+      expect(find.text('Épargne'), findsWidgets);
+
+      await tester.ensureVisible(
+        find.byKey(const Key('matrix-inventory-note')),
+      );
+      await tester.enterText(
+        find.byKey(const Key('matrix-inventory-note')),
+        'Inventaire contrôlé',
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('save-matrix-snapshot')))
+            .onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.byKey(const Key('save-matrix-snapshot')));
+      await tester.pumpAndSettle();
+      expect(saved, isNull);
+      await tester.tap(find.byKey(const Key('confirm-matrix-snapshot')));
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(saved, hasLength(1));
+      expect(saved!.single.amount, const Money.fromMinorUnits(10000));
+      expect(savedNote, 'Inventaire contrôlé');
       expect(tester.takeException(), isNull);
     },
   );
