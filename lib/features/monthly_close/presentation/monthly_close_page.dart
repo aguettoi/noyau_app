@@ -846,7 +846,7 @@ String _healthLabel(String key) => switch (key) {
   _ => 'Régularisation',
 };
 
-class _Workflow extends StatelessWidget {
+class _Workflow extends ConsumerWidget {
   const _Workflow(this.snapshot);
   final MonthlyCloseSnapshot snapshot;
   static const labels = [
@@ -862,7 +862,7 @@ class _Workflow extends StatelessWidget {
     'Clôture',
   ];
   @override
-  Widget build(BuildContext context) => FpCard(
+  Widget build(BuildContext context, WidgetRef ref) => FpCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -876,7 +876,7 @@ class _Workflow extends StatelessWidget {
             title: Text(labels[i]),
             subtitle: Text(_stepState(i)),
             trailing: i < 6 ? const Icon(Icons.chevron_right) : null,
-            onTap: i < 6 ? () => _open(context, i) : null,
+            onTap: i < 6 ? () => _open(context, ref, i) : null,
           ),
       ],
     ),
@@ -902,7 +902,7 @@ class _Workflow extends StatelessWidget {
         : 'TERMINÉ';
   }
 
-  void _open(BuildContext context, int index) {
+  Future<void> _open(BuildContext context, WidgetRef ref, int index) async {
     final issue = snapshot.issues
         .where(
           (e) => switch (index) {
@@ -928,16 +928,21 @@ class _Workflow extends StatelessWidget {
       _ => null,
     };
     if (page != null) {
-      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => page));
+      if (context.mounted) {
+        ref.invalidate(monthlyCloseProvider);
+      }
     }
   }
 }
 
-class _Todo extends StatelessWidget {
+class _Todo extends ConsumerWidget {
   const _Todo(this.snapshot);
   final MonthlyCloseSnapshot snapshot;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final active = snapshot.issues.where((issue) => issue.count > 0);
     return FpCard(
       child: Column(
@@ -969,14 +974,18 @@ class _Todo extends StatelessWidget {
                 '${issue.count} élément(s) • ${issue.destination}',
               ),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => _openDestination(context, issue),
+              onTap: () => _openDestination(context, ref, issue),
             ),
         ],
       ),
     );
   }
 
-  void _openDestination(BuildContext context, CloseIssue issue) {
+  Future<void> _openDestination(
+    BuildContext context,
+    WidgetRef ref,
+    CloseIssue issue,
+  ) async {
     final page = switch (issue.code) {
       'reconciliations' || 'cash' => AccountsPage(
         initialAccountId: issue.accountId,
@@ -998,7 +1007,12 @@ class _Todo extends StatelessWidget {
       );
       return;
     }
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => page));
+    if (context.mounted) {
+      ref.invalidate(monthlyCloseProvider);
+    }
   }
 }
 

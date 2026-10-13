@@ -356,6 +356,68 @@ void main() {
   });
 
   testWidgets(
+    'le retour de l’inventaire espèces recharge le dossier de fin de mois',
+    (tester) async {
+      var fetches = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            monthlyCloseProvider.overrideWith((ref) async {
+              fetches++;
+              return MonthlyCloseSnapshot(
+                month: DateTime(2026, 10),
+                status: MonthlyCloseStatus.open,
+                owner: true,
+                issues: fetches == 1
+                    ? const [
+                        CloseIssue(
+                          code: 'cash',
+                          label: 'Inventaire espèces',
+                          count: 1,
+                          severity: CloseIssueSeverity.blocker,
+                          destination: 'Comptes',
+                          accountId: 'cash-1',
+                        ),
+                      ]
+                    : const [],
+              );
+            }),
+            monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
+          ],
+          child: const MaterialApp(home: MonthlyClosePage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(fetches, 1);
+      expect(find.text('Espèces : 0 %'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('workflow-step-4')),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byKey(const Key('workflow-step-4')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AccountsPage), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(fetches, 2);
+      expect(find.text('Espèces : 100 %'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('workflow-step-4')),
+          matching: find.text('TERMINÉ'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('todo-cash')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'affiche actuel cible écart puis exige une confirmation explicite',
     (tester) async {
       var executed = false;
