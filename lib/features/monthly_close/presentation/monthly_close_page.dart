@@ -7,6 +7,8 @@ import '../../envelopes/presentation/envelope_recommendations_page.dart';
 import '../../budget_intelligence/presentation/budget_scenarios_page.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/application/providers/remote_account_balances_provider.dart';
+import '../../finance/application/providers/remote_household_members_provider.dart';
+import '../../finance/domain/financial_account.dart';
 import '../../finance/presentation/accounts_page.dart';
 import '../../finance/presentation/member_compensations_page.dart';
 import '../../finance/presentation/transactions_page.dart';
@@ -73,6 +75,8 @@ class _CurrentTargetPanel extends ConsumerWidget {
     final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
     final accountBalances =
         ref.watch(remoteAccountBalancesProvider).valueOrNull ?? const {};
+    final members =
+        ref.watch(remoteHouseholdMembersProvider).valueOrNull ?? const [];
     final envelopes =
         ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];
     String accountName(String id) =>
@@ -81,6 +85,36 @@ class _CurrentTargetPanel extends ConsumerWidget {
     String envelopeName(String id) =>
         envelopes.where((e) => e.id == id).map((e) => e.name).firstOrNull ??
         'Enveloppe';
+    dynamic account(String id) => accounts.where((e) => e.id == id).first;
+    String actor(String accountId) {
+      final value = account(accountId);
+      if (value.holders.isEmpty) return 'FOYER';
+      return value.holders
+          .map(
+            (holder) =>
+                members
+                    .where((member) => member.id == holder.userId)
+                    .map((member) => member.displayName.toUpperCase())
+                    .firstOrNull ??
+                'MEMBRE DU FOYER',
+          )
+          .join(' & ');
+    }
+
+    String actionLabel(PhysicalTransferAction transfer) {
+      final from = account(transfer.fromAccountId);
+      final to = account(transfer.toAccountId);
+      if (from.type == FinancialAccountType.cash &&
+          to.type != FinancialAccountType.cash) {
+        return 'Dépôt espèces';
+      }
+      if (from.type != FinancialAccountType.cash &&
+          to.type == FinancialAccountType.cash) {
+        return 'Retrait / alimentation espèces';
+      }
+      return 'Virement';
+    }
+
     return FpCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,8 +207,9 @@ class _CurrentTargetPanel extends ConsumerWidget {
                         const Money.fromMinorUnits(0),
                   ),
               ];
-              final moves = proposeEnvelopeAccountMoves(rows);
+              final simulation = simulateGlobalTransfers(rows);
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SecondaryInfoText(
                     'Position actuelle réconciliée avec les comptes et les enveloppes.',
@@ -193,32 +228,73 @@ class _CurrentTargetPanel extends ConsumerWidget {
                     ),
                   const Divider(),
                   Text(
-                    '${moves.length} opération(s) proposée(s)',
+                    '${simulation.physicalTransfers.length} action(s) physique(s)',
                     key: const Key('reallocation-count'),
                   ),
-                  for (final move in moves)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.swap_horiz),
+                  Text(
+                    'Besoins bruts : ${simulation.grossAmount.dirhams.toStringAsFixed(2)} MAD • à déplacer après netting : ${simulation.netAmount.dirhams.toStringAsFixed(2)} MAD',
+                  ),
+                  Text(
+                    '${simulation.avoidedPhysicalMoves} mouvement(s) physique(s) évité(s)',
+                    key: const Key('avoided-physical-moves'),
+                  ),
+                  if (simulation.physicalTransfers.isEmpty &&
+                      simulation.analyticalMoves.isNotEmpty)
+                    const SecondaryInfoText(
+                      'Les écarts se compensent intégralement : aucun mouvement physique, mais la ventilation analytique sera mise à jour.',
+                    ),
+                  for (final transfer in simulation.physicalTransfers)
+                    ExpansionTile(
+                      key: Key(
+                        'physical-transfer-${transfer.fromAccountId}-${transfer.toAccountId}',
+                      ),
+                      tilePadding: EdgeInsets.zero,
+                      leading: Icon(
+                        account(transfer.fromAccountId).type ==
+                                    FinancialAccountType.cash ||
+                                account(transfer.toAccountId).type ==
+                                    FinancialAccountType.cash
+                            ? Icons.payments_outlined
+                            : Icons.swap_horiz,
+                      ),
                       title: Text(
-                        '${accountName(move.fromAccountId)} → ${accountName(move.toAccountId)}',
+                        '${actor(transfer.fromAccountId)} — ${actionLabel(transfer)}',
                       ),
-                      subtitle: Text(envelopeName(move.envelopeId)),
+                      subtitle: Text(
+                        '${accountName(transfer.fromAccountId)} → ${accountName(transfer.toAccountId)}',
+                      ),
                       trailing: Text(
-                        '${move.amount.dirhams.toStringAsFixed(2)} MAD',
+                        '${transfer.amount.dirhams.toStringAsFixed(2)} MAD',
                       ),
+                      children: [
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Composition analytique'),
+                        ),
+                        for (final detail in transfer.justifications)
+                          ListTile(
+                            dense: true,
+                            contentPadding: const EdgeInsets.only(left: 16),
+                            title: Text(envelopeName(detail.envelopeId)),
+                            subtitle: Text(
+                              '${accountName(detail.fromAccountId)} → ${accountName(detail.toAccountId)}',
+                            ),
+                            trailing: Text(
+                              '${detail.amount.dirhams.toStringAsFixed(2)} MAD',
+                            ),
+                          ),
+                      ],
                     ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: FilledButton.icon(
                       key: const Key('confirm-reallocation'),
                       onPressed:
-                          moves.isEmpty ||
+                          simulation.analyticalMoves.isEmpty ||
                               snapshot.status == MonthlyCloseStatus.closed ||
                               snapshot.blockers > 0
                           ? null
-                          : () => _confirm(context, ref, value, moves),
+                          : () => _confirm(context, ref, value, simulation),
                       icon: const Icon(Icons.check_circle_outline),
                       label: const Text('Prévisualiser et confirmer'),
                     ),
@@ -236,26 +312,53 @@ class _CurrentTargetPanel extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     EnvelopeAccountMatrix matrix,
-    List<EnvelopeAccountMove> moves,
+    GlobalTransferSimulation simulation,
   ) async {
+    var economicDate = DateTime.now();
     final accepted = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Confirmer les virements ?'),
-        content: Text(
-          '${moves.length} virement(s) canonique(s) seront enregistrés. Aucun mouvement d’enveloppe supplémentaire ne sera créé.',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Confirmer la régularisation ?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${simulation.physicalTransfers.length} mouvement(s) physique(s) canonique(s) et ${simulation.analyticalMoves.length} justification(s) analytique(s). Aucun mouvement d’enveloppe ne sera créé.',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Date économique'),
+                subtitle: Text(
+                  '${economicDate.day.toString().padLeft(2, '0')}/${economicDate.month.toString().padLeft(2, '0')}/${economicDate.year}',
+                ),
+                trailing: const Icon(Icons.calendar_month),
+                onTap: () async {
+                  final selected = await showDatePicker(
+                    context: context,
+                    initialDate: economicDate,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (selected != null) setState(() => economicDate = selected);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              key: const Key('execute-reallocation'),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Confirmer'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            key: const Key('execute-reallocation'),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Confirmer'),
-          ),
-        ],
       ),
     );
     if (accepted != true) return;
@@ -263,7 +366,8 @@ class _CurrentTargetPanel extends ConsumerWidget {
       await ref.read(executeMonthlyReallocationProvider)(
         snapshot.month,
         matrix,
-        moves,
+        simulation,
+        economicDate,
       );
       ref.invalidate(envelopeAccountMatrixProvider);
       if (context.mounted) {

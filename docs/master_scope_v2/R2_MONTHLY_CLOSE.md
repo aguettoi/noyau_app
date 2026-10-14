@@ -74,6 +74,14 @@ Pour la source certifiée `f3cbc99e335586d5628791017e5fd8119430a03d32674ba1d11f2
 
 Une régularisation R2C confirmée crée uniquement les virements de compte canoniques nécessaires puis inscrit, avec les mêmes `FinancialEvent`, les deltas analytiques compte × enveloppe. La simulation reste sans écriture. La confirmation est OWNER, atomique, idempotente et refuse un fingerprint devenu obsolète. La cible mensuelle reste strictement distincte de la position actuelle.
 
+## R2.10 — netting global et exécution canonique
+
+La simulation compare la matrice physique actuelle aux cibles mensuelles, conserve chaque déplacement analytique par enveloppe, puis calcule globalement le plus petit ensemble déterministe de virements entre comptes. Des flux opposés s'annulent : un virement physique peut ainsi être expliqué par plusieurs justifications analytiques, sans perdre la ventilation compte × enveloppe.
+
+La confirmation OWNER exige une date économique explicite. Le serveur recalcule indépendamment le net global, vérifie la cible mensuelle courante et le fingerprint de la matrice, puis exécute uniquement les transferts de comptes canoniques. Les justifications et deltas de matrice sont enregistrés dans la même transaction. Un retry avec la même clé est idempotent et une proposition obsolète est refusée.
+
+Le titulaire du compte sert à expliquer l'action physique, jamais à déduire la responsabilité économique. Un transfert entre comptes de membres différents ne crée donc pas automatiquement une compensation F3 : cette dernière reste réservée à une dette/créance interne explicitement reconnue. Banque vers espèces est présenté comme un retrait/alimentation, espèces vers banque comme un dépôt ; aucun revenu, dépense ou mouvement d'enveloppe supplémentaire n'est créé.
+
 Après le point de départ, les mouvements d'enveloppe liés à un événement comportant exactement un compte physique sont projetés automatiquement et référencent le mouvement source. Un transfert de compte sans ventilation d'enveloppe, un transfert d'enveloppe sans compte, ou tout événement ambigu n'est jamais attribué arbitrairement : les écarts deviennent visibles et la matrice repasse à l'état « à fiabiliser ».
 
 ### R2.8 — Inventaire initial contrôlé compte × enveloppe

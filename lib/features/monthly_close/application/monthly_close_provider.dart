@@ -352,14 +352,15 @@ class MonthlyCloseGateway {
   Future<void> executeReallocation(
     DateTime month,
     EnvelopeAccountMatrix matrix,
-    List<EnvelopeAccountMove> moves,
+    GlobalTransferSimulation simulation,
+    DateTime economicDate,
   ) async {
     final household = await ref.read(activeHouseholdProvider.future);
     if (household.householdId == null) throw StateError('Aucun foyer actif.');
     await ref
         .read(supabaseClientProvider)
         .rpc(
-          'execute_monthly_account_reallocation',
+          'execute_monthly_account_reallocation_v2',
           params: {
             'p_household_id': household.householdId,
             'p_month_start': DateTime(
@@ -367,8 +368,17 @@ class MonthlyCloseGateway {
               month.month,
             ).toIso8601String().substring(0, 10),
             'p_source_fingerprint': matrix.fingerprint,
-            'p_moves': [
-              for (final move in moves)
+            'p_economic_date': economicDate.toIso8601String().substring(0, 10),
+            'p_physical_transfers': [
+              for (final transfer in simulation.physicalTransfers)
+                {
+                  'from_account_id': transfer.fromAccountId,
+                  'to_account_id': transfer.toAccountId,
+                  'amount': transfer.amount.dirhams.toStringAsFixed(2),
+                },
+            ],
+            'p_analytical_moves': [
+              for (final move in simulation.analyticalMoves)
                 {
                   'from_account_id': move.fromAccountId,
                   'to_account_id': move.toAccountId,
@@ -483,13 +493,14 @@ final executeMonthlyReallocationProvider =
       Future<void> Function(
         DateTime,
         EnvelopeAccountMatrix,
-        List<EnvelopeAccountMove>,
+        GlobalTransferSimulation,
+        DateTime,
       )
     >(
       (ref) =>
-          (month, matrix, moves) => ref
+          (month, matrix, simulation, economicDate) => ref
               .read(monthlyCloseGatewayProvider)
-              .executeReallocation(month, matrix, moves),
+              .executeReallocation(month, matrix, simulation, economicDate),
     );
 final setEnvelopeAccountSnapshotProvider =
     Provider<Future<void> Function(List<EnvelopeAccountPosition>, String)>(

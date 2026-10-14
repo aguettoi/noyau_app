@@ -107,6 +107,101 @@ void main() {
     expect(moves.single.amount, Money.fromDirhams(50));
   });
 
+  test('global netting offsets opposite envelopes and keeps explanations', () {
+    final simulation = simulateGlobalTransfers([
+      EnvelopeAccountTarget(
+        memberId: 'one',
+        accountId: 'a',
+        envelopeId: 'first',
+        current: Money.fromDirhams(500),
+        target: Money.fromDirhams(0),
+      ),
+      EnvelopeAccountTarget(
+        memberId: 'two',
+        accountId: 'b',
+        envelopeId: 'first',
+        current: Money.fromDirhams(0),
+        target: Money.fromDirhams(500),
+      ),
+      EnvelopeAccountTarget(
+        memberId: 'two',
+        accountId: 'b',
+        envelopeId: 'second',
+        current: Money.fromDirhams(400),
+        target: Money.fromDirhams(0),
+      ),
+      EnvelopeAccountTarget(
+        memberId: 'one',
+        accountId: 'a',
+        envelopeId: 'second',
+        current: Money.fromDirhams(0),
+        target: Money.fromDirhams(400),
+      ),
+    ]);
+    expect(simulation.analyticalMoves, hasLength(2));
+    expect(simulation.physicalTransfers, hasLength(1));
+    expect(simulation.physicalTransfers.single.fromAccountId, 'a');
+    expect(simulation.physicalTransfers.single.toAccountId, 'b');
+    expect(simulation.physicalTransfers.single.amount, Money.fromDirhams(100));
+    expect(simulation.physicalTransfers.single.justifications, hasLength(2));
+    expect(simulation.grossAmount, Money.fromDirhams(900));
+    expect(simulation.netAmount, Money.fromDirhams(100));
+  });
+
+  test('equal opposite flows require no physical transfer', () {
+    final simulation = simulateGlobalTransfers([
+      for (final row in const [
+        ('a', 'x', 50000, 0),
+        ('b', 'x', 0, 50000),
+        ('b', 'y', 50000, 0),
+        ('a', 'y', 0, 50000),
+      ])
+        EnvelopeAccountTarget(
+          memberId: null,
+          accountId: row.$1,
+          envelopeId: row.$2,
+          current: Money.fromMinorUnits(row.$3),
+          target: Money.fromMinorUnits(row.$4),
+        ),
+    ]);
+    expect(simulation.analyticalMoves, hasLength(2));
+    expect(simulation.physicalTransfers, isEmpty);
+    expect(simulation.netAmount, const Money.fromMinorUnits(0));
+  });
+
+  test('three-account cycle is globally reduced deterministically', () {
+    final simulation = simulateGlobalTransfers([
+      for (final row in const [
+        ('a', 'one', 50000, 0),
+        ('b', 'one', 0, 50000),
+        ('b', 'two', 30000, 0),
+        ('c', 'two', 0, 30000),
+        ('c', 'three', 20000, 0),
+        ('a', 'three', 0, 20000),
+      ])
+        EnvelopeAccountTarget(
+          memberId: null,
+          accountId: row.$1,
+          envelopeId: row.$2,
+          current: Money.fromMinorUnits(row.$3),
+          target: Money.fromMinorUnits(row.$4),
+        ),
+    ]);
+    expect(simulation.physicalTransfers, hasLength(2));
+    expect(simulation.physicalTransfers[0].fromAccountId, 'a');
+    expect(simulation.physicalTransfers[0].toAccountId, 'b');
+    expect(simulation.physicalTransfers[0].amount, Money.fromDirhams(200));
+    expect(simulation.physicalTransfers[1].fromAccountId, 'a');
+    expect(simulation.physicalTransfers[1].toAccountId, 'c');
+    expect(simulation.physicalTransfers[1].amount, Money.fromDirhams(100));
+    expect(
+      simulation.physicalTransfers.every(
+        (transfer) => transfer.justifications.length == 3,
+      ),
+      isTrue,
+    );
+  });
+
   test('incomplete historical matrix is represented, never invented', () {
     const matrix = EnvelopeAccountMatrix(
       positions: [],

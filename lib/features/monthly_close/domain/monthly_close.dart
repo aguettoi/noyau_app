@@ -137,6 +137,40 @@ class EnvelopeAccountMove {
   final Money amount;
 }
 
+enum PhysicalTransferKind { bankTransfer, cashWithdrawal, cashDeposit }
+
+class PhysicalTransferAction {
+  const PhysicalTransferAction({
+    required this.fromAccountId,
+    required this.toAccountId,
+    required this.amount,
+    required this.justifications,
+  });
+
+  final String fromAccountId, toAccountId;
+  final Money amount;
+  final List<EnvelopeAccountMove> justifications;
+}
+
+class GlobalTransferSimulation {
+  const GlobalTransferSimulation({
+    required this.analyticalMoves,
+    required this.physicalTransfers,
+  });
+
+  final List<EnvelopeAccountMove> analyticalMoves;
+  final List<PhysicalTransferAction> physicalTransfers;
+
+  Money get grossAmount => Money.fromMinorUnits(
+    analyticalMoves.fold(0, (sum, move) => sum + move.amount.minorUnits),
+  );
+  Money get netAmount => Money.fromMinorUnits(
+    physicalTransfers.fold(0, (sum, move) => sum + move.amount.minorUnits),
+  );
+  int get avoidedPhysicalMoves =>
+      analyticalMoves.length - physicalTransfers.length;
+}
+
 class MonthlyCloseSnapshot {
   const MonthlyCloseSnapshot({
     required this.month,
@@ -387,4 +421,78 @@ List<EnvelopeAccountMove> proposeEnvelopeAccountMoves(
     }
   }
   return List.unmodifiable(result);
+}
+
+/// Globally nets the physical account flows while retaining the complete
+/// envelope-level plan. Every physical action retains the complete analytical
+/// plan because global netting may offset flows across otherwise independent
+/// envelope paths.
+GlobalTransferSimulation simulateGlobalTransfers(
+  List<EnvelopeAccountTarget> targets,
+) {
+  final analytical = proposeEnvelopeAccountMoves(targets);
+  if (analytical.isEmpty) {
+    return const GlobalTransferSimulation(
+      analyticalMoves: [],
+      physicalTransfers: [],
+    );
+  }
+
+  final moves = analytical;
+  final physical = <PhysicalTransferAction>[];
+  final net = <String, int>{};
+  for (final move in moves) {
+    net.update(
+      move.fromAccountId,
+      (value) => value - move.amount.minorUnits,
+      ifAbsent: () => -move.amount.minorUnits,
+    );
+    net.update(
+      move.toAccountId,
+      (value) => value + move.amount.minorUnits,
+      ifAbsent: () => move.amount.minorUnits,
+    );
+  }
+  final sources =
+      net.entries
+          .where((entry) => entry.value < 0)
+          .map((entry) => [entry.key, -entry.value])
+          .toList()
+        ..sort((a, b) => (a[0] as String).compareTo(b[0] as String));
+  final destinations =
+      net.entries
+          .where((entry) => entry.value > 0)
+          .map((entry) => [entry.key, entry.value])
+          .toList()
+        ..sort((a, b) => (a[0] as String).compareTo(b[0] as String));
+  var sourceIndex = 0, destinationIndex = 0;
+  while (sourceIndex < sources.length &&
+      destinationIndex < destinations.length) {
+    final amount =
+        (sources[sourceIndex][1] as int) <
+            (destinations[destinationIndex][1] as int)
+        ? sources[sourceIndex][1] as int
+        : destinations[destinationIndex][1] as int;
+    physical.add(
+      PhysicalTransferAction(
+        fromAccountId: sources[sourceIndex][0] as String,
+        toAccountId: destinations[destinationIndex][0] as String,
+        amount: Money.fromMinorUnits(amount),
+        justifications: List.unmodifiable(moves),
+      ),
+    );
+    sources[sourceIndex][1] = (sources[sourceIndex][1] as int) - amount;
+    destinations[destinationIndex][1] =
+        (destinations[destinationIndex][1] as int) - amount;
+    if (sources[sourceIndex][1] == 0) sourceIndex++;
+    if (destinations[destinationIndex][1] == 0) destinationIndex++;
+  }
+  physical.sort((a, b) {
+    final from = a.fromAccountId.compareTo(b.fromAccountId);
+    return from != 0 ? from : a.toAccountId.compareTo(b.toAccountId);
+  });
+  return GlobalTransferSimulation(
+    analyticalMoves: List.unmodifiable(analytical),
+    physicalTransfers: List.unmodifiable(physical),
+  );
 }

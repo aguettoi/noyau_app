@@ -479,7 +479,7 @@ void main() {
                 FinancialAccount(
                   id: 'b',
                   name: 'Compte B',
-                  type: FinancialAccountType.bank,
+                  type: FinancialAccountType.cash,
                   openingBalance: const Money.fromMinorUnits(0),
                 ),
               ],
@@ -499,9 +499,13 @@ void main() {
             executeMonthlyReallocationProvider.overrideWithValue((
               month,
               current,
-              moves,
+              simulation,
+              economicDate,
             ) async {
-              executed = moves.single.amount.minorUnits == 6000;
+              executed =
+                  simulation.physicalTransfers.single.amount.minorUnits ==
+                      6000 &&
+                  economicDate.year >= 2026;
             }),
           ],
           child: const MaterialApp(home: MonthlyClosePage()),
@@ -516,6 +520,10 @@ void main() {
       await tester.ensureVisible(find.byKey(const Key('confirm-reallocation')));
       await tester.pumpAndSettle();
       expect(find.textContaining('ACTUEL'), findsWidgets);
+      expect(
+        find.textContaining('Retrait / alimentation espèces'),
+        findsOneWidget,
+      );
       await tester.tap(find.byKey(const Key('confirm-reallocation')));
       await tester.pumpAndSettle();
       expect(executed, isFalse);
