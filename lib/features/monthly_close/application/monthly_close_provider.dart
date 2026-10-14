@@ -319,6 +319,36 @@ class MonthlyCloseGateway {
     );
   }
 
+  Future<InitialPositionPreview> fetchInitialPositionPreview() async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final householdId = household.householdId;
+    if (householdId == null) throw StateError('Aucun foyer actif.');
+    final raw =
+        await ref
+                .read(supabaseClientProvider)
+                .rpc(
+                  'envelope_account_initial_position_preview',
+                  params: {'p_household_id': householdId},
+                )
+            as Map;
+    return InitialPositionPreview(
+      sourceFingerprint: raw['source_fingerprint']?.toString() ?? '',
+      positions: List.unmodifiable([
+        for (final row in (raw['positions'] as List? ?? const []).cast<Map>())
+          EnvelopeAccountPosition(
+            accountId: row['account_id'].toString(),
+            envelopeId: row['envelope_id'].toString(),
+            amount: Money.fromDirhams(double.parse(row['amount'].toString())),
+            provenance: switch (row['evidence_kind']?.toString()) {
+              'human_confirmation' => PositionProvenance.humanConfirmation,
+              _ => PositionProvenance.sourceProof,
+            },
+            provenanceReference: row['source_reference']?.toString(),
+          ),
+      ]),
+    );
+  }
+
   Future<void> executeReallocation(
     DateTime month,
     EnvelopeAccountMatrix matrix,
@@ -369,6 +399,8 @@ class MonthlyCloseGateway {
                   'account_id': p.accountId,
                   'envelope_id': p.envelopeId,
                   'amount': p.amount.dirhams.toStringAsFixed(2),
+                  'provenance': p.provenance.name,
+                  'provenance_reference': p.provenanceReference,
                 },
             ],
             'p_note': note,
@@ -442,6 +474,9 @@ final monthlyCloseTargetsProvider =
     );
 final envelopeAccountMatrixProvider = FutureProvider<EnvelopeAccountMatrix>(
   (ref) => ref.watch(monthlyCloseGatewayProvider).fetchMatrix(),
+);
+final initialPositionPreviewProvider = FutureProvider<InitialPositionPreview>(
+  (ref) => ref.watch(monthlyCloseGatewayProvider).fetchInitialPositionPreview(),
 );
 final executeMonthlyReallocationProvider =
     Provider<

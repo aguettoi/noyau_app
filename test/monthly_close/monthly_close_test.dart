@@ -118,4 +118,83 @@ void main() {
     expect(matrix.positions, isEmpty);
     expect(matrix.reliable, isFalse);
   });
+
+  test('source proof is preserved and a final unique cell is deduced', () {
+    final result = deduceUniqueInitialPositions(
+      accountBalances: {
+        'cash': Money.fromDirhams(50),
+        'bank': Money.fromDirhams(100),
+      },
+      envelopeBalances: {
+        'food': Money.fromDirhams(50),
+        'savings': Money.fromDirhams(100),
+      },
+      known: const [
+        EnvelopeAccountPosition(
+          accountId: 'cash',
+          envelopeId: 'food',
+          amount: Money.fromMinorUnits(5000),
+          provenance: PositionProvenance.sourceProof,
+          provenanceReference: 'source',
+        ),
+      ],
+    );
+    expect(result, hasLength(2));
+    final inferred = result.singleWhere((item) => item.accountId == 'bank');
+    expect(inferred.envelopeId, 'savings');
+    expect(inferred.amount, Money.fromDirhams(100));
+    expect(inferred.provenance, PositionProvenance.balancingDeduction);
+  });
+
+  test('multiple valid residual allocations are never invented', () {
+    final result = deduceUniqueInitialPositions(
+      accountBalances: {
+        'a': Money.fromDirhams(100),
+        'b': Money.fromDirhams(100),
+      },
+      envelopeBalances: {
+        'e1': Money.fromDirhams(100),
+        'e2': Money.fromDirhams(100),
+      },
+      known: const [],
+    );
+    expect(result, isEmpty);
+  });
+
+  test('partial and multi-account source proof remain explicit', () {
+    final result = deduceUniqueInitialPositions(
+      accountBalances: {'a': Money.fromDirhams(70), 'b': Money.fromDirhams(30)},
+      envelopeBalances: {'shared': Money.fromDirhams(100)},
+      known: const [
+        EnvelopeAccountPosition(
+          accountId: 'a',
+          envelopeId: 'shared',
+          amount: Money.fromMinorUnits(7000),
+          provenance: PositionProvenance.sourceProof,
+          provenanceReference: 'part A',
+        ),
+        EnvelopeAccountPosition(
+          accountId: 'b',
+          envelopeId: 'shared',
+          amount: Money.fromMinorUnits(3000),
+          provenance: PositionProvenance.sourceProof,
+          provenanceReference: 'part B',
+        ),
+      ],
+    );
+    expect(result, hasLength(2));
+    expect(
+      result.every((item) => item.provenance == PositionProvenance.sourceProof),
+      isTrue,
+    );
+  });
+
+  test('zero-balance envelopes do not require a position', () {
+    final result = deduceUniqueInitialPositions(
+      accountBalances: const {},
+      envelopeBalances: {'zero': const Money.fromMinorUnits(0)},
+      known: const [],
+    );
+    expect(result, isEmpty);
+  });
 }

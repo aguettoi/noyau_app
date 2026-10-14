@@ -527,7 +527,7 @@ void main() {
   );
 
   testWidgets(
-    'inventaire initial reste vide, explicite, équilibré et lisible par compte',
+    'inventaire initial déduit seulement la dernière position mathématiquement unique',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -593,6 +593,12 @@ void main() {
               saved = rows;
               savedNote = note;
             }),
+            initialPositionPreviewProvider.overrideWith(
+              (ref) async => const InitialPositionPreview(
+                positions: [],
+                sourceFingerprint: '',
+              ),
+            ),
           ],
           child: const MaterialApp(home: MonthlyClosePage()),
         ),
@@ -608,7 +614,7 @@ void main() {
       await tester.tap(find.byKey(const Key('initialize-matrix')));
       await tester.pumpAndSettle();
 
-      expect(find.text('0 / 1 enveloppes inventoriées'), findsOneWidget);
+      expect(find.text('1 / 1 enveloppes inventoriées'), findsOneWidget);
       expect(
         find.text('Solde nul : aucune saisie nécessaire.'),
         findsOneWidget,
@@ -617,15 +623,12 @@ void main() {
         find.textContaining('Compte structurel recommandé'),
         findsOneWidget,
       );
-      expect(
-        tester
-            .widget<TextField>(
-              find.byKey(const Key('matrix-envelope-1-account-1')),
-            )
-            .controller!
-            .text,
-        isEmpty,
+      final deducedField = tester.widget<TextField>(
+        find.byKey(const Key('matrix-envelope-1-account-1')),
       );
+      expect(deducedField.controller!.text, '100.00');
+      expect(deducedField.readOnly, isTrue);
+      expect(find.text('Équilibrage unique'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('use-recommended-envelope-1')));
       await tester.pump();
@@ -661,4 +664,86 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('le point de départ préremplit uniquement une preuve traçable', (
+    tester,
+  ) async {
+    final account = FinancialAccount(
+      id: 'cash',
+      name: 'Espèces maison',
+      type: FinancialAccountType.cash,
+      openingBalance: const Money.fromMinorUnits(0),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          monthlyCloseProvider.overrideWith(
+            (ref) async => MonthlyCloseSnapshot(
+              month: DateTime(2026, 10),
+              status: MonthlyCloseStatus.open,
+              issues: const [],
+              owner: true,
+            ),
+          ),
+          envelopeAccountMatrixProvider.overrideWith(
+            (ref) async => const EnvelopeAccountMatrix(
+              positions: [],
+              reliable: false,
+              accountGap: Money.fromMinorUnits(5000),
+              envelopeGap: Money.fromMinorUnits(5000),
+              fingerprint: 'empty',
+            ),
+          ),
+          initialPositionPreviewProvider.overrideWith(
+            (ref) async => const InitialPositionPreview(
+              sourceFingerprint: 'certified',
+              positions: [
+                EnvelopeAccountPosition(
+                  accountId: 'cash',
+                  envelopeId: 'food',
+                  amount: Money.fromMinorUnits(5000),
+                  provenance: PositionProvenance.sourceProof,
+                  provenanceReference: 'Enveloppes!D29',
+                ),
+              ],
+            ),
+          ),
+          remoteAccountsProvider.overrideWith((ref) async => [account]),
+          remoteAccountBalancesProvider.overrideWith(
+            (ref) async => const {'cash': Money.fromMinorUnits(5000)},
+          ),
+          remoteEnvelopeBalancesProvider.overrideWith(
+            (ref) async => const [
+              RemoteEnvelopeBalance(
+                id: 'food',
+                name: 'Nourriture',
+                inflows: Money.fromMinorUnits(5000),
+                outflows: Money.fromMinorUnits(0),
+                balance: Money.fromMinorUnits(5000),
+                isSystem: false,
+                recommendedAccountId: 'cash',
+              ),
+            ],
+          ),
+        ],
+        child: const MaterialApp(home: MonthlyClosePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('initialize-matrix')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const Key('initialize-matrix')));
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 1 enveloppes inventoriées'), findsOneWidget);
+    expect(find.text('Prouvé par la source'), findsOneWidget);
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('matrix-food-cash')),
+    );
+    expect(field.readOnly, isTrue);
+    expect(field.controller!.text, '50.00');
+    expect(tester.takeException(), isNull);
+  });
 }

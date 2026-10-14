@@ -32,9 +32,84 @@ class EnvelopeAccountPosition {
     required this.accountId,
     required this.envelopeId,
     required this.amount,
+    this.provenance = PositionProvenance.humanInput,
+    this.provenanceReference,
   });
   final String accountId, envelopeId;
   final Money amount;
+  final PositionProvenance provenance;
+  final String? provenanceReference;
+}
+
+enum PositionProvenance {
+  sourceProof,
+  balancingDeduction,
+  humanConfirmation,
+  humanInput,
+}
+
+class InitialPositionPreview {
+  const InitialPositionPreview({
+    required this.positions,
+    required this.sourceFingerprint,
+  });
+
+  final List<EnvelopeAccountPosition> positions;
+  final String sourceFingerprint;
+}
+
+/// Completes only cells that are mathematically unique from simultaneous row
+/// and column constraints. It never uses recommendations or proportions.
+List<EnvelopeAccountPosition> deduceUniqueInitialPositions({
+  required Map<String, Money> accountBalances,
+  required Map<String, Money> envelopeBalances,
+  required List<EnvelopeAccountPosition> known,
+}) {
+  final values = <(String, String), EnvelopeAccountPosition>{
+    for (final item in known) (item.accountId, item.envelopeId): item,
+  };
+  var changed = true;
+  while (changed) {
+    changed = false;
+    final accountRemaining = <String, int>{
+      for (final entry in accountBalances.entries)
+        entry.key:
+            entry.value.minorUnits -
+            values.values
+                .where((item) => item.accountId == entry.key)
+                .fold(0, (sum, item) => sum + item.amount.minorUnits),
+    };
+    final envelopeRemaining = <String, int>{
+      for (final entry in envelopeBalances.entries)
+        entry.key:
+            entry.value.minorUnits -
+            values.values
+                .where((item) => item.envelopeId == entry.key)
+                .fold(0, (sum, item) => sum + item.amount.minorUnits),
+    };
+    final openAccounts = accountRemaining.entries
+        .where((entry) => entry.value > 0)
+        .toList();
+    final openEnvelopes = envelopeRemaining.entries
+        .where((entry) => entry.value > 0)
+        .toList();
+    if (openAccounts.length == 1 && openEnvelopes.length == 1) {
+      final account = openAccounts.single;
+      final envelope = openEnvelopes.single;
+      if (account.value == envelope.value &&
+          !values.containsKey((account.key, envelope.key))) {
+        values[(account.key, envelope.key)] = EnvelopeAccountPosition(
+          accountId: account.key,
+          envelopeId: envelope.key,
+          amount: Money.fromMinorUnits(account.value),
+          provenance: PositionProvenance.balancingDeduction,
+          provenanceReference: 'Équilibrage unique des lignes et colonnes',
+        );
+        changed = true;
+      }
+    }
+  }
+  return List.unmodifiable(values.values);
 }
 
 class EnvelopeAccountMatrix {

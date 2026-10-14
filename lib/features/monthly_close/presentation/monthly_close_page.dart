@@ -291,6 +291,16 @@ class _CurrentTargetPanel extends ConsumerWidget {
     List<dynamic> envelopes,
     Map<String, Money> accountBalances,
   ) async {
+    InitialPositionPreview preview;
+    try {
+      preview = await ref.read(initialPositionPreviewProvider.future);
+    } catch (_) {
+      preview = const InitialPositionPreview(
+        positions: [],
+        sourceFingerprint: '',
+      );
+    }
+    if (!context.mounted) return;
     final result =
         await showDialog<
           ({List<EnvelopeAccountPosition> positions, String note})
@@ -300,6 +310,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
             accounts: accounts,
             envelopes: envelopes,
             accountBalances: accountBalances,
+            initialPositions: preview.positions,
           ),
         );
     if (result == null) return;
@@ -335,9 +346,11 @@ class _PositionSnapshotDialog extends StatefulWidget {
     required this.accounts,
     required this.envelopes,
     required this.accountBalances,
+    required this.initialPositions,
   });
   final List<dynamic> accounts, envelopes;
   final Map<String, Money> accountBalances;
+  final List<EnvelopeAccountPosition> initialPositions;
   @override
   State<_PositionSnapshotDialog> createState() =>
       _PositionSnapshotDialogState();
@@ -347,6 +360,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   final rows = <_PositionDraft>[];
   final note = TextEditingController();
   var _groupByAccount = false;
+  var _updatingDeductions = false;
   @override
   void initState() {
     super.initState();
@@ -358,9 +372,67 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         rows.add(row);
       }
     }
+    _updatingDeductions = true;
+    for (final proof in widget.initialPositions) {
+      final row = _row(proof.accountId, proof.envelopeId);
+      row.provenance = proof.provenance;
+      row.provenanceReference = proof.provenanceReference;
+      row.locked = true;
+      row.amount.text = proof.amount.dirhams.toStringAsFixed(2);
+    }
+    _updatingDeductions = false;
+    _applyUniqueDeductions();
   }
 
-  void _changed() => setState(() {});
+  void _changed() {
+    if (_updatingDeductions) return;
+    _applyUniqueDeductions();
+    setState(() {});
+  }
+
+  void _applyUniqueDeductions() {
+    _updatingDeductions = true;
+    for (final row in rows.where(
+      (item) => item.provenance == PositionProvenance.balancingDeduction,
+    )) {
+      row.amount.clear();
+      row.provenance = PositionProvenance.humanInput;
+      row.provenanceReference = null;
+      row.locked = false;
+    }
+    final known = <EnvelopeAccountPosition>[];
+    for (final row in rows) {
+      final amount = _cents(row);
+      if (amount <= 0) continue;
+      known.add(
+        EnvelopeAccountPosition(
+          accountId: row.accountId,
+          envelopeId: row.envelopeId,
+          amount: Money.fromMinorUnits(amount),
+          provenance: row.provenance,
+          provenanceReference: row.provenanceReference,
+        ),
+      );
+    }
+    final completed = deduceUniqueInitialPositions(
+      accountBalances: widget.accountBalances,
+      envelopeBalances: {
+        for (final envelope in widget.envelopes)
+          envelope.id as String: envelope.balance as Money,
+      },
+      known: known,
+    );
+    for (final value in completed.where(
+      (item) => item.provenance == PositionProvenance.balancingDeduction,
+    )) {
+      final row = _row(value.accountId, value.envelopeId);
+      row.provenance = value.provenance;
+      row.provenanceReference = value.provenanceReference;
+      row.locked = true;
+      row.amount.text = value.amount.dirhams.toStringAsFixed(2);
+    }
+    _updatingDeductions = false;
+  }
 
   @override
   void dispose() {
@@ -397,7 +469,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
             padding: AppLayout.pagePaddingFor(box.maxWidth),
             children: [
               const SecondaryInfoText(
-                'Déclarez où se trouvent réellement les soldes actuels. Le compte recommandé est une aide facultative : aucune localisation historique n’est déduite automatiquement.',
+                'Les positions prouvées sont préremplies depuis la source certifiée. Les autres restent à confirmer : le compte recommandé n’est jamais considéré comme une preuve.',
               ),
               const SizedBox(height: AppSpacing.sm),
               _summary(),
@@ -521,7 +593,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                     width: 105,
                     child: (e.balance as Money).minorUnits == 0
                         ? const Text('—')
-                        : _amountField(_row(a.id as String, e.id as String)),
+                        : _amountCell(_row(a.id as String, e.id as String)),
                   ),
                 ),
               DataCell(Text(_money(_envelopeTotal(e.id as String)))),
@@ -561,7 +633,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                         Expanded(child: Text(a.name as String)),
                         SizedBox(
                           width: 130,
-                          child: _amountField(
+                          child: _amountCell(
                             _row(a.id as String, e.id as String),
                           ),
                         ),
@@ -616,6 +688,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
 
   void _useRecommendedAccount(dynamic envelope, String accountId) {
     for (final row in rows.where((r) => r.envelopeId == envelope.id)) {
+      if (row.locked) continue;
       row.amount.text = row.accountId == accountId
           ? ((envelope.balance as Money).minorUnits / 100).toStringAsFixed(2)
           : '';
@@ -664,11 +737,25 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     ],
   );
 
-  Widget _amountField(_PositionDraft row) => TextField(
-    key: Key('matrix-${row.envelopeId}-${row.accountId}'),
-    controller: row.amount,
-    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-    decoration: const InputDecoration(labelText: 'MAD', isDense: true),
+  Widget _amountCell(_PositionDraft row) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      TextField(
+        key: Key('matrix-${row.envelopeId}-${row.accountId}'),
+        controller: row.amount,
+        readOnly: row.locked,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(labelText: 'MAD', isDense: true),
+      ),
+      if (row.provenance != PositionProvenance.humanInput)
+        Text(switch (row.provenance) {
+          PositionProvenance.sourceProof => 'Prouvé par la source',
+          PositionProvenance.humanConfirmation => 'Confirmation métier',
+          PositionProvenance.balancingDeduction => 'Équilibrage unique',
+          PositionProvenance.humanInput => '',
+        }, style: Theme.of(context).textTheme.labelSmall),
+    ],
   );
 
   _PositionDraft _row(String accountId, String envelopeId) => rows.firstWhere(
@@ -731,6 +818,8 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           accountId: row.accountId,
           envelopeId: row.envelopeId,
           amount: Money.fromDirhams(amount),
+          provenance: row.provenance,
+          provenanceReference: row.provenanceReference,
         ),
       );
     }
@@ -742,6 +831,9 @@ class _PositionDraft {
   _PositionDraft(this.accountId, this.envelopeId);
   String accountId, envelopeId;
   final amount = TextEditingController();
+  PositionProvenance provenance = PositionProvenance.humanInput;
+  String? provenanceReference;
+  bool locked = false;
 }
 
 class _Kpis extends StatelessWidget {
