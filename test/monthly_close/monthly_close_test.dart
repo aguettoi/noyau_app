@@ -3,6 +3,14 @@ import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/monthly_close/domain/monthly_close.dart';
 
 void main() {
+  test('manual opening positions are explicit inventory arbitrations', () {
+    const position = EnvelopeAccountPosition(
+      accountId: 'account',
+      envelopeId: 'envelope',
+      amount: Money.fromMinorUnits(100),
+    );
+    expect(position.provenance, PositionProvenance.openingInventoryArbitration);
+  });
   test('health distinguishes hard blockers and overridable warnings', () {
     final snapshot = MonthlyCloseSnapshot(
       month: DateTime(2026, 10),

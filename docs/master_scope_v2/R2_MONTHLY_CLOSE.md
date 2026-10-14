@@ -82,6 +82,12 @@ La confirmation OWNER exige une date économique explicite. Le serveur recalcule
 
 Le titulaire du compte sert à expliquer l'action physique, jamais à déduire la responsabilité économique. Un transfert entre comptes de membres différents ne crée donc pas automatiquement une compensation F3 : cette dernière reste réservée à une dette/créance interne explicitement reconnue. Banque vers espèces est présenté comme un retrait/alimentation, espèces vers banque comme un dépôt ; aucun revenu, dépense ou mouvement d'enveloppe supplémentaire n'est créé.
 
+## R2.11 — provenance du point de départ
+
+Chaque position d'ouverture conserve une provenance explicite : preuve de la source certifiée, confirmation métier, arbitrage d'inventaire ou déduction mathématiquement unique. Une saisie libre est un arbitrage par défaut et ne peut donc jamais être relue comme une preuve historique. Les preuves préremplies restent verrouillées ; une cellule libre peut être qualifiée comme confirmation métier explicite.
+
+La traçabilité reste consultable après validation avec montant, compte, enveloppe, provenance, référence, acteur, date, batch et note globale. Cette qualification n'altère aucun calcul futur : la position validée reste la situation actuelle utilisée par R2.10, quelle que soit l'origine de sa connaissance.
+
 Après le point de départ, les mouvements d'enveloppe liés à un événement comportant exactement un compte physique sont projetés automatiquement et référencent le mouvement source. Un transfert de compte sans ventilation d'enveloppe, un transfert d'enveloppe sans compte, ou tout événement ambigu n'est jamais attribué arbitrairement : les écarts deviennent visibles et la matrice repasse à l'état « à fiabiliser ».
 
 ### R2.8 — Inventaire initial contrôlé compte × enveloppe

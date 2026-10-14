@@ -636,7 +636,7 @@ void main() {
       );
       expect(deducedField.controller!.text, '100.00');
       expect(deducedField.readOnly, isTrue);
-      expect(find.text('Équilibrage unique'), findsOneWidget);
+      expect(find.text('Déduit par équilibrage'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('use-recommended-envelope-1')));
       await tester.pump();

@@ -5,9 +5,9 @@ begin;
 do $$
 declare
   owner_id uuid:=gen_random_uuid(); member_id uuid:=gen_random_uuid(); outsider_id uuid:=gen_random_uuid();
-  h_id uuid; other_household_id uuid; account_a uuid; account_b uuid; envelope_a uuid; envelope_b uuid;
+  h_id uuid; other_household_id uuid; account_a uuid; account_b uuid; account_c uuid; envelope_a uuid; envelope_b uuid; envelope_c uuid;
   replay_key uuid:=gen_random_uuid(); batch_id uuid; replay_id uuid; denied boolean;
-  before_events bigint; before_transactions bigint; before_postings bigint; before_movements bigint; preview jsonb;
+  before_events bigint; before_transactions bigint; before_postings bigint; before_movements bigint; preview jsonb; history jsonb;
 begin
   insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
     ('00000000-0000-0000-0000-000000000000',owner_id,'authenticated','authenticated','r29-owner@example.test','',now(),'{}','{}',now(),now()),
@@ -19,20 +19,25 @@ begin
     (h_id,owner_id,'owner'),(h_id,member_id,'member'),(other_household_id,outsider_id,'owner');
   insert into public.accounts(household_id,name,kind,ownership_type) values(h_id,'R2.9 A','bank','household') returning id into account_a;
   insert into public.accounts(household_id,name,kind,ownership_type) values(h_id,'R2.9 B','cash','household') returning id into account_b;
+  insert into public.accounts(household_id,name,kind,ownership_type) values(h_id,'R2.11 C','bank','household') returning id into account_c;
   insert into public.envelopes(household_id,name) values(h_id,'R2.9 source') returning id into envelope_a;
   insert into public.envelopes(household_id,name) values(h_id,'R2.9 human') returning id into envelope_b;
+  insert into public.envelopes(household_id,name) values(h_id,'R2.11 arbitration') returning id into envelope_c;
 
   perform set_config('request.jwt.claim.role','authenticated',true);
   perform set_config('request.jwt.claim.sub',owner_id::text,true);
   execute 'set local role authenticated';
   perform public.create_account_opening_event(h_id,now(),'R2.9 A',70,account_a,null,gen_random_uuid());
-  perform public.create_account_opening_event(h_id,now(),'R2.9 B',30,account_b,null,gen_random_uuid());
+  perform public.create_account_opening_event(h_id,now(),'R2.9 B',20,account_b,null,gen_random_uuid());
+  perform public.create_account_opening_event(h_id,now(),'R2.11 C',10,account_c,null,gen_random_uuid());
   perform public.create_envelope_opening_event(h_id,now(),'R2.9 envelopes',jsonb_build_array(
     jsonb_build_object('envelope_id',envelope_a,'amount',70),
-    jsonb_build_object('envelope_id',envelope_b,'amount',30)
+    jsonb_build_object('envelope_id',envelope_b,'amount',20),
+    jsonb_build_object('envelope_id',envelope_c,'amount',10)
   ),null,gen_random_uuid());
   perform public.record_account_balance_observation(account_a,now(),70,'R2.9 verified balance');
-  perform public.record_account_balance_observation(account_b,now(),30,'R2.9 verified balance');
+  perform public.record_account_balance_observation(account_b,now(),20,'R2.9 verified balance');
+  perform public.record_account_balance_observation(account_c,now(),10,'R2.11 verified balance');
   execute 'reset role';
   insert into public.envelope_account_initial_evidence(household_id,account_id,envelope_id,amount,evidence_kind,source_fingerprint,source_reference,created_by)
   values(h_id,account_a,envelope_a,70,'source_proof','fixture','R2.9 fixture source',owner_id);
@@ -58,19 +63,33 @@ begin
   denied:=false;
   begin perform public.set_envelope_account_position_snapshot(h_id,jsonb_build_array(
     jsonb_build_object('account_id',account_a,'envelope_id',envelope_a,'amount',70,'provenance','sourceProof','provenance_reference','invented'),
-    jsonb_build_object('account_id',account_b,'envelope_id',envelope_b,'amount',30)
+    jsonb_build_object('account_id',account_b,'envelope_id',envelope_b,'amount',20),
+    jsonb_build_object('account_id',account_c,'envelope_id',envelope_c,'amount',10)
   ),'invalid evidence',gen_random_uuid()); exception when others then denied:=true; end;
   if not denied then raise exception 'Unverified evidence accepted'; end if;
 
   batch_id:=public.set_envelope_account_position_snapshot(h_id,jsonb_build_array(
     jsonb_build_object('account_id',account_a,'envelope_id',envelope_a,'amount',70,'provenance','sourceProof','provenance_reference','R2.9 fixture source'),
-    jsonb_build_object('account_id',account_b,'envelope_id',envelope_b,'amount',30,'provenance','humanInput')
+    jsonb_build_object('account_id',account_b,'envelope_id',envelope_b,'amount',20,'provenance','humanConfirmation','provenance_reference','Confirmation explicite lors de l''inventaire'),
+    jsonb_build_object('account_id',account_c,'envelope_id',envelope_c,'amount',10,'provenance','humanInput')
   ),'R2.9 balanced fixture',replay_key);
   replay_id:=public.set_envelope_account_position_snapshot(h_id,'[]','retry',replay_key);
   if replay_id<>batch_id then raise exception 'Idempotent retry did not return the original batch'; end if;
+  history:=public.envelope_account_opening_history(h_id);
+  if jsonb_array_length(history)<>3
+    or not exists(select 1 from jsonb_array_elements(history) x where x->>'provenance'='source_proof')
+    or not exists(select 1 from jsonb_array_elements(history) x where x->>'provenance'='human_confirmation')
+    or not exists(select 1 from jsonb_array_elements(history) x where x->>'provenance'='opening_inventory_arbitration')
+    or exists(select 1 from jsonb_array_elements(history) x where nullif(x->>'created_by','') is null or nullif(x->>'created_at','') is null or nullif(x->>'batch_id','') is null or x->>'note'<>'R2.9 balanced fixture')
+  then raise exception 'Opening provenance history is incomplete'; end if;
   denied:=false;
   begin perform public.set_envelope_account_position_snapshot(h_id,'[]','second initialisation',gen_random_uuid()); exception when others then denied:=true; end;
   if not denied then raise exception 'Second initialisation accepted'; end if;
+
+  perform set_config('request.jwt.claim.sub',outsider_id::text,true);
+  denied:=false;
+  begin perform public.envelope_account_opening_history(h_id); exception when others then denied:=true; end;
+  if not denied then raise exception 'Cross-household opening history accepted'; end if;
 
   execute 'reset role';
   if (select count(*) from public.financial_events where household_id=h_id)<>before_events

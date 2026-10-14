@@ -214,6 +214,20 @@ class _CurrentTargetPanel extends ConsumerWidget {
                   const SecondaryInfoText(
                     'Position actuelle réconciliée avec les comptes et les enveloppes.',
                   ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      key: const Key('opening-position-history'),
+                      onPressed: () => _showOpeningHistory(
+                        context,
+                        ref,
+                        accountName,
+                        envelopeName,
+                      ),
+                      icon: const Icon(Icons.history),
+                      label: const Text('Traçabilité du point de départ'),
+                    ),
+                  ),
                   for (final row in rows)
                     ListTile(
                       dense: true,
@@ -388,6 +402,54 @@ class _CurrentTargetPanel extends ConsumerWidget {
     }
   }
 
+  Future<void> _showOpeningHistory(
+    BuildContext context,
+    WidgetRef ref,
+    String Function(String) accountName,
+    String Function(String) envelopeName,
+  ) async {
+    final history = await ref.read(openingPositionHistoryProvider.future);
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Traçabilité du point de départ'),
+        content: SizedBox(
+          width: 680,
+          child: history.isEmpty
+              ? const Text('Aucun point de départ enregistré.')
+              : ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final entry in history)
+                      ListTile(
+                        title: Text(
+                          '${envelopeName(entry.position.envelopeId)} • ${accountName(entry.position.accountId)} • ${entry.position.amount.dirhams.toStringAsFixed(2)} MAD',
+                        ),
+                        subtitle: Text(
+                          '${_provenanceLabel(entry.position.provenance)}\n${entry.createdAt.toLocal()} • acteur ${entry.actorId}\nbatch ${entry.batchId} • ${entry.note}',
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _provenanceLabel(PositionProvenance value) => switch (value) {
+    PositionProvenance.sourceProof => 'Prouvé par la source',
+    PositionProvenance.humanConfirmation => 'Confirmation métier',
+    PositionProvenance.openingInventoryArbitration => 'Arbitrage d’inventaire',
+    PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
+  };
+
   Future<void> _initialize(
     BuildContext context,
     WidgetRef ref,
@@ -500,7 +562,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       (item) => item.provenance == PositionProvenance.balancingDeduction,
     )) {
       row.amount.clear();
-      row.provenance = PositionProvenance.humanInput;
+      row.provenance = PositionProvenance.openingInventoryArbitration;
       row.provenanceReference = null;
       row.locked = false;
     }
@@ -852,13 +914,38 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: const InputDecoration(labelText: 'MAD', isDense: true),
       ),
-      if (row.provenance != PositionProvenance.humanInput)
+      if (_cents(row) > 0)
         Text(switch (row.provenance) {
           PositionProvenance.sourceProof => 'Prouvé par la source',
           PositionProvenance.humanConfirmation => 'Confirmation métier',
-          PositionProvenance.balancingDeduction => 'Équilibrage unique',
-          PositionProvenance.humanInput => '',
+          PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
+          PositionProvenance.openingInventoryArbitration =>
+            'Arbitrage d’inventaire',
         }, style: Theme.of(context).textTheme.labelSmall),
+      if (!row.locked && _cents(row) > 0)
+        DropdownButton<PositionProvenance>(
+          key: Key('provenance-${row.envelopeId}-${row.accountId}'),
+          isExpanded: true,
+          value: row.provenance,
+          items: const [
+            DropdownMenuItem(
+              value: PositionProvenance.openingInventoryArbitration,
+              child: Text('Arbitrage d’inventaire'),
+            ),
+            DropdownMenuItem(
+              value: PositionProvenance.humanConfirmation,
+              child: Text('Confirmation métier'),
+            ),
+          ],
+          onChanged: (value) => setState(() {
+            row.provenance =
+                value ?? PositionProvenance.openingInventoryArbitration;
+            row.provenanceReference =
+                row.provenance == PositionProvenance.humanConfirmation
+                ? 'Confirmation explicite lors de l’inventaire'
+                : 'Arbitrage explicite lors de l’inventaire';
+          }),
+        ),
     ],
   );
 
@@ -935,8 +1022,9 @@ class _PositionDraft {
   _PositionDraft(this.accountId, this.envelopeId);
   String accountId, envelopeId;
   final amount = TextEditingController();
-  PositionProvenance provenance = PositionProvenance.humanInput;
-  String? provenanceReference;
+  PositionProvenance provenance =
+      PositionProvenance.openingInventoryArbitration;
+  String? provenanceReference = 'Arbitrage explicite lors de l’inventaire';
   bool locked = false;
 }
 

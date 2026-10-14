@@ -349,6 +349,41 @@ class MonthlyCloseGateway {
     );
   }
 
+  Future<List<OpeningPositionHistoryEntry>> fetchOpeningHistory() async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final householdId = household.householdId;
+    if (householdId == null) throw StateError('Aucun foyer actif.');
+    final raw =
+        await ref
+                .read(supabaseClientProvider)
+                .rpc(
+                  'envelope_account_opening_history',
+                  params: {'p_household_id': householdId},
+                )
+            as List;
+    return List.unmodifiable([
+      for (final row in raw.cast<Map>())
+        OpeningPositionHistoryEntry(
+          position: EnvelopeAccountPosition(
+            accountId: row['account_id'].toString(),
+            envelopeId: row['envelope_id'].toString(),
+            amount: Money.fromDirhams(double.parse(row['amount'].toString())),
+            provenance: switch (row['provenance']?.toString()) {
+              'source_proof' => PositionProvenance.sourceProof,
+              'human_confirmation' => PositionProvenance.humanConfirmation,
+              'balancing_deduction' => PositionProvenance.balancingDeduction,
+              _ => PositionProvenance.openingInventoryArbitration,
+            },
+            provenanceReference: row['provenance_reference']?.toString(),
+          ),
+          batchId: row['batch_id'].toString(),
+          actorId: row['created_by'].toString(),
+          createdAt: DateTime.parse(row['created_at'].toString()),
+          note: row['note']?.toString() ?? '',
+        ),
+    ]);
+  }
+
   Future<void> executeReallocation(
     DateTime month,
     EnvelopeAccountMatrix matrix,
@@ -488,6 +523,10 @@ final envelopeAccountMatrixProvider = FutureProvider<EnvelopeAccountMatrix>(
 final initialPositionPreviewProvider = FutureProvider<InitialPositionPreview>(
   (ref) => ref.watch(monthlyCloseGatewayProvider).fetchInitialPositionPreview(),
 );
+final openingPositionHistoryProvider =
+    FutureProvider<List<OpeningPositionHistoryEntry>>(
+      (ref) => ref.watch(monthlyCloseGatewayProvider).fetchOpeningHistory(),
+    );
 final executeMonthlyReallocationProvider =
     Provider<
       Future<void> Function(

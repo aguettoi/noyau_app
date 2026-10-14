@@ -32,7 +32,7 @@ class EnvelopeAccountPosition {
     required this.accountId,
     required this.envelopeId,
     required this.amount,
-    this.provenance = PositionProvenance.humanInput,
+    this.provenance = PositionProvenance.openingInventoryArbitration,
     this.provenanceReference,
   });
   final String accountId, envelopeId;
@@ -45,7 +45,20 @@ enum PositionProvenance {
   sourceProof,
   balancingDeduction,
   humanConfirmation,
-  humanInput,
+  openingInventoryArbitration,
+}
+
+class OpeningPositionHistoryEntry {
+  const OpeningPositionHistoryEntry({
+    required this.position,
+    required this.batchId,
+    required this.actorId,
+    required this.createdAt,
+    required this.note,
+  });
+  final EnvelopeAccountPosition position;
+  final String batchId, actorId, note;
+  final DateTime createdAt;
 }
 
 class InitialPositionPreview {
