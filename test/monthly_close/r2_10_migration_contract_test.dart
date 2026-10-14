@@ -6,6 +6,9 @@ void main() {
   final sql = File(
     'supabase/migrations/20261014203935_r2_10_global_transfer_netting.sql',
   ).readAsStringSync().toLowerCase();
+  final cashGuard = File(
+    'supabase/migrations/20261014205113_r2_10_cash_transfer_guard.sql',
+  ).readAsStringSync().toLowerCase();
 
   test('R2.10 independently validates global netting and current targets', () {
     expect(sql, contains('r2_expected_transfers'));
@@ -30,5 +33,12 @@ void main() {
     expect(sql, contains('idempotency_key=p_idempotency_key'));
     expect(sql, contains('enable row level security'));
     expect(sql, contains('revoke all'));
+  });
+
+  test('R2.10 rejects cash-to-cash as a physical account transfer', () {
+    expect(cashGuard, contains("v_from_kind='cash'"));
+    expect(cashGuard, contains("v_to_kind='cash'"));
+    expect(cashGuard, contains('cash-to-cash reallocation requires'));
+    expect(cashGuard, contains('before insert'));
   });
 }
