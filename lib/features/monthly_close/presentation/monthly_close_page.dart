@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/money/money.dart';
@@ -658,8 +660,17 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                   ),
                 ],
                 selected: {_groupByAccount},
-                onSelectionChanged: (value) =>
-                    setState(() => _groupByAccount = value.single),
+                onSelectionChanged: (value) {
+                  final groupByAccount = value.single;
+                  setState(() => _groupByAccount = groupByAccount);
+                  if (!groupByAccount) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (_matrixHorizontal.hasClients) {
+                        _matrixHorizontal.jumpTo(0);
+                      }
+                    });
+                  }
+                },
               ),
               const SizedBox(height: AppSpacing.sm),
               if (_groupByAccount)
@@ -740,7 +751,27 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   }
 
   Widget _desktopMatrix() {
-    const envelopeWidth = 240.0, accountWidth = 190.0, totalWidth = 135.0;
+    final envelopeWidth = _desktopColumnWidth(
+      <String>[
+        'Enveloppe',
+        for (final envelope in widget.envelopes) envelope.name as String,
+        for (final envelope in widget.envelopes)
+          if (envelope.recommendedAccountId != null)
+            'Compte structurel recommandé : ${_recommendedAccountName(envelope) ?? ''}',
+      ],
+      min: 280,
+      max: 380,
+    );
+    final accountWidth = _desktopColumnWidth(
+      <String>[
+        for (final account in widget.accounts) account.name as String,
+        'Arbitrage d’inventaire',
+        'Confirmation métier',
+      ],
+      min: 190,
+      max: 230,
+    );
+    const totalWidth = 135.0;
     final tableWidth =
         envelopeWidth + widget.accounts.length * accountWidth + 3 * totalWidth;
     final viewportHeight = (MediaQuery.sizeOf(context).height * .56).clamp(
@@ -806,7 +837,19 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              cell(_envelopeHeading(envelope), envelopeWidth),
+                              SizedBox(
+                                key: Key(
+                                  'matrix-envelope-heading-${envelope.id}',
+                                ),
+                                width: envelopeWidth,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.sm,
+                                    vertical: AppSpacing.xs,
+                                  ),
+                                  child: _envelopeHeading(envelope),
+                                ),
+                              ),
                               for (final account in widget.accounts)
                                 cell(
                                   (envelope.balance as Money).minorUnits == 0
@@ -859,6 +902,26 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     );
   }
 
+  double _desktopColumnWidth(
+    Iterable<String> labels, {
+    required double min,
+    required double max,
+  }) {
+    final style = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+    final textScaler = MediaQuery.textScalerOf(context);
+    var widest = 0.0;
+    for (final label in labels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      widest = math.max(widest, painter.width);
+    }
+    return (widest + AppSpacing.md * 2).clamp(min, max).toDouble();
+  }
+
   Widget _mobileMatrix() => Column(
     children: [
       for (final e in widget.envelopes)
@@ -900,18 +963,14 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
 
   Widget _envelopeHeading(dynamic envelope) {
     final recommendedId = envelope.recommendedAccountId as String?;
-    final recommended = recommendedId == null
-        ? null
-        : widget.accounts
-              .where((a) => a.id == recommendedId)
-              .map((a) => a.name as String)
-              .firstOrNull;
+    final recommended = _recommendedAccountName(envelope);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           envelope.name as String,
           style: const TextStyle(fontWeight: FontWeight.w700),
+          softWrap: true,
         ),
         if (recommended != null)
           Wrap(
@@ -933,6 +992,15 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           ),
       ],
     );
+  }
+
+  String? _recommendedAccountName(dynamic envelope) {
+    final recommendedId = envelope.recommendedAccountId as String?;
+    if (recommendedId == null) return null;
+    return widget.accounts
+        .where((account) => account.id == recommendedId)
+        .map((account) => account.name as String)
+        .firstOrNull;
   }
 
   void _useRecommendedAccount(dynamic envelope, String accountId) {
@@ -1010,42 +1078,49 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
               isDense: true,
             ),
           ),
-          if (_cents(row) > 0)
-            Text(switch (row.provenance) {
-              PositionProvenance.sourceProof => 'Prouvé par la source',
-              PositionProvenance.humanConfirmation => 'Confirmation métier',
-              PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
-              PositionProvenance.openingInventoryArbitration =>
-                'Arbitrage d’inventaire',
-            }, style: Theme.of(context).textTheme.labelSmall),
+          if (row.locked && _cents(row) > 0)
+            Text(
+              _positionProvenanceLabel(row.provenance),
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
           if (!row.locked && _cents(row) > 0)
-            DropdownButton<PositionProvenance>(
-              key: Key('provenance-${row.envelopeId}-${row.accountId}'),
-              isExpanded: true,
-              value: row.provenance,
-              items: const [
-                DropdownMenuItem(
-                  value: PositionProvenance.openingInventoryArbitration,
-                  child: Text('Arbitrage d’inventaire'),
-                ),
-                DropdownMenuItem(
-                  value: PositionProvenance.humanConfirmation,
-                  child: Text('Confirmation métier'),
-                ),
-              ],
-              onChanged: (value) => setState(() {
-                row.provenance =
-                    value ?? PositionProvenance.openingInventoryArbitration;
-                row.provenanceReference =
-                    row.provenance == PositionProvenance.humanConfirmation
-                    ? 'Confirmation explicite lors de l’inventaire'
-                    : 'Arbitrage explicite lors de l’inventaire';
-              }),
+            DropdownButtonHideUnderline(
+              child: DropdownButton<PositionProvenance>(
+                key: Key('provenance-${row.envelopeId}-${row.accountId}'),
+                isDense: true,
+                isExpanded: true,
+                value: row.provenance,
+                items: const [
+                  DropdownMenuItem(
+                    value: PositionProvenance.openingInventoryArbitration,
+                    child: Text('Arbitrage d’inventaire'),
+                  ),
+                  DropdownMenuItem(
+                    value: PositionProvenance.humanConfirmation,
+                    child: Text('Confirmation métier'),
+                  ),
+                ],
+                onChanged: (value) => setState(() {
+                  row.provenance =
+                      value ?? PositionProvenance.openingInventoryArbitration;
+                  row.provenanceReference =
+                      row.provenance == PositionProvenance.humanConfirmation
+                      ? 'Confirmation explicite lors de l’inventaire'
+                      : 'Arbitrage explicite lors de l’inventaire';
+                }),
+              ),
             ),
         ],
       ),
     ),
   );
+
+  String _positionProvenanceLabel(PositionProvenance value) => switch (value) {
+    PositionProvenance.sourceProof => 'Prouvé par la source',
+    PositionProvenance.humanConfirmation => 'Confirmation métier',
+    PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
+    PositionProvenance.openingInventoryArbitration => 'Arbitrage d’inventaire',
+  };
 
   _PositionDraft _row(String accountId, String envelopeId) => rows.firstWhere(
     (r) => r.accountId == accountId && r.envelopeId == envelopeId,

@@ -781,11 +781,21 @@ void main() {
         for (var index = 1; index <= 18; index++)
           RemoteEnvelopeBalance(
             id: 'envelope-$index',
-            name: index == 18 ? 'Dernière enveloppe' : 'Enveloppe $index',
+            name: switch (index) {
+              1 => 'Traite maison',
+              2 => 'Reste epargne (primes Ibrahim et Nora)',
+              18 => 'Dernière enveloppe',
+              _ => 'Enveloppe $index',
+            },
             inflows: const Money.fromMinorUnits(1000),
             outflows: const Money.fromMinorUnits(0),
             balance: const Money.fromMinorUnits(1000),
             isSystem: false,
+            recommendedAccountId: switch (index) {
+              1 => 'cih',
+              2 => 'arreda',
+              _ => null,
+            },
           ),
       ];
       await tester.pumpWidget(
@@ -860,24 +870,50 @@ void main() {
       expect(find.text('Affecté'), findsOneWidget);
       expect(find.text('Solde enveloppe'), findsOneWidget);
       expect(find.text('Écart'), findsOneWidget);
+      expect(find.text('Traite maison'), findsOneWidget);
       expect(
-        find.byTooltip('Enveloppe 1 • Islamique / Arreda Ibrahim'),
+        find.text('Reste epargne (primes Ibrahim et Nora)'),
         findsOneWidget,
       );
-      await tester.drag(
-        find.byKey(const Key('matrix-horizontal-scroll')),
-        const Offset(-600, 0),
+      expect(
+        find.text('Compte structurel recommandé : CIH Ibrahim'),
+        findsOneWidget,
       );
+      expect(
+        find.byTooltip('Traite maison • Islamique / Arreda Ibrahim'),
+        findsOneWidget,
+      );
+      final horizontalScrollable = find.descendant(
+        of: find.byKey(const Key('matrix-horizontal-scroll')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.right &&
+              widget.restorationId == null,
+        ),
+      );
+      expect(horizontalScrollable, findsOneWidget);
+      final horizontalState = tester.state<ScrollableState>(
+        horizontalScrollable,
+      );
+      expect(horizontalState.position.pixels, 0);
+      final viewportRect = tester.getRect(
+        find.byKey(const Key('matrix-horizontal-scroll')),
+      );
+      final firstHeadingRect = tester.getRect(
+        find.byKey(const Key('matrix-envelope-heading-envelope-1')),
+      );
+      expect(firstHeadingRect.left, greaterThanOrEqualTo(viewportRect.left));
+      await tester.drag(header, const Offset(-600, 0));
       await tester.pumpAndSettle();
+      expect(horizontalState.position.pixels, greaterThan(0));
       final arredaField = tester.widget<TextField>(
         find.byKey(const Key('matrix-envelope-1-arreda')),
       );
       expect(arredaField.decoration?.labelText, 'Islamique / Arreda Ibrahim');
-      await tester.drag(
-        find.byKey(const Key('matrix-horizontal-scroll')),
-        const Offset(600, 0),
-      );
+      await tester.drag(header, const Offset(600, 0));
       await tester.pumpAndSettle();
+      expect(horizontalState.position.pixels, 0);
       final headerTop = tester.getTopLeft(header).dy;
       final matrixScrollable = find.byWidgetPredicate(
         (widget) =>
@@ -918,9 +954,39 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Confirmation métier'), findsWidgets);
 
+      for (final width in <double>[1280, 1600, 390, 1024]) {
+        tester.view.physicalSize = Size(width, 720);
+        await tester.pumpAndSettle();
+        expect(find.text('Traite maison'), findsOneWidget);
+        expect(
+          find.text('Reste epargne (primes Ibrahim et Nora)'),
+          findsOneWidget,
+        );
+        for (final account in accounts) {
+          expect(find.text(account.name), findsWidgets);
+        }
+        expect(tester.takeException(), isNull);
+      }
+
       await tester.tap(find.text('Par compte'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('matrix-account-awb')), findsOneWidget);
+      await tester.tap(find.text('Par enveloppe'));
+      await tester.pumpAndSettle();
+      final restoredHorizontalState = tester.state<ScrollableState>(
+        find.descendant(
+          of: find.byKey(const Key('matrix-horizontal-scroll')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Scrollable &&
+                widget.axisDirection == AxisDirection.right &&
+                widget.restorationId == null,
+          ),
+        ),
+      );
+      expect(restoredHorizontalState.position.pixels, 0);
+      await tester.tap(find.text('Par compte'));
+      await tester.pumpAndSettle();
       final dialogScrollableState = find
           .byType(Scrollable)
           .evaluate()
@@ -944,6 +1010,9 @@ void main() {
       );
       await tester.pump();
       expect(find.byKey(const Key('save-matrix-snapshot')), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('save-matrix-snapshot')), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
