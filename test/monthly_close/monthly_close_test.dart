@@ -300,4 +300,124 @@ void main() {
     );
     expect(result, isEmpty);
   });
+
+  test(
+    'inventory assistant protects a confirmed position and fills only residual',
+    () {
+      final proposal = proposeInventoryVentilation(
+        accountBalances: {
+          'cih': Money.fromDirhams(59330),
+          'arreda': Money.fromDirhams(4150),
+        },
+        envelopeBalances: {'home': Money.fromDirhams(63480)},
+        fixedPositions: const [
+          EnvelopeAccountPosition(
+            accountId: 'cih',
+            envelopeId: 'home',
+            amount: Money.fromMinorUnits(5933000),
+            provenance: PositionProvenance.humanConfirmation,
+          ),
+        ],
+        rules: const [
+          InventoryVentilationRule(
+            envelopeId: 'home',
+            admissibleAccountIds: ['arreda'],
+            preferredAccountIds: ['arreda'],
+            reason: 'Compte structurel habituel',
+          ),
+        ],
+      );
+      expect(proposal.balanced, isTrue);
+      expect(proposal.candidates, hasLength(1));
+      expect(proposal.candidates.single.position.accountId, 'arreda');
+      expect(proposal.candidates.single.position.amount.dirhams, 4150);
+      expect(
+        proposal.candidates.single.position.provenance,
+        PositionProvenance.openingInventoryArbitration,
+      );
+    },
+  );
+
+  test(
+    'inventory assistant labels a deterministic multiple solution as arbitration',
+    () {
+      final proposal = proposeInventoryVentilation(
+        accountBalances: {
+          'a': Money.fromDirhams(60),
+          'b': Money.fromDirhams(40),
+        },
+        envelopeBalances: {
+          'x': Money.fromDirhams(50),
+          'y': Money.fromDirhams(50),
+        },
+        fixedPositions: const [],
+        rules: const [
+          InventoryVentilationRule(
+            envelopeId: 'x',
+            admissibleAccountIds: ['a', 'b'],
+            preferredAccountIds: ['a'],
+            reason: 'Répartition multi-comptes',
+          ),
+          InventoryVentilationRule(
+            envelopeId: 'y',
+            admissibleAccountIds: ['a', 'b'],
+            preferredAccountIds: ['b'],
+            reason: 'Répartition multi-comptes',
+          ),
+        ],
+      );
+      expect(proposal.balanced, isTrue);
+      expect(proposal.isUnique, isFalse);
+      expect(
+        proposal.candidates.every(
+          (candidate) =>
+              candidate.position.provenance ==
+              PositionProvenance.openingInventoryArbitration,
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'inventory assistant reports a partial proposal when a rule is missing',
+    () {
+      final proposal = proposeInventoryVentilation(
+        accountBalances: {'a': Money.fromDirhams(100)},
+        envelopeBalances: {'unknown': Money.fromDirhams(100)},
+        fixedPositions: const [],
+        rules: const [],
+      );
+      expect(proposal.balanced, isFalse);
+      expect(proposal.candidates, isEmpty);
+      expect(proposal.remainingEnvelopeAmount.dirhams, 100);
+    },
+  );
+
+  test('inventory assistant supports one, two and N admissible accounts', () {
+    final proposal = proposeInventoryVentilation(
+      accountBalances: {
+        'a': Money.fromDirhams(10),
+        'b': Money.fromDirhams(20),
+        'c': Money.fromDirhams(30),
+      },
+      envelopeBalances: {'shared': Money.fromDirhams(60)},
+      fixedPositions: const [],
+      rules: const [
+        InventoryVentilationRule(
+          envelopeId: 'shared',
+          admissibleAccountIds: ['a', 'b', 'c'],
+          reason: 'Répartition multi-membres',
+        ),
+      ],
+    );
+    expect(proposal.balanced, isTrue);
+    expect(
+      proposal.candidates.fold<int>(
+        0,
+        (sum, candidate) => sum + candidate.position.amount.minorUnits,
+      ),
+      6000,
+    );
+  });
 }

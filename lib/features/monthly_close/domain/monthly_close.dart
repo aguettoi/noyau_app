@@ -71,6 +71,296 @@ class InitialPositionPreview {
   final String sourceFingerprint;
 }
 
+class InventoryVentilationRule {
+  const InventoryVentilationRule({
+    required this.envelopeId,
+    required this.admissibleAccountIds,
+    this.preferredAccountIds = const [],
+    required this.reason,
+  });
+
+  final String envelopeId;
+  final List<String> admissibleAccountIds;
+  final List<String> preferredAccountIds;
+  final String reason;
+}
+
+class InventoryVentilationCandidate {
+  const InventoryVentilationCandidate({
+    required this.position,
+    required this.reason,
+    required this.mathematicallyForced,
+  });
+
+  final EnvelopeAccountPosition position;
+  final String reason;
+  final bool mathematicallyForced;
+}
+
+class InventoryVentilationProposal {
+  const InventoryVentilationProposal({
+    required this.candidates,
+    required this.remainingEnvelopeAmount,
+    required this.remainingAccountCapacity,
+    required this.initialResidual,
+  });
+
+  final List<InventoryVentilationCandidate> candidates;
+  final Money remainingEnvelopeAmount;
+  final Money remainingAccountCapacity;
+  final Money initialResidual;
+
+  bool get balanced =>
+      remainingEnvelopeAmount.minorUnits == 0 &&
+      remainingAccountCapacity.minorUnits == 0;
+  bool get isUnique =>
+      balanced &&
+      candidates.every((candidate) => candidate.mathematicallyForced);
+}
+
+/// Builds a deterministic, read-only opening-inventory proposal. Existing
+/// positions are immutable constraints. Structural recommendations only order
+/// admissible edges and never become historical proof.
+InventoryVentilationProposal proposeInventoryVentilation({
+  required Map<String, Money> accountBalances,
+  required Map<String, Money> envelopeBalances,
+  required List<EnvelopeAccountPosition> fixedPositions,
+  required List<InventoryVentilationRule> rules,
+}) {
+  final accountRemaining = <String, int>{
+    for (final entry in accountBalances.entries)
+      entry.key: entry.value.minorUnits,
+  };
+  final envelopeRemaining = <String, int>{
+    for (final entry in envelopeBalances.entries)
+      entry.key: entry.value.minorUnits,
+  };
+  for (final position in fixedPositions) {
+    accountRemaining.update(
+      position.accountId,
+      (value) => value - position.amount.minorUnits,
+      ifAbsent: () => -position.amount.minorUnits,
+    );
+    envelopeRemaining.update(
+      position.envelopeId,
+      (value) => value - position.amount.minorUnits,
+      ifAbsent: () => -position.amount.minorUnits,
+    );
+  }
+  final initialResidual = envelopeRemaining.values.fold<int>(
+    0,
+    (a, b) => a + b,
+  );
+  if (accountRemaining.values.any((value) => value < 0) ||
+      envelopeRemaining.values.any((value) => value < 0)) {
+    return InventoryVentilationProposal(
+      candidates: const [],
+      remainingEnvelopeAmount: Money.fromMinorUnits(
+        envelopeRemaining.values
+            .where((value) => value > 0)
+            .fold(0, (a, b) => a + b),
+      ),
+      remainingAccountCapacity: Money.fromMinorUnits(
+        accountRemaining.values
+            .where((value) => value > 0)
+            .fold(0, (a, b) => a + b),
+      ),
+      initialResidual: Money.fromMinorUnits(initialResidual),
+    );
+  }
+
+  final byEnvelope = {for (final rule in rules) rule.envelopeId: rule};
+  final fixedCells = {
+    for (final position in fixedPositions)
+      if (position.amount.minorUnits > 0)
+        (position.accountId, position.envelopeId),
+  };
+  final candidates = <InventoryVentilationCandidate>[];
+
+  void allocate(String envelopeId, String accountId, int amount, bool forced) {
+    if (amount <= 0) return;
+    envelopeRemaining[envelopeId] = envelopeRemaining[envelopeId]! - amount;
+    accountRemaining[accountId] = accountRemaining[accountId]! - amount;
+    final rule = byEnvelope[envelopeId]!;
+    candidates.add(
+      InventoryVentilationCandidate(
+        position: EnvelopeAccountPosition(
+          accountId: accountId,
+          envelopeId: envelopeId,
+          amount: Money.fromMinorUnits(amount),
+          provenance: PositionProvenance.openingInventoryArbitration,
+          provenanceReference: 'Assistant R2.12 — ${rule.reason}',
+        ),
+        reason: forced
+            ? 'Contrainte mathématique unique parmi les comptes admissibles'
+            : rule.reason,
+        mathematicallyForced: forced,
+      ),
+    );
+  }
+
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (final envelopeId in envelopeRemaining.keys.toList()..sort()) {
+      final amount = envelopeRemaining[envelopeId] ?? 0;
+      final rule = byEnvelope[envelopeId];
+      if (amount <= 0 || rule == null) continue;
+      final available = rule.admissibleAccountIds
+          .where(
+            (id) =>
+                (accountRemaining[id] ?? 0) > 0 &&
+                !fixedCells.contains((id, envelopeId)),
+          )
+          .toList();
+      if (available.length == 1) {
+        final accountId = available.single;
+        allocate(
+          envelopeId,
+          accountId,
+          amount < accountRemaining[accountId]!
+              ? amount
+              : accountRemaining[accountId]!,
+          true,
+        );
+        changed = true;
+      }
+    }
+    for (final accountId in accountRemaining.keys.toList()..sort()) {
+      final capacity = accountRemaining[accountId] ?? 0;
+      if (capacity <= 0) continue;
+      final available = envelopeRemaining.entries
+          .where(
+            (entry) =>
+                entry.value > 0 &&
+                (byEnvelope[entry.key]?.admissibleAccountIds.contains(
+                      accountId,
+                    ) ??
+                    false) &&
+                !fixedCells.contains((accountId, entry.key)),
+          )
+          .map((entry) => entry.key)
+          .toList();
+      if (available.length == 1) {
+        final envelopeId = available.single;
+        allocate(
+          envelopeId,
+          accountId,
+          capacity < envelopeRemaining[envelopeId]!
+              ? capacity
+              : envelopeRemaining[envelopeId]!,
+          true,
+        );
+        changed = true;
+      }
+    }
+  }
+
+  final openEnvelopes =
+      envelopeRemaining.entries
+          .where(
+            (entry) => entry.value > 0 && byEnvelope.containsKey(entry.key),
+          )
+          .map((entry) => entry.key)
+          .toList()
+        ..sort((a, b) {
+          final count = byEnvelope[a]!.admissibleAccountIds.length.compareTo(
+            byEnvelope[b]!.admissibleAccountIds.length,
+          );
+          return count != 0 ? count : a.compareTo(b);
+        });
+  final source = '__source__', sink = '__sink__';
+  final residual = <String, Map<String, int>>{};
+  final adjacency = <String, List<String>>{};
+  void edge(String from, String to, int capacity) {
+    residual.putIfAbsent(from, () => {})[to] = capacity;
+    residual.putIfAbsent(to, () => {})[from] = 0;
+    adjacency.putIfAbsent(from, () => []).add(to);
+    adjacency.putIfAbsent(to, () => []).add(from);
+  }
+
+  for (final envelopeId in openEnvelopes) {
+    final envelopeNode = 'e:$envelopeId';
+    edge(source, envelopeNode, envelopeRemaining[envelopeId]!);
+    final rule = byEnvelope[envelopeId]!;
+    final orderedAccounts = <String>[
+      ...rule.preferredAccountIds,
+      ...rule.admissibleAccountIds.where(
+        (id) => !rule.preferredAccountIds.contains(id),
+      ),
+    ].where((id) => (accountRemaining[id] ?? 0) > 0).toSet().toList();
+    orderedAccounts.removeWhere(
+      (accountId) => fixedCells.contains((accountId, envelopeId)),
+    );
+    for (final accountId in orderedAccounts) {
+      edge(envelopeNode, 'a:$accountId', envelopeRemaining[envelopeId]!);
+    }
+  }
+  for (final entry in accountRemaining.entries.where(
+    (entry) => entry.value > 0,
+  )) {
+    edge('a:${entry.key}', sink, entry.value);
+  }
+  while (true) {
+    final parent = <String, String?>{source: null};
+    final queue = <String>[source];
+    for (
+      var index = 0;
+      index < queue.length && !parent.containsKey(sink);
+      index++
+    ) {
+      final node = queue[index];
+      for (final next in adjacency[node] ?? const <String>[]) {
+        if (!parent.containsKey(next) && (residual[node]?[next] ?? 0) > 0) {
+          parent[next] = node;
+          queue.add(next);
+        }
+      }
+    }
+    if (!parent.containsKey(sink)) break;
+    var flow = 1 << 60;
+    var node = sink;
+    while (parent[node] != null) {
+      final previous = parent[node]!;
+      flow = flow < residual[previous]![node]!
+          ? flow
+          : residual[previous]![node]!;
+      node = previous;
+    }
+    node = sink;
+    while (parent[node] != null) {
+      final previous = parent[node]!;
+      residual[previous]![node] = residual[previous]![node]! - flow;
+      residual[node]![previous] = residual[node]![previous]! + flow;
+      node = previous;
+    }
+  }
+  for (final envelopeId in openEnvelopes) {
+    final rule = byEnvelope[envelopeId]!;
+    final envelopeNode = 'e:$envelopeId';
+    for (final accountId in rule.admissibleAccountIds) {
+      if (fixedCells.contains((accountId, envelopeId))) continue;
+      final accountNode = 'a:$accountId';
+      final amount = residual[accountNode]?[envelopeNode] ?? 0;
+      if (amount > 0) allocate(envelopeId, accountId, amount, false);
+    }
+  }
+  return InventoryVentilationProposal(
+    candidates: List.unmodifiable(candidates),
+    remainingEnvelopeAmount: Money.fromMinorUnits(
+      envelopeRemaining.values
+          .where((value) => value > 0)
+          .fold(0, (a, b) => a + b),
+    ),
+    remainingAccountCapacity: Money.fromMinorUnits(
+      accountRemaining.values
+          .where((value) => value > 0)
+          .fold(0, (a, b) => a + b),
+    ),
+    initialResidual: Money.fromMinorUnits(initialResidual),
+  );
+}
+
 /// Completes only cells that are mathematically unique from simultaneous row
 /// and column constraints. It never uses recommendations or proportions.
 List<EnvelopeAccountPosition> deduceUniqueInitialPositions({

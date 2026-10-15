@@ -90,6 +90,12 @@ La traçabilité reste consultable après validation avec montant, compte, envel
 
 Après le point de départ, les mouvements d'enveloppe liés à un événement comportant exactement un compte physique sont projetés automatiquement et référencent le mouvement source. Un transfert de compte sans ventilation d'enveloppe, un transfert d'enveloppe sans compte, ou tout événement ambigu n'est jamais attribué arbitrairement : les écarts deviennent visibles et la matrice repasse à l'état « à fiabiliser ».
 
+## R2.12 — assistant de ventilation d'inventaire
+
+L'assistant construit une proposition locale à partir des soldes résiduels, des positions déjà établies et des règles structurelles. Toute position existante est une contrainte immuable. Une recommandation sert uniquement à ordonner les comptes admissibles : elle ne devient jamais une preuve historique.
+
+La prévisualisation détaille chaque enveloppe, compte, montant et raison avant toute modification. L'acceptation ne remplit que le brouillon et qualifie chaque nouvelle cellule comme `Arbitrage d’inventaire`, avec une référence R2.12. La validation définitive reste celle du point de départ R2.9/R2.11. L'assistant ne crée ni FinancialEvent, ni Grand Ledger, ni mouvement d'enveloppe, ni transfert physique.
+
 ### R2.8 — Inventaire initial contrôlé compte × enveloppe
 
 L'écran `Fin de mois → Établir le point de départ` permet à un OWNER de déclarer explicitement la localisation physique du stock existant. Il démarre vide : les recommandations structurelles ne préremplissent jamais la matrice. Elles sont affichées comme aide facultative et ne sont appliquées qu'après une action humaine explicite. Les enveloppes à solde nul ne demandent aucune saisie.

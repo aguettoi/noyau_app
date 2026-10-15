@@ -132,6 +132,8 @@ class _CurrentTargetPanel extends ConsumerWidget {
               'La position compte × enveloppe ne peut pas être chargée.',
             ),
             data: (value) {
+              final configured =
+                  targets.valueOrNull ?? const <MonthlyEnvelopeAccountTarget>[];
               if (!value.reliable) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,8 +177,6 @@ class _CurrentTargetPanel extends ConsumerWidget {
                   ],
                 );
               }
-              final configured =
-                  targets.valueOrNull ?? const <MonthlyEnvelopeAccountTarget>[];
               final keys = <(String, String)>{
                 for (final p in value.positions) (p.accountId, p.envelopeId),
                 for (final t in configured) (t.accountId, t.envelopeId),
@@ -468,6 +468,12 @@ class _CurrentTargetPanel extends ConsumerWidget {
         sourceFingerprint: '',
       );
     }
+    List<MonthlyEnvelopeAccountTarget> structuralTargets;
+    try {
+      structuralTargets = await ref.read(monthlyCloseTargetsProvider.future);
+    } catch (_) {
+      structuralTargets = const [];
+    }
     if (!context.mounted) return;
     final result =
         await showDialog<
@@ -479,6 +485,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
             envelopes: envelopes,
             accountBalances: accountBalances,
             initialPositions: preview.positions,
+            structuralTargets: structuralTargets,
           ),
         );
     if (result == null) return;
@@ -515,10 +522,12 @@ class _PositionSnapshotDialog extends StatefulWidget {
     required this.envelopes,
     required this.accountBalances,
     required this.initialPositions,
+    required this.structuralTargets,
   });
   final List<dynamic> accounts, envelopes;
   final Map<String, Money> accountBalances;
   final List<EnvelopeAccountPosition> initialPositions;
+  final List<MonthlyEnvelopeAccountTarget> structuralTargets;
   @override
   State<_PositionSnapshotDialog> createState() =>
       _PositionSnapshotDialogState();
@@ -548,6 +557,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       row.provenance = proof.provenance;
       row.provenanceReference = proof.provenanceReference;
       row.locked = true;
+      row.fixed = true;
       row.amount.text = proof.amount.dirhams.toStringAsFixed(2);
     }
     _updatingDeductions = false;
@@ -563,7 +573,9 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   void _applyUniqueDeductions() {
     _updatingDeductions = true;
     for (final row in rows.where(
-      (item) => item.provenance == PositionProvenance.balancingDeduction,
+      (item) =>
+          item.provenance == PositionProvenance.balancingDeduction &&
+          !item.fixed,
     )) {
       row.amount.clear();
       row.provenance = PositionProvenance.openingInventoryArbitration;
@@ -645,6 +657,16 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
               ),
               const SizedBox(height: AppSpacing.sm),
               _summary(),
+              const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonalIcon(
+                  key: const Key('propose-inventory-ventilation'),
+                  onPressed: () => _previewInventoryVentilation(context),
+                  icon: const Icon(Icons.auto_fix_high_outlined),
+                  label: const Text('Proposer une ventilation'),
+                ),
+              ),
               const SizedBox(height: AppSpacing.sm),
               SegmentedButton<bool>(
                 segments: const [
@@ -748,6 +770,156 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         ],
       ),
     );
+  }
+
+  InventoryVentilationProposal _inventoryVentilationProposal() {
+    final fixed = <EnvelopeAccountPosition>[
+      for (final row in rows)
+        if (_cents(row) > 0)
+          EnvelopeAccountPosition(
+            accountId: row.accountId,
+            envelopeId: row.envelopeId,
+            amount: Money.fromMinorUnits(_cents(row)),
+            provenance: row.provenance,
+            provenanceReference: row.provenanceReference,
+          ),
+    ];
+    final targetAccounts = <String, Set<String>>{};
+    for (final target in widget.structuralTargets) {
+      if (target.amount.minorUnits <= 0) continue;
+      targetAccounts
+          .putIfAbsent(target.envelopeId, () => <String>{})
+          .add(target.accountId);
+    }
+    final rules = <InventoryVentilationRule>[];
+    for (final envelope in widget.envelopes) {
+      final envelopeId = envelope.id as String;
+      final kind = envelope.effectiveRecommendationKind as String;
+      final recommended = envelope.recommendedAccountId as String?;
+      final scenarioAccounts =
+          (targetAccounts[envelopeId]?.toList() ?? <String>[])..sort();
+      final admissible = switch (kind) {
+        'single_account' when recommended != null => <String>[recommended],
+        'scenario_split' || 'member_beneficiary' => <String>[
+          ...scenarioAccounts,
+          if (recommended != null && !scenarioAccounts.contains(recommended))
+            recommended,
+        ],
+        _ => const <String>[],
+      };
+      if (admissible.isEmpty) continue;
+      final preferred = <String>[
+        ...?(recommended == null ? null : <String>[recommended]),
+        ...scenarioAccounts.where((id) => id != recommended),
+      ];
+      rules.add(
+        InventoryVentilationRule(
+          envelopeId: envelopeId,
+          admissibleAccountIds: admissible,
+          preferredAccountIds: preferred,
+          reason: kind == 'single_account'
+              ? 'Compte structurel habituel'
+              : kind == 'scenario_split'
+              ? 'Répartition multi-comptes du scénario applicable'
+              : 'Comptes admissibles selon le bénéficiaire',
+        ),
+      );
+    }
+    return proposeInventoryVentilation(
+      accountBalances: widget.accountBalances,
+      envelopeBalances: {
+        for (final envelope in widget.envelopes)
+          envelope.id as String: envelope.balance as Money,
+      },
+      fixedPositions: fixed,
+      rules: rules,
+    );
+  }
+
+  Future<void> _previewInventoryVentilation(BuildContext context) async {
+    final proposal = _inventoryVentilationProposal();
+    String accountName(String id) =>
+        widget.accounts
+            .where((account) => account.id == id)
+            .map((account) => account.name as String)
+            .firstOrNull ??
+        'Compte';
+    String envelopeName(String id) =>
+        widget.envelopes
+            .where((envelope) => envelope.id == id)
+            .map((envelope) => envelope.name as String)
+            .firstOrNull ??
+        'Enveloppe';
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Proposition de ventilation d’inventaire'),
+        content: SizedBox(
+          width: 720,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text(
+                'Avant : ${_money(proposal.initialResidual.minorUnits)} restant à expliquer.',
+                key: const Key('ventilation-before'),
+              ),
+              Text(
+                proposal.balanced
+                    ? 'Après proposition : comptes et enveloppes équilibrés.'
+                    : 'Après proposition : ${_money(proposal.remainingEnvelopeAmount.minorUnits)} non résolu.',
+                key: const Key('ventilation-after'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (proposal.candidates.isEmpty)
+                const SecondaryInfoText(
+                  'Aucune proposition sûre ne peut être construite avec les règles disponibles.',
+                ),
+              for (final candidate in proposal.candidates)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    '${envelopeName(candidate.position.envelopeId)} • ${accountName(candidate.position.accountId)}',
+                  ),
+                  subtitle: Text(
+                    '${candidate.reason}\nArbitrage d’inventaire proposé',
+                  ),
+                  trailing: Text(_money(candidate.position.amount.minorUnits)),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            key: const Key('cancel-inventory-ventilation'),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            key: const Key('apply-inventory-ventilation'),
+            onPressed: proposal.candidates.isEmpty
+                ? null
+                : () => Navigator.pop(dialogContext, true),
+            child: const Text('Appliquer la proposition au brouillon'),
+          ),
+        ],
+      ),
+    );
+    if (apply != true || !mounted) return;
+    _updatingDeductions = true;
+    for (final candidate in proposal.candidates) {
+      final row = _row(
+        candidate.position.accountId,
+        candidate.position.envelopeId,
+      );
+      if (_cents(row) > 0 || row.locked) continue;
+      row.amount.text = candidate.position.amount.dirhams.toStringAsFixed(2);
+      row.provenance = PositionProvenance.openingInventoryArbitration;
+      row.provenanceReference = candidate.position.provenanceReference;
+    }
+    _updatingDeductions = false;
+    _applyUniqueDeductions();
+    setState(() {});
   }
 
   Widget _desktopMatrix() {
@@ -1199,6 +1371,7 @@ class _PositionDraft {
       PositionProvenance.openingInventoryArbitration;
   String? provenanceReference = 'Arbitrage explicite lors de l’inventaire';
   bool locked = false;
+  bool fixed = false;
 }
 
 class _Kpis extends StatelessWidget {

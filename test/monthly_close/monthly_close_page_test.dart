@@ -879,6 +879,35 @@ void main() {
         find.text('Compte structurel recommandé : CIH Ibrahim'),
         findsOneWidget,
       );
+      await tester.tap(find.byKey(const Key('propose-inventory-ventilation')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Proposition de ventilation d’inventaire'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Arbitrage d’inventaire proposé'),
+        findsWidgets,
+      );
+      expect(find.byKey(const Key('ventilation-before')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('cancel-inventory-ventilation')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('matrix-envelope-1-cih')))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      await tester.tap(find.byKey(const Key('propose-inventory-ventilation')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('apply-inventory-ventilation')));
+      await tester.pumpAndSettle();
+      final proposedField = find.byKey(const Key('matrix-envelope-1-cih'));
+      expect(tester.widget<TextField>(proposedField).controller!.text, '10.00');
+      await tester.enterText(proposedField, '9');
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(proposedField).controller!.text, '9');
       expect(
         find.byTooltip('Traite maison • Islamique / Arreda Ibrahim'),
         findsOneWidget,
