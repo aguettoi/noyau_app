@@ -782,67 +782,74 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           scrollDirection: Axis.horizontal,
           child: SizedBox(
             width: tableWidth,
-            child: CustomScrollView(
-              key: const Key('matrix-vertical-scroll'),
-              controller: _matrixVertical,
-              slivers: [
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _MatrixHeaderDelegate(header),
-                ),
-                SliverList.builder(
-                  itemCount: widget.envelopes.length,
-                  itemBuilder: (context, index) {
-                    final envelope = widget.envelopes[index];
-                    return Container(
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          cell(_envelopeHeading(envelope), envelopeWidth),
-                          for (final account in widget.accounts)
-                            cell(
-                              (envelope.balance as Money).minorUnits == 0
-                                  ? const Text('—')
-                                  : _amountCell(
-                                      _row(
-                                        account.id as String,
-                                        envelope.id as String,
-                                      ),
-                                      envelope.name as String,
-                                      account.name as String,
-                                    ),
-                              accountWidth,
-                            ),
-                          cell(
-                            Text(_money(_envelopeTotal(envelope.id as String))),
-                            totalWidth,
-                          ),
-                          cell(
-                            Text(
-                              _money((envelope.balance as Money).minorUnits),
-                            ),
-                            totalWidth,
-                          ),
-                          cell(
-                            Text(
-                              _money(
-                                _envelopeTotal(envelope.id as String) -
-                                    (envelope.balance as Money).minorUnits,
+            child: Column(
+              children: [
+                SizedBox(height: 58, child: header),
+                Expanded(
+                  child: Scrollbar(
+                    controller: _matrixVertical,
+                    thumbVisibility: true,
+                    child: ListView.builder(
+                      key: const Key('matrix-vertical-scroll'),
+                      controller: _matrixVertical,
+                      itemCount: widget.envelopes.length,
+                      itemBuilder: (context, index) {
+                        final envelope = widget.envelopes[index];
+                        return Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Theme.of(context).dividerColor,
                               ),
                             ),
-                            totalWidth,
                           ),
-                        ],
-                      ),
-                    );
-                  },
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              cell(_envelopeHeading(envelope), envelopeWidth),
+                              for (final account in widget.accounts)
+                                cell(
+                                  (envelope.balance as Money).minorUnits == 0
+                                      ? const Text('—')
+                                      : _amountCell(
+                                          _row(
+                                            account.id as String,
+                                            envelope.id as String,
+                                          ),
+                                          envelope.name as String,
+                                          account.name as String,
+                                        ),
+                                  accountWidth,
+                                ),
+                              cell(
+                                Text(
+                                  _money(_envelopeTotal(envelope.id as String)),
+                                ),
+                                totalWidth,
+                              ),
+                              cell(
+                                Text(
+                                  _money(
+                                    (envelope.balance as Money).minorUnits,
+                                  ),
+                                ),
+                                totalWidth,
+                              ),
+                              cell(
+                                Text(
+                                  _money(
+                                    _envelopeTotal(envelope.id as String) -
+                                        (envelope.balance as Money).minorUnits,
+                                  ),
+                                ),
+                                totalWidth,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1117,26 +1124,6 @@ class _PositionDraft {
       PositionProvenance.openingInventoryArbitration;
   String? provenanceReference = 'Arbitrage explicite lors de l’inventaire';
   bool locked = false;
-}
-
-class _MatrixHeaderDelegate extends SliverPersistentHeaderDelegate {
-  const _MatrixHeaderDelegate(this.child);
-
-  final Widget child;
-
-  @override
-  double get minExtent => 58;
-  @override
-  double get maxExtent => 58;
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) => Material(elevation: overlapsContent ? 2 : 0, child: child);
-  @override
-  bool shouldRebuild(covariant _MatrixHeaderDelegate oldDelegate) =>
-      oldDelegate.child != child;
 }
 
 class _Kpis extends StatelessWidget {

@@ -778,10 +778,10 @@ void main() {
           ),
       ];
       final envelopes = <RemoteEnvelopeBalance>[
-        for (var index = 1; index <= 14; index++)
+        for (var index = 1; index <= 18; index++)
           RemoteEnvelopeBalance(
             id: 'envelope-$index',
-            name: index == 14 ? 'Dernière enveloppe' : 'Enveloppe $index',
+            name: index == 18 ? 'Dernière enveloppe' : 'Enveloppe $index',
             inflows: const Money.fromMinorUnits(1000),
             outflows: const Money.fromMinorUnits(0),
             balance: const Money.fromMinorUnits(1000),
@@ -803,8 +803,8 @@ void main() {
               (ref) async => const EnvelopeAccountMatrix(
                 positions: [],
                 reliable: false,
-                accountGap: Money.fromMinorUnits(14000),
-                envelopeGap: Money.fromMinorUnits(14000),
+                accountGap: Money.fromMinorUnits(18000),
+                envelopeGap: Money.fromMinorUnits(18000),
                 fingerprint: 'empty',
               ),
             ),
@@ -817,11 +817,11 @@ void main() {
             remoteAccountsProvider.overrideWith((ref) async => accounts),
             remoteAccountBalancesProvider.overrideWith(
               (ref) async => const {
-                'awb': Money.fromMinorUnits(2800),
-                'nora': Money.fromMinorUnits(2800),
-                'cih': Money.fromMinorUnits(2800),
-                'cash': Money.fromMinorUnits(2800),
-                'arreda': Money.fromMinorUnits(2800),
+                'awb': Money.fromMinorUnits(3600),
+                'nora': Money.fromMinorUnits(3600),
+                'cih': Money.fromMinorUnits(3600),
+                'cash': Money.fromMinorUnits(3600),
+                'arreda': Money.fromMinorUnits(3600),
               },
             ),
             remoteEnvelopeBalancesProvider.overrideWith(
@@ -843,6 +843,13 @@ void main() {
       await tester.pumpAndSettle();
 
       final header = find.byKey(const Key('matrix-sticky-header'));
+      expect(header, findsOneWidget);
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(header, findsNothing);
+      await tester.ensureVisible(find.byKey(const Key('initialize-matrix')));
+      await tester.tap(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
       expect(header, findsOneWidget);
       for (final account in accounts) {
         expect(
@@ -872,18 +879,31 @@ void main() {
       );
       await tester.pumpAndSettle();
       final headerTop = tester.getTopLeft(header).dy;
-      await tester.drag(
-        find.byKey(const Key('matrix-vertical-scroll')),
-        const Offset(0, -1200),
+      final matrixScrollable = find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable &&
+            widget.axisDirection == AxisDirection.down &&
+            widget.controller != null &&
+            widget.physics == null,
+      );
+      expect(matrixScrollable, findsOneWidget);
+      final matrixScrollableState = tester.state<ScrollableState>(
+        matrixScrollable,
+      );
+      matrixScrollableState.position.jumpTo(
+        matrixScrollableState.position.maxScrollExtent / 2,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Enveloppe 9'), findsOneWidget);
+      expect(tester.getTopLeft(header).dy, closeTo(headerTop, 0.1));
+      matrixScrollableState.position.jumpTo(
+        matrixScrollableState.position.maxScrollExtent,
       );
       await tester.pumpAndSettle();
       expect(find.text('Dernière enveloppe'), findsOneWidget);
       expect(tester.getTopLeft(header).dy, closeTo(headerTop, 0.1));
 
-      await tester.drag(
-        find.byKey(const Key('matrix-vertical-scroll')),
-        const Offset(0, 1200),
-      );
+      matrixScrollableState.position.jumpTo(0);
       await tester.pumpAndSettle();
       final fieldFinder = find.byKey(const Key('matrix-envelope-1-awb'));
       expect(fieldFinder, findsOneWidget);
@@ -901,6 +921,29 @@ void main() {
       await tester.tap(find.text('Par compte'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('matrix-account-awb')), findsOneWidget);
+      final dialogScrollableState = find
+          .byType(Scrollable)
+          .evaluate()
+          .whereType<StatefulElement>()
+          .map((element) => element.state)
+          .whereType<ScrollableState>()
+          .firstWhere(
+            (state) =>
+                state.position.axisDirection == AxisDirection.down &&
+                state.position.maxScrollExtent > 0 &&
+                state.position.pixels == 0 &&
+                state.position.viewportDimension > 500,
+          );
+      dialogScrollableState.position.jumpTo(
+        dialogScrollableState.position.maxScrollExtent,
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('matrix-inventory-note')),
+        'Inventaire interactif contrôlé',
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('save-matrix-snapshot')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
