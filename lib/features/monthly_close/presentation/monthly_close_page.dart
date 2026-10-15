@@ -525,6 +525,8 @@ class _PositionSnapshotDialog extends StatefulWidget {
 class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   final rows = <_PositionDraft>[];
   final note = TextEditingController();
+  final _matrixHorizontal = ScrollController();
+  final _matrixVertical = ScrollController();
   var _groupByAccount = false;
   var _updatingDeductions = false;
   @override
@@ -608,6 +610,8 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     }
     note.removeListener(_changed);
     note.dispose();
+    _matrixHorizontal.dispose();
+    _matrixVertical.dispose();
     super.dispose();
   }
 
@@ -735,48 +739,118 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     );
   }
 
-  Widget _desktopMatrix() => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: DataTable(
-      dataRowMinHeight: 76,
-      dataRowMaxHeight: 96,
-      columns: [
-        const DataColumn(label: Text('Enveloppe')),
-        for (final a in widget.accounts)
-          DataColumn(label: Text(a.name as String)),
-        const DataColumn(label: Text('Total réparti')),
-        const DataColumn(label: Text('Solde enveloppe')),
-        const DataColumn(label: Text('Écart')),
-      ],
-      rows: [
-        for (final e in widget.envelopes)
-          DataRow(
-            cells: [
-              DataCell(_envelopeHeading(e)),
-              for (final a in widget.accounts)
-                DataCell(
-                  SizedBox(
-                    width: 105,
-                    child: (e.balance as Money).minorUnits == 0
-                        ? const Text('—')
-                        : _amountCell(_row(a.id as String, e.id as String)),
-                  ),
+  Widget _desktopMatrix() {
+    const envelopeWidth = 240.0, accountWidth = 190.0, totalWidth = 135.0;
+    final tableWidth =
+        envelopeWidth + widget.accounts.length * accountWidth + 3 * totalWidth;
+    final viewportHeight = (MediaQuery.sizeOf(context).height * .56).clamp(
+      360.0,
+      620.0,
+    );
+    Widget cell(Widget child, double width) => SizedBox(
+      width: width,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        child: child,
+      ),
+    );
+    final header = Container(
+      key: const Key('matrix-sticky-header'),
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      child: Row(
+        children: [
+          cell(const Text('Enveloppe'), envelopeWidth),
+          for (final account in widget.accounts)
+            cell(Text(account.name as String), accountWidth),
+          cell(const Text('Affecté'), totalWidth),
+          cell(const Text('Solde enveloppe'), totalWidth),
+          cell(const Text('Écart'), totalWidth),
+        ],
+      ),
+    );
+    return SizedBox(
+      height: viewportHeight,
+      child: Scrollbar(
+        controller: _matrixHorizontal,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          key: const Key('matrix-horizontal-scroll'),
+          controller: _matrixHorizontal,
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: tableWidth,
+            child: CustomScrollView(
+              key: const Key('matrix-vertical-scroll'),
+              controller: _matrixVertical,
+              slivers: [
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _MatrixHeaderDelegate(header),
                 ),
-              DataCell(Text(_money(_envelopeTotal(e.id as String)))),
-              DataCell(Text(_money((e.balance as Money).minorUnits))),
-              DataCell(
-                Text(
-                  _money(
-                    _envelopeTotal(e.id as String) -
-                        (e.balance as Money).minorUnits,
-                  ),
+                SliverList.builder(
+                  itemCount: widget.envelopes.length,
+                  itemBuilder: (context, index) {
+                    final envelope = widget.envelopes[index];
+                    return Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Theme.of(context).dividerColor,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          cell(_envelopeHeading(envelope), envelopeWidth),
+                          for (final account in widget.accounts)
+                            cell(
+                              (envelope.balance as Money).minorUnits == 0
+                                  ? const Text('—')
+                                  : _amountCell(
+                                      _row(
+                                        account.id as String,
+                                        envelope.id as String,
+                                      ),
+                                      envelope.name as String,
+                                      account.name as String,
+                                    ),
+                              accountWidth,
+                            ),
+                          cell(
+                            Text(_money(_envelopeTotal(envelope.id as String))),
+                            totalWidth,
+                          ),
+                          cell(
+                            Text(
+                              _money((envelope.balance as Money).minorUnits),
+                            ),
+                            totalWidth,
+                          ),
+                          cell(
+                            Text(
+                              _money(
+                                _envelopeTotal(envelope.id as String) -
+                                    (envelope.balance as Money).minorUnits,
+                              ),
+                            ),
+                            totalWidth,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-      ],
-    ),
-  );
+        ),
+      ),
+    );
+  }
 
   Widget _mobileMatrix() => Column(
     children: [
@@ -801,6 +875,8 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                           width: 130,
                           child: _amountCell(
                             _row(a.id as String, e.id as String),
+                            e.name as String,
+                            a.name as String,
                           ),
                         ),
                       ],
@@ -903,50 +979,65 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     ],
   );
 
-  Widget _amountCell(_PositionDraft row) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      TextField(
-        key: Key('matrix-${row.envelopeId}-${row.accountId}'),
-        controller: row.amount,
-        readOnly: row.locked,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(labelText: 'MAD', isDense: true),
+  Widget _amountCell(
+    _PositionDraft row,
+    String envelopeName,
+    String accountName,
+  ) => Semantics(
+    label: '$envelopeName, $accountName, montant en MAD',
+    textField: true,
+    child: Tooltip(
+      message: '$envelopeName • $accountName',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            key: Key('matrix-${row.envelopeId}-${row.accountId}'),
+            controller: row.amount,
+            readOnly: row.locked,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: accountName,
+              suffixText: 'MAD',
+              isDense: true,
+            ),
+          ),
+          if (_cents(row) > 0)
+            Text(switch (row.provenance) {
+              PositionProvenance.sourceProof => 'Prouvé par la source',
+              PositionProvenance.humanConfirmation => 'Confirmation métier',
+              PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
+              PositionProvenance.openingInventoryArbitration =>
+                'Arbitrage d’inventaire',
+            }, style: Theme.of(context).textTheme.labelSmall),
+          if (!row.locked && _cents(row) > 0)
+            DropdownButton<PositionProvenance>(
+              key: Key('provenance-${row.envelopeId}-${row.accountId}'),
+              isExpanded: true,
+              value: row.provenance,
+              items: const [
+                DropdownMenuItem(
+                  value: PositionProvenance.openingInventoryArbitration,
+                  child: Text('Arbitrage d’inventaire'),
+                ),
+                DropdownMenuItem(
+                  value: PositionProvenance.humanConfirmation,
+                  child: Text('Confirmation métier'),
+                ),
+              ],
+              onChanged: (value) => setState(() {
+                row.provenance =
+                    value ?? PositionProvenance.openingInventoryArbitration;
+                row.provenanceReference =
+                    row.provenance == PositionProvenance.humanConfirmation
+                    ? 'Confirmation explicite lors de l’inventaire'
+                    : 'Arbitrage explicite lors de l’inventaire';
+              }),
+            ),
+        ],
       ),
-      if (_cents(row) > 0)
-        Text(switch (row.provenance) {
-          PositionProvenance.sourceProof => 'Prouvé par la source',
-          PositionProvenance.humanConfirmation => 'Confirmation métier',
-          PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
-          PositionProvenance.openingInventoryArbitration =>
-            'Arbitrage d’inventaire',
-        }, style: Theme.of(context).textTheme.labelSmall),
-      if (!row.locked && _cents(row) > 0)
-        DropdownButton<PositionProvenance>(
-          key: Key('provenance-${row.envelopeId}-${row.accountId}'),
-          isExpanded: true,
-          value: row.provenance,
-          items: const [
-            DropdownMenuItem(
-              value: PositionProvenance.openingInventoryArbitration,
-              child: Text('Arbitrage d’inventaire'),
-            ),
-            DropdownMenuItem(
-              value: PositionProvenance.humanConfirmation,
-              child: Text('Confirmation métier'),
-            ),
-          ],
-          onChanged: (value) => setState(() {
-            row.provenance =
-                value ?? PositionProvenance.openingInventoryArbitration;
-            row.provenanceReference =
-                row.provenance == PositionProvenance.humanConfirmation
-                ? 'Confirmation explicite lors de l’inventaire'
-                : 'Arbitrage explicite lors de l’inventaire';
-          }),
-        ),
-    ],
+    ),
   );
 
   _PositionDraft _row(String accountId, String envelopeId) => rows.firstWhere(
@@ -1026,6 +1117,26 @@ class _PositionDraft {
       PositionProvenance.openingInventoryArbitration;
   String? provenanceReference = 'Arbitrage explicite lors de l’inventaire';
   bool locked = false;
+}
+
+class _MatrixHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _MatrixHeaderDelegate(this.child);
+
+  final Widget child;
+
+  @override
+  double get minExtent => 58;
+  @override
+  double get maxExtent => 58;
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => Material(elevation: overlapsContent ? 2 : 0, child: child);
+  @override
+  bool shouldRebuild(covariant _MatrixHeaderDelegate oldDelegate) =>
+      oldDelegate.child != child;
 }
 
 class _Kpis extends StatelessWidget {

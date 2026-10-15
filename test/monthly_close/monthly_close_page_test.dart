@@ -754,4 +754,154 @@ void main() {
     expect(field.controller!.text, '50.00');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'la matrice desktop conserve ses en-têtes et expose la provenance',
+    (tester) async {
+      tester.view.physicalSize = const Size(1024, 720);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final accounts = <FinancialAccount>[
+        for (final entry in const [
+          ('awb', 'AWB Ibrahim', FinancialAccountType.bank),
+          ('nora', 'Banque Nora', FinancialAccountType.bank),
+          ('cih', 'CIH Ibrahim', FinancialAccountType.bank),
+          ('cash', 'Espèces maison', FinancialAccountType.cash),
+          ('arreda', 'Islamique / Arreda Ibrahim', FinancialAccountType.bank),
+        ])
+          FinancialAccount(
+            id: entry.$1,
+            name: entry.$2,
+            type: entry.$3,
+            openingBalance: const Money.fromMinorUnits(0),
+          ),
+      ];
+      final envelopes = <RemoteEnvelopeBalance>[
+        for (var index = 1; index <= 14; index++)
+          RemoteEnvelopeBalance(
+            id: 'envelope-$index',
+            name: index == 14 ? 'Dernière enveloppe' : 'Enveloppe $index',
+            inflows: const Money.fromMinorUnits(1000),
+            outflows: const Money.fromMinorUnits(0),
+            balance: const Money.fromMinorUnits(1000),
+            isSystem: false,
+          ),
+      ];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            monthlyCloseProvider.overrideWith(
+              (ref) async => MonthlyCloseSnapshot(
+                month: DateTime(2026, 10),
+                status: MonthlyCloseStatus.open,
+                issues: const [],
+                owner: true,
+              ),
+            ),
+            envelopeAccountMatrixProvider.overrideWith(
+              (ref) async => const EnvelopeAccountMatrix(
+                positions: [],
+                reliable: false,
+                accountGap: Money.fromMinorUnits(14000),
+                envelopeGap: Money.fromMinorUnits(14000),
+                fingerprint: 'empty',
+              ),
+            ),
+            initialPositionPreviewProvider.overrideWith(
+              (ref) async => const InitialPositionPreview(
+                positions: [],
+                sourceFingerprint: '',
+              ),
+            ),
+            remoteAccountsProvider.overrideWith((ref) async => accounts),
+            remoteAccountBalancesProvider.overrideWith(
+              (ref) async => const {
+                'awb': Money.fromMinorUnits(2800),
+                'nora': Money.fromMinorUnits(2800),
+                'cih': Money.fromMinorUnits(2800),
+                'cash': Money.fromMinorUnits(2800),
+                'arreda': Money.fromMinorUnits(2800),
+              },
+            ),
+            remoteEnvelopeBalancesProvider.overrideWith(
+              (ref) async => envelopes,
+            ),
+          ],
+          child: const MaterialApp(home: MonthlyClosePage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('initialize-matrix')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+
+      final header = find.byKey(const Key('matrix-sticky-header'));
+      expect(header, findsOneWidget);
+      for (final account in accounts) {
+        expect(
+          find.descendant(of: header, matching: find.text(account.name)),
+          findsOneWidget,
+        );
+      }
+      expect(find.text('Affecté'), findsOneWidget);
+      expect(find.text('Solde enveloppe'), findsOneWidget);
+      expect(find.text('Écart'), findsOneWidget);
+      expect(
+        find.byTooltip('Enveloppe 1 • Islamique / Arreda Ibrahim'),
+        findsOneWidget,
+      );
+      await tester.drag(
+        find.byKey(const Key('matrix-horizontal-scroll')),
+        const Offset(-600, 0),
+      );
+      await tester.pumpAndSettle();
+      final arredaField = tester.widget<TextField>(
+        find.byKey(const Key('matrix-envelope-1-arreda')),
+      );
+      expect(arredaField.decoration?.labelText, 'Islamique / Arreda Ibrahim');
+      await tester.drag(
+        find.byKey(const Key('matrix-horizontal-scroll')),
+        const Offset(600, 0),
+      );
+      await tester.pumpAndSettle();
+      final headerTop = tester.getTopLeft(header).dy;
+      await tester.drag(
+        find.byKey(const Key('matrix-vertical-scroll')),
+        const Offset(0, -1200),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Dernière enveloppe'), findsOneWidget);
+      expect(tester.getTopLeft(header).dy, closeTo(headerTop, 0.1));
+
+      await tester.drag(
+        find.byKey(const Key('matrix-vertical-scroll')),
+        const Offset(0, 1200),
+      );
+      await tester.pumpAndSettle();
+      final fieldFinder = find.byKey(const Key('matrix-envelope-1-awb'));
+      expect(fieldFinder, findsOneWidget);
+      final field = tester.widget<TextField>(fieldFinder);
+      expect(field.decoration?.labelText, 'AWB Ibrahim');
+      await tester.enterText(fieldFinder, '10');
+      await tester.pumpAndSettle();
+      expect(find.text('Arbitrage d’inventaire'), findsWidgets);
+      await tester.tap(find.byKey(const Key('provenance-envelope-1-awb')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirmation métier').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Confirmation métier'), findsWidgets);
+
+      await tester.tap(find.text('Par compte'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('matrix-account-awb')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
