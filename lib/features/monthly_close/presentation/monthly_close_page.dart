@@ -886,6 +886,42 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                   ),
                   trailing: Text(_money(candidate.position.amount.minorUnits)),
                 ),
+              if (proposal.unresolvedResiduals.isNotEmpty) ...[
+                const Divider(),
+                Text(
+                  'Montants restant à expliquer',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                for (final residual in proposal.unresolvedResiduals)
+                  Card(
+                    key: Key('ventilation-unresolved-${residual.envelopeId}'),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${envelopeName(residual.envelopeId)} — ${_money(residual.amount.minorUnits)} non résolus',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            residual.admissibleAccountIds.isEmpty
+                                ? 'Comptes admissibles : aucun'
+                                : 'Comptes admissibles : ${residual.admissibleAccountIds.map(accountName).join(' / ')}',
+                          ),
+                          if (residual.admissibleAccountIds.isNotEmpty)
+                            Text(
+                              'Capacités restantes : ${residual.admissibleAccountIds.map((id) => '${accountName(id)} ${_money(residual.remainingAccountCapacities[id]!.minorUnits)}').join(' • ')}',
+                            ),
+                          Text('Pourquoi : ${residual.reason}'),
+                          Text('Action attendue : ${residual.expectedAction}'),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ],
           ),
         ),

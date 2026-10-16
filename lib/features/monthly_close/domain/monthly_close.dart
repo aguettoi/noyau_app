@@ -97,18 +97,38 @@ class InventoryVentilationCandidate {
   final bool mathematicallyForced;
 }
 
+class InventoryVentilationResidual {
+  const InventoryVentilationResidual({
+    required this.envelopeId,
+    required this.amount,
+    required this.admissibleAccountIds,
+    required this.remainingAccountCapacities,
+    required this.reason,
+    required this.expectedAction,
+  });
+
+  final String envelopeId;
+  final Money amount;
+  final List<String> admissibleAccountIds;
+  final Map<String, Money> remainingAccountCapacities;
+  final String reason;
+  final String expectedAction;
+}
+
 class InventoryVentilationProposal {
   const InventoryVentilationProposal({
     required this.candidates,
     required this.remainingEnvelopeAmount,
     required this.remainingAccountCapacity,
     required this.initialResidual,
+    required this.unresolvedResiduals,
   });
 
   final List<InventoryVentilationCandidate> candidates;
   final Money remainingEnvelopeAmount;
   final Money remainingAccountCapacity;
   final Money initialResidual;
+  final List<InventoryVentilationResidual> unresolvedResiduals;
 
   bool get balanced =>
       remainingEnvelopeAmount.minorUnits == 0 &&
@@ -166,6 +186,22 @@ InventoryVentilationProposal proposeInventoryVentilation({
             .fold(0, (a, b) => a + b),
       ),
       initialResidual: Money.fromMinorUnits(initialResidual),
+      unresolvedResiduals: List.unmodifiable(
+        envelopeRemaining.entries
+            .where((entry) => entry.value > 0)
+            .map(
+              (entry) => InventoryVentilationResidual(
+                envelopeId: entry.key,
+                amount: Money.fromMinorUnits(entry.value),
+                admissibleAccountIds: const [],
+                remainingAccountCapacities: const {},
+                reason:
+                    'Les positions déjà saisies dépassent un solde de contrôle.',
+                expectedAction:
+                    'Corriger la saisie concernée avant de relancer la proposition.',
+              ),
+            ),
+      ),
     );
   }
 
@@ -345,6 +381,55 @@ InventoryVentilationProposal proposeInventoryVentilation({
       if (amount > 0) allocate(envelopeId, accountId, amount, false);
     }
   }
+  final unresolvedResiduals = <InventoryVentilationResidual>[];
+  for (final entry in envelopeRemaining.entries.where(
+    (entry) => entry.value > 0,
+  )) {
+    final rule = byEnvelope[entry.key];
+    final admissible = List<String>.unmodifiable(
+      rule?.admissibleAccountIds ?? const <String>[],
+    );
+    final capacities = <String, Money>{
+      for (final accountId in admissible)
+        accountId: Money.fromMinorUnits(
+          (accountRemaining[accountId] ?? 0).clamp(0, 1 << 62),
+        ),
+    };
+    final available = capacities.values.fold<int>(
+      0,
+      (sum, amount) => sum + amount.minorUnits,
+    );
+    final (reason, expectedAction) = rule == null || admissible.isEmpty
+        ? (
+            'Aucune règle structurelle ne définit de compte admissible.',
+            'Configurer la règle structurelle de cette enveloppe ou saisir son inventaire manuellement.',
+          )
+        : available == 0
+        ? (
+            'Les comptes admissibles ne disposent plus de capacité résiduelle.',
+            'Vérifier les positions déjà saisies ou arbitrer manuellement la localisation restante.',
+          )
+        : available < entry.value
+        ? (
+            'La capacité résiduelle des comptes admissibles est insuffisante.',
+            'Vérifier les soldes de contrôle ou arbitrer la part qui ne peut pas être localisée.',
+          )
+        : (
+            'Plusieurs ventilations restent possibles avec les contraintes disponibles.',
+            'Choisir manuellement la localisation physique réelle entre les comptes admissibles.',
+          );
+    unresolvedResiduals.add(
+      InventoryVentilationResidual(
+        envelopeId: entry.key,
+        amount: Money.fromMinorUnits(entry.value),
+        admissibleAccountIds: admissible,
+        remainingAccountCapacities: Map.unmodifiable(capacities),
+        reason: reason,
+        expectedAction: expectedAction,
+      ),
+    );
+  }
+  unresolvedResiduals.sort((a, b) => a.envelopeId.compareTo(b.envelopeId));
   return InventoryVentilationProposal(
     candidates: List.unmodifiable(candidates),
     remainingEnvelopeAmount: Money.fromMinorUnits(
@@ -358,6 +443,7 @@ InventoryVentilationProposal proposeInventoryVentilation({
           .fold(0, (a, b) => a + b),
     ),
     initialResidual: Money.fromMinorUnits(initialResidual),
+    unresolvedResiduals: List.unmodifiable(unresolvedResiduals),
   );
 }
 

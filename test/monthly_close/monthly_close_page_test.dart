@@ -890,6 +890,24 @@ void main() {
         findsWidgets,
       );
       expect(find.byKey(const Key('ventilation-before')), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('ventilation-unresolved-envelope-3')),
+        300,
+        scrollable: find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      expect(
+        find.byKey(const Key('ventilation-unresolved-envelope-3')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Aucune règle structurelle ne définit de compte admissible',
+        ),
+        findsWidgets,
+      );
       await tester.tap(find.byKey(const Key('cancel-inventory-ventilation')));
       await tester.pumpAndSettle();
       expect(

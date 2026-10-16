@@ -391,8 +391,36 @@ void main() {
       expect(proposal.balanced, isFalse);
       expect(proposal.candidates, isEmpty);
       expect(proposal.remainingEnvelopeAmount.dirhams, 100);
+      expect(proposal.unresolvedResiduals, hasLength(1));
+      expect(proposal.unresolvedResiduals.single.envelopeId, 'unknown');
+      expect(
+        proposal.unresolvedResiduals.single.reason,
+        contains('Aucune règle structurelle'),
+      );
     },
   );
+
+  test('inventory assistant explains constrained residual capacities', () {
+    final proposal = proposeInventoryVentilation(
+      accountBalances: {'a': Money.fromDirhams(40)},
+      envelopeBalances: {'shared': Money.fromDirhams(100)},
+      fixedPositions: const [],
+      rules: const [
+        InventoryVentilationRule(
+          envelopeId: 'shared',
+          admissibleAccountIds: ['a'],
+          reason: 'Compte structurel habituel',
+        ),
+      ],
+    );
+    expect(proposal.remainingEnvelopeAmount.dirhams, 60);
+    expect(proposal.unresolvedResiduals, hasLength(1));
+    final residual = proposal.unresolvedResiduals.single;
+    expect(residual.admissibleAccountIds, ['a']);
+    expect(residual.remainingAccountCapacities['a']!.minorUnits, 0);
+    expect(residual.reason, contains('plus de capacité résiduelle'));
+    expect(residual.expectedAction, isNotEmpty);
+  });
 
   test('inventory assistant supports one, two and N admissible accounts', () {
     final proposal = proposeInventoryVentilation(
@@ -420,4 +448,194 @@ void main() {
       6000,
     );
   });
+
+  test(
+    'R2.12.1 keeps the confirmed home position and explains the exact pilot residual',
+    () {
+      const habitsId = 'f61a5376-46b2-4c81-9147-79d74b2800fc';
+      const outingsId = '0348541e-715a-43a4-a009-95dd1225f743';
+      const holidaysId = '8eeeb4e0-829a-4e7f-af4f-73997d50d438';
+      final proposal = proposeInventoryVentilation(
+        accountBalances: {
+          'AWB Ibrahim': Money.fromDirhams(2590.31),
+          'Banque Nora': Money.fromDirhams(23353.92),
+          'CIH Ibrahim': Money.fromDirhams(59330),
+          'Espèces maison': Money.fromDirhams(5169.50),
+          'Islamique / Arreda Ibrahim': Money.fromDirhams(33585.77),
+        },
+        envelopeBalances: {
+          'Besoin perso': Money.fromDirhams(520.48),
+          'Eau elec abonnement': Money.fromDirhams(483.84),
+          'Ecole Niece': Money.fromDirhams(523.38),
+          'Epargne': Money.fromDirhams(18548.56),
+          holidaysId: Money.fromDirhams(950.90),
+          habitsId: Money.fromDirhams(1635.57),
+          'Mouton': Money.fromDirhams(1600),
+          'Navette': Money.fromDirhams(2753.50),
+          'Nourriture': Money.fromDirhams(2416),
+          'Parrents': Money.fromDirhams(6000),
+          'Reste epargne (primes Ibrahim et Nora)': Money.fromDirhams(16446.47),
+          outingsId: Money.fromDirhams(1000),
+          'Syndic': Money.fromDirhams(566.67),
+          'Traite maison': Money.fromDirhams(63480),
+          'Traite voiture': Money.fromDirhams(5000),
+          'TSC': Money.fromDirhams(750),
+          'Voyages': Money.fromDirhams(728.33),
+          'Wifi': Money.fromDirhams(625.80),
+        },
+        fixedPositions: const [
+          EnvelopeAccountPosition(
+            accountId: 'CIH Ibrahim',
+            envelopeId: 'Traite maison',
+            amount: Money.fromMinorUnits(5933000),
+            provenance: PositionProvenance.humanConfirmation,
+            provenanceReference: 'Confirmation métier',
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'Espèces maison',
+            envelopeId: 'Nourriture',
+            amount: Money.fromMinorUnits(241600),
+            provenance: PositionProvenance.sourceProof,
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'Espèces maison',
+            envelopeId: 'Navette',
+            amount: Money.fromMinorUnits(275350),
+            provenance: PositionProvenance.sourceProof,
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'Banque Nora',
+            envelopeId: 'Traite voiture',
+            amount: Money.fromMinorUnits(500000),
+            provenance: PositionProvenance.sourceProof,
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'Banque Nora',
+            envelopeId: 'Wifi',
+            amount: Money.fromMinorUnits(62580),
+            provenance: PositionProvenance.sourceProof,
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'Banque Nora',
+            envelopeId: 'Besoin perso',
+            amount: Money.fromMinorUnits(52048),
+            provenance: PositionProvenance.sourceProof,
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'Banque Nora',
+            envelopeId: habitsId,
+            amount: Money.fromMinorUnits(76117),
+            provenance: PositionProvenance.sourceProof,
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'Banque Nora',
+            envelopeId: 'Reste epargne (primes Ibrahim et Nora)',
+            amount: Money.fromMinorUnits(1644647),
+            provenance: PositionProvenance.sourceProof,
+          ),
+          EnvelopeAccountPosition(
+            accountId: 'Islamique / Arreda Ibrahim',
+            envelopeId: 'Epargne',
+            amount: Money.fromMinorUnits(1854856),
+            provenance: PositionProvenance.humanConfirmation,
+          ),
+        ],
+        rules: const [
+          InventoryVentilationRule(
+            envelopeId: 'Traite maison',
+            admissibleAccountIds: ['Islamique / Arreda Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: 'Eau elec abonnement',
+            admissibleAccountIds: ['Islamique / Arreda Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: 'Ecole Niece',
+            admissibleAccountIds: ['Islamique / Arreda Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: 'Mouton',
+            admissibleAccountIds: ['Islamique / Arreda Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: 'Parrents',
+            admissibleAccountIds: ['Islamique / Arreda Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: 'Syndic',
+            admissibleAccountIds: ['Islamique / Arreda Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: 'TSC',
+            admissibleAccountIds: ['Islamique / Arreda Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: 'Voyages',
+            admissibleAccountIds: ['Islamique / Arreda Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: outingsId,
+            admissibleAccountIds: ['AWB Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: holidaysId,
+            admissibleAccountIds: ['AWB Ibrahim'],
+            reason: 'Compte structurel habituel',
+          ),
+          InventoryVentilationRule(
+            envelopeId: habitsId,
+            admissibleAccountIds: ['AWB Ibrahim', 'Banque Nora'],
+            reason: 'Répartition multi-comptes',
+          ),
+        ],
+      );
+
+      expect(proposal.initialResidual.dirhams, 17627.52);
+      expect(proposal.remainingEnvelopeAmount.dirhams, 234.99);
+      expect(proposal.unresolvedResiduals, hasLength(1));
+      final residual = proposal.unresolvedResiduals.single;
+      expect(residual.envelopeId, habitsId);
+      expect(residual.amount.dirhams, 234.99);
+      expect(residual.admissibleAccountIds, ['AWB Ibrahim', 'Banque Nora']);
+      expect(
+        residual.remainingAccountCapacities.values.every(
+          (amount) => amount.minorUnits == 0,
+        ),
+        isTrue,
+      );
+      expect(
+        proposal.candidates.any(
+          (candidate) =>
+              candidate.position.envelopeId == 'Traite maison' &&
+              candidate.position.accountId == 'Islamique / Arreda Ibrahim' &&
+              candidate.position.amount.dirhams == 4150,
+        ),
+        isTrue,
+      );
+      expect(
+        proposal.candidates.any(
+          (candidate) =>
+              candidate.position.envelopeId == 'Voyages' &&
+              candidate.position.accountId == 'Islamique / Arreda Ibrahim' &&
+              candidate.position.amount.dirhams == 728.33,
+        ),
+        isTrue,
+      );
+      expect(
+        proposal.candidates.any(
+          (candidate) => candidate.position.accountId == 'CIH Ibrahim',
+        ),
+        isFalse,
+      );
+    },
+  );
 }
