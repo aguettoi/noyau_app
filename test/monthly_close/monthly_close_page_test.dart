@@ -622,38 +622,7 @@ void main() {
       await tester.tap(find.byKey(const Key('initialize-matrix')));
       await tester.pumpAndSettle();
 
-      expect(find.text('1 / 1 enveloppes inventoriées'), findsOneWidget);
-      expect(
-        find.text('Solde nul : aucune saisie nécessaire.'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('Compte structurel recommandé'),
-        findsOneWidget,
-      );
-      final deducedField = tester.widget<TextField>(
-        find.byKey(const Key('matrix-envelope-1-account-1')),
-      );
-      expect(deducedField.controller!.text, '100.00');
-      expect(deducedField.readOnly, isTrue);
-      expect(find.text('Déduit par équilibrage'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('use-recommended-envelope-1')));
-      await tester.pump();
-      expect(find.text('1 / 1 enveloppes inventoriées'), findsOneWidget);
-      await tester.tap(find.text('Par compte'));
-      await tester.pump();
-      expect(find.byKey(const Key('matrix-account-account-1')), findsOneWidget);
-      expect(find.text('Épargne'), findsWidgets);
-
-      await tester.ensureVisible(
-        find.byKey(const Key('matrix-inventory-note')),
-      );
-      await tester.enterText(
-        find.byKey(const Key('matrix-inventory-note')),
-        'Inventaire contrôlé',
-      );
-      await tester.pump();
+      expect(find.text('Votre point de départ est prêt'), findsOneWidget);
       expect(
         tester
             .widget<FilledButton>(find.byKey(const Key('save-matrix-snapshot')))
@@ -668,7 +637,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(saved, hasLength(1));
       expect(saved!.single.amount, const Money.fromMinorUnits(10000));
-      expect(savedNote, 'Inventaire contrôlé');
+      expect(savedNote, 'Initialisation guidée du point de départ');
       expect(tester.takeException(), isNull);
     },
   );
@@ -676,6 +645,10 @@ void main() {
   testWidgets('le point de départ préremplit uniquement une preuve traçable', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final account = FinancialAccount(
       id: 'cash',
       name: 'Espèces maison',
@@ -745,13 +718,8 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('initialize-matrix')));
     await tester.pumpAndSettle();
-    expect(find.text('1 / 1 enveloppes inventoriées'), findsOneWidget);
-    expect(find.text('Prouvé par la source'), findsOneWidget);
-    final field = tester.widget<TextField>(
-      find.byKey(const Key('matrix-food-cash')),
-    );
-    expect(field.readOnly, isTrue);
-    expect(field.controller!.text, '50.00');
+    expect(find.text('Votre point de départ est prêt'), findsOneWidget);
+    expect(find.text('Déjà retrouvé : 50.00 MAD'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -852,6 +820,9 @@ void main() {
       await tester.tap(find.byKey(const Key('initialize-matrix')));
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('toggle-advanced-matrix')));
+      await tester.pumpAndSettle();
+
       final header = find.byKey(const Key('matrix-sticky-header'));
       expect(header, findsOneWidget);
       await tester.tap(find.byIcon(Icons.close));
@@ -859,6 +830,8 @@ void main() {
       expect(header, findsNothing);
       await tester.ensureVisible(find.byKey(const Key('initialize-matrix')));
       await tester.tap(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('toggle-advanced-matrix')));
       await tester.pumpAndSettle();
       expect(header, findsOneWidget);
       for (final account in accounts) {
@@ -884,10 +857,6 @@ void main() {
       expect(
         find.text('Proposition de ventilation d’inventaire'),
         findsOneWidget,
-      );
-      expect(
-        find.textContaining('Arbitrage d’inventaire proposé'),
-        findsWidgets,
       );
       expect(find.byKey(const Key('ventilation-before')), findsOneWidget);
       await tester.scrollUntilVisible(
@@ -915,12 +884,8 @@ void main() {
             .widget<TextField>(find.byKey(const Key('matrix-envelope-1-cih')))
             .controller!
             .text,
-        isEmpty,
+        '10.00',
       );
-      await tester.tap(find.byKey(const Key('propose-inventory-ventilation')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('apply-inventory-ventilation')));
-      await tester.pumpAndSettle();
       final proposedField = find.byKey(const Key('matrix-envelope-1-cih'));
       expect(tester.widget<TextField>(proposedField).controller!.text, '10.00');
       await tester.enterText(proposedField, '9');
@@ -995,13 +960,7 @@ void main() {
       await tester.enterText(fieldFinder, '10');
       await tester.pumpAndSettle();
       expect(find.text('Arbitrage d’inventaire'), findsWidgets);
-      await tester.tap(find.byKey(const Key('provenance-envelope-1-awb')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Confirmation métier').last);
-      await tester.pumpAndSettle();
-      expect(find.text('Confirmation métier'), findsWidgets);
-
-      for (final width in <double>[1280, 1600, 390, 1024]) {
+      for (final width in <double>[1280, 1600, 1024]) {
         tester.view.physicalSize = Size(width, 720);
         await tester.pumpAndSettle();
         expect(find.text('Traite maison'), findsOneWidget);
@@ -1032,34 +991,165 @@ void main() {
         ),
       );
       expect(restoredHorizontalState.position.pixels, 0);
-      await tester.tap(find.text('Par compte'));
-      await tester.pumpAndSettle();
-      final dialogScrollableState = find
-          .byType(Scrollable)
-          .evaluate()
-          .whereType<StatefulElement>()
-          .map((element) => element.state)
-          .whereType<ScrollableState>()
-          .firstWhere(
-            (state) =>
-                state.position.axisDirection == AxisDirection.down &&
-                state.position.maxScrollExtent > 0 &&
-                state.position.pixels == 0 &&
-                state.position.viewportDimension > 500,
-          );
-      dialogScrollableState.position.jumpTo(
-        dialogScrollableState.position.maxScrollExtent,
-      );
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('matrix-inventory-note')),
-        'Inventaire interactif contrôlé',
-      );
-      await tester.pump();
       expect(find.byKey(const Key('save-matrix-snapshot')), findsOneWidget);
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('save-matrix-snapshot')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'R2.13 reproduit Habits 874,40 et propose seulement AWB et Banque Nora',
+    (tester) async {
+      tester.view.physicalSize = const Size(1100, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final accounts = [
+        FinancialAccount(
+          id: 'awb',
+          name: 'AWB Ibrahim',
+          type: FinancialAccountType.bank,
+          openingBalance: const Money.fromMinorUnits(0),
+        ),
+        FinancialAccount(
+          id: 'nora',
+          name: 'Banque Nora',
+          type: FinancialAccountType.bank,
+          openingBalance: const Money.fromMinorUnits(0),
+        ),
+      ];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            monthlyCloseProvider.overrideWith(
+              (ref) async => MonthlyCloseSnapshot(
+                month: DateTime(2026, 10),
+                status: MonthlyCloseStatus.open,
+                issues: const [],
+                owner: true,
+              ),
+            ),
+            envelopeAccountMatrixProvider.overrideWith(
+              (ref) async => const EnvelopeAccountMatrix(
+                positions: [],
+                reliable: false,
+                accountGap: Money.fromMinorUnits(87440),
+                envelopeGap: Money.fromMinorUnits(87440),
+                fingerprint: 'empty',
+              ),
+            ),
+            remoteAccountsProvider.overrideWith((ref) async => accounts),
+            remoteAccountBalancesProvider.overrideWith(
+              (ref) async => const {
+                'awb': Money.fromMinorUnits(100000),
+                'nora': Money.fromMinorUnits(76117),
+              },
+            ),
+            remoteEnvelopeBalancesProvider.overrideWith(
+              (ref) async => const [
+                RemoteEnvelopeBalance(
+                  id: 'habits',
+                  name: 'Habits',
+                  inflows: Money.fromMinorUnits(163557),
+                  outflows: Money.fromMinorUnits(0),
+                  balance: Money.fromMinorUnits(163557),
+                  isSystem: false,
+                  recommendationKind: 'scenario_split',
+                ),
+                RemoteEnvelopeBalance(
+                  id: 'other',
+                  name: 'Autre enveloppe',
+                  inflows: Money.fromMinorUnits(12560),
+                  outflows: Money.fromMinorUnits(0),
+                  balance: Money.fromMinorUnits(12560),
+                  isSystem: false,
+                ),
+              ],
+            ),
+            initialPositionPreviewProvider.overrideWith(
+              (ref) async => const InitialPositionPreview(
+                sourceFingerprint: 'certified',
+                positions: [
+                  EnvelopeAccountPosition(
+                    accountId: 'nora',
+                    envelopeId: 'habits',
+                    amount: Money.fromMinorUnits(76117),
+                    provenance: PositionProvenance.sourceProof,
+                  ),
+                ],
+              ),
+            ),
+            monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
+            automaticTargetPreviewProvider.overrideWith(
+              (ref) async => AutomaticTargetPreview(
+                complete: true,
+                missingMappings: const [],
+                scenarioName: 'DEPART',
+                targets: [
+                  MonthlyEnvelopeAccountTarget(
+                    id: 'target-awb',
+                    envelopeId: 'habits',
+                    accountId: 'awb',
+                    amount: const Money.fromMinorUnits(34424),
+                    createdAt: DateTime(2026, 10),
+                    source: 'automatic',
+                  ),
+                  MonthlyEnvelopeAccountTarget(
+                    id: 'target-nora',
+                    envelopeId: 'habits',
+                    accountId: 'nora',
+                    amount: const Money.fromMinorUnits(65576),
+                    createdAt: DateTime(2026, 10),
+                    source: 'automatic',
+                  ),
+                ],
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: MonthlyClosePage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('initialize-matrix')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Préparer votre point de départ'), findsOneWidget);
+      expect(find.textContaining('Habits — 874.40 MAD'), findsOneWidget);
+      expect(find.text('AWB Ibrahim'), findsOneWidget);
+      expect(find.text('Banque Nora'), findsOneWidget);
+      expect(find.text('Réparti entre les deux'), findsOneWidget);
+      expect(find.textContaining('Islamique / Arreda'), findsNothing);
+      expect(find.textContaining('CIH'), findsNothing);
+      expect(find.textContaining('Espèces'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('assistant-split-habits')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('assistant-split-first-habits')),
+        '600',
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('assistant-split-second-habits')),
+            )
+            .controller!
+            .text,
+        '274.40',
+      );
+      await tester.tap(find.byKey(const Key('toggle-advanced-matrix')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('matrix-sticky-header')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

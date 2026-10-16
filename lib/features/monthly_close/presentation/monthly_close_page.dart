@@ -469,10 +469,21 @@ class _CurrentTargetPanel extends ConsumerWidget {
       );
     }
     List<MonthlyEnvelopeAccountTarget> structuralTargets;
+    var persisted = const <MonthlyEnvelopeAccountTarget>[];
     try {
-      structuralTargets = await ref.read(monthlyCloseTargetsProvider.future);
+      persisted = await ref.read(monthlyCloseTargetsProvider.future);
+    } catch (_) {}
+    try {
+      final automatic = await ref.read(automaticTargetPreviewProvider.future);
+      final byPair = <(String, String), MonthlyEnvelopeAccountTarget>{
+        for (final target in automatic.targets)
+          (target.envelopeId, target.accountId): target,
+        for (final target in persisted)
+          (target.envelopeId, target.accountId): target,
+      };
+      structuralTargets = byPair.values.toList(growable: false);
     } catch (_) {
-      structuralTargets = const [];
+      structuralTargets = persisted;
     }
     if (!context.mounted) return;
     final result =
@@ -539,7 +550,9 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   final _matrixHorizontal = ScrollController();
   final _matrixVertical = ScrollController();
   var _groupByAccount = false;
+  var _advancedMode = false;
   var _updatingDeductions = false;
+  final _splitEnvelopes = <String>{};
   @override
   void initState() {
     super.initState();
@@ -562,6 +575,8 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     }
     _updatingDeductions = false;
     _applyUniqueDeductions();
+    _prepareAutomaticPositions();
+    note.text = 'Initialisation guidée du point de départ';
   }
 
   void _changed() {
@@ -633,7 +648,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   Widget build(BuildContext context) => Dialog.fullscreen(
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('Point de départ compte × enveloppe'),
+        title: const Text('Préparer votre point de départ'),
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.close),
@@ -652,74 +667,100 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           builder: (context, box) => ListView(
             padding: AppLayout.pagePaddingFor(box.maxWidth),
             children: [
-              const SecondaryInfoText(
-                'Les positions prouvées sont préremplies depuis la source certifiée. Les autres restent à confirmer : le compte recommandé n’est jamais considéré comme une preuve.',
+              const Text(
+                'Pour que FINANCIEL PILOTE sache où se trouve l’argent de chaque enveloppe aujourd’hui, nous allons vérifier les quelques montants que nous n’avons pas pu retrouver automatiquement. Cette opération n’est normalement nécessaire qu’une seule fois.',
               ),
               const SizedBox(height: AppSpacing.sm),
-              _summary(),
+              _simpleSummary(),
               const SizedBox(height: AppSpacing.sm),
               Align(
                 alignment: Alignment.centerRight,
-                child: FilledButton.tonalIcon(
-                  key: const Key('propose-inventory-ventilation'),
-                  onPressed: () => _previewInventoryVentilation(context),
-                  icon: const Icon(Icons.auto_fix_high_outlined),
-                  label: const Text('Proposer une ventilation'),
+                child: TextButton.icon(
+                  key: const Key('toggle-advanced-matrix'),
+                  onPressed: () =>
+                      setState(() => _advancedMode = !_advancedMode),
+                  icon: Icon(
+                    _advancedMode
+                        ? Icons.expand_less
+                        : Icons.table_view_outlined,
+                  ),
+                  label: Text(
+                    _advancedMode
+                        ? 'Masquer la ventilation détaillée'
+                        : 'Afficher la ventilation détaillée',
+                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
-                    value: false,
-                    icon: Icon(Icons.account_balance_wallet_outlined),
-                    label: Text('Par enveloppe'),
+              if (!_advancedMode) _simpleArbitrations(),
+              if (_advancedMode) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _summary(),
+                const SizedBox(height: AppSpacing.sm),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.tonalIcon(
+                    key: const Key('propose-inventory-ventilation'),
+                    onPressed: () => _previewInventoryVentilation(context),
+                    icon: const Icon(Icons.auto_fix_high_outlined),
+                    label: const Text('Proposer une ventilation'),
                   ),
-                  ButtonSegment(
-                    value: true,
-                    icon: Icon(Icons.account_balance_outlined),
-                    label: Text('Par compte'),
-                  ),
-                ],
-                selected: {_groupByAccount},
-                onSelectionChanged: (value) {
-                  final groupByAccount = value.single;
-                  setState(() => _groupByAccount = groupByAccount);
-                  if (!groupByAccount) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_matrixHorizontal.hasClients) {
-                        _matrixHorizontal.jumpTo(0);
-                      }
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              if (_groupByAccount)
-                _accountComposition()
-              else if (box.maxWidth >= 760)
-                _desktopMatrix()
-              else
-                _mobileMatrix(),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.xs,
-                children: [
-                  for (final a in widget.accounts)
-                    Text(
-                      '${a.name}: réparti ${_money(_accountTotal(a.id as String))} / solde ${_money(widget.accountBalances[a.id as String]?.minorUnits ?? 0)} / écart ${_money(_accountTotal(a.id as String) - (widget.accountBalances[a.id as String]?.minorUnits ?? 0))}',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      icon: Icon(Icons.account_balance_wallet_outlined),
+                      label: Text('Par enveloppe'),
                     ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                key: const Key('matrix-inventory-note'),
-                controller: note,
-                decoration: const InputDecoration(
-                  labelText: 'Note d’inventaire obligatoire',
+                    ButtonSegment(
+                      value: true,
+                      icon: Icon(Icons.account_balance_outlined),
+                      label: Text('Par compte'),
+                    ),
+                  ],
+                  selected: {_groupByAccount},
+                  onSelectionChanged: (value) {
+                    final groupByAccount = value.single;
+                    setState(() => _groupByAccount = groupByAccount);
+                    if (!groupByAccount) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_matrixHorizontal.hasClients) {
+                          _matrixHorizontal.jumpTo(0);
+                        }
+                      });
+                    }
+                  },
                 ),
-              ),
+                const SizedBox(height: AppSpacing.sm),
+                if (_groupByAccount)
+                  _accountComposition()
+                else if (box.maxWidth >= 760)
+                  _desktopMatrix()
+                else
+                  _mobileMatrix(),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+              if (_advancedMode)
+                Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    for (final a in widget.accounts)
+                      Text(
+                        '${a.name}: réparti ${_money(_accountTotal(a.id as String))} / solde ${_money(widget.accountBalances[a.id as String]?.minorUnits ?? 0)} / écart ${_money(_accountTotal(a.id as String) - (widget.accountBalances[a.id as String]?.minorUnits ?? 0))}',
+                      ),
+                  ],
+                ),
+              const SizedBox(height: AppSpacing.md),
+              if (_advancedMode)
+                TextField(
+                  key: const Key('matrix-inventory-note'),
+                  controller: note,
+                  decoration: const InputDecoration(
+                    labelText: 'Note d’inventaire obligatoire',
+                  ),
+                ),
               if (!_balanced)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.sm),
@@ -736,6 +777,191 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       ),
     ),
   );
+
+  Widget _simpleSummary() {
+    final total = widget.envelopes.fold<int>(
+      0,
+      (sum, envelope) => sum + (envelope.balance as Money).minorUnits,
+    );
+    final located = rows.fold<int>(0, (sum, row) => sum + _cents(row));
+    final remaining = math.max(0, total - located);
+    return FpCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            remaining == 0
+                ? 'Votre point de départ est prêt'
+                : 'Vérification de votre point de départ',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          LinearProgressIndicator(value: total == 0 ? 1 : located / total),
+          const SizedBox(height: AppSpacing.xs),
+          Text('Montant total à localiser : ${_money(total)}'),
+          Text('Déjà retrouvé : ${_money(located)}'),
+          Text('À confirmer : ${_money(remaining)}'),
+          if (remaining == 0) ...[
+            const Divider(),
+            Text('Comptes : ${_money(total)}'),
+            Text('Enveloppes : ${_money(total)}'),
+            Text('Montant entièrement localisé : ${_money(total)}'),
+            const Text('Aucun écart'),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _simpleArbitrations() {
+    final arbitrations = _assistantArbitrations();
+    if (arbitrations.isEmpty) {
+      return const SecondaryInfoText(
+        'Les montants ont été retrouvés. Vérifiez le résumé puis confirmez le point de départ.',
+      );
+    }
+    return Column(
+      children: [
+        for (final item in arbitrations)
+          Card(
+            key: Key('assistant-arbitration-${item.envelopeId}'),
+            child: Padding(
+              padding: AppSpacing.card,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${item.envelopeName} — ${_money(item.amount)} restent à localiser',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const Text(
+                    'Sur quel compte se trouve actuellement ce montant ?',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (final accountId in item.accountIds)
+                        OutlinedButton(
+                          key: Key('assistant-${item.envelopeId}-$accountId'),
+                          onPressed: () => _assignArbitration(
+                            item.envelopeId,
+                            item.amount,
+                            accountId,
+                            item.accountIds,
+                          ),
+                          child: Text(_accountName(accountId)),
+                        ),
+                      if (item.accountIds.length == 2)
+                        OutlinedButton(
+                          key: Key('assistant-split-${item.envelopeId}'),
+                          onPressed: () => setState(
+                            () => _splitEnvelopes.add(item.envelopeId),
+                          ),
+                          child: const Text('Réparti entre les deux'),
+                        ),
+                    ],
+                  ),
+                  if (_splitEnvelopes.contains(item.envelopeId)) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _splitEditor(item),
+                  ],
+                  if (_hasEditableAmount(item) &&
+                      _editableAmount(item) != item.amount)
+                    Text(
+                      'La somme doit être exactement ${_money(item.amount)}.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _splitEditor(_AssistantArbitration item) {
+    final first = _row(item.accountIds.first, item.envelopeId);
+    final second = _row(item.accountIds.last, item.envelopeId);
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            key: Key('assistant-split-first-${item.envelopeId}'),
+            controller: first.amount,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: _accountName(first.accountId),
+              suffixText: 'MAD',
+            ),
+            onChanged: (raw) => _completeSplit(item, raw, second),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: TextField(
+            key: Key('assistant-split-second-${item.envelopeId}'),
+            controller: second.amount,
+            readOnly: true,
+            decoration: InputDecoration(
+              labelText: _accountName(second.accountId),
+              suffixText: 'MAD',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _completeSplit(
+    _AssistantArbitration item,
+    String raw,
+    _PositionDraft second,
+  ) {
+    final first = ((double.tryParse(raw.replaceAll(',', '.')) ?? -1) * 100)
+        .round();
+    _updatingDeductions = true;
+    second.amount.text = first < 0 || first > item.amount
+        ? ''
+        : ((item.amount - first) / 100).toStringAsFixed(2);
+    second.provenance = PositionProvenance.openingInventoryArbitration;
+    second.provenanceReference = 'Arbitrage explicite lors de l’inventaire';
+    _updatingDeductions = false;
+    _applyUniqueDeductions();
+    setState(() {});
+  }
+
+  void _assignArbitration(
+    String envelopeId,
+    int amount,
+    String accountId,
+    List<String> admissible,
+  ) {
+    _updatingDeductions = true;
+    for (final id in admissible) {
+      final row = _row(id, envelopeId);
+      if (!row.fixed) {
+        row.amount.text = id == accountId
+            ? (amount / 100).toStringAsFixed(2)
+            : '';
+      }
+      row.provenance = PositionProvenance.openingInventoryArbitration;
+      row.provenanceReference = 'Arbitrage explicite lors de l’inventaire';
+    }
+    _updatingDeductions = false;
+    _applyUniqueDeductions();
+    setState(() => _splitEnvelopes.remove(envelopeId));
+  }
+
+  String _accountName(String id) =>
+      widget.accounts
+          .where((account) => account.id == id)
+          .map((account) => account.name as String)
+          .firstOrNull ??
+      'Compte';
 
   Widget _summary() {
     final relevant = widget.envelopes
@@ -772,18 +998,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     );
   }
 
-  InventoryVentilationProposal _inventoryVentilationProposal() {
-    final fixed = <EnvelopeAccountPosition>[
-      for (final row in rows)
-        if (_cents(row) > 0)
-          EnvelopeAccountPosition(
-            accountId: row.accountId,
-            envelopeId: row.envelopeId,
-            amount: Money.fromMinorUnits(_cents(row)),
-            provenance: row.provenance,
-            provenanceReference: row.provenanceReference,
-          ),
-    ];
+  List<InventoryVentilationRule> _ventilationRules() {
     final targetAccounts = <String, Set<String>>{};
     for (final target in widget.structuralTargets) {
       if (target.amount.minorUnits <= 0) continue;
@@ -808,15 +1023,14 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         _ => const <String>[],
       };
       if (admissible.isEmpty) continue;
-      final preferred = <String>[
-        ...?(recommended == null ? null : <String>[recommended]),
-        ...scenarioAccounts.where((id) => id != recommended),
-      ];
       rules.add(
         InventoryVentilationRule(
           envelopeId: envelopeId,
           admissibleAccountIds: admissible,
-          preferredAccountIds: preferred,
+          preferredAccountIds: <String>[
+            ...?(recommended == null ? null : <String>[recommended]),
+            ...scenarioAccounts.where((id) => id != recommended),
+          ],
           reason: kind == 'single_account'
               ? 'Compte structurel habituel'
               : kind == 'scenario_split'
@@ -825,14 +1039,112 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         ),
       );
     }
-    return proposeInventoryVentilation(
+    return rules;
+  }
+
+  void _prepareAutomaticPositions() {
+    final fixed = _currentPositions();
+    final deterministicRules = _ventilationRules()
+        .where((rule) => rule.admissibleAccountIds.length == 1)
+        .toList(growable: false);
+    final proposal = proposeInventoryVentilation(
       accountBalances: widget.accountBalances,
       envelopeBalances: {
         for (final envelope in widget.envelopes)
           envelope.id as String: envelope.balance as Money,
       },
       fixedPositions: fixed,
-      rules: rules,
+      rules: deterministicRules,
+    );
+    _updatingDeductions = true;
+    for (final candidate in proposal.candidates) {
+      final row = _row(
+        candidate.position.accountId,
+        candidate.position.envelopeId,
+      );
+      if (_cents(row) > 0 || row.locked) continue;
+      row.amount.text = candidate.position.amount.dirhams.toStringAsFixed(2);
+      row.provenance = PositionProvenance.openingInventoryArbitration;
+      row.provenanceReference = 'Assistant R2.13 — proposition structurelle';
+    }
+    _updatingDeductions = false;
+    _applyUniqueDeductions();
+  }
+
+  List<EnvelopeAccountPosition> _currentPositions() => [
+    for (final row in rows)
+      if (_cents(row) > 0)
+        EnvelopeAccountPosition(
+          accountId: row.accountId,
+          envelopeId: row.envelopeId,
+          amount: Money.fromMinorUnits(_cents(row)),
+          provenance: row.provenance,
+          provenanceReference: row.provenanceReference,
+        ),
+  ];
+
+  int _editableAmount(_AssistantArbitration item) => rows
+      .where(
+        (row) =>
+            row.envelopeId == item.envelopeId &&
+            item.accountIds.contains(row.accountId) &&
+            !row.fixed,
+      )
+      .fold(0, (sum, row) => sum + _cents(row));
+
+  bool _hasEditableAmount(_AssistantArbitration item) => rows.any(
+    (row) =>
+        row.envelopeId == item.envelopeId &&
+        item.accountIds.contains(row.accountId) &&
+        !row.fixed &&
+        row.amount.text.trim().isNotEmpty,
+  );
+
+  List<_AssistantArbitration> _assistantArbitrations() {
+    final rules = _ventilationRules();
+    return [
+      for (final rule in rules)
+        if (widget.envelopes
+                .where((envelope) => envelope.id == rule.envelopeId)
+                .map((envelope) {
+                  final fixed = rows
+                      .where(
+                        (row) => row.envelopeId == rule.envelopeId && row.fixed,
+                      )
+                      .fold(0, (sum, row) => sum + _cents(row));
+                  return (envelope.balance as Money).minorUnits - fixed;
+                })
+                .firstOrNull
+            case final remaining?
+            when remaining > 0 &&
+                rows
+                        .where(
+                          (row) =>
+                              row.envelopeId == rule.envelopeId && !row.fixed,
+                        )
+                        .fold(0, (sum, row) => sum + _cents(row)) !=
+                    remaining)
+          _AssistantArbitration(
+            envelopeId: rule.envelopeId,
+            envelopeName: widget.envelopes
+                .where((envelope) => envelope.id == rule.envelopeId)
+                .map((envelope) => envelope.name as String)
+                .first,
+            amount: remaining,
+            accountIds: rule.admissibleAccountIds,
+          ),
+    ];
+  }
+
+  InventoryVentilationProposal _inventoryVentilationProposal() {
+    return proposeInventoryVentilation(
+      accountBalances: widget.accountBalances,
+      envelopeBalances: {
+        for (final envelope in widget.envelopes)
+          envelope.id as String: envelope.balance as Money,
+      },
+      fixedPositions: _currentPositions(),
+      rules: _ventilationRules(),
     );
   }
 
@@ -1408,6 +1720,20 @@ class _PositionDraft {
   String? provenanceReference = 'Arbitrage explicite lors de l’inventaire';
   bool locked = false;
   bool fixed = false;
+}
+
+class _AssistantArbitration {
+  const _AssistantArbitration({
+    required this.envelopeId,
+    required this.envelopeName,
+    required this.amount,
+    required this.accountIds,
+  });
+
+  final String envelopeId;
+  final String envelopeName;
+  final int amount;
+  final List<String> accountIds;
 }
 
 class _Kpis extends StatelessWidget {
