@@ -470,8 +470,14 @@ class _CurrentTargetPanel extends ConsumerWidget {
       );
     }
     var draftPositions = const <EnvelopeAccountPosition>[];
+    var unknownEnvelopeIds = const <String>{};
     try {
       draftPositions = await ref.read(initialPositionDraftProvider.future);
+    } catch (_) {}
+    try {
+      unknownEnvelopeIds = await ref.read(
+        initialPositionUnknownsProvider.future,
+      );
     } catch (_) {}
     List<MonthlyEnvelopeAccountTarget> structuralTargets;
     var persisted = const <MonthlyEnvelopeAccountTarget>[];
@@ -502,10 +508,15 @@ class _CurrentTargetPanel extends ConsumerWidget {
             accountBalances: accountBalances,
             initialPositions: preview.positions,
             draftPositions: draftPositions,
+            unknownEnvelopeIds: unknownEnvelopeIds,
             structuralTargets: structuralTargets,
             onDraftChanged: (positions) async {
               await ref.read(saveInitialPositionDraftProvider)(positions);
               ref.invalidate(initialPositionDraftProvider);
+            },
+            onUnknownsChanged: (envelopeIds) async {
+              await ref.read(saveInitialPositionUnknownsProvider)(envelopeIds);
+              ref.invalidate(initialPositionUnknownsProvider);
             },
           ),
         );
@@ -544,15 +555,19 @@ class _PositionSnapshotDialog extends StatefulWidget {
     required this.accountBalances,
     required this.initialPositions,
     required this.draftPositions,
+    required this.unknownEnvelopeIds,
     required this.structuralTargets,
     required this.onDraftChanged,
+    required this.onUnknownsChanged,
   });
   final List<dynamic> accounts, envelopes;
   final Map<String, Money> accountBalances;
   final List<EnvelopeAccountPosition> initialPositions;
   final List<EnvelopeAccountPosition> draftPositions;
+  final Set<String> unknownEnvelopeIds;
   final List<MonthlyEnvelopeAccountTarget> structuralTargets;
   final Future<void> Function(List<EnvelopeAccountPosition>) onDraftChanged;
+  final Future<void> Function(Set<String>) onUnknownsChanged;
   @override
   State<_PositionSnapshotDialog> createState() =>
       _PositionSnapshotDialogState();
@@ -568,12 +583,15 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   var _updatingDeductions = false;
   var _allowPop = false;
   var _draftDirty = false;
+  var _unknownsDirty = false;
   final _splitEnvelopes = <String>{};
+  late final Set<String> _unknownEnvelopeIds;
   Timer? _draftSaveTimer;
   @override
   void initState() {
     super.initState();
     note.addListener(_changed);
+    _unknownEnvelopeIds = {...widget.unknownEnvelopeIds};
     for (final envelope in widget.envelopes) {
       for (final account in widget.accounts) {
         final row = _PositionDraft(account.id as String, envelope.id as String);
@@ -791,7 +809,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                       labelText: 'Note d’inventaire obligatoire',
                     ),
                   ),
-                if (!_balanced)
+                if (!_balanced && _advancedMode)
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.sm),
                     child: Text(
@@ -816,6 +834,19 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     );
     final located = rows.fold<int>(0, (sum, row) => sum + _cents(row));
     final remaining = math.max(0, total - located);
+    final deferred = widget.envelopes
+        .where((envelope) => _unknownEnvelopeIds.contains(envelope.id))
+        .fold<int>(
+          0,
+          (sum, envelope) =>
+              sum +
+              math.max(
+                0,
+                (envelope.balance as Money).minorUnits -
+                    _envelopeTotal(envelope.id as String),
+              ),
+        );
+    final questions = _assistantArbitrations().length;
     return FpCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -823,7 +854,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           Text(
             remaining == 0
                 ? 'Votre point de départ est prêt'
-                : 'Vérification de votre point de départ',
+                : 'Préparer FINANCIEL PILOTE',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -831,7 +862,18 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           const SizedBox(height: AppSpacing.xs),
           Text('Montant total à localiser : ${_money(total)}'),
           Text('Déjà retrouvé : ${_money(located)}'),
-          Text('À confirmer : ${_money(remaining)}'),
+          Text(
+            '$questions élément${questions > 1 ? 's' : ''} nécessite${questions > 1 ? 'nt' : ''} votre aide',
+          ),
+          Text(
+            'À confirmer maintenant : ${_money(math.max(0, remaining - deferred))}',
+          ),
+          if (deferred > 0)
+            Text('À déterminer plus tard : ${_money(deferred)}'),
+          if (deferred > 0)
+            const SecondaryInfoText(
+              'Vous pourrez compléter ces informations plus tard. FINANCIEL PILOTE vous les demandera uniquement lorsqu’elles seront nécessaires.',
+            ),
           if (remaining == 0) ...[
             const Divider(),
             Text('Comptes : ${_money(total)}'),
@@ -848,7 +890,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     final arbitrations = _assistantArbitrations();
     if (arbitrations.isEmpty) {
       return const SecondaryInfoText(
-        'Les montants ont été retrouvés. Vérifiez le résumé puis confirmez le point de départ.',
+        'Nous avons retrouvé tout ce qui peut l’être avec certitude. Vous pouvez continuer ou contrôler la ventilation détaillée.',
       );
     }
     return Column(
@@ -892,6 +934,12 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                           ),
                           child: const Text('Réparti entre les deux'),
                         ),
+                      OutlinedButton.icon(
+                        key: Key('assistant-unknown-${item.envelopeId}'),
+                        onPressed: () => _deferEnvelope(item.envelopeId),
+                        icon: const Icon(Icons.schedule_outlined),
+                        label: const Text('Je ne sais pas / plus tard'),
+                      ),
                     ],
                   ),
                   if (_splitEnvelopes.contains(item.envelopeId)) ...[
@@ -975,6 +1023,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     List<String> admissible,
   ) {
     _updatingDeductions = true;
+    _unknownEnvelopeIds.remove(envelopeId);
     for (final id in admissible) {
       final row = _row(id, envelopeId);
       if (row.fixed || row.userEdited) continue;
@@ -986,6 +1035,21 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       row.userEdited = id == accountId;
     }
     _updatingDeductions = false;
+    _applyUniqueDeductions();
+    setState(() => _splitEnvelopes.remove(envelopeId));
+    _scheduleDraftSave();
+  }
+
+  void _deferEnvelope(String envelopeId) {
+    _updatingDeductions = true;
+    for (final row in rows.where((row) => row.envelopeId == envelopeId)) {
+      if (row.fixed) continue;
+      row.amount.clear();
+      row.userEdited = false;
+    }
+    _updatingDeductions = false;
+    _unknownEnvelopeIds.add(envelopeId);
+    _unknownsDirty = true;
     _applyUniqueDeductions();
     setState(() => _splitEnvelopes.remove(envelopeId));
     _scheduleDraftSave();
@@ -1109,28 +1173,41 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   );
 
   List<_AssistantArbitration> _assistantArbitrations() {
-    final rules = _ventilationRules();
+    final rulesByEnvelope = {
+      for (final rule in _ventilationRules()) rule.envelopeId: rule,
+    };
     return [
-      for (final rule in rules)
-        if (widget.envelopes
-                .where((envelope) => envelope.id == rule.envelopeId)
-                .map((envelope) {
-                  final alreadyKnown = rows
-                      .where((row) => row.envelopeId == rule.envelopeId)
-                      .fold(0, (sum, row) => sum + _cents(row));
-                  return (envelope.balance as Money).minorUnits - alreadyKnown;
-                })
-                .firstOrNull
-            case final remaining? when remaining > 0)
-          _AssistantArbitration(
-            envelopeId: rule.envelopeId,
-            envelopeName: widget.envelopes
-                .where((envelope) => envelope.id == rule.envelopeId)
-                .map((envelope) => envelope.name as String)
-                .first,
-            amount: remaining,
-            accountIds: rule.admissibleAccountIds,
-          ),
+      for (final envelope in widget.envelopes)
+        if (!_unknownEnvelopeIds.contains(envelope.id) &&
+            ((envelope.balance as Money).minorUnits -
+                    rows
+                        .where((row) => row.envelopeId == envelope.id)
+                        .fold(0, (sum, row) => sum + _cents(row))) >
+                0)
+          if (rulesByEnvelope[envelope.id] case final rule?)
+            _AssistantArbitration(
+              envelopeId: rule.envelopeId,
+              envelopeName: envelope.name as String,
+              amount:
+                  (envelope.balance as Money).minorUnits -
+                  rows
+                      .where((row) => row.envelopeId == envelope.id)
+                      .fold(0, (sum, row) => sum + _cents(row)),
+              accountIds: rule.admissibleAccountIds,
+            )
+          else
+            _AssistantArbitration(
+              envelopeId: envelope.id as String,
+              envelopeName: envelope.name as String,
+              amount:
+                  (envelope.balance as Money).minorUnits -
+                  rows
+                      .where((row) => row.envelopeId == envelope.id)
+                      .fold(0, (sum, row) => sum + _cents(row)),
+              accountIds: [
+                for (final account in widget.accounts) account.id as String,
+              ],
+            ),
     ];
   }
 
@@ -1658,7 +1735,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
 
   Future<bool> _persistDraft() async {
     if (!mounted) return false;
-    if (!_draftDirty) return true;
+    if (!_draftDirty && !_unknownsDirty) return true;
     _draftSaveTimer?.cancel();
     final positions = <EnvelopeAccountPosition>[
       for (final row in rows)
@@ -1672,8 +1749,12 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           ),
     ];
     try {
-      await widget.onDraftChanged(positions);
+      if (_draftDirty) await widget.onDraftChanged(positions);
+      if (_unknownsDirty) {
+        await widget.onUnknownsChanged(Set.unmodifiable(_unknownEnvelopeIds));
+      }
       _draftDirty = false;
+      _unknownsDirty = false;
       return true;
     } catch (_) {
       if (mounted) {

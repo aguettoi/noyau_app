@@ -66,6 +66,14 @@ Statut : R2.7 matérialisé le 12/10/2026 ; l'inventaire humain initial compte �
 
 L'étude R2.2 retient l'option B. La matrice n'est pas reconstructible exhaustivement : C3 a ouvert séparément les comptes et les enveloppes, tandis que les transferts historiques de compte ou d'enveloppe ne portent pas toujours l'autre dimension. `envelope_account_position_batches` et `envelope_account_position_entries` forment donc une projection analytique append-only minimale. Un point de départ est saisi explicitement après inventaire et n'écrit ni GL ni mouvement d'enveloppe. Sa validité exige que chaque somme par compte égale le Grand Ledger et que chaque somme par enveloppe égale l'envelope ledger. Toute différence rend la matrice non fiable et bloque R2C.
 
+R2.14 conserve cette couche canonique mais retire la matrice du parcours normal.
+Les preuves et déductions certaines sont préparées sans question ; les règles
+structurelles ne produisent que des propositions. L'utilisateur peut reporter
+une localisation avec « Je ne sais pas / plus tard ». Ce statut ne crée aucune
+position fictive et ne bloque que les opérations qui ont réellement besoin du
+compte porteur (réallocation physique, sweep ou transfert analytique ciblé).
+La matrice complète reste disponible dans le mode avancé.
+
 ## R2.9 — preuve du point de départ
 
 Le préremplissage initial distingue désormais trois provenances : preuve de la source certifiée, confirmation humaine traçable et déduction par équilibrage unique. Une recommandation structurelle n'est jamais une preuve de localisation actuelle. La validation finale reste explicite et atomique ; elle n'écrit ni Grand Ledger, ni FinancialEvent, ni mouvement d'enveloppe.

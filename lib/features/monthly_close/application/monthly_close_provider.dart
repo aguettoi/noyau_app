@@ -401,6 +401,36 @@ class MonthlyCloseGateway {
         );
   }
 
+  Future<Set<String>> fetchInitialPositionUnknowns() async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final householdId = household.householdId;
+    if (householdId == null) throw StateError('Aucun foyer actif.');
+    final raw =
+        await ref
+                .read(supabaseClientProvider)
+                .rpc(
+                  'envelope_account_initial_position_unknowns',
+                  params: {'p_household_id': householdId},
+                )
+            as List;
+    return Set.unmodifiable(raw.map((value) => value.toString()));
+  }
+
+  Future<void> saveInitialPositionUnknowns(Set<String> envelopeIds) async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final householdId = household.householdId;
+    if (householdId == null) throw StateError('Aucun foyer actif.');
+    await ref
+        .read(supabaseClientProvider)
+        .rpc(
+          'save_envelope_account_initial_position_unknowns',
+          params: {
+            'p_household_id': householdId,
+            'p_envelope_ids': envelopeIds.toList(growable: false),
+          },
+        );
+  }
+
   Future<List<OpeningPositionHistoryEntry>> fetchOpeningHistory() async {
     final household = await ref.read(activeHouseholdProvider.future);
     final householdId = household.householdId;
@@ -586,6 +616,17 @@ final saveInitialPositionDraftProvider =
           (positions) => ref
               .read(monthlyCloseGatewayProvider)
               .saveInitialPositionDraft(positions),
+    );
+final initialPositionUnknownsProvider = FutureProvider<Set<String>>(
+  (ref) =>
+      ref.watch(monthlyCloseGatewayProvider).fetchInitialPositionUnknowns(),
+);
+final saveInitialPositionUnknownsProvider =
+    Provider<Future<void> Function(Set<String>)>(
+      (ref) =>
+          (envelopeIds) => ref
+              .read(monthlyCloseGatewayProvider)
+              .saveInitialPositionUnknowns(envelopeIds),
     );
 final openingPositionHistoryProvider =
     FutureProvider<List<OpeningPositionHistoryEntry>>(

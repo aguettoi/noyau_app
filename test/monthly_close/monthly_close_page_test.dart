@@ -1128,9 +1128,9 @@ void main() {
 
       expect(find.text('Préparer votre point de départ'), findsOneWidget);
       expect(find.textContaining('Habits — 874.40 MAD'), findsOneWidget);
-      expect(find.text('CIH Ibrahim'), findsOneWidget);
-      expect(find.text('Banque Nora'), findsOneWidget);
-      expect(find.text('Réparti entre les deux'), findsOneWidget);
+      expect(find.text('CIH Ibrahim'), findsWidgets);
+      expect(find.text('Banque Nora'), findsWidgets);
+      expect(find.text('Réparti entre les deux'), findsWidgets);
       expect(find.textContaining('Islamique / Arreda'), findsNothing);
       expect(find.textContaining('AWB'), findsNothing);
       expect(find.textContaining('Espèces'), findsNothing);
@@ -1250,11 +1250,15 @@ void main() {
               ),
             ),
             initialPositionDraftProvider.overrideWith((ref) async => draft),
+            initialPositionUnknownsProvider.overrideWith(
+              (ref) async => const {},
+            ),
             saveInitialPositionDraftProvider.overrideWithValue((
               positions,
             ) async {
               draft = List.unmodifiable(positions);
             }),
+            saveInitialPositionUnknownsProvider.overrideWithValue((_) async {}),
             monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
             automaticTargetPreviewProvider.overrideWith(
               (ref) async => AutomaticTargetPreview(
@@ -1292,7 +1296,7 @@ void main() {
         find.text('Traite maison — 4150.00 MAD restent à localiser'),
         findsOneWidget,
       );
-      expect(find.text('Islamique / Arreda Ibrahim'), findsOneWidget);
+      expect(find.text('Islamique / Arreda Ibrahim'), findsWidgets);
       expect(find.textContaining('63480.00 MAD restent'), findsNothing);
       await tester.tap(find.byKey(const Key('toggle-advanced-matrix')));
       await tester.pumpAndSettle();
@@ -1341,6 +1345,136 @@ void main() {
         '4150.00',
       );
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'R2.14 permet de différer une localisation sans créer de position',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 720);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var unknowns = <String>{};
+      var savedPositions = const <EnvelopeAccountPosition>[];
+      final account = FinancialAccount(
+        id: 'account',
+        name: 'Compte principal',
+        type: FinancialAccountType.bank,
+        openingBalance: const Money.fromMinorUnits(0),
+      );
+      final secondAccount = FinancialAccount(
+        id: 'second-account',
+        name: 'Second compte',
+        type: FinancialAccountType.bank,
+        openingBalance: const Money.fromMinorUnits(0),
+      );
+      Future<void> pumpPage() async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              monthlyCloseProvider.overrideWith(
+                (ref) async => MonthlyCloseSnapshot(
+                  month: DateTime(2026, 10),
+                  status: MonthlyCloseStatus.open,
+                  issues: const [],
+                  owner: true,
+                ),
+              ),
+              envelopeAccountMatrixProvider.overrideWith(
+                (ref) async => const EnvelopeAccountMatrix(
+                  positions: [],
+                  reliable: false,
+                  accountGap: Money.fromMinorUnits(10000),
+                  envelopeGap: Money.fromMinorUnits(10000),
+                  fingerprint: 'empty',
+                ),
+              ),
+              remoteAccountsProvider.overrideWith(
+                (ref) async => [account, secondAccount],
+              ),
+              remoteAccountBalancesProvider.overrideWith(
+                (ref) async => const {
+                  'account': Money.fromMinorUnits(5000),
+                  'second-account': Money.fromMinorUnits(5000),
+                },
+              ),
+              remoteEnvelopeBalancesProvider.overrideWith(
+                (ref) async => const [
+                  RemoteEnvelopeBalance(
+                    id: 'unknown',
+                    name: 'Sans règle',
+                    inflows: Money.fromMinorUnits(10000),
+                    outflows: Money.fromMinorUnits(0),
+                    balance: Money.fromMinorUnits(10000),
+                    isSystem: false,
+                  ),
+                ],
+              ),
+              initialPositionPreviewProvider.overrideWith(
+                (ref) async => const InitialPositionPreview(
+                  positions: [],
+                  sourceFingerprint: 'source',
+                ),
+              ),
+              initialPositionDraftProvider.overrideWith(
+                (ref) async => savedPositions,
+              ),
+              initialPositionUnknownsProvider.overrideWith(
+                (ref) async => unknowns,
+              ),
+              saveInitialPositionDraftProvider.overrideWithValue((value) async {
+                savedPositions = List.unmodifiable(value);
+              }),
+              saveInitialPositionUnknownsProvider.overrideWithValue((
+                value,
+              ) async {
+                unknowns = {...value};
+              }),
+              monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
+              automaticTargetPreviewProvider.overrideWith(
+                (ref) async => const AutomaticTargetPreview(
+                  complete: false,
+                  missingMappings: [],
+                  scenarioName: null,
+                  targets: [],
+                ),
+              ),
+            ],
+            child: const MaterialApp(home: MonthlyClosePage()),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('initialize-matrix')),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.byKey(const Key('initialize-matrix')));
+        await tester.pumpAndSettle();
+      }
+
+      await pumpPage();
+      expect(find.textContaining('Sans règle — 100.00 MAD'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('assistant-unknown-unknown')));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(unknowns, {'unknown'});
+      expect(savedPositions, isEmpty);
+      expect(find.text('À déterminer plus tard : 100.00 MAD'), findsOneWidget);
+      expect(find.textContaining('Sans règle — 100.00 MAD'), findsNothing);
+      expect(find.byKey(const Key('save-matrix-snapshot')), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('save-matrix-snapshot')))
+            .onPressed,
+        isNull,
+      );
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      await pumpPage();
+      expect(find.text('À déterminer plus tard : 100.00 MAD'), findsOneWidget);
+      expect(find.textContaining('Sans règle — 100.00 MAD'), findsNothing);
     },
   );
 }
