@@ -349,6 +349,58 @@ class MonthlyCloseGateway {
     );
   }
 
+  Future<List<EnvelopeAccountPosition>> fetchInitialPositionDraft() async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final householdId = household.householdId;
+    if (householdId == null) throw StateError('Aucun foyer actif.');
+    final raw =
+        await ref
+                .read(supabaseClientProvider)
+                .rpc(
+                  'envelope_account_initial_position_draft',
+                  params: {'p_household_id': householdId},
+                )
+            as List;
+    return List.unmodifiable([
+      for (final row in raw.cast<Map>())
+        EnvelopeAccountPosition(
+          accountId: row['account_id'].toString(),
+          envelopeId: row['envelope_id'].toString(),
+          amount: Money.fromDirhams(double.parse(row['amount'].toString())),
+          provenance: row['provenance']?.toString() == 'human_confirmation'
+              ? PositionProvenance.humanConfirmation
+              : PositionProvenance.openingInventoryArbitration,
+          provenanceReference: row['provenance_reference']?.toString(),
+        ),
+    ]);
+  }
+
+  Future<void> saveInitialPositionDraft(
+    List<EnvelopeAccountPosition> positions,
+  ) async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final householdId = household.householdId;
+    if (householdId == null) throw StateError('Aucun foyer actif.');
+    await ref
+        .read(supabaseClientProvider)
+        .rpc(
+          'save_envelope_account_initial_position_draft',
+          params: {
+            'p_household_id': householdId,
+            'p_positions': [
+              for (final position in positions)
+                {
+                  'account_id': position.accountId,
+                  'envelope_id': position.envelopeId,
+                  'amount': position.amount.dirhams.toStringAsFixed(2),
+                  'provenance': position.provenance.name,
+                  'provenance_reference': position.provenanceReference,
+                },
+            ],
+          },
+        );
+  }
+
   Future<List<OpeningPositionHistoryEntry>> fetchOpeningHistory() async {
     final household = await ref.read(activeHouseholdProvider.future);
     final householdId = household.householdId;
@@ -523,6 +575,18 @@ final envelopeAccountMatrixProvider = FutureProvider<EnvelopeAccountMatrix>(
 final initialPositionPreviewProvider = FutureProvider<InitialPositionPreview>(
   (ref) => ref.watch(monthlyCloseGatewayProvider).fetchInitialPositionPreview(),
 );
+final initialPositionDraftProvider =
+    FutureProvider<List<EnvelopeAccountPosition>>(
+      (ref) =>
+          ref.watch(monthlyCloseGatewayProvider).fetchInitialPositionDraft(),
+    );
+final saveInitialPositionDraftProvider =
+    Provider<Future<void> Function(List<EnvelopeAccountPosition>)>(
+      (ref) =>
+          (positions) => ref
+              .read(monthlyCloseGatewayProvider)
+              .saveInitialPositionDraft(positions),
+    );
 final openingPositionHistoryProvider =
     FutureProvider<List<OpeningPositionHistoryEntry>>(
       (ref) => ref.watch(monthlyCloseGatewayProvider).fetchOpeningHistory(),

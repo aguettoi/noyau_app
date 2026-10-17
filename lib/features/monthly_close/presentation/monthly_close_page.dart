@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -468,6 +469,10 @@ class _CurrentTargetPanel extends ConsumerWidget {
         sourceFingerprint: '',
       );
     }
+    var draftPositions = const <EnvelopeAccountPosition>[];
+    try {
+      draftPositions = await ref.read(initialPositionDraftProvider.future);
+    } catch (_) {}
     List<MonthlyEnvelopeAccountTarget> structuralTargets;
     var persisted = const <MonthlyEnvelopeAccountTarget>[];
     try {
@@ -496,7 +501,12 @@ class _CurrentTargetPanel extends ConsumerWidget {
             envelopes: envelopes,
             accountBalances: accountBalances,
             initialPositions: preview.positions,
+            draftPositions: draftPositions,
             structuralTargets: structuralTargets,
+            onDraftChanged: (positions) async {
+              await ref.read(saveInitialPositionDraftProvider)(positions);
+              ref.invalidate(initialPositionDraftProvider);
+            },
           ),
         );
     if (result == null) return;
@@ -533,12 +543,16 @@ class _PositionSnapshotDialog extends StatefulWidget {
     required this.envelopes,
     required this.accountBalances,
     required this.initialPositions,
+    required this.draftPositions,
     required this.structuralTargets,
+    required this.onDraftChanged,
   });
   final List<dynamic> accounts, envelopes;
   final Map<String, Money> accountBalances;
   final List<EnvelopeAccountPosition> initialPositions;
+  final List<EnvelopeAccountPosition> draftPositions;
   final List<MonthlyEnvelopeAccountTarget> structuralTargets;
+  final Future<void> Function(List<EnvelopeAccountPosition>) onDraftChanged;
   @override
   State<_PositionSnapshotDialog> createState() =>
       _PositionSnapshotDialogState();
@@ -552,7 +566,10 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   var _groupByAccount = false;
   var _advancedMode = false;
   var _updatingDeductions = false;
+  var _allowPop = false;
+  var _draftDirty = false;
   final _splitEnvelopes = <String>{};
+  Timer? _draftSaveTimer;
   @override
   void initState() {
     super.initState();
@@ -573,9 +590,16 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       row.fixed = true;
       row.amount.text = proof.amount.dirhams.toStringAsFixed(2);
     }
+    for (final draft in widget.draftPositions) {
+      final row = _row(draft.accountId, draft.envelopeId);
+      if (row.fixed) continue;
+      row.provenance = draft.provenance;
+      row.provenanceReference = draft.provenanceReference;
+      row.userEdited = true;
+      row.amount.text = draft.amount.dirhams.toStringAsFixed(2);
+    }
     _updatingDeductions = false;
     _applyUniqueDeductions();
-    _prepareAutomaticPositions();
     note.text = 'Initialisation guidée du point de départ';
   }
 
@@ -641,137 +665,144 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     note.dispose();
     _matrixHorizontal.dispose();
     _matrixVertical.dispose();
+    _draftSaveTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Dialog.fullscreen(
-    child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Préparer votre point de départ'),
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.close),
-        ),
-        actions: [
-          FilledButton(
-            key: const Key('save-matrix-snapshot'),
-            onPressed: _balanced ? () => _save(context) : null,
-            child: const Text('Vérifier et enregistrer'),
+    child: PopScope<Object?>(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (!didPop) await _closeDraft();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Préparer votre point de départ'),
+          leading: IconButton(
+            onPressed: _closeDraft,
+            icon: const Icon(Icons.close),
           ),
-          const SizedBox(width: AppSpacing.sm),
-        ],
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, box) => ListView(
-            padding: AppLayout.pagePaddingFor(box.maxWidth),
-            children: [
-              const Text(
-                'Pour que FINANCIEL PILOTE sache où se trouve l’argent de chaque enveloppe aujourd’hui, nous allons vérifier les quelques montants que nous n’avons pas pu retrouver automatiquement. Cette opération n’est normalement nécessaire qu’une seule fois.',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _simpleSummary(),
-              const SizedBox(height: AppSpacing.sm),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  key: const Key('toggle-advanced-matrix'),
-                  onPressed: () =>
-                      setState(() => _advancedMode = !_advancedMode),
-                  icon: Icon(
-                    _advancedMode
-                        ? Icons.expand_less
-                        : Icons.table_view_outlined,
-                  ),
-                  label: Text(
-                    _advancedMode
-                        ? 'Masquer la ventilation détaillée'
-                        : 'Afficher la ventilation détaillée',
-                  ),
+          actions: [
+            FilledButton(
+              key: const Key('save-matrix-snapshot'),
+              onPressed: _balanced ? () => _save(context) : null,
+              child: const Text('Vérifier et enregistrer'),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+        ),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, box) => ListView(
+              padding: AppLayout.pagePaddingFor(box.maxWidth),
+              children: [
+                const Text(
+                  'Pour que FINANCIEL PILOTE sache où se trouve l’argent de chaque enveloppe aujourd’hui, nous allons vérifier les quelques montants que nous n’avons pas pu retrouver automatiquement. Cette opération n’est normalement nécessaire qu’une seule fois.',
                 ),
-              ),
-              if (!_advancedMode) _simpleArbitrations(),
-              if (_advancedMode) ...[
                 const SizedBox(height: AppSpacing.sm),
-                _summary(),
+                _simpleSummary(),
                 const SizedBox(height: AppSpacing.sm),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: FilledButton.tonalIcon(
-                    key: const Key('propose-inventory-ventilation'),
-                    onPressed: () => _previewInventoryVentilation(context),
-                    icon: const Icon(Icons.auto_fix_high_outlined),
-                    label: const Text('Proposer une ventilation'),
+                  child: TextButton.icon(
+                    key: const Key('toggle-advanced-matrix'),
+                    onPressed: () =>
+                        setState(() => _advancedMode = !_advancedMode),
+                    icon: Icon(
+                      _advancedMode
+                          ? Icons.expand_less
+                          : Icons.table_view_outlined,
+                    ),
+                    label: Text(
+                      _advancedMode
+                          ? 'Masquer la ventilation détaillée'
+                          : 'Afficher la ventilation détaillée',
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(
-                      value: false,
-                      icon: Icon(Icons.account_balance_wallet_outlined),
-                      label: Text('Par enveloppe'),
+                if (!_advancedMode) _simpleArbitrations(),
+                if (_advancedMode) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  _summary(),
+                  const SizedBox(height: AppSpacing.sm),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.tonalIcon(
+                      key: const Key('propose-inventory-ventilation'),
+                      onPressed: () => _previewInventoryVentilation(context),
+                      icon: const Icon(Icons.auto_fix_high_outlined),
+                      label: const Text('Proposer une ventilation'),
                     ),
-                    ButtonSegment(
-                      value: true,
-                      icon: Icon(Icons.account_balance_outlined),
-                      label: Text('Par compte'),
-                    ),
-                  ],
-                  selected: {_groupByAccount},
-                  onSelectionChanged: (value) {
-                    final groupByAccount = value.single;
-                    setState(() => _groupByAccount = groupByAccount);
-                    if (!groupByAccount) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (_matrixHorizontal.hasClients) {
-                          _matrixHorizontal.jumpTo(0);
-                        }
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                if (_groupByAccount)
-                  _accountComposition()
-                else if (box.maxWidth >= 760)
-                  _desktopMatrix()
-                else
-                  _mobileMatrix(),
-              ],
-              const SizedBox(height: AppSpacing.sm),
-              if (_advancedMode)
-                Wrap(
-                  spacing: AppSpacing.md,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    for (final a in widget.accounts)
-                      Text(
-                        '${a.name}: réparti ${_money(_accountTotal(a.id as String))} / solde ${_money(widget.accountBalances[a.id as String]?.minorUnits ?? 0)} / écart ${_money(_accountTotal(a.id as String) - (widget.accountBalances[a.id as String]?.minorUnits ?? 0))}',
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: false,
+                        icon: Icon(Icons.account_balance_wallet_outlined),
+                        label: Text('Par enveloppe'),
                       ),
-                  ],
-                ),
-              const SizedBox(height: AppSpacing.md),
-              if (_advancedMode)
-                TextField(
-                  key: const Key('matrix-inventory-note'),
-                  controller: note,
-                  decoration: const InputDecoration(
-                    labelText: 'Note d’inventaire obligatoire',
+                      ButtonSegment(
+                        value: true,
+                        icon: Icon(Icons.account_balance_outlined),
+                        label: Text('Par compte'),
+                      ),
+                    ],
+                    selected: {_groupByAccount},
+                    onSelectionChanged: (value) {
+                      final groupByAccount = value.single;
+                      setState(() => _groupByAccount = groupByAccount);
+                      if (!groupByAccount) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (_matrixHorizontal.hasClients) {
+                            _matrixHorizontal.jumpTo(0);
+                          }
+                        });
+                      }
+                    },
                   ),
-                ),
-              if (!_balanced)
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Text(
-                    'Validation indisponible : corrigez les écarts de lignes et de colonnes.',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                  const SizedBox(height: AppSpacing.sm),
+                  if (_groupByAccount)
+                    _accountComposition()
+                  else if (box.maxWidth >= 760)
+                    _desktopMatrix()
+                  else
+                    _mobileMatrix(),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                if (_advancedMode)
+                  Wrap(
+                    spacing: AppSpacing.md,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (final a in widget.accounts)
+                        Text(
+                          '${a.name}: réparti ${_money(_accountTotal(a.id as String))} / solde ${_money(widget.accountBalances[a.id as String]?.minorUnits ?? 0)} / écart ${_money(_accountTotal(a.id as String) - (widget.accountBalances[a.id as String]?.minorUnits ?? 0))}',
+                        ),
+                    ],
+                  ),
+                const SizedBox(height: AppSpacing.md),
+                if (_advancedMode)
+                  TextField(
+                    key: const Key('matrix-inventory-note'),
+                    controller: note,
+                    decoration: const InputDecoration(
+                      labelText: 'Note d’inventaire obligatoire',
                     ),
                   ),
-                ),
-            ],
+                if (!_balanced)
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: Text(
+                      'Validation indisponible : corrigez les écarts de lignes et de colonnes.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -929,9 +960,12 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         : ((item.amount - first) / 100).toStringAsFixed(2);
     second.provenance = PositionProvenance.openingInventoryArbitration;
     second.provenanceReference = 'Arbitrage explicite lors de l’inventaire';
+    second.userEdited = true;
+    _row(item.accountIds.first, item.envelopeId).userEdited = true;
     _updatingDeductions = false;
     _applyUniqueDeductions();
     setState(() {});
+    _scheduleDraftSave();
   }
 
   void _assignArbitration(
@@ -943,17 +977,18 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     _updatingDeductions = true;
     for (final id in admissible) {
       final row = _row(id, envelopeId);
-      if (!row.fixed) {
-        row.amount.text = id == accountId
-            ? (amount / 100).toStringAsFixed(2)
-            : '';
-      }
+      if (row.fixed || row.userEdited) continue;
+      row.amount.text = id == accountId
+          ? ((_cents(row) + amount) / 100).toStringAsFixed(2)
+          : '';
       row.provenance = PositionProvenance.openingInventoryArbitration;
       row.provenanceReference = 'Arbitrage explicite lors de l’inventaire';
+      row.userEdited = id == accountId;
     }
     _updatingDeductions = false;
     _applyUniqueDeductions();
     setState(() => _splitEnvelopes.remove(envelopeId));
+    _scheduleDraftSave();
   }
 
   String _accountName(String id) =>
@@ -1042,35 +1077,6 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     return rules;
   }
 
-  void _prepareAutomaticPositions() {
-    final fixed = _currentPositions();
-    final deterministicRules = _ventilationRules()
-        .where((rule) => rule.admissibleAccountIds.length == 1)
-        .toList(growable: false);
-    final proposal = proposeInventoryVentilation(
-      accountBalances: widget.accountBalances,
-      envelopeBalances: {
-        for (final envelope in widget.envelopes)
-          envelope.id as String: envelope.balance as Money,
-      },
-      fixedPositions: fixed,
-      rules: deterministicRules,
-    );
-    _updatingDeductions = true;
-    for (final candidate in proposal.candidates) {
-      final row = _row(
-        candidate.position.accountId,
-        candidate.position.envelopeId,
-      );
-      if (_cents(row) > 0 || row.locked) continue;
-      row.amount.text = candidate.position.amount.dirhams.toStringAsFixed(2);
-      row.provenance = PositionProvenance.openingInventoryArbitration;
-      row.provenanceReference = 'Assistant R2.13 — proposition structurelle';
-    }
-    _updatingDeductions = false;
-    _applyUniqueDeductions();
-  }
-
   List<EnvelopeAccountPosition> _currentPositions() => [
     for (final row in rows)
       if (_cents(row) > 0)
@@ -1088,7 +1094,8 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         (row) =>
             row.envelopeId == item.envelopeId &&
             item.accountIds.contains(row.accountId) &&
-            !row.fixed,
+            !row.fixed &&
+            !row.userEdited,
       )
       .fold(0, (sum, row) => sum + _cents(row));
 
@@ -1097,6 +1104,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         row.envelopeId == item.envelopeId &&
         item.accountIds.contains(row.accountId) &&
         !row.fixed &&
+        !row.userEdited &&
         row.amount.text.trim().isNotEmpty,
   );
 
@@ -1107,23 +1115,13 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         if (widget.envelopes
                 .where((envelope) => envelope.id == rule.envelopeId)
                 .map((envelope) {
-                  final fixed = rows
-                      .where(
-                        (row) => row.envelopeId == rule.envelopeId && row.fixed,
-                      )
+                  final alreadyKnown = rows
+                      .where((row) => row.envelopeId == rule.envelopeId)
                       .fold(0, (sum, row) => sum + _cents(row));
-                  return (envelope.balance as Money).minorUnits - fixed;
+                  return (envelope.balance as Money).minorUnits - alreadyKnown;
                 })
                 .firstOrNull
-            case final remaining?
-            when remaining > 0 &&
-                rows
-                        .where(
-                          (row) =>
-                              row.envelopeId == rule.envelopeId && !row.fixed,
-                        )
-                        .fold(0, (sum, row) => sum + _cents(row)) !=
-                    remaining)
+            case final remaining? when remaining > 0)
           _AssistantArbitration(
             envelopeId: rule.envelopeId,
             envelopeName: widget.envelopes
@@ -1268,6 +1266,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     _updatingDeductions = false;
     _applyUniqueDeductions();
     setState(() {});
+    _scheduleDraftSave();
   }
 
   Widget _desktopMatrix() {
@@ -1529,7 +1528,9 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       row.amount.text = row.accountId == accountId
           ? ((envelope.balance as Money).minorUnits / 100).toStringAsFixed(2)
           : '';
+      row.userEdited = true;
     }
+    _scheduleDraftSave();
   }
 
   Widget _accountComposition() => Column(
@@ -1597,6 +1598,11 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
               suffixText: 'MAD',
               isDense: true,
             ),
+            onChanged: (_) {
+              if (_updatingDeductions || row.locked) return;
+              row.userEdited = true;
+              _scheduleDraftSave();
+            },
           ),
           if (row.locked && _cents(row) > 0)
             Text(
@@ -1627,6 +1633,8 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                       row.provenance == PositionProvenance.humanConfirmation
                       ? 'Confirmation explicite lors de l’inventaire'
                       : 'Arbitrage explicite lors de l’inventaire';
+                  row.userEdited = true;
+                  _scheduleDraftSave();
                 }),
               ),
             ),
@@ -1641,6 +1649,51 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
     PositionProvenance.openingInventoryArbitration => 'Arbitrage d’inventaire',
   };
+
+  void _scheduleDraftSave() {
+    _draftDirty = true;
+    _draftSaveTimer?.cancel();
+    _draftSaveTimer = Timer(const Duration(milliseconds: 500), _persistDraft);
+  }
+
+  Future<bool> _persistDraft() async {
+    if (!mounted) return false;
+    if (!_draftDirty) return true;
+    _draftSaveTimer?.cancel();
+    final positions = <EnvelopeAccountPosition>[
+      for (final row in rows)
+        if (row.userEdited && !row.fixed && _cents(row) > 0)
+          EnvelopeAccountPosition(
+            accountId: row.accountId,
+            envelopeId: row.envelopeId,
+            amount: Money.fromMinorUnits(_cents(row)),
+            provenance: row.provenance,
+            provenanceReference: row.provenanceReference,
+          ),
+    ];
+    try {
+      await widget.onDraftChanged(positions);
+      _draftDirty = false;
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Le brouillon n’a pas pu être synchronisé. Réessayez avant de fermer.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _closeDraft() async {
+    if (!await _persistDraft() || !mounted) return;
+    setState(() => _allowPop = true);
+    Navigator.pop(context);
+  }
 
   _PositionDraft _row(String accountId, String envelopeId) => rows.firstWhere(
     (r) => r.accountId == accountId && r.envelopeId == envelopeId,
@@ -1707,6 +1760,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         ),
       );
     }
+    setState(() => _allowPop = true);
     Navigator.pop(context, (positions: positions, note: note.text.trim()));
   }
 }
@@ -1720,6 +1774,7 @@ class _PositionDraft {
   String? provenanceReference = 'Arbitrage explicite lors de l’inventaire';
   bool locked = false;
   bool fixed = false;
+  bool userEdited = false;
 }
 
 class _AssistantArbitration {

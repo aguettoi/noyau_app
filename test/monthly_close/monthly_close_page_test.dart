@@ -792,6 +792,8 @@ void main() {
                 sourceFingerprint: '',
               ),
             ),
+            initialPositionDraftProvider.overrideWith((ref) async => const []),
+            saveInitialPositionDraftProvider.overrideWithValue((_) async {}),
             remoteAccountsProvider.overrideWith((ref) async => accounts),
             remoteAccountBalancesProvider.overrideWith(
               (ref) async => const {
@@ -884,10 +886,10 @@ void main() {
             .widget<TextField>(find.byKey(const Key('matrix-envelope-1-cih')))
             .controller!
             .text,
-        '10.00',
+        '',
       );
       final proposedField = find.byKey(const Key('matrix-envelope-1-cih'));
-      expect(tester.widget<TextField>(proposedField).controller!.text, '10.00');
+      expect(tester.widget<TextField>(proposedField).controller!.text, '');
       await tester.enterText(proposedField, '9');
       await tester.pumpAndSettle();
       expect(tester.widget<TextField>(proposedField).controller!.text, '9');
@@ -1000,7 +1002,7 @@ void main() {
   );
 
   testWidgets(
-    'R2.13 reproduit Habits 874,40 et propose seulement AWB et Banque Nora',
+    'R2.13.1 Habits suit les comptes CIH et Banque Nora du scénario DEPART',
     (tester) async {
       tester.view.physicalSize = const Size(1100, 760);
       tester.view.devicePixelRatio = 1;
@@ -1008,8 +1010,8 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final accounts = [
         FinancialAccount(
-          id: 'awb',
-          name: 'AWB Ibrahim',
+          id: 'cih',
+          name: 'CIH Ibrahim',
           type: FinancialAccountType.bank,
           openingBalance: const Money.fromMinorUnits(0),
         ),
@@ -1043,7 +1045,7 @@ void main() {
             remoteAccountsProvider.overrideWith((ref) async => accounts),
             remoteAccountBalancesProvider.overrideWith(
               (ref) async => const {
-                'awb': Money.fromMinorUnits(100000),
+                'cih': Money.fromMinorUnits(100000),
                 'nora': Money.fromMinorUnits(76117),
               },
             ),
@@ -1081,6 +1083,8 @@ void main() {
                 ],
               ),
             ),
+            initialPositionDraftProvider.overrideWith((ref) async => const []),
+            saveInitialPositionDraftProvider.overrideWithValue((_) async {}),
             monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
             automaticTargetPreviewProvider.overrideWith(
               (ref) async => AutomaticTargetPreview(
@@ -1089,9 +1093,9 @@ void main() {
                 scenarioName: 'DEPART',
                 targets: [
                   MonthlyEnvelopeAccountTarget(
-                    id: 'target-awb',
+                    id: 'target-cih',
                     envelopeId: 'habits',
-                    accountId: 'awb',
+                    accountId: 'cih',
                     amount: const Money.fromMinorUnits(34424),
                     createdAt: DateTime(2026, 10),
                     source: 'automatic',
@@ -1124,11 +1128,11 @@ void main() {
 
       expect(find.text('Préparer votre point de départ'), findsOneWidget);
       expect(find.textContaining('Habits — 874.40 MAD'), findsOneWidget);
-      expect(find.text('AWB Ibrahim'), findsOneWidget);
+      expect(find.text('CIH Ibrahim'), findsOneWidget);
       expect(find.text('Banque Nora'), findsOneWidget);
       expect(find.text('Réparti entre les deux'), findsOneWidget);
       expect(find.textContaining('Islamique / Arreda'), findsNothing);
-      expect(find.textContaining('CIH'), findsNothing);
+      expect(find.textContaining('AWB'), findsNothing);
       expect(find.textContaining('Espèces'), findsNothing);
 
       await tester.tap(find.byKey(const Key('assistant-split-habits')));
@@ -1150,6 +1154,192 @@ void main() {
       await tester.tap(find.byKey(const Key('toggle-advanced-matrix')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('matrix-sticky-header')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'R2.13.1 recharge une confirmation partielle et ne demande que le résiduel',
+    (tester) async {
+      tester.view.physicalSize = const Size(1100, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var draft = const <EnvelopeAccountPosition>[
+        EnvelopeAccountPosition(
+          accountId: 'cih',
+          envelopeId: 'home',
+          amount: Money.fromMinorUnits(5933000),
+          provenance: PositionProvenance.humanConfirmation,
+          provenanceReference: 'Confirmation explicite lors de l’inventaire',
+        ),
+      ];
+      final accounts = [
+        FinancialAccount(
+          id: 'cih',
+          name: 'CIH Ibrahim',
+          type: FinancialAccountType.bank,
+          openingBalance: const Money.fromMinorUnits(0),
+        ),
+        FinancialAccount(
+          id: 'arreda',
+          name: 'Islamique / Arreda Ibrahim',
+          type: FinancialAccountType.bank,
+          openingBalance: const Money.fromMinorUnits(0),
+        ),
+        FinancialAccount(
+          id: 'nora',
+          name: 'Banque Nora',
+          type: FinancialAccountType.bank,
+          openingBalance: const Money.fromMinorUnits(0),
+        ),
+      ];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            monthlyCloseProvider.overrideWith(
+              (ref) async => MonthlyCloseSnapshot(
+                month: DateTime(2026, 10),
+                status: MonthlyCloseStatus.open,
+                issues: const [],
+                owner: true,
+              ),
+            ),
+            envelopeAccountMatrixProvider.overrideWith(
+              (ref) async => const EnvelopeAccountMatrix(
+                positions: [],
+                reliable: false,
+                accountGap: Money.fromMinorUnits(6038000),
+                envelopeGap: Money.fromMinorUnits(6038000),
+                fingerprint: 'empty',
+              ),
+            ),
+            remoteAccountsProvider.overrideWith((ref) async => accounts),
+            remoteAccountBalancesProvider.overrideWith(
+              (ref) async => const {
+                'cih': Money.fromMinorUnits(5933000),
+                'arreda': Money.fromMinorUnits(415000),
+                'nora': Money.fromMinorUnits(100000),
+              },
+            ),
+            remoteEnvelopeBalancesProvider.overrideWith(
+              (ref) async => const [
+                RemoteEnvelopeBalance(
+                  id: 'home',
+                  name: 'Traite maison',
+                  inflows: Money.fromMinorUnits(6348000),
+                  outflows: Money.fromMinorUnits(0),
+                  balance: Money.fromMinorUnits(6348000),
+                  isSystem: false,
+                  recommendedAccountId: 'arreda',
+                ),
+                RemoteEnvelopeBalance(
+                  id: 'other',
+                  name: 'Autre',
+                  inflows: Money.fromMinorUnits(100000),
+                  outflows: Money.fromMinorUnits(0),
+                  balance: Money.fromMinorUnits(100000),
+                  isSystem: false,
+                ),
+              ],
+            ),
+            initialPositionPreviewProvider.overrideWith(
+              (ref) async => const InitialPositionPreview(
+                sourceFingerprint: 'certified',
+                positions: [],
+              ),
+            ),
+            initialPositionDraftProvider.overrideWith((ref) async => draft),
+            saveInitialPositionDraftProvider.overrideWithValue((
+              positions,
+            ) async {
+              draft = List.unmodifiable(positions);
+            }),
+            monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
+            automaticTargetPreviewProvider.overrideWith(
+              (ref) async => AutomaticTargetPreview(
+                complete: true,
+                missingMappings: const [],
+                scenarioName: 'DEPART',
+                targets: [
+                  MonthlyEnvelopeAccountTarget(
+                    id: 'home-arreda',
+                    envelopeId: 'home',
+                    accountId: 'arreda',
+                    amount: const Money.fromMinorUnits(6348000),
+                    createdAt: DateTime(2026, 10),
+                    source: 'automatic',
+                  ),
+                ],
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: MonthlyClosePage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('initialize-matrix')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Traite maison — 4150.00 MAD restent à localiser'),
+        findsOneWidget,
+      );
+      expect(find.text('Islamique / Arreda Ibrahim'), findsOneWidget);
+      expect(find.textContaining('63480.00 MAD restent'), findsNothing);
+      await tester.tap(find.byKey(const Key('toggle-advanced-matrix')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('matrix-home-cih')))
+            .controller!
+            .text,
+        '59330.00',
+      );
+      await tester.tap(find.byKey(const Key('toggle-advanced-matrix')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Traite maison — 4150.00 MAD restent à localiser'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('assistant-home-arreda')));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      expect(
+        draft
+            .where((position) => position.envelopeId == 'home')
+            .fold<int>(0, (sum, position) => sum + position.amount.minorUnits),
+        6348000,
+      );
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('initialize-matrix')));
+      await tester.tap(find.byKey(const Key('initialize-matrix')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Traite maison —'), findsNothing);
+      await tester.tap(find.byKey(const Key('toggle-advanced-matrix')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('matrix-home-cih')))
+            .controller!
+            .text,
+        '59330.00',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('matrix-home-arreda')))
+            .controller!
+            .text,
+        '4150.00',
+      );
       expect(tester.takeException(), isNull);
     },
   );
