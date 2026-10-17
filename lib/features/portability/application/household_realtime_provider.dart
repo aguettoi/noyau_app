@@ -17,6 +17,7 @@ import '../../shopping_list/application/providers/remote_shopping_list_provider.
 import '../../priorities/application/providers/remote_priority_plans_provider.dart';
 import '../../organization/application/organization_provider.dart';
 import '../../wealth/application/providers/wealth_provider.dart';
+import '../../monthly_close/application/monthly_close_provider.dart';
 
 enum SyncConnectionState { connecting, synchronized, reconnecting, offline }
 
@@ -43,6 +44,8 @@ final householdRealtimeProvider = Provider<void>((ref) {
     'priority_plans',
     'household_tasks',
     'wealth_assets',
+    'envelope_account_initial_position_drafts',
+    'envelope_account_initial_position_unknowns',
   ];
   for (final table in tables) {
     channel.onPostgresChanges(
@@ -112,6 +115,12 @@ void _invalidateTable(Ref ref, String table) {
       break;
     case 'wealth_assets':
       ref.invalidate(wealthDataProvider);
+      break;
+    case 'envelope_account_initial_position_drafts':
+      ref.invalidate(initialPositionDraftProvider);
+      break;
+    case 'envelope_account_initial_position_unknowns':
+      ref.invalidate(initialPositionUnknownsProvider);
       break;
   }
 }

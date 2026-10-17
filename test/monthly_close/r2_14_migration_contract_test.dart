@@ -20,4 +20,13 @@ void main() {
       expect(sql, isNot(contains('envelope_movements')));
     },
   );
+
+  test('R2.14 connects both shared draft tables to Realtime', () {
+    final realtime = File(
+      'supabase/migrations/20261017142626_r2_14_draft_realtime.sql',
+    ).readAsStringSync();
+    expect(realtime, contains('supabase_realtime'));
+    expect(realtime, contains('envelope_account_initial_position_drafts'));
+    expect(realtime, contains('envelope_account_initial_position_unknowns'));
+  });
 }
