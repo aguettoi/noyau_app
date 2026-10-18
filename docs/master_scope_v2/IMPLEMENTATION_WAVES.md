@@ -23,7 +23,7 @@ L’ordre directeur de la Roadmap Master V2 est conservé. Le reporting R4 suit 
 | R7 conception | Offline/confidentialité | ADR, menaces, périmètre, conflits | Go/no-go obligatoire |
 | R7 exécution | Si validé | Queue chiffrée et/ou visibilité fine | Impact transversal |
 | R8 | Gel et D1 final | Aucune fonction obligatoire ouverte; recette 74+ surfaces | Gate avant P1 |
-| P1 | Certification | Windows, Web, Android, Auth, deep links, notifications | Validation réelle |
+| P1 | Certification | Windows, Web, Android/iOS selon plateformes finales, Auth, deep links et distribution multicanale des alertes canoniques (app fermée, appareils multiples, confidentialité, retry/déduplication) | Obligatoire avant version finale / publication |
 | A1/A2 | Audit et corrections | Sécurité, performance, Supabase, Git, CI/CD | Gate cutover |
 | FINAL | Cutover | Vrais comptes, dernier Sheet, mois réel | Abandon du Sheet |
 

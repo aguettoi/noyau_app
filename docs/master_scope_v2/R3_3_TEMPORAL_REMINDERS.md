@@ -23,7 +23,9 @@ La donnée métier partagée reste visible aux membres autorisés. Les préfére
 ## Partiel et reporté
 
 - La détection historique assistée des récurrents est reportée au sous-lot **R3.3.x**. L'historique et le matcher R3.1 sont disponibles, mais un score robuste de périodicité et le refus durable d'une suggestion doivent être conçus sans faux positifs ; aucune récurrence ne sera créée automatiquement.
-- Les notifications natives Windows/Android/iOS et leur livraison lorsque l'appareil est hors ligne restent en **P1**. R3.3 couvre le scheduler serveur et le centre in-app.
+- La distribution multicanale reste **P1 — obligatoire avant version finale / publication**. R3.3 couvre uniquement le moteur métier canonique, le scheduler serveur et le centre in-app. P1 devra distribuer une même alerte canonique vers Windows, Android, iOS et Web/navigateur (plus badges lorsque disponibles), y compris application fermée, sans créer de moteur de rappel propre à chaque plateforme.
+- P1 devra séparer explicitement : alerte métier canonique, état personnel, préférences personnelles et livraisons techniques. Le modèle cible est foyer → membre → appareil/endpoint → canal → autorisation/préférence, avec déduplication, retry/offline, expiration des endpoints, changement de fuseau et traçabilité par livraison.
+- Les références R3.3 `source_kind`, `source_id` et `action_type` préservent le contexte nécessaire aux futurs deep links. La livraison système devra appliquer une politique de confidentialité : contenu générique sur écran verrouillé ou canal partagé lorsque le détail est sensible ou non autorisé.
 - Les seuils avancés d'enveloppes/échéances sont prévus dans le catalogue de règles, sans être déclarés couverts tant que leur source canonique et leur UI ne sont pas raccordées.
 
 ## Préparation IA
