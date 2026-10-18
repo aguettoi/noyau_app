@@ -10,6 +10,7 @@ import '../../finance/application/providers/remote_household_members_provider.da
 import '../../recurring_finance/presentation/recurring_finance_page.dart';
 import '../application/organization_provider.dart';
 import '../domain/organization_models.dart';
+import '../domain/reminder_snooze_policy.dart';
 import 'calendar_source_navigator.dart';
 
 class OrganizationPage extends ConsumerWidget {
@@ -835,41 +836,93 @@ Future<void> _actOnAlert(
   String action,
 ) async {
   final actions = ref.read(organizationActionsProvider);
-  if (action == 'read') {
-    await actions.markRead(alert.key);
-    return;
-  }
-  if (action == 'dismiss') {
-    await actions.dismiss(alert.key);
-    return;
-  }
-  var until = DateTime.now();
-  if (action == 'later') {
-    until = DateTime(until.year, until.month, until.day, 23);
-  }
-  if (action == 'tomorrow' || action == 'not_yet') {
-    until = DateTime(until.year, until.month, until.day + 1, 20);
-  }
-  if (action == 'days') {
-    until = DateTime(until.year, until.month, until.day + 3, 20);
-  }
-  if (action == 'choose') {
-    final day = await showDatePicker(
-      context: context,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-    );
-    if (day == null) return;
+  try {
+    if (action == 'read') {
+      await actions.markRead(alert.key);
+      return;
+    }
+    if (action == 'dismiss') {
+      await actions.dismiss(alert.key);
+      return;
+    }
+    final timezone = await ref.read(userTimezoneProvider.future);
     if (!context.mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 20, minute: 0),
+    final nowUtc = DateTime.now().toUtc();
+    ReminderSnoozeDecision? decision;
+    if (action == 'later') {
+      decision = ReminderSnoozePolicy.decide(
+        choice: ReminderSnoozeChoice.laterToday,
+        nowUtc: nowUtc,
+        timezone: timezone,
+      );
+    }
+    if (action == 'tomorrow' || action == 'not_yet') {
+      decision = ReminderSnoozePolicy.decide(
+        choice: action == 'not_yet'
+            ? ReminderSnoozeChoice.notYet
+            : ReminderSnoozeChoice.tomorrow,
+        nowUtc: nowUtc,
+        timezone: timezone,
+      );
+    }
+    if (action == 'days') {
+      decision = ReminderSnoozePolicy.decide(
+        choice: ReminderSnoozeChoice.threeDays,
+        nowUtc: nowUtc,
+        timezone: timezone,
+      );
+    }
+    if (action == 'choose') {
+      final localNow = ReminderSnoozePolicy.localNow(timezone, nowUtc);
+      final day = await showDatePicker(
+        context: context,
+        firstDate: DateTime(localNow.year, localNow.month, localNow.day),
+        lastDate: DateTime(localNow.year, localNow.month, localNow.day + 365),
+        initialDate: DateTime(localNow.year, localNow.month, localNow.day + 1),
+      );
+      if (day == null) return;
+      if (!context.mounted) return;
+      final time = await showTimePicker(
+        context: context,
+        initialTime: const TimeOfDay(hour: 20, minute: 0),
+      );
+      if (time == null) return;
+      decision = ReminderSnoozeDecision(
+        untilUtc: ReminderSnoozePolicy.custom(
+          localDateAndTime: DateTime(
+            day.year,
+            day.month,
+            day.day,
+            time.hour,
+            time.minute,
+          ),
+          nowUtc: nowUtc,
+          timezone: timezone,
+        ),
+      );
+    }
+    if (decision == null) return;
+    await actions.snooze(
+      alert.key,
+      decision.untilUtc,
+      notYet: action == 'not_yet',
     );
-    if (time == null) return;
-    until = DateTime(day.year, day.month, day.day, time.hour, time.minute);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          decision.rolledToTomorrow
+              ? 'Il est tard : rappel reporté à demain matin.'
+              : 'Rappel reporté.',
+        ),
+      ),
+    );
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Impossible de reporter le rappel : $error')),
+    );
   }
-  await actions.snooze(alert.key, until, notYet: action == 'not_yet');
 }
 
 Future<void> _showReminderRules(BuildContext context, WidgetRef ref) async {

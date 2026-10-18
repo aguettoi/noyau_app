@@ -123,4 +123,111 @@ void main() {
     expect(find.text('Récurrences'), findsOneWidget);
     expect(find.text('Prochaines occurrences'), findsOneWidget);
   });
+
+  testWidgets('un snooze réussi masque immédiatement le rappel', (
+    tester,
+  ) async {
+    var visible = true;
+    late _FakeOrganizationActions actions;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          householdTasksProvider.overrideWith((ref) async => const []),
+          organizationCalendarProvider.overrideWith((ref) async => const []),
+          userTimezoneProvider.overrideWith((ref) async => 'Africa/Casablanca'),
+          organizationAlertsProvider.overrideWith(
+            (ref) async => visible
+                ? const [
+                    AppAlert(
+                      key: 'r3.1:test:day',
+                      title: 'TEST SNOOZE',
+                      detail: '1,00 MAD',
+                      category: 'reminders',
+                    ),
+                  ]
+                : const [],
+          ),
+          organizationActionsProvider.overrideWith((ref) {
+            actions = _FakeOrganizationActions(
+              onSnooze: (_, _, _) async {
+                visible = false;
+                ref.invalidate(organizationAlertsProvider);
+              },
+            );
+            return actions;
+          }),
+          remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: OrganizationPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alertes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Actions du rappel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Plus tard aujourd’hui'));
+    await tester.pumpAndSettle();
+    expect(actions.snoozeCalls, 1);
+    expect(actions.lastUntil!.isAfter(DateTime.now().toUtc()), isTrue);
+    expect(find.text('TEST SNOOZE'), findsNothing);
+    expect(find.textContaining('Rappel reporté'), findsOneWidget);
+  });
+
+  testWidgets('un refus RPC reste visible et affiche une erreur', (
+    tester,
+  ) async {
+    final actions = _FakeOrganizationActions(
+      onSnooze: (_, _, _) => throw Exception('refus serveur'),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          householdTasksProvider.overrideWith((ref) async => const []),
+          organizationCalendarProvider.overrideWith((ref) async => const []),
+          userTimezoneProvider.overrideWith((ref) async => 'Africa/Casablanca'),
+          organizationAlertsProvider.overrideWith(
+            (ref) async => const [
+              AppAlert(
+                key: 'r3.1:test:day',
+                title: 'TEST SNOOZE',
+                detail: '1,00 MAD',
+                category: 'reminders',
+              ),
+            ],
+          ),
+          organizationActionsProvider.overrideWithValue(actions),
+          remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: OrganizationPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alertes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Actions du rappel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Plus tard aujourd’hui'));
+    await tester.pumpAndSettle();
+    expect(find.text('TEST SNOOZE'), findsOneWidget);
+    expect(find.textContaining('Impossible de reporter'), findsOneWidget);
+  });
+}
+
+class _FakeOrganizationActions implements OrganizationActionsApi {
+  _FakeOrganizationActions({required this.onSnooze});
+
+  final Future<void> Function(String, DateTime, bool) onSnooze;
+  int snoozeCalls = 0;
+  DateTime? lastUntil;
+
+  @override
+  Future<void> snooze(String key, DateTime until, {bool notYet = false}) async {
+    snoozeCalls++;
+    lastUntil = until;
+    await onSnooze(key, until, notYet);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

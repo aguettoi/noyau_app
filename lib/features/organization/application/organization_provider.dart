@@ -488,11 +488,36 @@ final notificationPreferencesProvider = FutureProvider<Map<String, bool>>((
       .fetchPreferences(household.householdId!, user);
 });
 
-final organizationActionsProvider = Provider((ref) => OrganizationActions(ref));
+final userTimezoneProvider = FutureProvider<String>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) throw StateError('Session indisponible.');
+  final row = await ref
+      .watch(supabaseClientProvider)
+      .from('profiles')
+      .select('timezone')
+      .eq('id', userId)
+      .single();
+  return row['timezone'] as String;
+});
 
-class OrganizationActions {
+abstract interface class OrganizationActionsApi {
+  Future<void> createTask(Map<String, Object?> values);
+  Future<void> complete(String id, String key);
+  Future<void> markRead(String key);
+  Future<void> snooze(String key, DateTime until, {bool notYet = false});
+  Future<void> dismiss(String key);
+  Future<void> saveRule(ReminderRule rule);
+  Future<void> setPreference(String category, bool enabled);
+}
+
+final organizationActionsProvider = Provider<OrganizationActionsApi>(
+  (ref) => OrganizationActions(ref),
+);
+
+class OrganizationActions implements OrganizationActionsApi {
   OrganizationActions(this.ref);
   final Ref ref;
+  @override
   Future<void> createTask(Map<String, Object?> values) async {
     final h = await ref.read(activeHouseholdProvider.future);
     final u = ref.read(currentUserIdProvider);
@@ -505,6 +530,7 @@ class OrganizationActions {
     ref.invalidate(householdTasksProvider);
   }
 
+  @override
   Future<void> complete(String id, String key) async {
     await ref
         .read(organizationGatewayProvider)
@@ -512,6 +538,7 @@ class OrganizationActions {
     ref.invalidate(householdTasksProvider);
   }
 
+  @override
   Future<void> markRead(String key) async {
     final h = await ref.read(activeHouseholdProvider.future);
     final u = ref.read(currentUserIdProvider);
@@ -522,6 +549,7 @@ class OrganizationActions {
     ref.invalidate(organizationAlertsProvider);
   }
 
+  @override
   Future<void> snooze(String key, DateTime until, {bool notYet = false}) async {
     final h = await ref.read(activeHouseholdProvider.future);
     final u = ref.read(currentUserIdProvider);
@@ -538,6 +566,7 @@ class OrganizationActions {
     ref.invalidate(organizationAlertsProvider);
   }
 
+  @override
   Future<void> dismiss(String key) async {
     final h = await ref.read(activeHouseholdProvider.future);
     final u = ref.read(currentUserIdProvider);
@@ -548,6 +577,7 @@ class OrganizationActions {
     ref.invalidate(organizationAlertsProvider);
   }
 
+  @override
   Future<void> saveRule(ReminderRule rule) async {
     final h = await ref.read(activeHouseholdProvider.future);
     final u = ref.read(currentUserIdProvider);
@@ -558,6 +588,7 @@ class OrganizationActions {
     ref.invalidate(reminderRulesProvider);
   }
 
+  @override
   Future<void> setPreference(String category, bool enabled) async {
     final h = await ref.read(activeHouseholdProvider.future);
     final u = ref.read(currentUserIdProvider);
