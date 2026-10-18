@@ -18,6 +18,7 @@ import '../features/shopping_list/application/providers/remote_shopping_list_pro
 import '../features/wealth/application/providers/wealth_provider.dart';
 import '../features/wealth/application/providers/home_auto_provider.dart';
 import '../features/organization/application/organization_provider.dart';
+import '../features/recurring_finance/application/recurring_finance_provider.dart';
 
 typedef GlobalRefreshAction = Future<void> Function();
 
@@ -60,6 +61,9 @@ final globalRefreshActionProvider = Provider<GlobalRefreshAction>((ref) {
     ref.invalidate(organizationCalendarProvider);
     ref.invalidate(organizationAlertsProvider);
     ref.invalidate(notificationPreferencesProvider);
+    ref.invalidate(recurringIntentionsProvider);
+    ref.invalidate(expectedOccurrencesProvider);
+    ref.invalidate(actualRecurringCandidatesProvider);
 
     await Future.wait<Object?>([
       ref.read(remoteAccountsProvider.future),

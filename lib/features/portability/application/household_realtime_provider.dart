@@ -18,6 +18,7 @@ import '../../priorities/application/providers/remote_priority_plans_provider.da
 import '../../organization/application/organization_provider.dart';
 import '../../wealth/application/providers/wealth_provider.dart';
 import '../../monthly_close/application/monthly_close_provider.dart';
+import '../../recurring_finance/application/recurring_finance_provider.dart';
 
 enum SyncConnectionState { connecting, synchronized, reconnecting, offline }
 
@@ -46,6 +47,9 @@ final householdRealtimeProvider = Provider<void>((ref) {
     'wealth_assets',
     'envelope_account_initial_position_drafts',
     'envelope_account_initial_position_unknowns',
+    'recurring_financial_intentions',
+    'expected_financial_occurrences',
+    'expected_financial_occurrence_matches',
   ];
   for (final table in tables) {
     channel.onPostgresChanges(
@@ -121,6 +125,13 @@ void _invalidateTable(Ref ref, String table) {
       break;
     case 'envelope_account_initial_position_unknowns':
       ref.invalidate(initialPositionUnknownsProvider);
+      break;
+    case 'recurring_financial_intentions':
+      ref.invalidate(recurringIntentionsProvider);
+      break;
+    case 'expected_financial_occurrences':
+    case 'expected_financial_occurrence_matches':
+      ref.invalidate(expectedOccurrencesProvider);
       break;
   }
 }

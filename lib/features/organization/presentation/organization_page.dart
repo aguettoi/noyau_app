@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_design_system.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
+import '../../recurring_finance/presentation/recurring_finance_page.dart';
 import '../application/organization_provider.dart';
 import '../domain/organization_models.dart';
 import 'calendar_source_navigator.dart';
@@ -19,6 +20,16 @@ class OrganizationPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Organisation du foyer'),
         actions: [
+          IconButton(
+            key: const Key('open-recurring-finance'),
+            tooltip: 'Opérations attendues',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const RecurringFinancePage(),
+              ),
+            ),
+            icon: const Icon(Icons.event_repeat),
+          ),
           IconButton(
             key: const Key('notification-preferences'),
             tooltip: 'Préférences des alertes',
