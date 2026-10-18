@@ -7,6 +7,9 @@ import 'package:noyau_app/features/organization/presentation/calendar_source_nav
 import 'package:noyau_app/features/savings_goals/presentation/savings_goals_page.dart';
 import 'package:noyau_app/features/shopping_list/presentation/shopping_list_page.dart';
 import 'package:noyau_app/features/wealth/presentation/wealth_page.dart';
+import 'package:noyau_app/features/recurring_finance/presentation/recurring_finance_page.dart';
+import 'package:noyau_app/features/monthly_close/presentation/monthly_close_page.dart';
+import 'package:noyau_app/features/cashflow_projection/presentation/cashflow_projection_page.dart';
 
 void main() {
   test('calendar sources resolve to the existing canonical modules', () {
@@ -30,5 +33,17 @@ void main() {
       isA<MemberCompensationsPage>(),
     );
     expect(navigator.resolve(CalendarSource.budget, null), isNull);
+    expect(
+      navigator.resolve(CalendarSource.recurringFinance, 'id'),
+      isA<RecurringFinancePage>(),
+    );
+    expect(
+      navigator.resolve(CalendarSource.monthlyClose, 'id'),
+      isA<MonthlyClosePage>(),
+    );
+    expect(
+      navigator.resolve(CalendarSource.cashflowProjection, 'id'),
+      isA<CashflowProjectionPage>(),
+    );
   });
 }

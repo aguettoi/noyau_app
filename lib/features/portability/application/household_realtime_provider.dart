@@ -50,6 +50,10 @@ final householdRealtimeProvider = Provider<void>((ref) {
     'recurring_financial_intentions',
     'expected_financial_occurrences',
     'expected_financial_occurrence_matches',
+    'financial_reminders',
+    'reminder_rules',
+    'user_alert_states',
+    'notification_preferences',
   ];
   for (final table in tables) {
     channel.onPostgresChanges(
@@ -132,6 +136,20 @@ void _invalidateTable(Ref ref, String table) {
     case 'expected_financial_occurrences':
     case 'expected_financial_occurrence_matches':
       ref.invalidate(expectedOccurrencesProvider);
+      break;
+    case 'financial_reminders':
+      ref.invalidate(organizationAlertsProvider);
+      break;
+    case 'reminder_rules':
+      ref.invalidate(reminderRulesProvider);
+      ref.invalidate(organizationAlertsProvider);
+      break;
+    case 'user_alert_states':
+      ref.invalidate(organizationAlertsProvider);
+      break;
+    case 'notification_preferences':
+      ref.invalidate(notificationPreferencesProvider);
+      ref.invalidate(organizationAlertsProvider);
       break;
   }
 }

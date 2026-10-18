@@ -6,6 +6,9 @@ import '../../finance/presentation/transactions_page.dart';
 import '../../savings_goals/presentation/savings_goals_page.dart';
 import '../../shopping_list/presentation/shopping_list_page.dart';
 import '../../wealth/presentation/wealth_page.dart';
+import '../../recurring_finance/presentation/recurring_finance_page.dart';
+import '../../monthly_close/presentation/monthly_close_page.dart';
+import '../../cashflow_projection/presentation/cashflow_projection_page.dart';
 import '../domain/organization_models.dart';
 
 class CalendarSourceNavigator {
@@ -22,6 +25,9 @@ class CalendarSourceNavigator {
       CalendarSource.homeAuto ||
       CalendarSource.investment => const WealthPage(),
       CalendarSource.compensation => const MemberCompensationsPage(),
+      CalendarSource.recurringFinance => const RecurringFinancePage(),
+      CalendarSource.monthlyClose => const MonthlyClosePage(),
+      CalendarSource.cashflowProjection => const CashflowProjectionPage(),
       CalendarSource.task || CalendarSource.reconciliation => null,
     };
   }

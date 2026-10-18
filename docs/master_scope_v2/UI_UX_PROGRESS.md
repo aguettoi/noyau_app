@@ -53,3 +53,9 @@
 - R2.12 : action « Proposer une ventilation », prévisualisation motivée, annulation sans effet et application locale au brouillon avec provenance d'arbitrage explicite.
 - Régularisation globale : prévisualisation détaillée par enveloppe, confirmation explicite et virement canonique idempotent ; recette visuelle humaine restante.
 - Recette visuelle humaine multi-plateforme à réaliser dans P1/R8.
+# R3.3 — rappels temporels
+
+- `Organisation du foyer > Alertes` reste l'unique centre : source, motif, action, lu, snooze, Pas encore et masquage.
+- L'action textuelle `Règles de rappels` expose activation, avance, relance, heure locale et priorité.
+- Les rappels ouvrent les surfaces canoniques Opérations attendues, Fin de mois ou Prévisions de trésorerie.
+- Les notifications natives sont explicitement reportées à P1 ; aucun redesign D1.2 n'est engagé.

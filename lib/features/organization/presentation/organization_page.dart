@@ -22,6 +22,12 @@ class OrganizationPage extends ConsumerWidget {
         title: const Text('Organisation du foyer'),
         actions: [
           IconButton(
+            key: const Key('reminder-rules'),
+            tooltip: 'Règles de rappels',
+            onPressed: () => _showReminderRules(context, ref),
+            icon: const Icon(Icons.alarm),
+          ),
+          IconButton(
             key: const Key('open-recurring-finance'),
             tooltip: 'Opérations attendues',
             onPressed: () => _openRecurringFinance(context),
@@ -127,7 +133,7 @@ class _TasksTab extends ConsumerWidget {
             const Center(child: Text('Impossible de charger les tâches.')),
         data: (tasks) => ListView.builder(
           padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: tasks.length + 2,
+          itemCount: tasks.length + 3,
           itemBuilder: (_, index) {
             if (index == 0) {
               return Card(
@@ -157,7 +163,21 @@ class _TasksTab extends ConsumerWidget {
                 ),
               );
             }
-            final task = tasks[index - 2];
+            if (index == 2) {
+              return Card(
+                child: ListTile(
+                  key: const Key('open-reminder-rules-visible'),
+                  leading: const Icon(Icons.alarm),
+                  title: const Text('Règles de rappels'),
+                  subtitle: const Text(
+                    'Choisir quand être prévenu et relancé.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showReminderRules(context, ref),
+                ),
+              );
+            }
+            final task = tasks[index - 3];
             return Card(
               child: ListTile(
                 key: Key('household-task-${task.id}'),
@@ -616,14 +636,42 @@ class _AlertsTab extends ConsumerWidget {
                       ),
                       title: Text(alert.title),
                       subtitle: Text(alert.detail),
-                      trailing: alert.read
-                          ? null
-                          : TextButton(
-                              onPressed: () => ref
-                                  .read(organizationActionsProvider)
-                                  .markRead(alert.key),
-                              child: const Text('Marquer lue'),
+                      trailing: PopupMenuButton<String>(
+                        tooltip: 'Actions du rappel',
+                        onSelected: (value) =>
+                            _actOnAlert(context, ref, alert, value),
+                        itemBuilder: (_) => [
+                          if (!alert.read)
+                            const PopupMenuItem(
+                              value: 'read',
+                              child: Text('Marquer lue'),
                             ),
+                          const PopupMenuItem(
+                            value: 'later',
+                            child: Text('Plus tard aujourd’hui'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'tomorrow',
+                            child: Text('Demain'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'days',
+                            child: Text('Dans 3 jours'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'not_yet',
+                            child: Text('Pas encore'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'choose',
+                            child: Text('Choisir une date'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'dismiss',
+                            child: Text('Masquer'),
+                          ),
+                        ],
+                      ),
                       onTap: alert.source == null
                           ? null
                           : () => const CalendarSourceNavigator().open(
@@ -775,7 +823,242 @@ String _sourceLabel(CalendarSource source) => switch (source) {
   CalendarSource.shopping => 'Achats',
   CalendarSource.homeAuto => 'Logement / auto',
   CalendarSource.investment => 'Investissements',
+  CalendarSource.recurringFinance => 'Opérations attendues',
+  CalendarSource.monthlyClose => 'Fin de mois',
+  CalendarSource.cashflowProjection => 'Prévisions de trésorerie',
 };
+
+Future<void> _actOnAlert(
+  BuildContext context,
+  WidgetRef ref,
+  AppAlert alert,
+  String action,
+) async {
+  final actions = ref.read(organizationActionsProvider);
+  if (action == 'read') {
+    await actions.markRead(alert.key);
+    return;
+  }
+  if (action == 'dismiss') {
+    await actions.dismiss(alert.key);
+    return;
+  }
+  var until = DateTime.now();
+  if (action == 'later') {
+    until = DateTime(until.year, until.month, until.day, 23);
+  }
+  if (action == 'tomorrow' || action == 'not_yet') {
+    until = DateTime(until.year, until.month, until.day + 1, 20);
+  }
+  if (action == 'days') {
+    until = DateTime(until.year, until.month, until.day + 3, 20);
+  }
+  if (action == 'choose') {
+    final day = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (day == null) return;
+    if (!context.mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 20, minute: 0),
+    );
+    if (time == null) return;
+    until = DateTime(day.year, day.month, day.day, time.hour, time.minute);
+  }
+  await actions.snooze(alert.key, until, notYet: action == 'not_yet');
+}
+
+Future<void> _showReminderRules(BuildContext context, WidgetRef ref) async {
+  await showDialog<void>(
+    context: context,
+    builder: (_) => Consumer(
+      builder: (context, dialogRef, _) => AlertDialog(
+        title: const Text('Règles de rappels'),
+        content: SizedBox(
+          width: 440,
+          child: dialogRef
+              .watch(reminderRulesProvider)
+              .when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, _) => const Text('Règles indisponibles.'),
+                data: (rules) {
+                  ReminderRule rule(String type) =>
+                      rules
+                          .where(
+                            (r) => r.type == type && r.recipientUserId != null,
+                          )
+                          .firstOrNull ??
+                      ReminderRule(
+                        type: type,
+                        enabled: true,
+                        priority: HouseholdTaskPriority.normal,
+                        parameters: const {
+                          'before_days': 1,
+                          'after_days': 1,
+                          'hour': 20,
+                        },
+                      );
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final item in const {
+                        'expected_occurrence': 'Opérations attendues',
+                        'monthly_close': 'Pré-clôture mensuelle',
+                        'cashflow_risk': 'Risques de trésorerie',
+                      }.entries)
+                        ListTile(
+                          key: Key('reminder-rule-${item.key}'),
+                          title: Text(item.value),
+                          subtitle: Text(_ruleSummary(rule(item.key))),
+                          leading: Switch(
+                            value: rule(item.key).enabled,
+                            onChanged: (v) => dialogRef
+                                .read(organizationActionsProvider)
+                                .saveRule(
+                                  ReminderRule(
+                                    type: item.key,
+                                    enabled: v,
+                                    priority: rule(item.key).priority,
+                                    parameters: rule(item.key).parameters,
+                                  ),
+                                ),
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Configurer',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => _editReminderRule(
+                              context,
+                              dialogRef,
+                              rule(item.key),
+                              item.value,
+                            ),
+                          ),
+                        ),
+                      const ListTile(
+                        leading: Icon(Icons.schedule),
+                        title: Text('Horaire par défaut : 20 h'),
+                        subtitle: Text(
+                          'Les dates sont calculées dans le fuseau du foyer.',
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+String _ruleSummary(ReminderRule rule) =>
+    '${rule.parameters['before_days'] ?? 1} j avant • ${rule.parameters['after_days'] ?? 1} j après • ${rule.parameters['hour'] ?? 20} h • ${rule.priority.name}';
+
+Future<void> _editReminderRule(
+  BuildContext context,
+  WidgetRef ref,
+  ReminderRule rule,
+  String label,
+) async {
+  var before = (rule.parameters['before_days'] as num?)?.toInt() ?? 1;
+  var after = (rule.parameters['after_days'] as num?)?.toInt() ?? 1;
+  var hour = (rule.parameters['hour'] as num?)?.toInt() ?? 20;
+  var priority = rule.priority;
+  final save = await showDialog<bool>(
+    context: context,
+    builder: (_) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(label),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                initialValue: before,
+                decoration: const InputDecoration(labelText: 'Jours avant'),
+                items: [
+                  for (var i = 0; i <= 30; i++)
+                    DropdownMenuItem(value: i, child: Text('$i')),
+                ],
+                onChanged: (v) => setState(() => before = v ?? before),
+              ),
+              DropdownButtonFormField<int>(
+                initialValue: after,
+                decoration: const InputDecoration(
+                  labelText: 'Relance après (jours)',
+                ),
+                items: [
+                  for (var i = 0; i <= 30; i++)
+                    DropdownMenuItem(value: i, child: Text('$i')),
+                ],
+                onChanged: (v) => setState(() => after = v ?? after),
+              ),
+              DropdownButtonFormField<int>(
+                initialValue: hour,
+                decoration: const InputDecoration(labelText: 'Heure locale'),
+                items: [
+                  for (var i = 0; i < 24; i++)
+                    DropdownMenuItem(
+                      value: i,
+                      child: Text('${i.toString().padLeft(2, '0')}:00'),
+                    ),
+                ],
+                onChanged: (v) => setState(() => hour = v ?? hour),
+              ),
+              DropdownButtonFormField<HouseholdTaskPriority>(
+                initialValue: priority,
+                decoration: const InputDecoration(labelText: 'Priorité'),
+                items: [
+                  for (final p in HouseholdTaskPriority.values)
+                    DropdownMenuItem(value: p, child: Text(p.name)),
+                ],
+                onChanged: (v) => setState(() => priority = v ?? priority),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (save == true) {
+    await ref
+        .read(organizationActionsProvider)
+        .saveRule(
+          ReminderRule(
+            type: rule.type,
+            enabled: rule.enabled,
+            priority: priority,
+            parameters: {
+              'before_days': before,
+              'after_days': after,
+              'hour': hour,
+            },
+          ),
+        );
+  }
+}
+
 String _uuid() {
   final random = Random.secure();
   final b = List<int>.generate(16, (_) => random.nextInt(256));

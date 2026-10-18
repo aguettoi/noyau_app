@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -10,6 +12,7 @@ import '../../finance/application/providers/supabase_client_provider.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
 import '../../shopping_list/application/providers/remote_shopping_list_provider.dart';
 import '../../wealth/application/providers/home_auto_provider.dart';
+import '../../cashflow_projection/application/cashflow_projection_provider.dart';
 import '../domain/organization_models.dart';
 
 abstract interface class OrganizationGateway {
@@ -26,6 +29,24 @@ abstract interface class OrganizationGateway {
     String idempotencyKey,
   );
   Future<Set<String>> fetchReadAlertKeys(String householdId, String userId);
+  Future<Map<String, UserAlertState>> fetchAlertStates(
+    String householdId,
+    String userId,
+  );
+  Future<List<AppAlert>> fetchReminders(String householdId, String userId);
+  Future<void> actOnReminder(
+    String householdId,
+    String key,
+    String action,
+    DateTime? until,
+    String idempotencyKey,
+  );
+  Future<List<ReminderRule>> fetchReminderRules(String householdId);
+  Future<void> saveReminderRule(
+    String householdId,
+    String userId,
+    ReminderRule rule,
+  );
   Future<void> markAlertRead(String householdId, String userId, String key);
   Future<Map<String, bool>> fetchPreferences(String householdId, String userId);
   Future<void> setPreference(
@@ -96,6 +117,92 @@ class SupabaseOrganizationGateway implements OrganizationGateway {
       for (final raw in rows as List<dynamic>)
         (raw as Map)['alert_key'] as String,
     };
+  }
+
+  @override
+  Future<Map<String, UserAlertState>> fetchAlertStates(
+    String householdId,
+    String userId,
+  ) async {
+    final rows = await client
+        .from('user_alert_states')
+        .select('alert_key,read_at,dismissed_at,snoozed_until,last_action')
+        .eq('household_id', householdId)
+        .eq('user_id', userId);
+    return {
+      for (final raw in rows as List<dynamic>)
+        (raw as Map)['alert_key'] as String: _alertState(
+          Map<String, Object?>.from(raw),
+        ),
+    };
+  }
+
+  @override
+  Future<List<AppAlert>> fetchReminders(
+    String householdId,
+    String userId,
+  ) async {
+    final rows = await client
+        .from('financial_reminders')
+        .select()
+        .eq('household_id', householdId)
+        .eq('status', 'active')
+        .lte('due_at', DateTime.now().toUtc().toIso8601String())
+        .order('due_at', ascending: true);
+    return [
+      for (final raw in rows as List<dynamic>)
+        _reminder(Map<String, Object?>.from(raw as Map)),
+    ];
+  }
+
+  @override
+  Future<void> actOnReminder(
+    String householdId,
+    String key,
+    String action,
+    DateTime? until,
+    String idempotencyKey,
+  ) => client.rpc(
+    'act_on_financial_reminder',
+    params: {
+      'p_household_id': householdId,
+      'p_alert_key': key,
+      'p_action': action,
+      'p_snoozed_until': until?.toUtc().toIso8601String(),
+      'p_idempotency_key': idempotencyKey,
+    },
+  );
+
+  @override
+  Future<List<ReminderRule>> fetchReminderRules(String householdId) async {
+    final rows = await client
+        .from('reminder_rules')
+        .select()
+        .eq('household_id', householdId)
+        .order('rule_type', ascending: true);
+    return [
+      for (final raw in rows as List<dynamic>)
+        _rule(Map<String, Object?>.from(raw as Map)),
+    ];
+  }
+
+  @override
+  Future<void> saveReminderRule(
+    String householdId,
+    String userId,
+    ReminderRule rule,
+  ) async {
+    await client.from('reminder_rules').upsert({
+      'household_id': householdId,
+      'recipient_user_id': userId,
+      'rule_type': rule.type,
+      'enabled': rule.enabled,
+      'priority': rule.priority.name,
+      'parameters': rule.parameters,
+      'source_kind': rule.type,
+      'created_by': userId,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'household_id,recipient_user_id,rule_type');
   }
 
   @override
@@ -237,9 +344,29 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
   final tasks = await ref.watch(householdTasksProvider.future);
   final dashboard = await ref.watch(financialDashboardProvider.future);
   final compensations = await ref.watch(memberCompensationsProvider.future);
-  final read = await ref
-      .watch(organizationGatewayProvider)
-      .fetchReadAlertKeys(household.householdId!, userId);
+  final gateway = ref.watch(organizationGatewayProvider);
+  final states = await gateway.fetchAlertStates(household.householdId!, userId);
+  final read = {
+    for (final e in states.entries)
+      if (e.value.readAt != null) e.key,
+  };
+  final reminders = await gateway.fetchReminders(
+    household.householdId!,
+    userId,
+  );
+  final rules = await gateway.fetchReminderRules(household.householdId!);
+  bool ruleEnabled(String type) {
+    final personal = rules.where(
+      (r) => r.type == type && r.recipientUserId == userId,
+    );
+    if (personal.isNotEmpty) return personal.first.enabled;
+    final shared = rules.where(
+      (r) => r.type == type && r.recipientUserId == null,
+    );
+    return shared.isEmpty || shared.first.enabled;
+  }
+
+  final projection = await ref.watch(cashflowProjectionProvider.future);
   final preferences = await ref.watch(notificationPreferencesProvider.future);
   final alerts = <AppAlert>[
     for (final task in tasks.where((task) => task.isOverdue(DateTime.now())))
@@ -262,10 +389,59 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
         ),
       ),
     ...buildCompensationAlerts(compensations, userId, read),
+    ...reminders.where(
+      (r) => ruleEnabled(
+        r.actionType == 'open_occurrence'
+            ? 'expected_occurrence'
+            : 'monthly_close',
+      ),
+    ),
+    if (ruleEnabled('cashflow_risk'))
+      for (var i = 0; i < projection.risks.length; i++)
+        AppAlert(
+          key:
+              'cashflow-risk:${projection.risks[i].date.toIso8601String()}:${projection.risks[i].message}',
+          title: 'Risque de trésorerie',
+          detail: projection.risks[i].message,
+          category: 'reminders',
+          dueAt: projection.risks[i].date,
+          priority: HouseholdTaskPriority.high,
+          source: CalendarSource.cashflowProjection,
+          sourceId: 'projection',
+          actionType: 'open_projection',
+        ),
   ];
+  final now = DateTime.now();
   return List.unmodifiable(
-    alerts.where((alert) => preferences[alert.category] ?? true),
+    alerts
+        .where(
+          (alert) =>
+              (preferences[alert.category] ?? true) &&
+              (states[alert.key]?.visibleAt(now) ?? true),
+        )
+        .map(
+          (a) => AppAlert(
+            key: a.key,
+            title: a.title,
+            detail: a.detail,
+            category: a.category,
+            read: states[a.key]?.readAt != null || a.read,
+            source: a.source,
+            sourceId: a.sourceId,
+            dueAt: a.dueAt,
+            priority: a.priority,
+            actionType: a.actionType,
+          ),
+        ),
   );
+});
+
+final reminderRulesProvider = FutureProvider<List<ReminderRule>>((ref) async {
+  final h = await ref.watch(activeHouseholdProvider.future);
+  if (h.householdId == null) return const [];
+  return ref
+      .watch(organizationGatewayProvider)
+      .fetchReminderRules(h.householdId!);
 });
 
 List<AppAlert> buildCompensationAlerts(
@@ -346,6 +522,42 @@ class OrganizationActions {
     ref.invalidate(organizationAlertsProvider);
   }
 
+  Future<void> snooze(String key, DateTime until, {bool notYet = false}) async {
+    final h = await ref.read(activeHouseholdProvider.future);
+    final u = ref.read(currentUserIdProvider);
+    if (h.householdId == null || u == null) return;
+    await ref
+        .read(organizationGatewayProvider)
+        .actOnReminder(
+          h.householdId!,
+          key,
+          notYet ? 'not_yet' : 'snoozed',
+          until,
+          _uuid(),
+        );
+    ref.invalidate(organizationAlertsProvider);
+  }
+
+  Future<void> dismiss(String key) async {
+    final h = await ref.read(activeHouseholdProvider.future);
+    final u = ref.read(currentUserIdProvider);
+    if (h.householdId == null || u == null) return;
+    await ref
+        .read(organizationGatewayProvider)
+        .actOnReminder(h.householdId!, key, 'dismissed', null, _uuid());
+    ref.invalidate(organizationAlertsProvider);
+  }
+
+  Future<void> saveRule(ReminderRule rule) async {
+    final h = await ref.read(activeHouseholdProvider.future);
+    final u = ref.read(currentUserIdProvider);
+    if (h.householdId == null || u == null) return;
+    await ref
+        .read(organizationGatewayProvider)
+        .saveReminderRule(h.householdId!, u, rule);
+    ref.invalidate(reminderRulesProvider);
+  }
+
   Future<void> setPreference(String category, bool enabled) async {
     final h = await ref.read(activeHouseholdProvider.future);
     final u = ref.read(currentUserIdProvider);
@@ -356,6 +568,51 @@ class OrganizationActions {
     ref.invalidate(notificationPreferencesProvider);
     ref.invalidate(organizationAlertsProvider);
   }
+}
+
+UserAlertState _alertState(Map<String, Object?> r) => UserAlertState(
+  key: r['alert_key'] as String,
+  readAt: r['read_at'] == null ? null : DateTime.parse(r['read_at'] as String),
+  dismissedAt: r['dismissed_at'] == null
+      ? null
+      : DateTime.parse(r['dismissed_at'] as String),
+  snoozedUntil: r['snoozed_until'] == null
+      ? null
+      : DateTime.parse(r['snoozed_until'] as String),
+  lastAction: r['last_action'] as String?,
+);
+
+AppAlert _reminder(Map<String, Object?> r) => AppAlert(
+  key: r['dedupe_key'] as String,
+  title: r['title'] as String,
+  detail: r['detail'] as String,
+  category: 'reminders',
+  dueAt: DateTime.parse(r['due_at'] as String),
+  priority: HouseholdTaskPriority.values.byName(r['priority'] as String),
+  sourceId: r['source_id'] as String?,
+  source: switch (r['action_type']) {
+    'open_occurrence' => CalendarSource.recurringFinance,
+    'open_monthly_close' => CalendarSource.monthlyClose,
+    _ => CalendarSource.cashflowProjection,
+  },
+  actionType: r['action_type'] as String?,
+);
+
+ReminderRule _rule(Map<String, Object?> r) => ReminderRule(
+  type: r['rule_type'] as String,
+  enabled: r['enabled'] as bool,
+  priority: HouseholdTaskPriority.values.byName(r['priority'] as String),
+  parameters: Map<String, Object?>.from(r['parameters'] as Map),
+  recipientUserId: r['recipient_user_id'] as String?,
+);
+
+String _uuid() {
+  final random = Random.secure();
+  final values = List<int>.generate(16, (_) => random.nextInt(256));
+  values[6] = (values[6] & 15) | 64;
+  values[8] = (values[8] & 63) | 128;
+  String h(int i) => values[i].toRadixString(16).padLeft(2, '0');
+  return '${[for (var i = 0; i < 4; i++) h(i)].join()}-${[for (var i = 4; i < 6; i++) h(i)].join()}-${[for (var i = 6; i < 8; i++) h(i)].join()}-${[for (var i = 8; i < 10; i++) h(i)].join()}-${[for (var i = 10; i < 16; i++) h(i)].join()}';
 }
 
 HouseholdTask _task(Map<String, Object?> row) => HouseholdTask(

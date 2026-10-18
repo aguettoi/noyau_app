@@ -77,6 +77,9 @@ enum CalendarSource {
   shopping,
   homeAuto,
   investment,
+  recurringFinance,
+  monthlyClose,
+  cashflowProjection,
 }
 
 enum CalendarEntryStatus { active, resolved, cancelled }
@@ -113,6 +116,9 @@ class AppAlert {
     this.read = false,
     this.source,
     this.sourceId,
+    this.dueAt,
+    this.priority = HouseholdTaskPriority.normal,
+    this.actionType,
   });
   final String key;
   final String title;
@@ -121,6 +127,40 @@ class AppAlert {
   final bool read;
   final CalendarSource? source;
   final String? sourceId;
+  final DateTime? dueAt;
+  final HouseholdTaskPriority priority;
+  final String? actionType;
+}
+
+class UserAlertState {
+  const UserAlertState({
+    required this.key,
+    this.readAt,
+    this.dismissedAt,
+    this.snoozedUntil,
+    this.lastAction,
+  });
+  final String key;
+  final DateTime? readAt, dismissedAt, snoozedUntil;
+  final String? lastAction;
+  bool visibleAt(DateTime now) =>
+      dismissedAt == null &&
+      (snoozedUntil == null || !snoozedUntil!.isAfter(now));
+}
+
+class ReminderRule {
+  const ReminderRule({
+    required this.type,
+    required this.enabled,
+    required this.priority,
+    required this.parameters,
+    this.recipientUserId,
+  });
+  final String type;
+  final bool enabled;
+  final HouseholdTaskPriority priority;
+  final Map<String, Object?> parameters;
+  final String? recipientUserId;
 }
 
 List<CalendarEntry> filterCalendarEntries(
