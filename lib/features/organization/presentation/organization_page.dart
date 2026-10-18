@@ -23,11 +23,7 @@ class OrganizationPage extends ConsumerWidget {
           IconButton(
             key: const Key('open-recurring-finance'),
             tooltip: 'Opérations attendues',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const RecurringFinancePage(),
-              ),
-            ),
+            onPressed: () => _openRecurringFinance(context),
             icon: const Icon(Icons.event_repeat),
           ),
           IconButton(
@@ -58,6 +54,10 @@ class OrganizationPage extends ConsumerWidget {
     ),
   );
 }
+
+void _openRecurringFinance(BuildContext context) => Navigator.of(
+  context,
+).push(MaterialPageRoute<void>(builder: (_) => const RecurringFinancePage()));
 
 Future<void> _showPreferences(BuildContext context, WidgetRef ref) async {
   await showDialog<void>(
@@ -120,51 +120,55 @@ class _TasksTab extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) =>
             const Center(child: Text('Impossible de charger les tâches.')),
-        data: (tasks) {
-          if (tasks.isEmpty) {
-            return const _Empty(
-              icon: Icons.task_alt,
-              title: 'Aucune tâche',
-              detail:
-                  'Ajoutez une tâche ponctuelle ou récurrente pour organiser le foyer.',
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            itemCount: tasks.length,
-            itemBuilder: (_, index) {
-              final task = tasks[index];
+        data: (tasks) => ListView.builder(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          itemCount: tasks.length + 1,
+          itemBuilder: (_, index) {
+            if (index == 0) {
               return Card(
                 child: ListTile(
-                  key: Key('household-task-${task.id}'),
-                  leading: Icon(
-                    task.status == HouseholdTaskStatus.completed
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
+                  key: const Key('open-recurring-finance-visible'),
+                  leading: const Icon(Icons.event_repeat),
+                  title: const Text('Opérations attendues'),
+                  subtitle: const Text(
+                    'Planifier et rapprocher les opérations récurrentes.',
                   ),
-                  title: Text(task.title),
-                  subtitle: Text(
-                    [
-                      if (task.dueDate != null)
-                        DateFormat.yMMMd('fr').format(task.dueDate!),
-                      if (task.recurrence != TaskRecurrence.none)
-                        'Récurrence : ${task.recurrence.name}',
-                    ].join(' • '),
-                  ),
-                  trailing: task.isActive
-                      ? IconButton(
-                          tooltip: 'Marquer terminée',
-                          icon: const Icon(Icons.done),
-                          onPressed: () => ref
-                              .read(organizationActionsProvider)
-                              .complete(task.id, _uuid()),
-                        )
-                      : null,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openRecurringFinance(context),
                 ),
               );
-            },
-          );
-        },
+            }
+            final task = tasks[index - 1];
+            return Card(
+              child: ListTile(
+                key: Key('household-task-${task.id}'),
+                leading: Icon(
+                  task.status == HouseholdTaskStatus.completed
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                ),
+                title: Text(task.title),
+                subtitle: Text(
+                  [
+                    if (task.dueDate != null)
+                      DateFormat.yMMMd('fr').format(task.dueDate!),
+                    if (task.recurrence != TaskRecurrence.none)
+                      'Récurrence : ${task.recurrence.name}',
+                  ].join(' • '),
+                ),
+                trailing: task.isActive
+                    ? IconButton(
+                        tooltip: 'Marquer terminée',
+                        icon: const Icon(Icons.done),
+                        onPressed: () => ref
+                            .read(organizationActionsProvider)
+                            .complete(task.id, _uuid()),
+                      )
+                    : null,
+              ),
+            );
+          },
+        ),
       );
 }
 

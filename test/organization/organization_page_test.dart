@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:noyau_app/features/organization/application/organization_provider.dart';
 import 'package:noyau_app/features/organization/domain/organization_models.dart';
 import 'package:noyau_app/features/organization/presentation/organization_page.dart';
+import 'package:noyau_app/features/finance/application/providers/remote_household_members_provider.dart';
+import 'package:noyau_app/features/recurring_finance/application/recurring_finance_provider.dart';
 
 void main() {
   testWidgets('tasks calendar and alerts stay usable on mobile', (
@@ -54,11 +56,13 @@ void main() {
               ),
             ],
           ),
+          remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
         ],
         child: const MaterialApp(home: OrganizationPage()),
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Opérations attendues'), findsOneWidget);
     expect(find.text('Renouveler assurance'), findsOneWidget);
     await tester.tap(find.text('Calendrier'));
     await tester.pumpAndSettle();
@@ -87,5 +91,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Tâche en retard'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the recurring finance entry is visible and opens R3.1', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          householdTasksProvider.overrideWith((ref) async => const []),
+          organizationCalendarProvider.overrideWith((ref) async => const []),
+          organizationAlertsProvider.overrideWith((ref) async => const []),
+          remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
+          recurringIntentionsProvider.overrideWith((ref) async => const []),
+          expectedOccurrencesProvider.overrideWith((ref) async => const []),
+          actualRecurringCandidatesProvider.overrideWith(
+            (ref) async => const [],
+          ),
+        ],
+        child: const MaterialApp(home: OrganizationPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final entry = find.byKey(const Key('open-recurring-finance-visible'));
+    expect(entry, findsOneWidget);
+    expect(find.text('Opérations attendues'), findsOneWidget);
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    expect(find.text('Opérations attendues'), findsOneWidget);
+    expect(find.text('Récurrences'), findsOneWidget);
+    expect(find.text('Prochaines occurrences'), findsOneWidget);
   });
 }
