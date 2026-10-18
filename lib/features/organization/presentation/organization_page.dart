@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../cashflow_projection/presentation/cashflow_projection_page.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../recurring_finance/presentation/recurring_finance_page.dart';
 import '../application/organization_provider.dart';
@@ -58,6 +59,10 @@ class OrganizationPage extends ConsumerWidget {
 void _openRecurringFinance(BuildContext context) => Navigator.of(
   context,
 ).push(MaterialPageRoute<void>(builder: (_) => const RecurringFinancePage()));
+
+void _openCashflowProjection(BuildContext context) => Navigator.of(
+  context,
+).push(MaterialPageRoute<void>(builder: (_) => const CashflowProjectionPage()));
 
 Future<void> _showPreferences(BuildContext context, WidgetRef ref) async {
   await showDialog<void>(
@@ -122,7 +127,7 @@ class _TasksTab extends ConsumerWidget {
             const Center(child: Text('Impossible de charger les tâches.')),
         data: (tasks) => ListView.builder(
           padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: tasks.length + 1,
+          itemCount: tasks.length + 2,
           itemBuilder: (_, index) {
             if (index == 0) {
               return Card(
@@ -138,7 +143,21 @@ class _TasksTab extends ConsumerWidget {
                 ),
               );
             }
-            final task = tasks[index - 1];
+            if (index == 1) {
+              return Card(
+                child: ListTile(
+                  key: const Key('open-cashflow-projection'),
+                  leading: const Icon(Icons.show_chart),
+                  title: const Text('Prévisions de trésorerie'),
+                  subtitle: const Text(
+                    'Voir les soldes attendus, les flux et les risques à venir.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openCashflowProjection(context),
+                ),
+              );
+            }
+            final task = tasks[index - 2];
             return Card(
               child: ListTile(
                 key: Key('household-task-${task.id}'),

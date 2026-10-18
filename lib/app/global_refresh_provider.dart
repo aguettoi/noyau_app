@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/budget_intelligence/application/providers/remote_budget_provider.dart';
+import '../features/cashflow_projection/application/cashflow_projection_provider.dart';
 import '../features/dashboard/application/providers/dashboard_history_provider.dart';
 import '../features/dashboard/application/providers/remote_financial_dashboard_provider.dart';
 import '../features/envelopes/application/providers/remote_envelopes_provider.dart';
@@ -64,6 +65,7 @@ final globalRefreshActionProvider = Provider<GlobalRefreshAction>((ref) {
     ref.invalidate(recurringIntentionsProvider);
     ref.invalidate(expectedOccurrencesProvider);
     ref.invalidate(actualRecurringCandidatesProvider);
+    ref.invalidate(cashflowProjectionProvider);
 
     await Future.wait<Object?>([
       ref.read(remoteAccountsProvider.future),

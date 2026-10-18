@@ -63,6 +63,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Opérations attendues'), findsOneWidget);
+    expect(find.text('Prévisions de trésorerie'), findsOneWidget);
     expect(find.text('Renouveler assurance'), findsOneWidget);
     await tester.tap(find.text('Calendrier'));
     await tester.pumpAndSettle();
