@@ -10,9 +10,9 @@ L’ordre directeur de la Roadmap Master V2 est conservé. Le reporting R4 suit 
 | R2B | Centre À faire | IMPLÉMENTÉ — éléments contextualisés par identifiant canonique et routes filtrées | Réutilise F2/F3/F6 |
 | R2C | Régularisation globale | IMPLÉMENTÉ techniquement — projection append-only, point de départ explicite, solveur et confirmation canonique | Initialisation humaine du foyer pilote et recette visuelle restent requises |
 | R2D | KPI qualité | IMPLÉMENTÉ — santé explicable, pièces, rapprochement, inventaires | Foyer/non attribué par défaut |
-| R3A | Récurrents confirmables | Attendu/réel/variation et échéancier | Alimente projection |
-| R3B | Projection J+30/J+90 | Cashflow expliqué et scénarios | Réutilise FinancialAvailability |
-| R3C | Rappels et règles | 20h, snooze, pré-clôture, préférences | Livraison native en P1 |
+| R3.1 | Intentions récurrentes et attendu/réalisé | Adaptateurs Budget/F5/F6, occurrences attendues, détection conservatrice et validation humaine | Alimente la projection sans créer de FinancialEvent |
+| R3.2 | Projection de trésorerie consolidée | Horizons fin de mois, mois suivant, 3/6/12 mois avec détail foyer/compte/membre/enveloppe | Réutilise FinancialAvailability et les échéanciers existants |
+| R3.3 | Rappels et règles légères | Extension F6 : 20h, snooze, pré-clôture, préférences et propositions | Livraison native conservée en P1 |
 | R4A | Exports structurés | XLSX 4 feuilles, PDF, échéancier | Repose sur R2/R3 |
 | R4B | Bilan annuel et PPTX | N/N-1, faits marquants, perspectives | Après modèle stable |
 | R4C | Emprunt enrichi | Échéance cible, offres, IR, exports | Étend F5 |
