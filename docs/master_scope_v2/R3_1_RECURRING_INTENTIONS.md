@@ -6,6 +6,8 @@ Une intention décrit une opération future attendue. Elle n'est ni un Financial
 
 Les types V1 sont revenu, dépense et transfert bancaire. Les fréquences sont hebdomadaire, mensuelle et annuelle. Compte, enveloppe et membre sont facultatifs; aucun référentiel fictif n'est créé. Le niveau `certain` ou `estimated` distingue engagement et hypothèse.
 
+Le formulaire de création et de modification expose ces références facultatives à partir des comptes actifs, des enveloppes actives et des membres actifs du foyer. Une valeur peut être retirée et redevient alors « Non précisée ». Pour un transfert, les comptes source et destination restent obligatoires et distincts.
+
 ## Occurrences et historique
 
 Les occurrences sont matérialisées à la demande dans une fenêtre glissante, limitée côté serveur à 18 mois. L'UI crée initialement quatre mois. Chaque occurrence copie les attributs utiles de la règle. Une modification ultérieure de la règle affecte seulement les générations futures : les occurrences existantes ne sont pas réécrites.

@@ -233,8 +233,10 @@ class RecurringFinanceActions {
     required Money amount,
     required RecurringFrequency frequency,
     required RecurringCertainty certainty,
-    String? sourceAccountId,
-    String? destinationAccountId,
+    required String? sourceAccountId,
+    required String? destinationAccountId,
+    required String? envelopeId,
+    required String? memberId,
   }) async {
     final h = await ref.read(activeHouseholdProvider.future);
     if (h.householdId == null) throw StateError('Aucun foyer actif.');
@@ -247,11 +249,10 @@ class RecurringFinanceActions {
       'p_frequency': frequency.name,
       'p_starts_on': _date(current.startsOn),
       'p_ends_on': current.endsOn == null ? null : _date(current.endsOn!),
-      'p_concerned_member_id': current.memberId,
-      'p_source_account_id': sourceAccountId ?? current.sourceAccountId,
-      'p_destination_account_id':
-          destinationAccountId ?? current.destinationAccountId,
-      'p_envelope_id': current.envelopeId,
+      'p_concerned_member_id': memberId,
+      'p_source_account_id': sourceAccountId,
+      'p_destination_account_id': destinationAccountId,
+      'p_envelope_id': envelopeId,
       'p_certainty': certainty.name,
       'p_source_kind': current.sourceKind,
       'p_source_id': null,

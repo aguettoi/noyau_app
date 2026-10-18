@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/money/money.dart';
+import '../../envelopes/application/providers/remote_envelopes_provider.dart';
+import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../application/recurring_finance_provider.dart';
 import '../domain/recurring_finance.dart';
@@ -35,64 +37,87 @@ class RecurringFinancePage extends ConsumerWidget {
 
 class _Intentions extends ConsumerWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(recurringIntentionsProvider)
-      .when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Récurrences indisponibles.')),
-        data: (items) => items.isEmpty
-            ? const Center(
-                child: Text('Aucune opération récurrente planifiée.'),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final i = items[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text(i.label),
-                      subtitle: Text(
-                        '${_kind(i.type)} · ${i.amount.dirhams.toStringAsFixed(2)} MAD · ${_frequency(i.frequency)}\n${i.certainty == RecurringCertainty.certain ? 'Engagement certain' : 'Estimation'} · ${_status(i.status)}',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
+    final envelopes =
+        ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];
+    final members =
+        ref.watch(remoteHouseholdMembersProvider).valueOrNull ?? const [];
+    final accountNames = {for (final item in accounts) item.id: item.name};
+    final envelopeNames = {for (final item in envelopes) item.id: item.name};
+    final memberNames = {for (final item in members) item.id: item.displayName};
+    return ref
+        .watch(recurringIntentionsProvider)
+        .when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) =>
+              const Center(child: Text('Récurrences indisponibles.')),
+          data: (items) => items.isEmpty
+              ? const Center(
+                  child: Text('Aucune opération récurrente planifiée.'),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final i = items[index];
+                    final details = <String>[
+                      if (i.sourceAccountId != null)
+                        '${i.type == RecurringEconomicType.accountTransfer ? 'Source' : 'Compte'} : ${accountNames[i.sourceAccountId] ?? 'Compte connu'}',
+                      if (i.destinationAccountId != null)
+                        '${i.type == RecurringEconomicType.accountTransfer ? 'Destination' : 'Compte'} : ${accountNames[i.destinationAccountId] ?? 'Compte connu'}',
+                      if (i.envelopeId != null)
+                        'Enveloppe : ${envelopeNames[i.envelopeId] ?? 'Enveloppe connue'}',
+                      if (i.memberId != null)
+                        'Membre : ${memberNames[i.memberId] ?? 'Membre du foyer'}',
+                    ];
+                    return Card(
+                      child: ListTile(
+                        title: Text(i.label),
+                        subtitle: Text(
+                          '${_kind(i.type)} · ${i.amount.dirhams.toStringAsFixed(2)} MAD · ${_frequency(i.frequency)}\n${i.certainty == RecurringCertainty.certain ? 'Engagement certain' : 'Estimation'} · ${_status(i.status)}${details.isEmpty ? '' : '\n${details.join(' • ')}'}',
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        isThreeLine: details.isNotEmpty,
+                        trailing: Wrap(
+                          children: [
+                            IconButton(
+                              tooltip: 'Modifier les prochaines occurrences',
+                              onPressed: () =>
+                                  _create(context, ref, current: i),
+                              icon: const Icon(Icons.edit_outlined),
+                            ),
+                            PopupMenuButton<RecurringStatus>(
+                              onSelected: (s) => ref
+                                  .read(recurringFinanceActionsProvider)
+                                  .status(i.id, s),
+                              itemBuilder: (_) => [
+                                if (i.status != RecurringStatus.active)
+                                  const PopupMenuItem(
+                                    value: RecurringStatus.active,
+                                    child: Text('Réactiver'),
+                                  ),
+                                if (i.status == RecurringStatus.active)
+                                  const PopupMenuItem(
+                                    value: RecurringStatus.suspended,
+                                    child: Text('Suspendre'),
+                                  ),
+                                if (i.status != RecurringStatus.stopped)
+                                  const PopupMenuItem(
+                                    value: RecurringStatus.stopped,
+                                    child: Text('Arrêter'),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      isThreeLine: true,
-                      trailing: Wrap(
-                        children: [
-                          IconButton(
-                            tooltip: 'Modifier les prochaines occurrences',
-                            onPressed: () => _create(context, ref, current: i),
-                            icon: const Icon(Icons.edit_outlined),
-                          ),
-                          PopupMenuButton<RecurringStatus>(
-                            onSelected: (s) => ref
-                                .read(recurringFinanceActionsProvider)
-                                .status(i.id, s),
-                            itemBuilder: (_) => [
-                              if (i.status != RecurringStatus.active)
-                                const PopupMenuItem(
-                                  value: RecurringStatus.active,
-                                  child: Text('Réactiver'),
-                                ),
-                              if (i.status == RecurringStatus.active)
-                                const PopupMenuItem(
-                                  value: RecurringStatus.suspended,
-                                  child: Text('Suspendre'),
-                                ),
-                              if (i.status != RecurringStatus.stopped)
-                                const PopupMenuItem(
-                                  value: RecurringStatus.stopped,
-                                  child: Text('Arrêter'),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-      );
+                    );
+                  },
+                ),
+        );
+  }
 }
 
 class _Occurrences extends ConsumerWidget {
@@ -269,6 +294,8 @@ Future<void> _create(
   RecurringFinancialIntention? current,
 }) async {
   final accounts = await ref.read(remoteAccountsProvider.future);
+  final envelopes = await ref.read(remoteEnvelopeBalancesProvider.future);
+  final members = await ref.read(remoteHouseholdMembersProvider.future);
   if (!context.mounted) return;
   final activeAccounts = accounts
       .where((account) => !account.isArchived)
@@ -283,6 +310,13 @@ Future<void> _create(
   var starts = current?.startsOn ?? DateTime.now();
   var sourceAccountId = current?.sourceAccountId;
   var destinationAccountId = current?.destinationAccountId;
+  var concernedAccountId = switch (current?.type) {
+    RecurringEconomicType.income => current?.destinationAccountId,
+    RecurringEconomicType.expense => current?.sourceAccountId,
+    _ => null,
+  };
+  var envelopeId = current?.envelopeId;
+  var memberId = current?.memberId;
   final saved = await showDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
@@ -312,6 +346,7 @@ Future<void> _create(
                   ),
                 ),
                 DropdownButtonFormField<RecurringEconomicType>(
+                  isExpanded: true,
                   initialValue: type,
                   decoration: const InputDecoration(labelText: 'Nature'),
                   items: RecurringEconomicType.values
@@ -325,6 +360,7 @@ Future<void> _create(
                       : null,
                 ),
                 DropdownButtonFormField<RecurringFrequency>(
+                  isExpanded: true,
                   initialValue: frequency,
                   decoration: const InputDecoration(labelText: 'Fréquence'),
                   items: RecurringFrequency.values
@@ -338,7 +374,8 @@ Future<void> _create(
                   onChanged: (v) => setState(() => frequency = v!),
                 ),
                 if (type == RecurringEconomicType.accountTransfer) ...[
-                  DropdownButtonFormField<String>(
+                  DropdownButtonFormField<String?>(
+                    isExpanded: true,
                     initialValue: sourceAccountId,
                     decoration: const InputDecoration(
                       labelText: 'Compte source',
@@ -354,7 +391,8 @@ Future<void> _create(
                     onChanged: (value) =>
                         setState(() => sourceAccountId = value),
                   ),
-                  DropdownButtonFormField<String>(
+                  DropdownButtonFormField<String?>(
+                    isExpanded: true,
                     initialValue: destinationAccountId,
                     decoration: const InputDecoration(
                       labelText: 'Compte destination',
@@ -370,7 +408,69 @@ Future<void> _create(
                     onChanged: (value) =>
                         setState(() => destinationAccountId = value),
                   ),
-                ],
+                ] else
+                  DropdownButtonFormField<String?>(
+                    isExpanded: true,
+                    initialValue: concernedAccountId,
+                    decoration: const InputDecoration(
+                      labelText: 'Compte concerné (facultatif)',
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Non précisé'),
+                      ),
+                      ...activeAccounts.map(
+                        (account) => DropdownMenuItem<String?>(
+                          value: account.id,
+                          child: Text(account.name),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => concernedAccountId = value),
+                  ),
+                if (type != RecurringEconomicType.accountTransfer)
+                  DropdownButtonFormField<String?>(
+                    isExpanded: true,
+                    initialValue: envelopeId,
+                    decoration: const InputDecoration(
+                      labelText: 'Enveloppe (facultative)',
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Non précisée'),
+                      ),
+                      ...envelopes.map(
+                        (envelope) => DropdownMenuItem<String?>(
+                          value: envelope.id,
+                          child: Text(envelope.name),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) => setState(() => envelopeId = value),
+                  ),
+                DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  initialValue: memberId,
+                  decoration: const InputDecoration(
+                    labelText: 'Membre concerné (facultatif)',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Non précisé'),
+                    ),
+                    ...members.map(
+                      (member) => DropdownMenuItem<String?>(
+                        value: member.id,
+                        child: Text(member.displayName),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => memberId = value),
+                ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Montant certain'),
@@ -418,7 +518,7 @@ Future<void> _create(
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Planifier'),
+            child: Text(current == null ? 'Planifier' : 'Enregistrer'),
           ),
         ],
       ),
@@ -444,6 +544,16 @@ Future<void> _create(
     return;
   }
   final actions = ref.read(recurringFinanceActionsProvider);
+  final effectiveSourceAccountId = switch (type) {
+    RecurringEconomicType.expense => concernedAccountId,
+    RecurringEconomicType.accountTransfer => sourceAccountId,
+    RecurringEconomicType.income => null,
+  };
+  final effectiveDestinationAccountId = switch (type) {
+    RecurringEconomicType.income => concernedAccountId,
+    RecurringEconomicType.accountTransfer => destinationAccountId,
+    RecurringEconomicType.expense => null,
+  };
   if (current == null) {
     await actions.create(
       type: type,
@@ -452,8 +562,12 @@ Future<void> _create(
       frequency: frequency,
       startsOn: starts,
       certainty: certainty,
-      sourceAccountId: sourceAccountId,
-      destinationAccountId: destinationAccountId,
+      sourceAccountId: effectiveSourceAccountId,
+      destinationAccountId: effectiveDestinationAccountId,
+      envelopeId: type == RecurringEconomicType.accountTransfer
+          ? null
+          : envelopeId,
+      memberId: memberId,
     );
   } else {
     await actions.update(
@@ -462,8 +576,12 @@ Future<void> _create(
       amount: Money.fromDirhams(parsed),
       frequency: frequency,
       certainty: certainty,
-      sourceAccountId: sourceAccountId,
-      destinationAccountId: destinationAccountId,
+      sourceAccountId: effectiveSourceAccountId,
+      destinationAccountId: effectiveDestinationAccountId,
+      envelopeId: type == RecurringEconomicType.accountTransfer
+          ? null
+          : envelopeId,
+      memberId: memberId,
     );
   }
 }
