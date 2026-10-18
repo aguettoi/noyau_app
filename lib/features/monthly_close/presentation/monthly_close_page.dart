@@ -140,14 +140,17 @@ class _CurrentTargetPanel extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Position actuelle à fiabiliser',
+                      'Positions physiques partiellement connues',
                       key: Key('matrix-unreliable'),
                     ),
                     Text(
                       'Écart comptes : ${value.accountGap.dirhams.toStringAsFixed(2)} MAD • écart enveloppes : ${value.envelopeGap.dirhams.toStringAsFixed(2)} MAD',
                     ),
                     const SecondaryInfoText(
-                      'Aucune répartition historique n’est inventée. Un OWNER doit établir un point de départ explicite après inventaire.',
+                      'FINANCIEL PILOTE utilise immédiatement les positions certaines. Les autres restent « À déterminer » et ne bloquent pas l’usage normal.',
+                    ),
+                    const SecondaryInfoText(
+                      'Une réallocation physique demandera uniquement les localisations indispensables avant de pouvoir créer un transfert.',
                     ),
                     if (snapshot.blockers > 0)
                       const SecondaryInfoText(
@@ -172,7 +175,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
                                   accountBalances,
                                 ),
                           icon: const Icon(Icons.fact_check_outlined),
-                          label: const Text('Établir le point de départ'),
+                          label: const Text('Préparer une réallocation'),
                         ),
                       ),
                   ],
@@ -696,7 +699,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Préparer votre point de départ'),
+          title: const Text('Localisations utiles à cette opération'),
           leading: IconButton(
             onPressed: _closeDraft,
             icon: const Icon(Icons.close),
@@ -716,7 +719,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
               padding: AppLayout.pagePaddingFor(box.maxWidth),
               children: [
                 const Text(
-                  'Pour que FINANCIEL PILOTE sache où se trouve l’argent de chaque enveloppe aujourd’hui, nous allons vérifier les quelques montants que nous n’avons pas pu retrouver automatiquement. Cette opération n’est normalement nécessaire qu’une seule fois.',
+                  'Cette étape est facultative pour l’usage normal. Elle devient nécessaire uniquement si vous souhaitez exécuter une réallocation physique exigeant de connaître les comptes porteurs actuels.',
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 _simpleSummary(),
@@ -734,12 +737,23 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                     ),
                     label: Text(
                       _advancedMode
-                          ? 'Masquer la ventilation détaillée'
-                          : 'Afficher la ventilation détaillée',
+                          ? 'Masquer l’outil avancé'
+                          : 'Afficher la ventilation détaillée (avancé)',
                     ),
                   ),
                 ),
-                if (!_advancedMode) _simpleArbitrations(),
+                if (!_advancedMode) ...[
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      key: const Key('continue-without-inventory'),
+                      onPressed: _deferAllAndClose,
+                      icon: const Icon(Icons.arrow_forward),
+                      label: const Text('Continuer sans inventaire'),
+                    ),
+                  ),
+                  _simpleArbitrations(),
+                ],
                 if (_advancedMode) ...[
                   const SizedBox(height: AppSpacing.sm),
                   _summary(),
@@ -834,18 +848,6 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     );
     final located = rows.fold<int>(0, (sum, row) => sum + _cents(row));
     final remaining = math.max(0, total - located);
-    final deferred = widget.envelopes
-        .where((envelope) => _unknownEnvelopeIds.contains(envelope.id))
-        .fold<int>(
-          0,
-          (sum, envelope) =>
-              sum +
-              math.max(
-                0,
-                (envelope.balance as Money).minorUnits -
-                    _envelopeTotal(envelope.id as String),
-              ),
-        );
     final questions = _assistantArbitrations().length;
     return FpCard(
       child: Column(
@@ -854,7 +856,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           Text(
             remaining == 0
                 ? 'Votre point de départ est prêt'
-                : 'Préparer FINANCIEL PILOTE',
+                : 'Localisations disponibles',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -862,17 +864,14 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           const SizedBox(height: AppSpacing.xs),
           Text('Montant total à localiser : ${_money(total)}'),
           Text('Déjà retrouvé : ${_money(located)}'),
-          Text(
-            '$questions élément${questions > 1 ? 's' : ''} nécessite${questions > 1 ? 'nt' : ''} votre aide',
-          ),
-          Text(
-            'À confirmer maintenant : ${_money(math.max(0, remaining - deferred))}',
-          ),
-          if (deferred > 0)
-            Text('À déterminer plus tard : ${_money(deferred)}'),
-          if (deferred > 0)
+          Text('À déterminer : ${_money(remaining)}'),
+          if (questions > 0)
+            Text(
+              '$questions localisation${questions > 1 ? 's' : ''} indispensable${questions > 1 ? 's' : ''} uniquement pour cette réallocation',
+            ),
+          if (remaining > 0)
             const SecondaryInfoText(
-              'Vous pourrez compléter ces informations plus tard. FINANCIEL PILOTE vous les demandera uniquement lorsqu’elles seront nécessaires.',
+              'Certaines positions pourront être précisées plus tard si nécessaire. Aucun compte recommandé n’est assimilé à une position actuelle.',
             ),
           if (remaining == 0) ...[
             const Divider(),
@@ -894,7 +893,11 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       );
     }
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SecondaryInfoText(
+          'Informations nécessaires uniquement pour terminer cette réallocation :',
+        ),
         for (final item in arbitrations)
           Card(
             key: Key('assistant-arbitration-${item.envelopeId}'),
@@ -1053,6 +1056,16 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     _applyUniqueDeductions();
     setState(() => _splitEnvelopes.remove(envelopeId));
     _scheduleDraftSave();
+  }
+
+  Future<void> _deferAllAndClose() async {
+    final unresolved = _assistantArbitrations()
+        .map((item) => item.envelopeId)
+        .toList(growable: false);
+    for (final envelopeId in unresolved) {
+      _deferEnvelope(envelopeId);
+    }
+    await _closeDraft();
   }
 
   String _accountName(String id) =>

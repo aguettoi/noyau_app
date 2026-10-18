@@ -67,6 +67,13 @@ Statut : R2.7 matérialisé le 12/10/2026 ; l'inventaire humain initial compte �
 L'étude R2.2 retient l'option B. La matrice n'est pas reconstructible exhaustivement : C3 a ouvert séparément les comptes et les enveloppes, tandis que les transferts historiques de compte ou d'enveloppe ne portent pas toujours l'autre dimension. `envelope_account_position_batches` et `envelope_account_position_entries` forment donc une projection analytique append-only minimale. Un point de départ est saisi explicitement après inventaire et n'écrit ni GL ni mouvement d'enveloppe. Sa validité exige que chaque somme par compte égale le Grand Ledger et que chaque somme par enveloppe égale l'envelope ledger. Toute différence rend la matrice non fiable et bloque R2C.
 
 R2.14 conserve cette couche canonique mais retire la matrice du parcours normal.
+
+R2.15 confirme le modèle définitif : aucune matrice complète n’est requise
+pour utiliser l’application. Les positions non démontrées restent `À
+déterminer`; les précisions sont demandées uniquement au lancement d’une
+opération physique qui en dépend. Le mode détaillé reste disponible comme
+outil avancé, sans transformer les recommandations futures en preuves du
+présent.
 Les preuves et déductions certaines sont préparées sans question ; les règles
 structurelles ne produisent que des propositions. L'utilisateur peut reporter
 une localisation avec « Je ne sais pas / plus tard ». Ce statut ne crée aucune

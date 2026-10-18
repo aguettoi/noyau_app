@@ -716,7 +716,9 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.byKey(const Key('initialize-matrix')));
+    tester
+        .widget<FilledButton>(find.byKey(const Key('initialize-matrix')))
+        .onPressed!();
     await tester.pumpAndSettle();
     expect(find.text('Votre point de départ est prêt'), findsOneWidget);
     expect(find.text('Déjà retrouvé : 50.00 MAD'), findsOneWidget);
@@ -1126,7 +1128,10 @@ void main() {
       await tester.tap(find.byKey(const Key('initialize-matrix')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Préparer votre point de départ'), findsOneWidget);
+      expect(
+        find.text('Localisations utiles à cette opération'),
+        findsOneWidget,
+      );
       expect(find.textContaining('Habits — 874.40 MAD'), findsOneWidget);
       expect(find.text('CIH Ibrahim'), findsWidgets);
       expect(find.text('Banque Nora'), findsWidgets);
@@ -1450,31 +1455,25 @@ void main() {
           300,
           scrollable: find.byType(Scrollable).first,
         );
-        await tester.tap(find.byKey(const Key('initialize-matrix')));
+        tester
+            .widget<FilledButton>(find.byKey(const Key('initialize-matrix')))
+            .onPressed!();
         await tester.pumpAndSettle();
       }
 
       await pumpPage();
       expect(find.textContaining('Sans règle — 100.00 MAD'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('assistant-unknown-unknown')));
+      expect(find.textContaining('À confirmer maintenant'), findsNothing);
+      expect(find.text('À déterminer : 100.00 MAD'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('continue-without-inventory')));
       await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
       expect(unknowns, {'unknown'});
       expect(savedPositions, isEmpty);
-      expect(find.text('À déterminer plus tard : 100.00 MAD'), findsOneWidget);
-      expect(find.textContaining('Sans règle — 100.00 MAD'), findsNothing);
-      expect(find.byKey(const Key('save-matrix-snapshot')), findsOneWidget);
-      expect(
-        tester
-            .widget<FilledButton>(find.byKey(const Key('save-matrix-snapshot')))
-            .onPressed,
-        isNull,
-      );
-
-      await tester.tap(find.byIcon(Icons.close));
-      await tester.pumpAndSettle();
       await pumpPage();
-      expect(find.text('À déterminer plus tard : 100.00 MAD'), findsOneWidget);
+      expect(find.text('À déterminer : 100.00 MAD'), findsOneWidget);
       expect(find.textContaining('Sans règle — 100.00 MAD'), findsNothing);
+      expect(find.textContaining('À confirmer maintenant'), findsNothing);
     },
   );
 }
