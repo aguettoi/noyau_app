@@ -16,6 +16,20 @@ Le fuseau est résolu depuis le profil d'un membre actif du foyer (OWNER priorit
 
 ## Invariants
 
+### Report personnel continu entre phases (19/10/2026)
+
+Pour une occurrence R3.1, **Snooze** et **Pas encore** portent sur le couple occurrence/utilisateur. La clé canonique dans `user_alert_states` est `reminder-source:r3_1_occurrence:<source_id>`, dans le même foyer. Les clés `r3.1:<id>:before/day/after` restent celles des phases temporelles. Les états lu/masqué gardent leur portée de phase ; ils n'annulent pas le report commun. L'audit conserve la phase sur laquelle l'action a été demandée. Le trigger privé adapte atomiquement les actions existantes vers l'état de source ; les colonnes historiques des phases restent compatibles mais ne décident plus du snooze R3.1.
+
+La migration additive `20261019070158_r3_3_occurrence_personal_deferral.sql` reprend les reports déjà audités. Elle ne change ni leur échéance ni l'occurrence financière. Aucun état n'est recopié vers les phases suivantes.
+
+La correction additive `20261019070807_r3_3_equal_time_phase_order.sql` départage les phases simultanées (offsets de zéro jour possibles) : AFTER prime sur JOUR J, qui prime sur BEFORE. Le test SQL couvre explicitement une arrivée dans l'ordre inverse. La correction `20261019071027_r3_3_current_phase_read_window.sql` exclut aussi une ancienne phase lorsque la suivante est déjà exigible mais attend encore le prochain cycle pg_cron : aucun ancien rappel ne ressuscite dans cet intervalle ; la phase pertinente devient disponible après sa matérialisation canonique. Les versions locales correspondent aux trois versions effectivement enregistrées dans le Sandbox ; aucune migration antérieure n'a été réécrite.
+
+La lecture `visible_financial_reminders` est `SECURITY INVOKER` : RLS, destinataire, état personnel, occurrence encore attendue et intention active sont vérifiés côté serveur. Avant expiration, aucune phase ne peut contourner le report. Après expiration, seule la dernière phase exigible et active est présentée ; les anciennes phases ne sont pas ressuscitées, même si elles arrivent dans un ordre différent. Les cycles pg_cron continuent à matérialiser les phases canoniques indépendamment des préférences de chaque membre.
+
+L'application relit le serveur à l'expiration du prochain report (timer annulé à la destruction du provider), au refresh, à la réouverture et après invalidation Realtime. Une occurrence réalisée/ignorée ou une intention suspendue/arrêtée n'est plus présentée. Le scheduler résout les rappels réalisés/ignorés selon son comportement existant. Le fuseau et la protection serveur exigeant une date strictement future restent inchangés.
+
+Preuves : matrice SQL authentifiée rollbackée `supabase/tests/r3_3_occurrence_personal_deferral.sql` (1/2/N, deux foyers, retries, cycles répétés, expiration, lu/masqué, réalisation/ignorance/suspension/arrêt et compteurs financiers) ; tests domain des phases et de l'isolation personnelle ; tests widget de disparition et d'erreur RPC ; non-régression des tests timezone/minuit/DST. Aucun nouveau test manuel n'est préparé dans le foyer pilote.
+
 Le scheduler et toutes les actions R3.3 sont non financiers. Ils n'insèrent jamais dans `financial_events`, `financial_transactions`, `financial_transaction_lines`, `envelope_movements` ou `obligations`. **Pas encore** ne réalise ni n'ignore l'occurrence : il reporte seulement sa notification personnelle et conserve une trace auditée.
 
 La donnée métier partagée reste visible aux membres autorisés. Les préférences, états lu/masqué/snoozé et audits d'action restent propres à l'utilisateur. Les politiques RLS conservent l'isolation par foyer et la cardinalité 1/2/N.

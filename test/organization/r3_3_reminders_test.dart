@@ -4,6 +4,70 @@ import 'package:noyau_app/features/organization/domain/reminder_snooze_policy.da
 import 'package:timezone/timezone.dart' as tz;
 
 void main() {
+  group('report personnel commun aux phases de l’occurrence', () {
+    final now = DateTime.utc(2026, 10, 19, 19);
+    AppAlert phase(String name) => AppAlert(
+      key: 'r3.1:occurrence:$name',
+      title: name,
+      detail: '',
+      category: 'reminders',
+      source: CalendarSource.recurringFinance,
+      sourceId: 'occurrence',
+    );
+    for (final action in ['snoozed', 'not_yet']) {
+      test('$action bloque DAY et AFTER puis expire après relecture', () {
+        final states = {
+          'reminder-source:r3_1_occurrence:occurrence': UserAlertState(
+            key: 'reminder-source:r3_1_occurrence:occurrence',
+            snoozedUntil: now.add(const Duration(hours: 3)),
+            lastAction: action,
+          ),
+        };
+        for (final name in ['day', 'after']) {
+          expect(alertVisibleAt(phase(name), states, now), isFalse);
+          expect(alertVisibleAt(phase(name), Map.of(states), now), isFalse);
+        }
+        expect(
+          alertVisibleAt(
+            phase('after'),
+            states,
+            now.add(const Duration(hours: 3)),
+          ),
+          isTrue,
+        );
+        // Another user's independently fetched state is unaffected.
+        expect(alertVisibleAt(phase('after'), {}, now), isTrue);
+      });
+    }
+    test('lu/masqué restent limités à la phase', () {
+      final states = {
+        phase('day').key: UserAlertState(
+          key: phase('day').key,
+          dismissedAt: now,
+          readAt: now,
+        ),
+      };
+      expect(alertVisibleAt(phase('day'), states, now), isFalse);
+      expect(alertVisibleAt(phase('after'), states, now), isTrue);
+    });
+    test('un autre type de source conserve sa sémantique', () {
+      const alert = AppAlert(
+        key: 'risk',
+        title: '',
+        detail: '',
+        category: 'reminders',
+      );
+      expect(
+        alertVisibleAt(alert, {
+          'risk': UserAlertState(
+            key: 'risk',
+            snoozedUntil: now.add(const Duration(hours: 1)),
+          ),
+        }, now),
+        isFalse,
+      );
+    });
+  });
   test('snooze et Pas encore masquent temporairement sans résoudre', () {
     final now = DateTime.utc(2026, 10, 18, 12);
     final state = UserAlertState(

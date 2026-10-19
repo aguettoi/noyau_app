@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -142,13 +143,10 @@ class SupabaseOrganizationGateway implements OrganizationGateway {
     String householdId,
     String userId,
   ) async {
-    final rows = await client
-        .from('financial_reminders')
-        .select()
-        .eq('household_id', householdId)
-        .eq('status', 'active')
-        .lte('due_at', DateTime.now().toUtc().toIso8601String())
-        .order('due_at', ascending: true);
+    final rows = await client.rpc(
+      'visible_financial_reminders',
+      params: {'p_household_id': householdId},
+    );
     return [
       for (final raw in rows as List<dynamic>)
         _reminder(Map<String, Object?>.from(raw as Map)),
@@ -346,6 +344,21 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
   final compensations = await ref.watch(memberCompensationsProvider.future);
   final gateway = ref.watch(organizationGatewayProvider);
   final states = await gateway.fetchAlertStates(household.householdId!, userId);
+  final stateReadAt = DateTime.now();
+  final expirations =
+      states.values
+          .map((s) => s.snoozedUntil)
+          .whereType<DateTime>()
+          .where((until) => until.isAfter(stateReadAt))
+          .toList()
+        ..sort();
+  if (expirations.isNotEmpty) {
+    final timer = Timer(
+      expirations.first.difference(stateReadAt) + const Duration(seconds: 1),
+      ref.invalidateSelf,
+    );
+    ref.onDispose(timer.cancel);
+  }
   final read = {
     for (final e in states.entries)
       if (e.value.readAt != null) e.key,
@@ -417,7 +430,7 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
         .where(
           (alert) =>
               (preferences[alert.category] ?? true) &&
-              (states[alert.key]?.visibleAt(now) ?? true),
+              alertVisibleAt(alert, states, now),
         )
         .map(
           (a) => AppAlert(

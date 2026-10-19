@@ -132,6 +132,21 @@ class AppAlert {
   final String? actionType;
 }
 
+bool alertVisibleAt(
+  AppAlert alert,
+  Map<String, UserAlertState> states,
+  DateTime now,
+) {
+  final phase = states[alert.key];
+  if (alert.source == CalendarSource.recurringFinance &&
+      alert.sourceId != null) {
+    final source = states['reminder-source:r3_1_occurrence:${alert.sourceId}'];
+    return phase?.dismissedAt == null &&
+        !(source?.snoozedUntil?.isAfter(now) ?? false);
+  }
+  return phase?.visibleAt(now) ?? true;
+}
+
 class UserAlertState {
   const UserAlertState({
     required this.key,
