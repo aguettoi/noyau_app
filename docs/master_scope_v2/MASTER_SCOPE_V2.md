@@ -1,5 +1,13 @@
 # Master Scope Final V2
 
+## Addendum post-R3.3 — confidentialité entre membres
+
+L'audit historique post-R3.3 `docs/FINANCIEL_PILOTE_HISTORICAL_SCOPE_AUDIT.md` ajoute l'exigence transversale **confidentialité financière entre membres** au périmètre à examiner avant le gel fonctionnel. Un membre peut choisir, selon un contrat serveur à définir, un compte et son solde visibles, un compte visible avec solde masqué, ou un compte privé. L'appartenance au même foyer ne constitue pas à elle seule une autorisation d'accès à une donnée personnelle sensible.
+
+Cette exigence n'est pas satisfaite par un masquage Flutter. Les RLS, RPC, vues, recherches, Realtime, exports, journaux, notifications, Dashboard, Budget, projections, FinancialAvailability, scénarios, objectifs, PRIOS, Shopping, clôture, rapprochement et un futur assistant devront empêcher les révélations directes et les déductions par différence de totaux ou de réponses. Le moteur pourra, sous une politique explicite, répondre à une question bornée telle que « fonds suffisants ? » sans transmettre le solde ou le plancher privé. Aucun de ces contrats n'est implémenté par le présent audit.
+
+Les anciens statuts de cette matrice sont conservés comme trace de R0; pour la classification post-R3.3, les écarts V1 et les décisions encore ouvertes, utiliser l'audit historique ci-dessus. En particulier, « à arbitrer » ne signifie pas « retiré de V1 », et aucune fonction historiquement convenue n'est reclassée post-V1 sans preuve explicite.
+
 ## Statut R2.5
 
 R2 demeure **PARTIEL** jusqu'à la recette humaine finale. Le scénario pilote `DEPART` et les cinq scénarios d'évolution sont matérialisés depuis la source certifiée ; les répartitions multi-comptes sont exploitables sans dérogation. Deux soldes non nuls (`Epargne` et `Reste epargne (primes Ibrahim et Nora)`) n'ont toutefois aucune localisation compte certaine dans la source et doivent être configurés humainement. Le produit refuse de les inventer.
