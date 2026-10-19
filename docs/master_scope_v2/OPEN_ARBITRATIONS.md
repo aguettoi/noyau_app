@@ -1,5 +1,17 @@
 # Arbitrages ouverts
 
+## Décisions closes le 19/10/2026 — lecture prioritaire
+
+Les entrées `ARB-15`, `ARB-21` et `ARB-22` restent ci-dessous comme trace de la question initiale, mais **ne sont plus ouvertes**. Les décisions de référence sont :
+
+| ID | Décision définitive V1 | Contrôle attendu |
+|---|---|---|
+| ARB-15 / R4-09 | Restauration contrôlée et certifiée depuis l'export canonique, uniquement en environnement isolé; pas de bouton libre-service V1. | Reconstruction, intégrité/cohérence et droits vérifiés, sans essai destructif sur les données pilotes actives. |
+| ARB-21 / R4-10 | Timeline significative déterministe et explicable, distincte de l'historique, avec marquage/démarquage manuel facultatif; aucune dépendance IA. | Critères contextuels testés, pas de seuil MAD universel arbitraire, événement privé non divulgué. |
+| ARB-22 / ACC-12 + HIS-03 | Une seule fonction V1 **facultative** de détail billets/pièces; le total observé seul reste suffisant. | Somme des coupures et cohérence contrôlées; observation sans GL, FinancialEvent ni mouvement d'enveloppe; régularisation séparée. |
+
+La matrice suivante conserve les options et recommandations d'origine comme historique, non comme décisions en attente.
+
 | ID | Décision attendue | Options | Recommandation | Impact |
 |---|---|---|---|---|
 | ARB-01 | Offline exigé au lancement | P0, P1 ou post-V1 | Décider avant gel R2 | Architecture des mutations |
