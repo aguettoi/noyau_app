@@ -1,5 +1,16 @@
 # Master Scope Final V2
 
+## Décisions produit du 19/10/2026 — contrat de finalisation V1
+
+Le [contrat de finalisation V1](../FINANCIEL_PILOTE_V1_FINALIZATION_CONTRACT.md) reprend individuellement les 72 écarts de l'audit historique et constitue la décision produit courante. Les constats et statuts anciens ci-dessous restent des traces, sans être réécrits rétroactivement.
+
+- La confidentialité financière **entre membres est obligatoire V1**, avec trois modes de visibilité par compte (compte+solde visibles; compte visible/solde masqué; compte privé). Protection côté serveur et anti-inférence sur toutes les sorties; réponses bornées oui/non seulement sous autorisation, sans oracle de montant.
+- Les données personnelles sensibles sont privées par défaut. Tout partage est explicite, volontaire, scopé et révocable; appartenance au foyer insuffisante.
+- Le cycle menstruel et la liste de courses domestique restent V1. Les courses sont distinctes du Shopping financier. L'IA/assistant historiquement retenu reste dans le scope, après contrats déterministes et privés, avec confirmation explicite pour toute action réelle et seules primitives canoniques.
+- La robustesse réseau, les messages d'échec, le retry sûr et l'idempotence restent V1. La lecture offline persistante complète, la file de mutations financières offline et la résolution de conflits sont post-V1 par décision explicite nouvelle; aucun moteur offline-first financier n'est imposé à V1.
+
+Ces décisions ne certifient aucune fonction absente et n'autorisent ni code, ni migration, ni opération sur les données pilotes.
+
 ## Addendum post-R3.3 — confidentialité entre membres
 
 L'audit historique post-R3.3 `docs/FINANCIEL_PILOTE_HISTORICAL_SCOPE_AUDIT.md` ajoute l'exigence transversale **confidentialité financière entre membres** au périmètre à examiner avant le gel fonctionnel. Un membre peut choisir, selon un contrat serveur à définir, un compte et son solde visibles, un compte visible avec solde masqué, ou un compte privé. L'appartenance au même foyer ne constitue pas à elle seule une autorisation d'accès à une donnée personnelle sensible.
