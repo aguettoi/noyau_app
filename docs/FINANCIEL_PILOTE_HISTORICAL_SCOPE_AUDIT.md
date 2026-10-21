@@ -336,3 +336,4 @@ Pour la couverture fonctionnelle, les lignes métier hors gates P1/D1.2/cutover 
 - Audit statique uniquement; aucune suite Flutter/SQL rejouée et aucune requête de mutation envoyée à Supabase.
 - Le statut Git de quatre fichiers SQL R3.3 signalés par MSYS est préexistant. Leurs quatre empreintes de blob, lues par le flux `rg` puis `git hash-object --stdin`, correspondent chacune à l'index Git; ils n'ont pas été édités par cet audit. Le DOCX non suivi dans `docs/` demeure hors commit.
 - Seuls ce rapport et l'addendum documentaire du Master Scope sont dans le périmètre des modifications autorisées.
+- Actualisation L1.2 : les 115 signatures initialement non qualifiées ont été classées ; la surface courante compte 108 A et 3 B, avec zéro non qualifiée. La capacité bornée et le transport Realtime expurgé sont livrés, sans promouvoir prématurément les critères L1 dont les recettes transverses restent ouvertes.

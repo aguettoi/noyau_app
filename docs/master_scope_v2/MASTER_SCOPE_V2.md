@@ -176,3 +176,7 @@ Sources croisées : Roadmap Master V2, code Flutter, 93 migrations Supabase, RPC
 - Les moteurs moins découvrables restent accessibles via Fondation, Dashboard ou paramètres. Leur exposition relève de R1/D1, pas d'un redéveloppement.
 - R2 à R4 doivent réutiliser FinancialEvent, Grand Ledger, envelope ledger, obligations, Budget Intelligence, FinancialAvailability, Scenarios, Calendar/Alerts et les exports F7.
 - Les besoins offline, Cycle et IA restent soumis à arbitrage; ils ne sont pas implicitement inclus dans le noyau V1.
+
+### Suivi L1.2 — 21 octobre 2026
+
+La campagne a qualifié toutes les fonctions privilégiées exposées : 108 A, 3 B, 0 non qualifiée ; huit fonctions internes ont leur exécution client révoquée au total. Une capacité privée bornée et une projection Realtime d'invalidation expurgée sont livrées. Dashboard et FinancialAvailability signalent désormais leurs totaux visibles incomplets. L1 reste partiel et son verrou fermé jusqu'aux preuves multi-client, export/cache/deep-link complètes, restriction des trois RPC de cutover et reconstruction isolée.

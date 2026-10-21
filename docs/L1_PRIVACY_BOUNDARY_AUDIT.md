@@ -81,3 +81,15 @@ Le [registre courant des fonctions privilégiées](L1_PRIVILEGED_FUNCTION_CURREN
 Les autres critères de sortie non certifiés sont notamment : agrégats et comparaison par différence (Dashboard, patrimoine, disponibilité financière), capacité bornée anti-oracle, payload Realtime multi-client et révocation sur abonnement déjà ouvert, export partagé, cache après révocation, alertes et deep links, données sensibles sur tous les canaux, matrice hostile finale 1/2/N et reconstruction physique des migrations depuis base vierge. Le client compose encore des montants partiels susceptibles d'être présentés comme totaux ; les abonnements Postgres Changes aux tables financières ne sont pas une projection d'invalidation expurgée. L'absence de fuite prouvée sur une lecture donnée ne prouve donc pas l'ensemble de la frontière.
 
 Le verrou d'activation reste **fermé** : aucune recette utilisateur des modes privés ne doit être lancée avant correction/certification de ces canaux. Aucun FinancialEvent, GL, mouvement d'enveloppe ni donnée C3/C4B pilote n'a été écrit par les tests rollbackés. Sans moteur de base locale isolée disponible, la reconstruction depuis base vierge reste **non exécutée**, et ne saurait être marquée PASS.
+
+## L1.2 — campagne systématique du 21 octobre 2026
+
+La surface privilégiée courante a été extraite du Sandbox et qualifiée signature par signature : **111 fonctions `SECURITY DEFINER` exécutables par `authenticated`, 0 par `anon`, 108 A, 3 B, 0 C, 8 D révoquées au total et 0 non qualifiée**. Les trois B sont les RPC de cutover dont le plan/retour complet doit encore être restreint. Six fonctions internes, anciennes ou supplantées ont perdu leur droit d'exécution client pendant cette passe.
+
+Une capacité privée bornée est livrée : le titulaire crée une intention liée à un objet métier existant et à un montant fixé ; un membre du même foyer obtient seulement `ALLOWED`, `NOT_ALLOWED` ou `REQUIRES_OWNER_ACTION`. Aucun seuil arbitraire, montant maximal, reste ou solde n'est accepté ou retourné. L'intention expire, est idempotente et produit une trace d'évaluation inaccessible directement au client.
+
+Le transport Realtime brut a été remplacé par `household_realtime_invalidations`, projection sans compte, membre, source ni montant. La publication `supabase_realtime` contient uniquement cette table et Flutter ne s'abonne plus directement aux tables financières. Les tests automatiques SQL et Flutter sont verts. La preuve avec deux sessions authentifiées simultanées et révocation sur abonnement déjà ouvert reste à exécuter.
+
+Dashboard et FinancialAvailability excluent les soldes non lisibles et annoncent explicitement que leur total visible est incomplet. Cela ferme la présentation erronée d'un total partiel comme total exhaustif sur ces écrans, sans prétendre certifier tous les agrégats historiques. La matrice hostile détaillée est dans `L1_HOSTILE_MATRIX.md`.
+
+L1 reste **PARTIEL** : export complet, cache/révocation runtime, Realtime multi-client, trois RPC de cutover et reconstruction physique depuis une base vierge restent non certifiés. Le verrou demeure fermé.

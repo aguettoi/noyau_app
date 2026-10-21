@@ -60,6 +60,7 @@ DashboardAccountBalance account({
   String id = 'bank',
   int balance = 10000,
   FinancialAccountType type = FinancialAccountType.bank,
+  bool balanceVisible = true,
 }) => DashboardAccountBalance(
   account: FinancialAccount(
     id: id,
@@ -68,6 +69,7 @@ DashboardAccountBalance account({
     openingBalance: zero,
   ),
   balance: Money.fromMinorUnits(balance),
+  balanceVisible: balanceVisible,
 );
 SavingsGoalProgress goal() => SavingsGoalProgress(
   goal: SavingsGoal(
@@ -150,6 +152,30 @@ FinancialDashboardSnapshot snapshot({
 );
 
 void main() {
+  test(
+    'private balances are excluded and make aggregate explicitly partial',
+    () {
+      final value = FinancialDashboardSnapshot(
+        accounts: [
+          account(id: 'visible', balance: 10000),
+          account(id: 'private', balance: 6000000, balanceVisible: false),
+        ],
+        ordinaryEnvelopes: const [],
+        toAllocate: null,
+        budget: budget,
+        monthlyFlow: const DashboardMonthlyFlow(income: zero, expense: zero),
+        debts: const [],
+        incomeReceivables: const [],
+        recoveryReceivables: const [],
+        activeGoals: const [],
+        nextPriority: null,
+        alerts: const [],
+      );
+      expect(value.cashTotal, const Money.fromMinorUnits(10000));
+      expect(value.hasHiddenAccountBalances, isTrue);
+    },
+  );
+
   test(
     'period boundaries include year transition without invented history',
     () {

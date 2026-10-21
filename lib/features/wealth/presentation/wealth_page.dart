@@ -609,7 +609,9 @@ class _Financings extends StatelessWidget {
           leading: const Icon(Icons.shield_outlined),
           title: const Text('Capacité financière canonique'),
           subtitle: Text(
-            'Liquidité réelle disponible : ${_money(data.availability.realLiquidity)}. Toute décision “puis-je rembourser ?” réutilise FinancialAvailability.',
+            data.availability.isComplete
+                ? 'Liquidité réelle disponible : ${_money(data.availability.realLiquidity)}. Toute décision “puis-je rembourser ?” réutilise FinancialAvailability.'
+                : 'Liquidité visible : ${_money(data.availability.realLiquidity)}. Total partiel : les soldes privés sont exclus et toute décision exige la capacité serveur bornée.',
           ),
         ),
       ),

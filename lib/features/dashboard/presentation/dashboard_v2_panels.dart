@@ -82,9 +82,13 @@ class DashboardV2Panels extends StatelessWidget {
     ].reduce((a, b) => a > b ? a : b);
     final kpis = <({String title, String value, String detail})>[
       (
-        title: 'Liquidités',
+        title: s.hasHiddenAccountBalances
+            ? 'Liquidités visibles'
+            : 'Liquidités',
         value: chartMoney(s.cashTotal.minorUnits),
-        detail: 'Dont espèces : ${chartMoney(s.cashOnHand.minorUnits)}',
+        detail: s.hasHiddenAccountBalances
+            ? 'Total partiel — des soldes privés sont exclus'
+            : 'Dont espèces : ${chartMoney(s.cashOnHand.minorUnits)}',
       ),
       (
         title: 'Enveloppes',
@@ -109,7 +113,9 @@ class DashboardV2Panels extends StatelessWidget {
         detail: 'Budget officiel de la période',
       ),
       (
-        title: 'Épargne en comptes',
+        title: s.hasHiddenAccountBalances
+            ? 'Épargne visible en comptes'
+            : 'Épargne en comptes',
         value: accounts.any((a) => a.account.type.name == 'savings')
             ? chartMoney(s.savingsAccounts.minorUnits)
             : 'Non disponible',

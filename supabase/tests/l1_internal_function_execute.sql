@@ -8,7 +8,7 @@ do $$ begin
     raise exception 'L1 internal helper exposed to authenticated';
   end if;
   if not has_function_privilege('authenticated',
-       'public.create_shopping_item(uuid,text,numeric,text,date,uuid,uuid,integer)',
+       'public.create_shopping_item_with_member_priorities(uuid,text,numeric,text,date,uuid,uuid,integer,jsonb)',
        'EXECUTE') then
     raise exception 'L1 canonical Shopping RPC lost client access';
   end if;

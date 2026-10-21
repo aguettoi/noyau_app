@@ -32,6 +32,9 @@ final financialAvailabilityProvider =
       final receivables = results[4] as List<RemoteReceivableBalance>;
       final goals = results[5] as List<SavingsGoalProgress>;
       final plans = results[6] as List<PriorityPlanView>;
+      final hasHiddenBalances = accounts.any(
+        (account) => !account.isArchived && !account.canReadBalance,
+      );
       final liquidity = Money.fromMinorUnits(
         accounts
             .where((account) => !account.isArchived)
@@ -52,7 +55,7 @@ final financialAvailabilityProvider =
           (sum, item) => sum + item.remainingAmount.minorUnits,
         ),
       );
-      return projectFinancialAvailability(
+      final snapshot = projectFinancialAvailability(
         FinancialAvailabilityInput(
           liquidity: liquidity,
           envelopes: envelopes
@@ -115,5 +118,23 @@ final financialAvailabilityProvider =
               .toList(growable: false),
         ),
         DateTime.now(),
+      );
+      if (!hasHiddenBalances) {
+        return snapshot;
+      }
+      return FinancialAvailabilitySnapshot(
+        realLiquidity: snapshot.realLiquidity,
+        envelopeTotal: snapshot.envelopeTotal,
+        toAllocate: snapshot.toAllocate,
+        debtCommitments: snapshot.debtCommitments,
+        potentialReceivables: snapshot.potentialReceivables,
+        goals: snapshot.goals,
+        planEntries: snapshot.planEntries,
+        warnings: List.unmodifiable([
+          ...snapshot.warnings,
+          'Capacité partielle : des soldes privés sont exclus. Une décision '
+              'sur ces fonds exige la capacité serveur bornée.',
+        ]),
+        isComplete: false,
       );
     });

@@ -23,9 +23,9 @@ do $$ begin
     where account_id='7a6c43fc-c364-4703-9f8c-f347be3f602b') then
     raise exception 'L1: ledger balance leaked';
   end if;
-  if not exists (select 1 from public.list_account_privacy_summaries(
+  if not exists (select 1 from public.list_account_privacy_summaries_v2(
       '239f714f-c590-42bd-9979-40bbd3e6bf9c')
-    where account_id='7a6c43fc-c364-4703-9f8c-f347be3f602b'
+    where id='7a6c43fc-c364-4703-9f8c-f347be3f602b'
       and visibility='balance_hidden' and not can_read_balance) then
     raise exception 'L1: sanitized metadata unavailable';
   end if;
@@ -46,9 +46,9 @@ do $$ begin
     where id='7a6c43fc-c364-4703-9f8c-f347be3f602b')
     or exists (select 1 from public.account_holders
     where account_id='7a6c43fc-c364-4703-9f8c-f347be3f602b')
-    or exists (select 1 from public.list_account_privacy_summaries(
+    or exists (select 1 from public.list_account_privacy_summaries_v2(
       '239f714f-c590-42bd-9979-40bbd3e6bf9c')
-    where account_id='7a6c43fc-c364-4703-9f8c-f347be3f602b') then
+    where id='7a6c43fc-c364-4703-9f8c-f347be3f602b') then
     raise exception 'L1: private account discoverable';
   end if;
 end $$;

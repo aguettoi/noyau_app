@@ -34,42 +34,22 @@ final householdRealtimeProvider = Provider<void>((ref) {
   final client = ref.watch(optionalSupabaseClientProvider);
   if (client == null) return;
   final channel = client.channel('household:$id');
-  const tables = [
-    'accounts',
-    'envelopes',
-    'financial_events',
-    'obligations',
-    'member_compensations',
-    'budget_goals',
-    'shopping_items',
-    'priority_plans',
-    'household_tasks',
-    'wealth_assets',
-    'envelope_account_initial_position_drafts',
-    'envelope_account_initial_position_unknowns',
-    'recurring_financial_intentions',
-    'expected_financial_occurrences',
-    'expected_financial_occurrence_matches',
-    'financial_reminders',
-    'reminder_rules',
-    'user_alert_states',
-    'notification_preferences',
-  ];
-  for (final table in tables) {
-    channel.onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: table,
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'household_id',
-        value: id,
-      ),
-      callback: (_) {
-        _invalidateTable(ref, table);
-      },
-    );
-  }
+  channel.onPostgresChanges(
+    event: PostgresChangeEvent.all,
+    schema: 'public',
+    table: 'household_realtime_invalidations',
+    filter: PostgresChangeFilter(
+      type: PostgresChangeFilterType.eq,
+      column: 'household_id',
+      value: id,
+    ),
+    callback: (payload) {
+      final topic = payload.newRecord['topic'] as String?;
+      if (topic != null) {
+        _invalidateTable(ref, topic);
+      }
+    },
+  );
   channel.subscribe((status, _) {
     ref.read(syncConnectionStateProvider.notifier).state = switch (status) {
       RealtimeSubscribeStatus.subscribed => SyncConnectionState.synchronized,

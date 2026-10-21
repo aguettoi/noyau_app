@@ -126,3 +126,7 @@ Prévision **conditionnelle**, pas statut gagné : aujourd'hui ≈80 %; après L
 ## Validation de ce contrat
 
 Les arbitrages d'inclusion et de portée de `R4-09`, `R4-10` et `ACC-12/HIS-03` sont clos. Les contenus détaillés du cycle et de l'IA restent à préciser et valider dans leurs lots, sans bloquer L1 ni remettre en cause leur inclusion V1. Aucun développement/migration/Sandbox/donnée financière n'est autorisé par la seule publication de ce document. La première action recommandée, sur instruction distincte, est **L1 — Confidentialité et frontières legacy**.
+
+### État L1.2
+
+La qualification privilégiée est achevée (108 A, 3 B, zéro non qualifiée). PRV-05 dispose maintenant d'une capacité serveur bornée liée à une intention métier. Le Realtime automatique utilise uniquement une invalidation household expurgée. Ces avancées ne ferment pas L1 : les trois RPC de cutover B, l'export complet, le cache/deep-link après révocation, la preuve multi-client et la reconstruction isolée restent des critères de certification.

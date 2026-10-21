@@ -23,11 +23,13 @@ class DashboardAccountBalance {
   const DashboardAccountBalance({
     required this.account,
     required this.balance,
+    this.balanceVisible = true,
     this.observation,
   });
 
   final FinancialAccount account;
   final Money balance;
+  final bool balanceVisible;
   final AccountBalanceObservation? observation;
 
   Money? get reconciliationDifference => observation == null
@@ -115,12 +117,21 @@ class FinancialDashboardSnapshot {
       incomeReceivableRemaining + recoveryRemaining - debtRemaining;
 
   Money get cashTotal => Money.fromMinorUnits(
-    accounts.fold(0, (sum, item) => sum + item.balance.minorUnits),
+    accounts
+        .where((item) => item.balanceVisible)
+        .fold(0, (sum, item) => sum + item.balance.minorUnits),
   );
+
+  bool get hasHiddenAccountBalances =>
+      accounts.any((item) => !item.balanceVisible);
 
   Money get cashOnHand => Money.fromMinorUnits(
     accounts
-        .where((item) => item.account.type == FinancialAccountType.cash)
+        .where(
+          (item) =>
+              item.balanceVisible &&
+              item.account.type == FinancialAccountType.cash,
+        )
         .fold(0, (sum, item) => sum + item.balance.minorUnits),
   );
 
@@ -174,6 +185,7 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
       DashboardAccountBalance(
         account: account,
         balance: balances[account.id] ?? const Money.fromMinorUnits(0),
+        balanceVisible: account.canReadBalance,
       ),
     );
   }
@@ -320,6 +332,9 @@ List<DashboardAlert> buildDashboardAlerts({
 }) {
   final alerts = <DashboardAlert>[];
   for (final account in accounts) {
+    if (!account.balanceVisible) {
+      continue;
+    }
     if (account.balance.minorUnits < 0) {
       alerts.add(
         DashboardAlert(

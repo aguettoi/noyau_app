@@ -144,6 +144,7 @@ class FinancialAvailabilitySnapshot {
     required this.goals,
     required this.planEntries,
     required this.warnings,
+    this.isComplete = true,
   });
   final Money realLiquidity;
   final Money envelopeTotal;
@@ -153,6 +154,7 @@ class FinancialAvailabilitySnapshot {
   final Map<String, GoalFundingProjection> goals;
   final Map<String, List<PlanProjectionEntry>> planEntries;
   final List<String> warnings;
+  final bool isComplete;
 }
 
 FinancialAvailabilitySnapshot projectFinancialAvailability(
