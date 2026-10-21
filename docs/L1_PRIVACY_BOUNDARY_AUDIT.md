@@ -93,3 +93,7 @@ Le transport Realtime brut a été remplacé par `household_realtime_invalidatio
 Dashboard et FinancialAvailability excluent les soldes non lisibles et annoncent explicitement que leur total visible est incomplet. Cela ferme la présentation erronée d'un total partiel comme total exhaustif sur ces écrans, sans prétendre certifier tous les agrégats historiques. La matrice hostile détaillée est dans `L1_HOSTILE_MATRIX.md`.
 
 L1 reste **PARTIEL** : export complet, cache/révocation runtime, Realtime multi-client, trois RPC de cutover et reconstruction physique depuis une base vierge restent non certifiés. Le verrou demeure fermé.
+
+## L1 final — audience cutover
+
+Les trois RPC cutover précédemment B sont conservées comme primitives opérateur, mais ne sont plus exécutables par `authenticated`, `anon` ou `PUBLIC`. Elles restent utilisables par un opérateur de migration contrôlé et ne constituent plus une API utilisateur. La réconciliation mathématique finale du registre est 119 signatures suivies = 108 A exécutables + 11 D révoquées, zéro B/C/E et zéro non qualifiée.

@@ -128,8 +128,18 @@ class HouseholdExportService {
       'list_household_envelopes_safe',
       params: {'p_household_id': id},
     );
+    final safeAccounts = await client.rpc(
+      'list_account_privacy_summaries_v2',
+      params: {'p_household_id': id},
+    );
     return {
-      'accounts': await rows('accounts'),
+      // Never export the raw accounts table: balance-hidden accounts must keep
+      // their discoverable metadata while their amount stays server-redacted.
+      // Private accounts are omitted by the same server contract.
+      'accounts': [
+        for (final raw in safeAccounts as List<dynamic>)
+          Map<String, Object?>.from(raw as Map),
+      ],
       'household_members': await rows('household_members'),
       'envelopes': [
         for (final raw in safeEnvelopes as List<dynamic>)

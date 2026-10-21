@@ -130,3 +130,5 @@ Les arbitrages d'inclusion et de portée de `R4-09`, `R4-10` et `ACC-12/HIS-03` 
 ### État L1.2
 
 La qualification privilégiée est achevée (108 A, 3 B, zéro non qualifiée). PRV-05 dispose maintenant d'une capacité serveur bornée liée à une intention métier. Le Realtime automatique utilise uniquement une invalidation household expurgée. Ces avancées ne ferment pas L1 : les trois RPC de cutover B, l'export complet, le cache/deep-link après révocation, la preuve multi-client et la reconstruction isolée restent des critères de certification.
+
+Addendum L1 final : les trois RPC cutover sont opérateur-only et reclassées D ; la surface client privilégiée est donc 108 A, zéro B/C/E et zéro non qualifiée. L'export household réutilise les projections serveur des comptes et enveloppes. Le verrou reste fermé jusqu'à la recette consolidée multi-session/révocation/cache/deep-link/export. La reconstruction vierge demeure une preuve d'infrastructure séparée, non exécutable sur cet hôte.

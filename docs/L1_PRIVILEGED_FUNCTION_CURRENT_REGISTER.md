@@ -253,4 +253,4 @@ Extraction live du 21/10/2026 après réduction de surface. Chaque signature enc
 | `public.handle_new_user()` | Interne | D | Trigger Auth ; EXECUTE client révoqué au passage précédent. |
 | `public.assert_shopping_item_links(uuid, uuid, uuid)` | Interne | D | Helper interne ; EXECUTE client révoqué au passage précédent. |
 
-Bilan : **A 108 / B 3 / C 0 / D 8 / E 0 / non qualifiées 0** sur 119 signatures qualifiées, incluant les deux nouvelles RPC de capacité et les huit fonctions révoquées. Surface courante : 111 fonctions `SECURITY DEFINER` exécutables par `authenticated`, dont 108 A et 3 B.
+Bilan final : **A 108 / B 0 / C 0 / D 11 / E 0 / non qualifiées 0** sur 119 signatures qualifiées. Population historique du premier registre : 117 (115 exécutables + 2 D déjà révoquées). L1.2 a ajouté 2 RPC de capacité et révoqué 6 fonctions, soit 119 signatures suivies et 111 exécutables. L1 final a reclassé les 3 RPC cutover B en D opérateur-only et révoqué leur audience client : surface finale **108 fonctions `SECURITY DEFINER` exécutables par `authenticated`**, toutes A.

@@ -180,3 +180,5 @@ Sources croisées : Roadmap Master V2, code Flutter, 93 migrations Supabase, RPC
 ### Suivi L1.2 — 21 octobre 2026
 
 La campagne a qualifié toutes les fonctions privilégiées exposées : 108 A, 3 B, 0 non qualifiée ; huit fonctions internes ont leur exécution client révoquée au total. Une capacité privée bornée et une projection Realtime d'invalidation expurgée sont livrées. Dashboard et FinancialAvailability signalent désormais leurs totaux visibles incomplets. L1 reste partiel et son verrou fermé jusqu'aux preuves multi-client, export/cache/deep-link complètes, restriction des trois RPC de cutover et reconstruction isolée.
+
+Mise à jour finale : les trois RPC cutover sont maintenant opérateur-only ; registre final 108 A exécutables et 11 D révoquées. La seule preuve runtime applicative encore requise est la recette consolidée multi-session couvrant révocation, Realtime, cache, navigation, deep link et export. La reconstruction locale vierge reste indisponible sur l'hôte actuel.

@@ -33,3 +33,5 @@ Date de preuve : 21 octobre 2026. Cette matrice complète les tests SQL transact
 ## Conclusion
 
 Automatique : **PASS partiel, aucune fuite critique ouverte sur les canaux testés**. Intégration multi-client, export complet, cutover et cache après révocation restent à certifier. Le verrou d'activation demeure fermé.
+
+Addendum L1 final : les trois RPC cutover sont désormais opérateur-only et ne sont plus exécutables par les clients. L'export household utilise la projection de comptes v2 et la projection sûre des enveloppes. La recette multi-session/cache/deep-link demeure la seule preuve runtime applicative non automatisable dans l'environnement actuel.

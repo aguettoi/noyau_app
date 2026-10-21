@@ -20,6 +20,11 @@ void main() {
 
       expect(envelopeProvider, contains("'list_household_envelopes_safe'"));
       expect(exportProvider, contains("'list_household_envelopes_safe'"));
+      expect(exportProvider, contains("'list_account_privacy_summaries_v2'"));
+      expect(
+        exportProvider,
+        isNot(contains("'accounts': await rows('accounts')")),
+      );
       expect(
         exportProvider,
         isNot(contains("'envelopes': await rows('envelopes')")),
