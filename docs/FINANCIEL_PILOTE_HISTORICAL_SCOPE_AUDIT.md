@@ -331,6 +331,8 @@ Pour la couverture fonctionnelle, les lignes métier hors gates P1/D1.2/cutover 
 
 ## Contrôles de l'audit
 
+> Actualisation de suivi L1 (21/10/2026), sans modifier les classifications historiques ci-dessus : le verrou de confidentialité est toujours fermé. Cinq migrations additives ont fermé des chemins d'accès indirects supplémentaires, mais les 115 fonctions privilégiées encore exécutables ne sont pas qualifiées et la matrice hostile finale n'est pas certifiée. Voir `L1_PRIVACY_BOUNDARY_AUDIT.md` et `L1_PRIVILEGED_FUNCTION_CURRENT_REGISTER.md`. Les lignes PRV-01..07/R7-05 ne doivent pas être promues en A sur ces seules corrections.
+
 - Audit statique uniquement; aucune suite Flutter/SQL rejouée et aucune requête de mutation envoyée à Supabase.
 - Le statut Git de quatre fichiers SQL R3.3 signalés par MSYS est préexistant. Leurs quatre empreintes de blob, lues par le flux `rg` puis `git hash-object --stdin`, correspondent chacune à l'index Git; ils n'ont pas été édités par cet audit. Le DOCX non suivi dans `docs/` demeure hors commit.
 - Seuls ce rapport et l'addendum documentaire du Master Scope sont dans le périmètre des modifications autorisées.

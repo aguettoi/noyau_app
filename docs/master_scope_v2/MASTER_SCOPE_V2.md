@@ -170,6 +170,8 @@ Sources croisées : Roadmap Master V2, code Flutter, 93 migrations Supabase, RPC
 
 ## Contrôles de cohérence
 
+> Note de statut L1 (21/10/2026) : les arbitrages ultérieurs ont rendu la confidentialité financière et les données sensibles obligatoires en V1, et le cycle a été maintenu en V1. Les phrases historiques ci-dessous reflètent l'état antérieur du document ; le contrat V1 et l'audit L1 font autorité. L1 reste PARTIEL, avec verrou d'activation fermé : 115 fonctions `SECURITY DEFINER` encore exécutables par `authenticated` ne sont pas qualifiées individuellement, et les agrégats/anti-inférence, la capacité bornée, Realtime, les exports et la révocation multi-canal ne sont pas certifiés. Ne pas ouvrir L2 sur la base de cette note.
+
 - Les UI financières existantes ont un moteur canonique; aucune UI de mutation parallèle n'a été identifiée.
 - Les moteurs moins découvrables restent accessibles via Fondation, Dashboard ou paramètres. Leur exposition relève de R1/D1, pas d'un redéveloppement.
 - R2 à R4 doivent réutiliser FinancialEvent, Grand Ledger, envelope ledger, obligations, Budget Intelligence, FinancialAvailability, Scenarios, Calendar/Alerts et les exports F7.
