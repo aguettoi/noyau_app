@@ -171,7 +171,11 @@ void main() {
     expect(actions.snoozeCalls, 1);
     expect(actions.lastUntil!.isAfter(DateTime.now().toUtc()), isTrue);
     expect(find.text('TEST SNOOZE'), findsNothing);
-    expect(find.textContaining('Rappel reporté'), findsOneWidget);
+    // The policy may roll a late-evening action to tomorrow morning.
+    expect(
+      find.textContaining(RegExp('rappel reporté', caseSensitive: false)),
+      findsOneWidget,
+    );
   });
 
   testWidgets('un refus RPC reste visible et affiche une erreur', (

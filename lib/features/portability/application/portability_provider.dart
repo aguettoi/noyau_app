@@ -124,10 +124,17 @@ class HouseholdExportService {
               as List<dynamic>)
         Map<String, Object?>.from(raw as Map),
     ];
+    final safeEnvelopes = await client.rpc(
+      'list_household_envelopes_safe',
+      params: {'p_household_id': id},
+    );
     return {
       'accounts': await rows('accounts'),
       'household_members': await rows('household_members'),
-      'envelopes': await rows('envelopes'),
+      'envelopes': [
+        for (final raw in safeEnvelopes as List<dynamic>)
+          Map<String, Object?>.from(raw as Map),
+      ],
       'envelope_movements': await rows('envelope_movements'),
       'obligations': await rows('obligations'),
       'obligation_settlements': await rows('obligation_settlements'),

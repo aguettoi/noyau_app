@@ -54,7 +54,25 @@ void main() {
       householdId: 'household-1',
     );
 
-    expect((await repository.all()).single.openingBalance.minorUnits, 4431170);
+    expect((await repository.all()).single.openingBalance?.minorUnits, 4431170);
+  });
+
+  test('solde masqué ne devient jamais zéro dans le modèle client', () async {
+    final hidden = row()
+      ..['opening_balance'] = null
+      ..['can_read_balance'] = false
+      ..['visibility'] = 'balance_hidden'
+      ..['holder_user_ids'] = ['holder-1'];
+    final repository = AccountsSupabaseRepository(
+      gateway: _Gateway(rows: [hidden]),
+      householdId: 'household-1',
+    );
+
+    final account = (await repository.all()).single;
+    expect(account.openingBalance, isNull);
+    expect(account.canReadBalance, isFalse);
+    expect(account.visibility, 'balance_hidden');
+    expect(account.holders.single.userId, 'holder-1');
   });
 
   test('un compte système distant conserve son statut interne', () async {

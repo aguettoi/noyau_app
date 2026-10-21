@@ -29,6 +29,13 @@ class AccountsPage extends ConsumerStatefulWidget {
   ConsumerState<AccountsPage> createState() => _AccountsPageState();
 }
 
+Money? _visibleBalance(
+  FinancialAccount account,
+  Map<String, Money>? ledgerBalances,
+) => account.canReadBalance
+    ? (ledgerBalances?[account.id] ?? account.openingBalance)
+    : null;
+
 class _AccountsPageState extends ConsumerState<AccountsPage> {
   var _creating = false;
   var _initialOpened = false;
@@ -108,9 +115,7 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
               ordered.length == 1) {
             _initialOpened = true;
             final account = ordered.single;
-            final balance =
-                balancesAsync.valueOrNull?[account.id] ??
-                account.openingBalance;
+            final balance = _visibleBalance(account, balancesAsync.valueOrNull);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 Navigator.of(context).push(
@@ -130,12 +135,19 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
                   children: [
                     _AccountsHero(
                       accountCount: ordered.length,
+                      hasHiddenBalances: ordered.any(
+                        (account) => !account.canReadBalance,
+                      ),
                       totalBalance: ordered.fold<Money>(
                         const Money.fromMinorUnits(0),
-                        (total, account) =>
-                            total +
-                            (balancesAsync.valueOrNull?[account.id] ??
-                                account.openingBalance),
+                        (total, account) {
+                          return total +
+                              (_visibleBalance(
+                                    account,
+                                    balancesAsync.valueOrNull,
+                                  ) ??
+                                  const Money.fromMinorUnits(0));
+                        },
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -161,11 +173,10 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
                                             .map(
                                               (account) => _AccountRow(
                                                 account: account,
-                                                balance:
-                                                    balancesAsync
-                                                        .valueOrNull?[account
-                                                        .id] ??
-                                                    account.openingBalance,
+                                                balance: _visibleBalance(
+                                                  account,
+                                                  balancesAsync.valueOrNull,
+                                                ),
                                                 members:
                                                     membersAsync.valueOrNull ??
                                                     const [],
@@ -182,11 +193,10 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
                                                 ),
                                                 child: _AccountRow(
                                                   account: account,
-                                                  balance:
-                                                      balancesAsync
-                                                          .valueOrNull?[account
-                                                          .id] ??
-                                                      account.openingBalance,
+                                                  balance: _visibleBalance(
+                                                    account,
+                                                    balancesAsync.valueOrNull,
+                                                  ),
                                                   members:
                                                       membersAsync
                                                           .valueOrNull ??
@@ -211,9 +221,14 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
 }
 
 class _AccountsHero extends StatelessWidget {
-  const _AccountsHero({required this.accountCount, required this.totalBalance});
+  const _AccountsHero({
+    required this.accountCount,
+    required this.totalBalance,
+    required this.hasHiddenBalances,
+  });
   final int accountCount;
   final Money totalBalance;
+  final bool hasHiddenBalances;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -241,11 +256,16 @@ class _AccountsHero extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('Solde total', style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                'Total visible',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
               Text(
                 '${totalBalance.dirhams.toStringAsFixed(2)} MAD',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
+              if (hasHiddenBalances)
+                const Text('Certains soldes ne sont pas inclus.'),
             ],
           ),
         ],
@@ -261,7 +281,7 @@ class _AccountRow extends StatelessWidget {
     required this.members,
   });
   final FinancialAccount account;
-  final Money balance;
+  final Money? balance;
   final List<HouseholdMember> members;
 
   @override
@@ -271,7 +291,9 @@ class _AccountRow extends StatelessWidget {
     subtitle:
         '${_accountTypeLabel(account.type)} • ${_holdersLabel(account, members)} • ${account.isArchived ? 'Archivé' : 'Actif'}',
     trailing: Text(
-      '${balance.dirhams.toStringAsFixed(2)} MAD',
+      balance == null
+          ? 'Solde masqué'
+          : '${balance!.dirhams.toStringAsFixed(2)} MAD',
       style: Theme.of(context).textTheme.labelLarge,
     ),
     onTap: () => Navigator.of(context).push(
@@ -292,14 +314,17 @@ IconData _accountIcon(FinancialAccountType type) => switch (type) {
 class _AccountDetailPage extends ConsumerWidget {
   const _AccountDetailPage({required this.account, required this.balance});
   final FinancialAccount account;
-  final Money balance;
+  final Money? balance;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(accountTransactionHistoryProvider(account.id));
-    final observation = ref.watch(
-      latestAccountBalanceObservationProvider(account.id),
-    );
+    final visibleBalance = balance;
+    final history = visibleBalance == null
+        ? null
+        : ref.watch(accountTransactionHistoryProvider(account.id));
+    final observation = visibleBalance == null
+        ? null
+        : ref.watch(latestAccountBalanceObservationProvider(account.id));
     final canReconcile =
         account.type == FinancialAccountType.bank ||
         account.type == FinancialAccountType.cash;
@@ -309,47 +334,55 @@ class _AccountDetailPage extends ConsumerWidget {
         padding: AppSpacing.page,
         children: [
           Text(account.name, style: Theme.of(context).textTheme.headlineSmall),
-          Text('Solde actuel : ${balance.dirhams.toStringAsFixed(2)} MAD'),
-          if (canReconcile) ...[
+          Text(
+            visibleBalance == null
+                ? 'Solde masqué'
+                : 'Solde actuel : ${visibleBalance.dirhams.toStringAsFixed(2)} MAD',
+          ),
+          if (canReconcile &&
+              visibleBalance != null &&
+              observation != null) ...[
             const SizedBox(height: AppSpacing.md),
             _AccountReconciliationCard(
               account: account,
-              theoreticalBalance: balance,
+              theoreticalBalance: visibleBalance,
               observation: observation,
               onRecord: () => _openObservationDialog(context, ref),
               onHistory: () => _openReconciliationHistory(context, ref),
             ),
           ],
-          const SizedBox(height: AppSpacing.md),
-          Text('Opérations', style: Theme.of(context).textTheme.titleMedium),
-          ...history.when(
-            loading: () => const [Center(child: CircularProgressIndicator())],
-            error: (_, _) => const [
-              Text('Impossible de charger l’historique du compte.'),
-            ],
-            data: (items) => items.isEmpty
-                ? const [Text('Aucune opération pour ce compte.')]
-                : items
-                      .map(
-                        (item) => ListTile(
-                          title: Text(item.description),
-                          subtitle: Text(
-                            '${_formatObservationDate(item.occurredAt)} • ${_accountHistoryLabel(item.type)}'
-                            '${item.paymentMethodName == null ? '' : ' • ${item.paymentMethodName}'}'
-                            '${item.envelopes.isEmpty ? '' : ' • ${item.envelopes.map((e) => e.name).join(', ')}'}'
-                            '${item.isReversed
-                                ? ' • Annulée'
-                                : item.isReversal
-                                ? ' • Contrepassation'
-                                : ''}',
+          if (history != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text('Opérations', style: Theme.of(context).textTheme.titleMedium),
+            ...history.when(
+              loading: () => const [Center(child: CircularProgressIndicator())],
+              error: (_, _) => const [
+                Text('Impossible de charger l’historique du compte.'),
+              ],
+              data: (items) => items.isEmpty
+                  ? const [Text('Aucune opération pour ce compte.')]
+                  : items
+                        .map(
+                          (item) => ListTile(
+                            title: Text(item.description),
+                            subtitle: Text(
+                              '${_formatObservationDate(item.occurredAt)} • ${_accountHistoryLabel(item.type)}'
+                              '${item.paymentMethodName == null ? '' : ' • ${item.paymentMethodName}'}'
+                              '${item.envelopes.isEmpty ? '' : ' • ${item.envelopes.map((e) => e.name).join(', ')}'}'
+                              '${item.isReversed
+                                  ? ' • Annulée'
+                                  : item.isReversal
+                                  ? ' • Contrepassation'
+                                  : ''}',
+                            ),
+                            trailing: Text(
+                              '${item.sourceAccountId == account.id ? '−' : '+'}${item.amount.dirhams.abs().toStringAsFixed(2)} MAD',
+                            ),
                           ),
-                          trailing: Text(
-                            '${item.sourceAccountId == account.id ? '−' : '+'}${item.amount.dirhams.abs().toStringAsFixed(2)} MAD',
-                          ),
-                        ),
-                      )
-                      .toList(growable: false),
-          ),
+                        )
+                        .toList(growable: false),
+            ),
+          ],
         ],
       ),
     );
@@ -359,11 +392,13 @@ class _AccountDetailPage extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
+    final visibleBalance = balance;
+    if (visibleBalance == null) return;
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => _RecordAccountBalanceDialog(
         account: account,
-        theoreticalBalance: balance,
+        theoreticalBalance: visibleBalance,
         onRecord:
             ({required observedAt, required actualBalance, required reason}) =>
                 ref.read(recordAccountBalanceObservationProvider)(

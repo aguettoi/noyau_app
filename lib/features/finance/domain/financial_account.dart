@@ -9,6 +9,8 @@ class FinancialAccount {
     required this.name,
     required this.type,
     required this.openingBalance,
+    this.canReadBalance = true,
+    this.visibility = 'visible',
     this.holder,
     this.ownershipType = AccountOwnershipType.household,
     this.holders = const [],
@@ -22,7 +24,11 @@ class FinancialAccount {
   final String id;
   final String name;
   final FinancialAccountType type;
-  final Money openingBalance;
+
+  /// Null only when the server does not authorize this viewer to read it.
+  final Money? openingBalance;
+  final bool canReadBalance;
+  final String visibility;
   final String? holder;
   final AccountOwnershipType ownershipType;
   final List<AccountHolder> holders;
@@ -47,6 +53,8 @@ class FinancialAccount {
     name: name ?? this.name,
     type: type ?? this.type,
     openingBalance: openingBalance,
+    canReadBalance: canReadBalance,
+    visibility: visibility,
     holder: holder ?? this.holder,
     ownershipType: ownershipType ?? this.ownershipType,
     holders: holders ?? this.holders,

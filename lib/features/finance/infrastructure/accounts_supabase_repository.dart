@@ -67,17 +67,24 @@ class AccountsSupabaseRepository {
     final id = _requiredString(row, 'id');
     final name = _requiredString(row, 'name');
     final kind = _requiredString(row, 'kind');
-    final openingBalance = _moneyFromSql(row['opening_balance']);
+    final canReadBalance = row['can_read_balance'] as bool? ?? true;
+    final openingBalance = canReadBalance
+        ? _moneyFromSql(row['opening_balance'])
+        : null;
     final isSystem = row['is_system'] as bool? ?? false;
     final ownershipType = _ownershipType(
       (row['ownership_type'] as String?) ?? 'household',
     );
-    final holders = _holdersFromSql(row['account_holders']);
+    final holders = row.containsKey('holder_user_ids')
+        ? _holdersFromIds(row['holder_user_ids'])
+        : _holdersFromSql(row['account_holders']);
     return FinancialAccount(
       id: id,
       name: name,
       type: _financialAccountType(kind),
       openingBalance: openingBalance,
+      canReadBalance: canReadBalance,
+      visibility: row['visibility'] as String? ?? 'visible',
       ownershipType: ownershipType,
       holders: holders,
       isSystem: isSystem,
@@ -132,6 +139,20 @@ class AccountsSupabaseRepository {
           throw StateError("Le titulaire ne correspond pas à son foyer.");
         }
         return AccountHolder(userId: userId, displayName: 'Membre du foyer');
+      }),
+    );
+  }
+
+  static List<AccountHolder> _holdersFromIds(Object? raw) {
+    if (raw is! List) {
+      throw StateError("La liste des titulaires est invalide.");
+    }
+    return List.unmodifiable(
+      raw.map((id) {
+        if (id is! String || id.isEmpty) {
+          throw StateError("Le titulaire est invalide.");
+        }
+        return AccountHolder(userId: id, displayName: 'Membre du foyer');
       }),
     );
   }

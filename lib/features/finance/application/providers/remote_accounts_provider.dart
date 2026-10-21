@@ -15,14 +15,10 @@ class SupabaseAccountsGateway implements AccountsSupabaseGateway {
   @override
   Future<List<Map<String, Object?>>> fetchAccounts(String householdId) async {
     try {
-      final response = await _client
-          .from('accounts')
-          .select(
-            'id, household_id, name, kind, is_system, ownership_type, opening_balance, archived_at, created_at, updated_at, account_holders(user_id, household_members(user_id))',
-          )
-          .eq('household_id', householdId)
-          .eq('is_system', false)
-          .order('created_at', ascending: true);
+      final response = await _client.rpc(
+        'list_account_privacy_summaries_v2',
+        params: {'p_household_id': householdId},
+      );
       return (response as List<dynamic>)
           .map((row) => Map<String, Object?>.from(row as Map))
           .toList(growable: false);

@@ -341,13 +341,10 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
     throw StateError('Aucun foyer actif sans ambiguïté.');
   }
   final client = ref.watch(supabaseClientProvider);
-  final envelopeRows = await client
-      .from('envelopes')
-      .select(
-        'id, name, notes, archived_at, is_system, system_code, recommended_account_id, recommended_payment_method_id, recommendation_kind, recommendation_definition',
-      )
-      .eq('household_id', householdId)
-      .order('name', ascending: true);
+  final envelopeRows = await client.rpc(
+    'list_household_envelopes_safe',
+    params: {'p_household_id': householdId},
+  );
   final rows = await client
       .from('envelope_ledger_balances')
       .select(

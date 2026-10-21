@@ -110,7 +110,7 @@ class SupabasePaymentMethodsGateway implements PaymentMethodsGateway {
     String? accountId,
     String? paymentMethodId,
   }) async => client.rpc(
-    'set_envelope_recommendation',
+    'set_envelope_recommendation_safe',
     params: {
       'p_envelope_id': envelopeId,
       'p_account_id': accountId,
