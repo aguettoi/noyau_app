@@ -65,6 +65,39 @@ class CashflowProjectionPage extends ConsumerWidget {
                         value,
               ),
               const SizedBox(height: AppSpacing.md),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.science_outlined),
+                  title: const Text('Trajectoire alternative datée'),
+                  subtitle: Text(
+                    '${ref.watch(hypotheticalProjectionFlowsProvider).length} hypothèse(s) locale(s) — aucune écriture financière',
+                  ),
+                  trailing: Wrap(
+                    children: [
+                      if (ref
+                          .watch(hypotheticalProjectionFlowsProvider)
+                          .isNotEmpty)
+                        IconButton(
+                          tooltip: 'Effacer les hypothèses',
+                          onPressed: () =>
+                              ref
+                                      .read(
+                                        hypotheticalProjectionFlowsProvider
+                                            .notifier,
+                                      )
+                                      .state =
+                                  const [],
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      FilledButton.tonal(
+                        onPressed: () => _addHypothesis(context, ref),
+                        child: const Text('Ajouter'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
               _Summary(data: data),
               const SizedBox(height: AppSpacing.md),
               _Risks(data: data),
@@ -103,6 +136,115 @@ class CashflowProjectionPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _addHypothesis(BuildContext context, WidgetRef ref) async {
+  final label = TextEditingController();
+  final amount = TextEditingController();
+  var date = DateTime.now().add(const Duration(days: 1));
+  var kind = ProjectionFlowKind.expense;
+  final accepted = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: const Text('Tester une opération datée'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: label,
+                decoration: const InputDecoration(labelText: 'Libellé'),
+              ),
+              TextField(
+                controller: amount,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Montant (MAD)'),
+              ),
+              DropdownButtonFormField<ProjectionFlowKind>(
+                initialValue: kind,
+                decoration: const InputDecoration(labelText: 'Effet'),
+                items: const [
+                  DropdownMenuItem(
+                    value: ProjectionFlowKind.income,
+                    child: Text('Entrée'),
+                  ),
+                  DropdownMenuItem(
+                    value: ProjectionFlowKind.expense,
+                    child: Text('Sortie'),
+                  ),
+                ],
+                onChanged: (value) => setState(() => kind = value ?? kind),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Date métier'),
+                subtitle: Text(DateFormat.yMMMd('fr').format(date)),
+                onTap: () async {
+                  final selected = await showDatePicker(
+                    context: context,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 730)),
+                    initialDate: date,
+                  );
+                  if (selected != null) setState(() => date = selected);
+                },
+              ),
+              const Text(
+                'Cette hypothèse reste en mémoire locale et ne crée aucune opération.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Simuler'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (accepted != true) {
+    return;
+  }
+  final value = double.tryParse(amount.text.trim().replaceAll(',', '.'));
+  if (label.text.trim().isEmpty || value == null || value <= 0) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Libellé et montant positif requis.')),
+      );
+    }
+    return;
+  }
+  final current = ref.read(hypotheticalProjectionFlowsProvider);
+  ref.read(hypotheticalProjectionFlowsProvider.notifier).state = [
+    ...current,
+    ProjectionFlow(
+      id: 'hypothesis:${DateTime.now().microsecondsSinceEpoch}',
+      date: date,
+      label: label.text.trim(),
+      amount: Money.fromDirhams(value),
+      kind: kind,
+      certainty: ProjectionCertainty.hypothetical,
+      source: 'Simulation locale — trajectoire alternative',
+      explanation: ProjectionExplanation(
+        rule: 'user_dated_hypothesis',
+        sourceKind: 'simulation',
+        sourceId: 'local',
+        period: DateFormat('yyyy-MM-dd').format(date),
+        reason: 'Hypothèse datée saisie explicitement par l’utilisateur.',
+      ),
+    ),
+  ];
 }
 
 class _HorizonSelector extends ConsumerWidget {

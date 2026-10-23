@@ -13,7 +13,7 @@ class RecurringFinancePage extends ConsumerWidget {
   const RecurringFinancePage({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) => DefaultTabController(
-    length: 2,
+    length: 3,
     child: Scaffold(
       appBar: AppBar(
         title: const Text('Opérations attendues'),
@@ -21,6 +21,7 @@ class RecurringFinancePage extends ConsumerWidget {
           tabs: [
             Tab(text: 'Récurrences'),
             Tab(text: 'Prochaines occurrences'),
+            Tab(text: 'Suggestions'),
           ],
         ),
       ),
@@ -30,10 +31,62 @@ class RecurringFinancePage extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Planifier'),
       ),
-      body: TabBarView(children: [_Intentions(), _Occurrences()]),
+      body: TabBarView(
+        children: [_Intentions(), _Occurrences(), _Suggestions()],
+      ),
     ),
   );
 }
+
+class _Suggestions extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ref
+      .watch(recurringPatternSuggestionsProvider)
+      .when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) =>
+            const Center(child: Text('Suggestions indisponibles.')),
+        data: (items) => items.isEmpty
+            ? const Center(
+                child: Text('Aucune récurrence suffisamment stable détectée.'),
+              )
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Card(
+                    child: ListTile(
+                      leading: Icon(Icons.auto_graph_outlined),
+                      title: Text('Détection assistée'),
+                      subtitle: Text(
+                        'Ces propositions sont explicables et ne créent aucune opération. Confirmez-les avant planification.',
+                      ),
+                    ),
+                  ),
+                  for (final item in items)
+                    Card(
+                      child: ListTile(
+                        title: Text(item.label),
+                        subtitle: Text(
+                          '${item.typicalAmount.dirhams.toStringAsFixed(2)} MAD · ${_frequency(item.frequency)}\n${item.reasons.join(' • ')}',
+                        ),
+                        isThreeLine: true,
+                        trailing: FilledButton.tonal(
+                          onPressed: () =>
+                              _createFromSuggestion(context, ref, item),
+                          child: const Text('Examiner'),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+      );
+}
+
+Future<void> _createFromSuggestion(
+  BuildContext context,
+  WidgetRef ref,
+  RecurringPatternSuggestion suggestion,
+) => _create(context, ref, suggestion: suggestion);
 
 class _Intentions extends ConsumerWidget {
   @override
@@ -292,6 +345,7 @@ Future<void> _create(
   BuildContext context,
   WidgetRef ref, {
   RecurringFinancialIntention? current,
+  RecurringPatternSuggestion? suggestion,
 }) async {
   final accounts = await ref.read(remoteAccountsProvider.future);
   final envelopes = await ref.read(remoteEnvelopeBalancesProvider.future);
@@ -300,23 +354,34 @@ Future<void> _create(
   final activeAccounts = accounts
       .where((account) => !account.isArchived)
       .toList();
-  final label = TextEditingController(text: current?.label ?? ''),
+  final label = TextEditingController(
+        text: current?.label ?? suggestion?.label ?? '',
+      ),
       amount = TextEditingController(
-        text: current?.amount.dirhams.toStringAsFixed(2) ?? '',
+        text:
+            current?.amount.dirhams.toStringAsFixed(2) ??
+            suggestion?.typicalAmount.dirhams.toStringAsFixed(2) ??
+            '',
       );
-  var type = current?.type ?? RecurringEconomicType.expense,
-      frequency = current?.frequency ?? RecurringFrequency.monthly,
+  var type = current?.type ?? suggestion?.type ?? RecurringEconomicType.expense,
+      frequency =
+          current?.frequency ??
+          suggestion?.frequency ??
+          RecurringFrequency.monthly,
       certainty = current?.certainty ?? RecurringCertainty.certain;
-  var starts = current?.startsOn ?? DateTime.now();
+  var starts =
+      current?.startsOn ?? suggestion?.nextExpectedOn ?? DateTime.now();
   var sourceAccountId = current?.sourceAccountId;
   var destinationAccountId = current?.destinationAccountId;
-  var concernedAccountId = switch (current?.type) {
-    RecurringEconomicType.income => current?.destinationAccountId,
-    RecurringEconomicType.expense => current?.sourceAccountId,
-    _ => null,
-  };
-  var envelopeId = current?.envelopeId;
-  var memberId = current?.memberId;
+  var concernedAccountId =
+      suggestion?.accountId ??
+      switch (current?.type) {
+        RecurringEconomicType.income => current?.destinationAccountId,
+        RecurringEconomicType.expense => current?.sourceAccountId,
+        _ => null,
+      };
+  var envelopeId = current?.envelopeId ?? suggestion?.envelopeId;
+  var memberId = current?.memberId ?? suggestion?.memberId;
   final saved = await showDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(

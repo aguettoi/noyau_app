@@ -1,12 +1,28 @@
 import '../../../core/money/money.dart';
 import '../../recurring_finance/domain/recurring_finance.dart';
 import '../../wealth/domain/wealth_models.dart';
+import '../../wealth/domain/home_auto_models.dart';
+import '../../finance/application/providers/remote_debts_provider.dart';
 
 enum ProjectionHorizon { endOfMonth, nextMonth, threeMonths, sixMonths, year }
 
 enum ProjectionCertainty { certain, estimated, hypothetical }
 
 enum ProjectionFlowKind { income, expense, internalTransfer, financing }
+
+class ProjectionExplanation {
+  const ProjectionExplanation({
+    required this.rule,
+    required this.sourceKind,
+    required this.sourceId,
+    required this.reason,
+    this.period,
+    this.parameters = const {},
+  });
+  final String rule, sourceKind, sourceId, reason;
+  final String? period;
+  final Map<String, Object?> parameters;
+}
 
 class ProjectionFlow {
   const ProjectionFlow({
@@ -21,6 +37,7 @@ class ProjectionFlow {
     this.destinationAccountId,
     this.envelopeId,
     this.memberId,
+    this.explanation,
   });
 
   final String id, label, source;
@@ -29,6 +46,7 @@ class ProjectionFlow {
   final ProjectionFlowKind kind;
   final ProjectionCertainty certainty;
   final String? sourceAccountId, destinationAccountId, envelopeId, memberId;
+  final ProjectionExplanation? explanation;
 
   int get householdDelta => switch (kind) {
     ProjectionFlowKind.income => amount.minorUnits,
@@ -36,6 +54,67 @@ class ProjectionFlow {
     ProjectionFlowKind.financing => -amount.minorUnits,
     ProjectionFlowKind.internalTransfer => 0,
   };
+}
+
+List<ProjectionFlow> adaptCanonicalExpectedSources({
+  required DateTime asOf,
+  required DateTime through,
+  Iterable<RemoteDebtBalance> obligations = const [],
+  Iterable<VehicleCostPlan> vehicleCosts = const [],
+}) {
+  final start = _day(asOf);
+  final result = <ProjectionFlow>[];
+  for (final obligation in obligations) {
+    final due = obligation.dueAt;
+    if (due == null ||
+        obligation.remainingAmount.minorUnits <= 0 ||
+        due.isBefore(start) ||
+        due.isAfter(through)) {
+      continue;
+    }
+    result.add(
+      ProjectionFlow(
+        id: 'obligation:${obligation.id}',
+        date: due,
+        label: obligation.description,
+        amount: obligation.remainingAmount,
+        kind: ProjectionFlowKind.expense,
+        certainty: ProjectionCertainty.certain,
+        source: 'Obligations — solde dérivé et échéance canonique',
+        explanation: ProjectionExplanation(
+          rule: 'obligation_due',
+          sourceKind: 'obligation',
+          sourceId: obligation.id,
+          period: _key(due),
+          reason: 'Échéance ouverte issue du solde canonique de l’obligation.',
+        ),
+      ),
+    );
+  }
+  for (final plan in vehicleCosts) {
+    if (plan.category == VehicleCostCategory.financing) continue;
+    if (plan.dueDate.isBefore(start) || plan.dueDate.isAfter(through)) continue;
+    result.add(
+      ProjectionFlow(
+        id: 'vehicle-cost:${plan.id}',
+        date: plan.dueDate,
+        label: plan.label,
+        amount: plan.amount,
+        kind: ProjectionFlowKind.expense,
+        certainty: ProjectionCertainty.estimated,
+        source: 'F6 — coût automobile planifié',
+        explanation: ProjectionExplanation(
+          rule: 'vehicle_cost_due',
+          sourceKind: 'vehicle_cost',
+          sourceId: plan.id,
+          period: _key(plan.dueDate),
+          reason: 'Coût planifié daté, sans écriture financière.',
+          parameters: {'category': plan.category.name},
+        ),
+      ),
+    );
+  }
+  return List.unmodifiable(result);
 }
 
 class ProjectionRisk {
@@ -166,6 +245,8 @@ CashflowProjection buildCashflowProjection({
   required List<ExpectedFinancialOccurrence> occurrences,
   List<FinancingProfile> financings = const [],
   Map<String, ProjectionCertainty> certaintyByIntention = const {},
+  List<ProjectionFlow> canonicalExpectedFlows = const [],
+  List<ProjectionFlow> hypotheticalFlows = const [],
   String? scenarioName,
 }) {
   final flows = <ProjectionFlow>[];
@@ -197,6 +278,13 @@ CashflowProjection buildCashflowProjection({
         destinationAccountId: occurrence.destinationAccountId,
         envelopeId: occurrence.envelopeId,
         memberId: occurrence.memberId,
+        explanation: ProjectionExplanation(
+          rule: 'recurring_occurrence',
+          sourceKind: 'recurring_intention',
+          sourceId: occurrence.intentionId,
+          period: _key(occurrence.expectedOn),
+          reason: 'Occurrence attendue restante, non réalisée et non ignorée.',
+        ),
       ),
     );
   }
@@ -226,6 +314,11 @@ CashflowProjection buildCashflowProjection({
         );
       }
     }
+  }
+  final existingIds = flows.map((flow) => flow.id).toSet();
+  for (final flow in [...canonicalExpectedFlows, ...hypotheticalFlows]) {
+    if (flow.date.isBefore(_day(asOf)) || flow.date.isAfter(through)) continue;
+    if (existingIds.add(flow.id)) flows.add(flow);
   }
   flows.sort((a, b) => a.date.compareTo(b.date));
 

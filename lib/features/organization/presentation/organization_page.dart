@@ -962,6 +962,8 @@ Future<void> _showReminderRules(BuildContext context, WidgetRef ref) async {
                         'expected_occurrence': 'Opérations attendues',
                         'monthly_close': 'Pré-clôture mensuelle',
                         'cashflow_risk': 'Risques de trésorerie',
+                        'envelope_threshold': 'Seuils d’enveloppes',
+                        'obligation_due': 'Échéances d’obligations',
                       }.entries)
                         ListTile(
                           key: Key('reminder-rule-${item.key}'),
@@ -1014,8 +1016,9 @@ Future<void> _showReminderRules(BuildContext context, WidgetRef ref) async {
   );
 }
 
-String _ruleSummary(ReminderRule rule) =>
-    '${rule.parameters['before_days'] ?? 1} j avant • ${rule.parameters['after_days'] ?? 1} j après • ${rule.parameters['hour'] ?? 20} h • ${rule.priority.name}';
+String _ruleSummary(ReminderRule rule) => rule.type == 'envelope_threshold'
+    ? 'Seuil ${(rule.parameters['threshold_amount'] as num?)?.toStringAsFixed(2) ?? '0.00'} MAD • ${rule.priority.name}'
+    : '${rule.parameters['before_days'] ?? 1} j avant • ${rule.parameters['after_days'] ?? 1} j après • ${rule.parameters['hour'] ?? 20} h • ${rule.priority.name}';
 
 Future<void> _editReminderRule(
   BuildContext context,
@@ -1027,6 +1030,9 @@ Future<void> _editReminderRule(
   var after = (rule.parameters['after_days'] as num?)?.toInt() ?? 1;
   var hour = (rule.parameters['hour'] as num?)?.toInt() ?? 20;
   var priority = rule.priority;
+  final threshold = TextEditingController(
+    text: (rule.parameters['threshold_amount'] as num?)?.toString() ?? '0',
+  );
   final save = await showDialog<bool>(
     context: context,
     builder: (_) => StatefulBuilder(
@@ -1037,26 +1043,36 @@ Future<void> _editReminderRule(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<int>(
-                initialValue: before,
-                decoration: const InputDecoration(labelText: 'Jours avant'),
-                items: [
-                  for (var i = 0; i <= 30; i++)
-                    DropdownMenuItem(value: i, child: Text('$i')),
-                ],
-                onChanged: (v) => setState(() => before = v ?? before),
-              ),
-              DropdownButtonFormField<int>(
-                initialValue: after,
-                decoration: const InputDecoration(
-                  labelText: 'Relance après (jours)',
+              if (rule.type == 'envelope_threshold')
+                TextField(
+                  controller: threshold,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Seuil (MAD)'),
+                )
+              else ...[
+                DropdownButtonFormField<int>(
+                  initialValue: before,
+                  decoration: const InputDecoration(labelText: 'Jours avant'),
+                  items: [
+                    for (var i = 0; i <= 30; i++)
+                      DropdownMenuItem(value: i, child: Text('$i')),
+                  ],
+                  onChanged: (v) => setState(() => before = v ?? before),
                 ),
-                items: [
-                  for (var i = 0; i <= 30; i++)
-                    DropdownMenuItem(value: i, child: Text('$i')),
-                ],
-                onChanged: (v) => setState(() => after = v ?? after),
-              ),
+                DropdownButtonFormField<int>(
+                  initialValue: after,
+                  decoration: const InputDecoration(
+                    labelText: 'Relance après (jours)',
+                  ),
+                  items: [
+                    for (var i = 0; i <= 30; i++)
+                      DropdownMenuItem(value: i, child: Text('$i')),
+                  ],
+                  onChanged: (v) => setState(() => after = v ?? after),
+                ),
+              ],
               DropdownButtonFormField<int>(
                 initialValue: hour,
                 decoration: const InputDecoration(labelText: 'Heure locale'),
@@ -1103,9 +1119,17 @@ Future<void> _editReminderRule(
             enabled: rule.enabled,
             priority: priority,
             parameters: {
-              'before_days': before,
-              'after_days': after,
-              'hour': hour,
+              if (rule.type == 'envelope_threshold')
+                'threshold_amount':
+                    double.tryParse(
+                      threshold.text.trim().replaceAll(',', '.'),
+                    ) ??
+                    0
+              else ...{
+                'before_days': before,
+                'after_days': after,
+                'hour': hour,
+              },
             },
           ),
         );

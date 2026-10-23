@@ -302,7 +302,7 @@ final remoteBudgetScenariosProvider = FutureProvider<List<BudgetScenario>>((
     rows = await client
         .from('budget_scenarios')
         .select(
-          'id, name, description, active, priority, valid_from, valid_to, notes, is_default, current_version_id',
+          'id, name, description, active, priority, valid_from, valid_to, trigger_type, trigger_definition, notes, is_default, current_version_id',
         )
         .eq('household_id', repository.householdId)
         .order('priority', ascending: true);
@@ -329,6 +329,10 @@ final remoteBudgetScenariosProvider = FutureProvider<List<BudgetScenario>>((
         priority: row['priority'] as int? ?? 0,
         validFrom: _date(row['valid_from']),
         validTo: _date(row['valid_to']),
+        triggerType: row['trigger_type'] as String?,
+        triggerDefinition: row['trigger_definition'] is Map
+            ? Map<String, Object?>.from(row['trigger_definition'] as Map)
+            : null,
         notes: row['notes'] as String?,
         isDefault: row['is_default'] == true,
         currentVersionId: row['current_version_id'] as String?,

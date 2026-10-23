@@ -254,3 +254,11 @@ Le Lot 2 est `READY` uniquement si :
 - **Gate comptable** : seules les primitives existantes peuvent écrire; toute simulation ou observation est read-only.
 - **Gate pilote** : aucune donnée C3/C4B n'est modifiée pour faire passer une recette.
 
+## État d’exécution L2.1 — 2026-10-22
+
+L2.1 est livré : `HID-01`, `REC-X3`, `R3-02`, `CAS-X1`, `ALT-X3` et
+`OBL-05` sont classés A. Les contrats temporels et d’explication sont communs
+aux moteurs Budget, R3, F5/F6, obligations et projection ; ils ne constituent
+pas de nouveau moteur financier. Les preuves ciblées sont dans
+`test/lot2/l2_1_temporal_contracts_test.dart` et les suites historiques.
+

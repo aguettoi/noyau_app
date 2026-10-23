@@ -14,6 +14,7 @@ import '../../savings_goals/application/providers/remote_savings_goals_provider.
 import '../../shopping_list/application/providers/remote_shopping_list_provider.dart';
 import '../../wealth/application/providers/home_auto_provider.dart';
 import '../../cashflow_projection/application/cashflow_projection_provider.dart';
+import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../domain/organization_models.dart';
 
 abstract interface class OrganizationGateway {
@@ -380,7 +381,17 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
   }
 
   final projection = await ref.watch(cashflowProjectionProvider.future);
+  List<RemoteEnvelopeBalance> envelopeBalances = const [];
+  List<RemoteDebtBalance> debtBalances = const [];
+  try {
+    envelopeBalances = await ref.watch(remoteEnvelopeBalancesProvider.future);
+    debtBalances = await ref.watch(remoteDebtBalancesProvider.future);
+  } catch (_) {
+    // These supplementary sources must not make the established alert centre
+    // unavailable when one optional read is temporarily offline.
+  }
   final preferences = await ref.watch(notificationPreferencesProvider.future);
+  final now = DateTime.now();
   final alerts = <AppAlert>[
     for (final task in tasks.where((task) => task.isOverdue(DateTime.now())))
       AppAlert(
@@ -423,8 +434,62 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
           sourceId: 'projection',
           actionType: 'open_projection',
         ),
+    for (final rule in rules.where(
+      (r) =>
+          r.enabled &&
+          r.type == 'envelope_threshold' &&
+          (r.recipientUserId == null || r.recipientUserId == userId),
+    ))
+      for (final envelope in envelopeBalances.where(
+        (e) =>
+            !e.isArchived &&
+            (rule.parameters['envelope_id'] == null ||
+                rule.parameters['envelope_id'] == e.id) &&
+            e.balance.minorUnits <=
+                (((rule.parameters['threshold_amount'] as num?) ?? 0) * 100)
+                    .round(),
+      ))
+        AppAlert(
+          key:
+              'envelope-threshold:${rule.recipientUserId ?? 'household'}:${envelope.id}',
+          title: 'Seuil d’enveloppe atteint',
+          detail:
+              'L’enveloppe « ${envelope.name} » est sous le seuil configuré.',
+          category: 'reminders',
+          priority: rule.priority,
+          source: CalendarSource.budget,
+          sourceId: envelope.id,
+        ),
+    for (final rule in rules.where(
+      (r) =>
+          r.enabled &&
+          r.type == 'obligation_due' &&
+          (r.recipientUserId == null || r.recipientUserId == userId),
+    ))
+      for (final debt in debtBalances.where((d) {
+        if (d.dueAt == null || d.remainingAmount.minorUnits <= 0) return false;
+        final days = d.dueAt!
+            .difference(DateTime(now.year, now.month, now.day))
+            .inDays;
+        final before = (rule.parameters['before_days'] as num?)?.toInt() ?? 7;
+        final after = (rule.parameters['after_days'] as num?)?.toInt() ?? 7;
+        return days <= before && days >= -after;
+      }))
+        AppAlert(
+          key:
+              'obligation-due:${rule.recipientUserId ?? 'household'}:${debt.id}:${debt.dueAt!.toIso8601String().substring(0, 10)}',
+          title: debt.dueAt!.isBefore(DateTime(now.year, now.month, now.day))
+              ? 'Obligation échue'
+              : 'Échéance d’obligation',
+          detail:
+              '« ${debt.description} » reste ouverte. Consultez son détail canonique.',
+          category: 'reminders',
+          dueAt: debt.dueAt,
+          priority: rule.priority,
+          source: CalendarSource.obligation,
+          sourceId: debt.id,
+        ),
   ];
-  final now = DateTime.now();
   return List.unmodifiable(
     alerts
         .where(

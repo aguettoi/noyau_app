@@ -403,3 +403,21 @@ L'ordre place la certification L1 runtime après P1 conformément à la décisio
 - Sous-estimer i18n/RTL et la recette multi-plateforme.
 - Repousser la restauration/cutover sans preuve isolée reproductible.
 - Présenter les certifications différées comme PASS : elles restent explicitement ouvertes.
+
+## Mise à jour L2.1 — 2026-10-22
+
+Les six écarts du lot L2.1 passent à **A — terminé et validé**. Cette
+section prévaut sur leur statut historique dans la matrice détaillée.
+
+| ID | Avant | Après | Preuve principale |
+|---|---|---|---|
+| HID-01 | D | A | déclenchement manuel/date persisté, relu, évalué et exposé dans l’éditeur de scénario |
+| REC-X3 | B | A | adaptateurs read-only R3.1/F5/F6/obligations, dédupliqués par identifiant de source |
+| R3-02 | C | A | détection déterministe sur trois observations ou plus, confirmation humaine via R3.1 |
+| CAS-X1 | B | A | hypothèses datées interactives locales, intégrées à la projection sans persistance financière |
+| ALT-X3 | B | A | règles de seuil d’enveloppe et d’échéance d’obligation dans le centre F6/R3.3 |
+| OBL-05 | B | A | échéances ouvertes et soldes dérivés dans projection/alertes, obligation canonique conservée |
+
+Les explications structurent règle, source, période, paramètres et raison. Les
+alertes ne révèlent aucun montant. Aucune fonction L2.1 ne crée d’écriture
+financière.

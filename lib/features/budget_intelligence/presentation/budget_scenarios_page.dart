@@ -326,6 +326,8 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
   late final TextEditingController _name;
   late final TextEditingController _description;
   late bool _active;
+  late String _triggerType;
+  DateTime? _effectiveOn;
   String? _error;
   bool _saving = false;
 
@@ -337,6 +339,10 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
       text: widget.scenario?.description ?? '',
     );
     _active = widget.scenario?.active ?? true;
+    _triggerType = widget.scenario?.triggerType ?? 'manual';
+    _effectiveOn = DateTime.tryParse(
+      widget.scenario?.triggerDefinition?['effective_on']?.toString() ?? '',
+    );
   }
 
   @override
@@ -394,6 +400,16 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
           priority: previous?.priority ?? 0,
           validFrom: previous?.validFrom,
           validTo: previous?.validTo,
+          triggerType: _triggerType,
+          triggerDefinition:
+              _triggerType == 'date_reached' && _effectiveOn != null
+              ? {
+                  'effective_on': _effectiveOn!.toIso8601String().substring(
+                    0,
+                    10,
+                  ),
+                }
+              : const {},
           notes: previous?.notes,
           isDefault: previous?.isDefault ?? false,
           currentVersionId: currentVersionId,
@@ -439,6 +455,48 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
               ? null
               : (value) => setState(() => _active = value),
         ),
+        DropdownButtonFormField<String>(
+          key: const Key('budget-scenario-trigger'),
+          initialValue: _triggerType,
+          decoration: const InputDecoration(labelText: 'Déclenchement'),
+          items: const [
+            DropdownMenuItem(
+              value: 'manual',
+              child: Text('Sélection manuelle'),
+            ),
+            DropdownMenuItem(
+              value: 'date_reached',
+              child: Text('À partir d’une date'),
+            ),
+          ],
+          onChanged: _saving
+              ? null
+              : (value) => setState(() => _triggerType = value ?? 'manual'),
+        ),
+        if (_triggerType == 'date_reached')
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Date d’effet'),
+            subtitle: Text(
+              _effectiveOn == null
+                  ? 'À définir'
+                  : MaterialLocalizations.of(
+                      context,
+                    ).formatMediumDate(_effectiveOn!),
+            ),
+            trailing: const Icon(Icons.calendar_today_outlined),
+            onTap: _saving
+                ? null
+                : () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                      initialDate: _effectiveOn ?? DateTime.now(),
+                    );
+                    if (date != null) setState(() => _effectiveOn = date);
+                  },
+          ),
         if (_error != null)
           Text(
             _error!,

@@ -10,12 +10,17 @@ import '../../finance/domain/financial_account.dart';
 import '../../recurring_finance/application/recurring_finance_provider.dart';
 import '../../recurring_finance/domain/recurring_finance.dart';
 import '../../wealth/application/providers/wealth_provider.dart';
+import '../../wealth/application/providers/home_auto_provider.dart';
+import '../../finance/application/providers/remote_debts_provider.dart';
 import '../domain/cashflow_projection.dart';
 
 final projectionHorizonProvider = StateProvider<ProjectionHorizon>(
   (_) => ProjectionHorizon.nextMonth,
 );
 final projectionScenarioIdProvider = StateProvider<String?>((_) => null);
+final hypotheticalProjectionFlowsProvider = StateProvider<List<ProjectionFlow>>(
+  (_) => const [],
+);
 
 final cashflowProjectionProvider = FutureProvider<CashflowProjection>((
   ref,
@@ -30,6 +35,8 @@ final cashflowProjectionProvider = FutureProvider<CashflowProjection>((
     ref.watch(expectedOccurrencesProvider.future),
     ref.watch(wealthDataProvider.future),
     ref.watch(remoteBudgetScenariosProvider.future),
+    ref.watch(remoteDebtBalancesProvider.future),
+    ref.watch(homeAutoDataProvider.future),
   ]);
   final accounts = results[0] as List<FinancialAccount>;
   final allBalances = results[1] as Map<String, Money>;
@@ -38,15 +45,26 @@ final cashflowProjectionProvider = FutureProvider<CashflowProjection>((
   final persisted = results[4] as List<ExpectedFinancialOccurrence>;
   final wealth = results[5] as WealthData;
   final scenarios = results[6] as List<BudgetScenario>;
+  final obligations = results[7] as List<RemoteDebtBalance>;
+  final homeAuto = results[8] as HomeAutoData;
   final selectedScenario = scenarios
       .where((scenario) => scenario.id == selectedScenarioId)
       .firstOrNull;
   final applicableScenario =
       selectedScenario ??
       scenarios
-          .where((scenario) => scenario.active && scenario.isDefault)
+          .where(
+            (scenario) =>
+                scenario.isDefault &&
+                evaluateScenarioApplicability(scenario, DateTime.now()).applies,
+          )
           .firstOrNull ??
-      scenarios.where((scenario) => scenario.active).firstOrNull;
+      scenarios
+          .where(
+            (scenario) =>
+                evaluateScenarioApplicability(scenario, DateTime.now()).applies,
+          )
+          .firstOrNull;
   final now = DateTime.now();
   final through = projectionThrough(now, horizon);
   final liquidAccountIds = accounts
@@ -75,6 +93,17 @@ final cashflowProjectionProvider = FutureProvider<CashflowProjection>((
     accountBalances: balances,
     envelopeBalances: {for (final e in envelopes) e.id: e.balance},
     occurrences: occurrences,
+    canonicalExpectedFlows: adaptCanonicalExpectedSources(
+      asOf: now,
+      through: through,
+      obligations: obligations.where(
+        (obligation) => !wealth.financings.any(
+          (financing) => financing.obligationId == obligation.id,
+        ),
+      ),
+      vehicleCosts: homeAuto.costPlans,
+    ),
+    hypotheticalFlows: ref.watch(hypotheticalProjectionFlowsProvider),
     financings: wealth.financings,
     certaintyByIntention: {
       for (final intention in intentions)

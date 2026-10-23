@@ -175,6 +175,12 @@ final actualRecurringCandidatesProvider =
             now.add(const Duration(days: 31)),
           );
     });
+final recurringPatternSuggestionsProvider =
+    FutureProvider<List<RecurringPatternSuggestion>>(
+      (ref) async => detectRecurringPatterns(
+        await ref.watch(actualRecurringCandidatesProvider.future),
+      ),
+    );
 final recurringFinanceActionsProvider = Provider(
   (ref) => RecurringFinanceActions(ref),
 );

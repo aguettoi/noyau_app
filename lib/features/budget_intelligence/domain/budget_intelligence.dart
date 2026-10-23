@@ -108,6 +108,83 @@ class BudgetScenario {
   final String? currentVersionId;
 }
 
+class ScenarioApplicability {
+  const ScenarioApplicability({required this.applies, required this.reason});
+  final bool applies;
+  final String reason;
+}
+
+ScenarioApplicability evaluateScenarioApplicability(
+  BudgetScenario scenario,
+  DateTime localBusinessDate,
+) {
+  final day = DateTime(
+    localBusinessDate.year,
+    localBusinessDate.month,
+    localBusinessDate.day,
+  );
+  if (!scenario.active) {
+    return const ScenarioApplicability(
+      applies: false,
+      reason: 'Scénario inactif.',
+    );
+  }
+  if (scenario.validFrom != null &&
+      day.isBefore(
+        DateTime(
+          scenario.validFrom!.year,
+          scenario.validFrom!.month,
+          scenario.validFrom!.day,
+        ),
+      )) {
+    return const ScenarioApplicability(
+      applies: false,
+      reason: 'Période de validité non commencée.',
+    );
+  }
+  if (scenario.validTo != null &&
+      day.isAfter(
+        DateTime(
+          scenario.validTo!.year,
+          scenario.validTo!.month,
+          scenario.validTo!.day,
+        ),
+      )) {
+    return const ScenarioApplicability(
+      applies: false,
+      reason: 'Période de validité terminée.',
+    );
+  }
+  if (scenario.triggerType == 'date_reached') {
+    final effective = DateTime.tryParse(
+      scenario.triggerDefinition?['effective_on']?.toString() ?? '',
+    );
+    if (effective == null) {
+      return const ScenarioApplicability(
+        applies: false,
+        reason: 'Date d’effet manquante.',
+      );
+    }
+    if (day.isBefore(
+      DateTime(effective.year, effective.month, effective.day),
+    )) {
+      return ScenarioApplicability(
+        applies: false,
+        reason:
+            'Applicable à partir du ${effective.day}/${effective.month}/${effective.year}.',
+      );
+    }
+    return ScenarioApplicability(
+      applies: true,
+      reason: 'Date d’effet atteinte.',
+    );
+  }
+  return const ScenarioApplicability(
+    applies: true,
+    reason: 'Sélection manuelle ou scénario par défaut actif.',
+  );
+}
+
 /// Immutable configuration revision. A monthly run snapshots this identifier;
 /// changing a template therefore cannot rewrite a recorded month.
 class BudgetScenarioVersion {

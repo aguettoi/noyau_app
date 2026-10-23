@@ -115,6 +115,101 @@ class ActualFinancialCandidate {
       counterparty;
 }
 
+class RecurringPatternSuggestion {
+  const RecurringPatternSuggestion({
+    required this.key,
+    required this.label,
+    required this.type,
+    required this.frequency,
+    required this.typicalAmount,
+    required this.nextExpectedOn,
+    required this.evidenceCount,
+    required this.reasons,
+    this.accountId,
+    this.envelopeId,
+    this.memberId,
+  });
+  final String key, label;
+  final RecurringEconomicType type;
+  final RecurringFrequency frequency;
+  final Money typicalAmount;
+  final DateTime nextExpectedOn;
+  final int evidenceCount;
+  final List<String> reasons;
+  final String? accountId, envelopeId, memberId;
+}
+
+/// Detects only stable, explainable patterns. It never persists an intention:
+/// a human must confirm the suggestion through the canonical R3.1 form.
+List<RecurringPatternSuggestion> detectRecurringPatterns(
+  Iterable<ActualFinancialCandidate> candidates,
+) {
+  String normalized(String value) => value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-zà-ÿ0-9 ]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  final groups = <String, List<ActualFinancialCandidate>>{};
+  for (final item in candidates) {
+    final label = normalized(item.counterparty ?? item.description);
+    if (label.isEmpty) continue;
+    final key =
+        '${item.type.name}|$label|${item.accountId ?? ''}|${item.envelopeId ?? ''}|${item.memberId ?? ''}';
+    groups.putIfAbsent(key, () => []).add(item);
+  }
+  final result = <RecurringPatternSuggestion>[];
+  for (final entry in groups.entries) {
+    final items = [...entry.value]
+      ..sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
+    if (items.length < 3) continue;
+    final intervals = <int>[
+      for (var i = 1; i < items.length; i++)
+        items[i].occurredAt.difference(items[i - 1].occurredAt).inDays.abs(),
+    ];
+    final averageDays = intervals.reduce((a, b) => a + b) / intervals.length;
+    final frequency = averageDays >= 330 && averageDays <= 400
+        ? RecurringFrequency.yearly
+        : averageDays >= 25 && averageDays <= 35
+        ? RecurringFrequency.monthly
+        : averageDays >= 6 && averageDays <= 8
+        ? RecurringFrequency.weekly
+        : null;
+    if (frequency == null) continue;
+    final amounts = items.map((e) => e.amount.minorUnits).toList()..sort();
+    final median = amounts[amounts.length ~/ 2];
+    final tolerance = (median.abs() * .10).round().clamp(1, 5000);
+    if (amounts.any((amount) => (amount - median).abs() > tolerance)) continue;
+    final last = items.last;
+    result.add(
+      RecurringPatternSuggestion(
+        key: entry.key,
+        label: last.counterparty?.trim().isNotEmpty == true
+            ? last.counterparty!
+            : last.description,
+        type: last.type,
+        frequency: frequency,
+        typicalAmount: Money.fromMinorUnits(median),
+        nextExpectedOn: nextRecurringDate(
+          last.occurredAt,
+          frequency,
+          anchorDay: items.first.occurredAt.day,
+        ),
+        evidenceCount: items.length,
+        reasons: List.unmodifiable([
+          '${items.length} opérations comparables',
+          'Cadence ${frequency.name} stable',
+          'Montants dans une tolérance déterministe de 10 %',
+        ]),
+        accountId: last.accountId,
+        envelopeId: last.envelopeId,
+        memberId: last.memberId,
+      ),
+    );
+  }
+  result.sort((a, b) => a.nextExpectedOn.compareTo(b.nextExpectedOn));
+  return List.unmodifiable(result);
+}
+
 class MatchAssessment {
   const MatchAssessment({
     required this.score,

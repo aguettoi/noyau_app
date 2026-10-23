@@ -92,6 +92,10 @@ class BudgetSupabaseRepository {
       'current_version_id': scenario.currentVersionId,
       'created_by': userId,
     };
+    if (scenario.triggerType != null) {
+      values['trigger_type'] = scenario.triggerType;
+      values['trigger_definition'] = scenario.triggerDefinition ?? const {};
+    }
     if (scenario.id.isEmpty) {
       final result = await gateway.insert('budget_scenarios', values);
       return result is Map ? result['id'] as String? : null;
