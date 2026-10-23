@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/budget_reporting.dart';
+import '../application/monthly_quality_analysis.dart';
+import '../application/providers/monthly_quality_provider.dart';
 import '../application/providers/remote_budget_provider.dart';
 import 'budget_runs_page.dart';
 import 'budget_monthly_preparation_page.dart';
@@ -85,6 +87,9 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
           final report = ref.watch(
             remoteBudgetReportingProvider((horizon: _horizon, period: period)),
           );
+          final quality = ref.watch(
+            monthlyQualityProvider((horizon: _horizon, period: period)),
+          );
           return LayoutBuilder(
             builder: (context, constraints) => Align(
               alignment: Alignment.topCenter,
@@ -145,6 +150,8 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
                         );
                       },
                     ),
+                    const SizedBox(height: AppSpacing.md),
+                    _MonthlyQualityPanel(quality: quality),
                   ],
                 ),
               ),
@@ -315,6 +322,86 @@ class _ReportingList extends StatelessWidget {
           ),
         );
       },
+    ),
+  );
+}
+
+class _MonthlyQualityPanel extends StatelessWidget {
+  const _MonthlyQualityPanel({required this.quality});
+  final AsyncValue<MonthlyQualityAnalysis> quality;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: AppSpacing.card,
+      child: quality.when(
+        loading: () => const LinearProgressIndicator(),
+        error: (_, _) => const Text('Qualité mensuelle indisponible.'),
+        data: (value) => Column(
+          key: const Key('monthly-quality-panel'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Qualité mensuelle et décisions',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Prévu ${_mad(value.plannedCents)} • Réalisé ${_mad(value.actualCents)} • '
+              'Attendu ${_mad(value.expectedCents)} • Restant ${_mad(value.remainingCents)}',
+              key: const Key('monthly-quality-totals'),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.xs,
+              children: [
+                Text('Rapprochements ouverts : ${value.reconciliations.open}'),
+                Text('Justificatifs manquants : ${value.receipts.missing}'),
+                Text('Attendus non résolus : ${value.unresolvedOccurrences}'),
+                Text('Non attribués : ${value.responsibilities.unassigned}'),
+              ],
+            ),
+            if (value.explanations.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              for (final item in value.explanations)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(item.rule),
+                  subtitle: Text(
+                    '${item.reason}\nSource : ${item.source} • Période : ${item.period}'
+                    '${item.action == null ? '' : '\nAction : ${item.action}'}',
+                  ),
+                ),
+            ],
+            if (value.options.isNotEmpty) ...[
+              const Divider(),
+              Text(
+                'Options à arbitrer',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const Text(
+                'Ces options sont des simulations. Aucune écriture financière n’est créée sans confirmation dans le module canonique concerné.',
+              ),
+              for (final option in value.options)
+                ListTile(
+                  key: Key('monthly-decision-${option.kind.name}'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.balance_outlined),
+                  title: Text('${option.title} — ${_mad(option.amountCents)}'),
+                  subtitle: Text(
+                    '${option.consequence}\n${option.explanation.reason}',
+                  ),
+                  trailing: option.requiresConfirmation
+                      ? const Chip(label: Text('À confirmer'))
+                      : null,
+                ),
+            ],
+          ],
+        ),
+      ),
     ),
   );
 }

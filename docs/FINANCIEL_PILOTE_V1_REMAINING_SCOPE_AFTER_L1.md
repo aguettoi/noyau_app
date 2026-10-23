@@ -421,3 +421,22 @@ section prévaut sur leur statut historique dans la matrice détaillée.
 Les explications structurent règle, source, période, paramètres et raison. Les
 alertes ne révèlent aucun montant. Aucune fonction L2.1 ne crée d’écriture
 financière.
+
+## Mise à jour L2.2 — 2026-10-23
+
+Les six écarts `BUD-10`, `R2-09`, `R2-10`, `R2-11`, `PLAN-07` et
+`PLAN-08` passent à **A — terminé et validé**. Cette section prévaut sur leur
+statut historique dans la matrice détaillée.
+
+- prévu, réalisé, attendu et restant sont distingués et expliqués ;
+- rapprochements ouverts/anciens et couverture des justificatifs sont calculés
+  sur les seules lectures autorisées ;
+- foyer, membre et non attribué restent distincts, sans transformer l’acteur
+  d’audit en responsable économique ;
+- reliquat, Épargne, revenus variables et primes restent des concepts séparés ;
+- les options conserver/épargne/PRIOS sont des simulations explicables ;
+- FinancialAvailability incomplet interdit toute recommandation de financement.
+
+La confirmation d’une action reste dans le module canonique concerné. Aucun
+transfert bancaire, FinancialEvent, posting ou mouvement d’enveloppe n’est créé
+par L2.2.

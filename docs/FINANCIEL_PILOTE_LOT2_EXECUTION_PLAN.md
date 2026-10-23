@@ -262,3 +262,26 @@ aux moteurs Budget, R3, F5/F6, obligations et projection ; ils ne constituent
 pas de nouveau moteur financier. Les preuves ciblées sont dans
 `test/lot2/l2_1_temporal_contracts_test.dart` et les suites historiques.
 
+## État d’exécution L2.2 — 2026-10-23
+
+L2.2 est livré sans migration ni moteur concurrent. La surface Budget compose
+les lectures canoniques autorisées pour restituer prévu, réalisé, attendu et
+restant, puis les indicateurs mensuels et options d’arbitrage. Le compositeur
+est strictement read-only et ses explications portent règle, période, source,
+raison, statut et action éventuelle.
+
+| ID | Avant | Après | Preuve | Statut final |
+|---|---|---|---|:---:|
+| BUD-10 | Écarts prévu/réel sans attendu ni restitution décisionnelle commune | Prévu, réalisé, attendu et restant par enveloppe et en synthèse | `monthly_quality_analysis.dart`; tests L2.2; panneau Budget | A |
+| R2-09 | Cas de rapprochement sans KPI mensuel consolidé | Ouverts et ancienneté calculés sur les dossiers canoniques autorisés | `monthly_quality_provider.dart`; tests rapprochement | A |
+| R2-10 | Justificatifs unitaires sans santé mensuelle | Couverture, attachés et manquants calculés sur FinancialEvent/attachments visibles | tests justificatifs et RLS existante | A |
+| R2-11 | Acteur confondu avec responsabilité potentielle | Contrat foyer/membre/non attribué; `created_by` reste seulement l’acteur | tests 1/2/N du compositeur | A |
+| PLAN-07 | Surplus et revenus attendus dispersés | Reliquat et revenus variables attendus séparés; aucun budget récurrent inventé | tests prime/revenu attendu | A |
+| PLAN-08 | Briques F4/F5/Scenarios séparées | Options comparables et explicables; FinancialAvailability incomplet bloque la recommandation | tests arbitrage read-only | A |
+
+Épargne demeure une enveloppe permanente et une option ne déclenche jamais le
+sweep ni un transfert bancaire. Les primes restent attendues et séparées du
+budget récurrent jusqu’à leur réalisation. Les agrégats sont composés après les
+contrats de lecture/RLS L1; aucune donnée privée brute n’est chargée pour être
+masquée ensuite.
+

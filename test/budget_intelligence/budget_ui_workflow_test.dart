@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/core/theme/app_design_system.dart';
 import 'package:noyau_app/features/budget_intelligence/application/providers/remote_budget_provider.dart';
+import 'package:noyau_app/features/budget_intelligence/application/providers/monthly_quality_provider.dart';
+import 'package:noyau_app/features/budget_intelligence/application/monthly_quality_analysis.dart';
 import 'package:noyau_app/features/budget_intelligence/domain/budget_intelligence.dart';
 import 'package:noyau_app/features/budget_intelligence/infrastructure/budget_supabase_repository.dart';
 import 'package:noyau_app/features/budget_intelligence/presentation/budget_page.dart';
@@ -997,6 +999,57 @@ void main() {
     await tester.tap(find.byKey(const Key('open-monthly-preparation')));
     await tester.pumpAndSettle();
     expect(find.text('Préparer mon mois'), findsOneWidget);
+    expect(gateway.rpcs, isEmpty);
+  });
+
+  testWidgets('budget exposes monthly quality and read-only decision options', (
+    tester,
+  ) async {
+    final gateway = _Gateway();
+    const analysis = MonthlyQualityAnalysis(
+      envelopes: [],
+      reconciliations: MonthlyReconciliationQuality(open: 1, stale: 0),
+      receipts: MonthlyReceiptQuality(required: 2, attached: 1, missing: 1),
+      responsibilities: MonthlyResponsibilityQuality(
+        household: 1,
+        member: 0,
+        unassigned: 0,
+      ),
+      unresolvedOccurrences: 1,
+      explanations: [],
+      options: [
+        MonthlyDecisionOption(
+          kind: MonthlyDecisionKind.savings,
+          title: 'Étudier une affectation à Épargne',
+          amountCents: 10000,
+          consequence: 'Simulation sans écriture.',
+          explanation: MonthlyQualityExplanation(
+            rule: 'Épargne permanente',
+            period: '2026-08',
+            source: 'Budget Intelligence',
+            reason: 'Reliquat disponible.',
+            status: 'à confirmer',
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      scope(
+        gateway: gateway,
+        child: const BudgetPage(),
+        extra: [
+          monthlyQualityProvider.overrideWith((ref, query) async => analysis),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('monthly-quality-panel')),
+      300,
+    );
+    expect(find.byKey(const Key('monthly-quality-panel')), findsOneWidget);
+    expect(find.textContaining('Justificatifs manquants : 1'), findsOneWidget);
+    expect(find.byKey(const Key('monthly-decision-savings')), findsOneWidget);
     expect(gateway.rpcs, isEmpty);
   });
 
