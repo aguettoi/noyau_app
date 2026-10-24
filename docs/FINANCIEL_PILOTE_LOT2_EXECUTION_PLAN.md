@@ -144,6 +144,16 @@ La qualité mensuelle compose clôture, pré-clôture R3.3, réconciliation, pi�
 
 ### L2.4 — Patrimoine historique et échéancier consolidé
 
+**État : VALIDÉ — implémenté sur la base `b58960bb69d69da9b1ea10d006e4fa881f02fcd0`.**
+
+Le lot compose désormais un read model unique et réutilisable : points
+patrimoniaux datés et qualifiés, comparaison N/N-1 seulement lorsque les
+composantes sont complètes, échéancier consolidé (obligations, financements,
+occurrences attendues) avec déduplication par source économique, et export CSV
+de la même série. Une période dépourvue d'historique de liquidités/passifs est
+explicitement partielle : aucune valeur actuelle ou projetée n'est recopiée
+dans le passé. Aucune migration ni écriture financière n'est introduite.
+
 - **Objectif** : composer les séries et échéances déjà prouvées.
 - **Fonctions** : `WLT-08`, `R4-06`, `R4-07`, `EXP-X2`.
 - **Statuts visés** : B/C/B/B → A.

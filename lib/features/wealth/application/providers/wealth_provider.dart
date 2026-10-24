@@ -11,6 +11,7 @@ import '../../../finance/domain/financial_account.dart';
 import '../../../financial_availability/application/providers/financial_availability_provider.dart';
 import '../../../financial_availability/domain/financial_availability.dart';
 import '../../domain/wealth_models.dart';
+import '../../domain/wealth_history.dart';
 
 class WealthData {
   const WealthData({
@@ -20,6 +21,8 @@ class WealthData {
     required this.financings,
     required this.eventCandidates,
     required this.availability,
+    this.history = const [],
+    this.consolidatedDues = const [],
   });
   final WealthSnapshot snapshot;
   final List<WealthAsset> assets;
@@ -27,6 +30,8 @@ class WealthData {
   final List<FinancingProfile> financings;
   final List<WealthEventCandidate> eventCandidates;
   final FinancialAvailabilitySnapshot availability;
+  final List<WealthHistoryPoint> history;
+  final List<ConsolidatedDue> consolidatedDues;
 }
 
 class WealthEventCandidate {
@@ -45,6 +50,13 @@ abstract interface class WealthGateway {
   Future<List<Map<String, Object?>>> fetchInvestments(String householdId);
   Future<List<Map<String, Object?>>> fetchFinancings(String householdId);
   Future<List<Map<String, Object?>>> fetchEventCandidates(String householdId);
+  Future<List<Map<String, Object?>>> fetchAssetValuations(String householdId);
+  Future<List<Map<String, Object?>>> fetchInvestmentValuations(
+    String householdId,
+  );
+  Future<List<Map<String, Object?>>> fetchExpectedOccurrences(
+    String householdId,
+  );
   Future<void> createAsset(
     String householdId,
     String userId,
@@ -121,6 +133,39 @@ class SupabaseWealthGateway implements WealthGateway {
             .order('occurred_at', ascending: false)
             .limit(50),
       );
+
+  @override
+  Future<List<Map<String, Object?>>> fetchAssetValuations(String householdId) =>
+      _rows(
+        client
+            .from('wealth_asset_valuations')
+            .select('asset_id,estimated_value,valued_on')
+            .eq('household_id', householdId)
+            .order('valued_on'),
+      );
+
+  @override
+  Future<List<Map<String, Object?>>> fetchInvestmentValuations(
+    String householdId,
+  ) => _rows(
+    client
+        .from('investment_valuations')
+        .select('investment_id,estimated_value,valued_on')
+        .eq('household_id', householdId)
+        .order('valued_on'),
+  );
+
+  @override
+  Future<List<Map<String, Object?>>> fetchExpectedOccurrences(
+    String householdId,
+  ) => _rows(
+    client
+        .from('expected_financial_occurrence_overview')
+        .select('id,label,expected_on,expected_amount,economic_type,status')
+        .eq('household_id', householdId)
+        .inFilter('status', ['expected', 'partially_realized', 'overdue'])
+        .order('expected_on'),
+  );
 
   Future<List<Map<String, Object?>>> _rows(dynamic query) async =>
       List<Map<String, Object?>>.unmodifiable(
@@ -238,6 +283,9 @@ final wealthDataProvider = FutureProvider<WealthData>((ref) async {
     ref.watch(wealthGatewayProvider).fetchInvestments(householdId),
     ref.watch(wealthGatewayProvider).fetchFinancings(householdId),
     ref.watch(wealthGatewayProvider).fetchEventCandidates(householdId),
+    ref.watch(wealthGatewayProvider).fetchAssetValuations(householdId),
+    ref.watch(wealthGatewayProvider).fetchInvestmentValuations(householdId),
+    ref.watch(wealthGatewayProvider).fetchExpectedOccurrences(householdId),
   ]);
   final accounts = results[0] as List<FinancialAccount>;
   final balances = results[1] as Map<String, Money>;
@@ -261,6 +309,9 @@ final wealthDataProvider = FutureProvider<WealthData>((ref) async {
         ),
       )
       .toList(growable: false);
+  final assetValuations = results[8] as List<Map<String, Object?>>;
+  final investmentValuations = results[9] as List<Map<String, Object?>>;
+  final expectedRows = results[10] as List<Map<String, Object?>>;
   final liquidBalances = accounts
       .where(
         (a) =>
@@ -283,18 +334,94 @@ final wealthDataProvider = FutureProvider<WealthData>((ref) async {
         ),
       );
   final allInvestments = [...investments, ...syntheticSavings];
+  final snapshot = calculateWealthSnapshot(
+    liquidAccountBalances: liquidBalances,
+    assets: assets,
+    investments: allInvestments,
+    liabilities: debts.map((d) => d.remainingAmount),
+  );
+  final evidence = <WealthHistoryEntry>[
+    for (final row in assetValuations)
+      WealthHistoryEntry(
+        sourceId: 'asset:${row['asset_id']}',
+        label:
+            assets
+                .where((a) => a.id == row['asset_id'])
+                .map((a) => a.label)
+                .firstOrNull ??
+            'Actif',
+        date: DateTime.parse(row['valued_on'].toString()),
+        value: _money(row['estimated_value']),
+        kind: WealthEvidenceKind.entered,
+      ),
+    for (final row in investmentValuations)
+      WealthHistoryEntry(
+        sourceId: 'investment:${row['investment_id']}',
+        label:
+            investments
+                .where((i) => i.id == row['investment_id'])
+                .map((i) => i.label)
+                .firstOrNull ??
+            'Investissement',
+        date: DateTime.parse(row['valued_on'].toString()),
+        value: _money(row['estimated_value']),
+        kind: WealthEvidenceKind.entered,
+      ),
+  ];
+  final financingDues = <ConsolidatedDue>[
+    for (final financing in financings)
+      for (final line in buildFinancingSchedule(financing))
+        ConsolidatedDue(
+          identity: 'obligation:${financing.obligationId}',
+          label: financing.label,
+          date: line.date,
+          amount: line.payment,
+          kind: ConsolidatedDueKind.financing,
+          state: ConsolidatedDueState.projected,
+          sourceId: '${financing.id}:${line.number}',
+        ),
+  ];
+  final dues = consolidateDues(
+    obligations: [
+      for (final debt in debts)
+        if (debt.dueAt != null && debt.remainingAmount.minorUnits > 0)
+          ConsolidatedDue(
+            identity: 'obligation:${debt.id}',
+            label: debt.description,
+            date: debt.dueAt!,
+            amount: debt.remainingAmount,
+            kind: ConsolidatedDueKind.obligation,
+            state: ConsolidatedDueState.expected,
+            sourceId: debt.id,
+          ),
+    ],
+    financings: financingDues,
+    expected: [
+      for (final row in expectedRows)
+        ConsolidatedDue(
+          identity: 'expected:${row['id']}',
+          label: row['label'].toString(),
+          date: DateTime.parse(row['expected_on'].toString()),
+          amount: _money(row['expected_amount']),
+          kind: ConsolidatedDueKind.expected,
+          state: ConsolidatedDueState.expected,
+          sourceId: row['id'].toString(),
+        ),
+    ],
+  );
   return WealthData(
-    snapshot: calculateWealthSnapshot(
-      liquidAccountBalances: liquidBalances,
-      assets: assets,
-      investments: allInvestments,
-      liabilities: debts.map((d) => d.remainingAmount),
-    ),
+    snapshot: snapshot,
     assets: assets,
     investments: List.unmodifiable(allInvestments),
     financings: List.unmodifiable(financings),
     eventCandidates: List.unmodifiable(eventCandidates),
     availability: availability,
+    history: buildWealthHistory(
+      entries: evidence,
+      currentDate: DateTime.now(),
+      currentSnapshot: snapshot,
+    ),
+    consolidatedDues: dues,
   );
 });
 

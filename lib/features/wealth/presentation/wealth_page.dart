@@ -5,7 +5,10 @@ import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../finance/application/providers/remote_debts_provider.dart';
 import '../../finance/presentation/transactions_page.dart';
+import '../../portability/application/portable_file_saver.dart';
+import '../../portability/domain/portability_models.dart';
 import '../application/providers/wealth_provider.dart';
+import '../domain/wealth_history.dart';
 import '../domain/wealth_models.dart';
 import 'financing_comparison_dialog.dart';
 import 'home_auto_panels.dart';
@@ -23,7 +26,7 @@ class WealthPage extends ConsumerWidget {
           error: (error, _) =>
               Center(child: Text('Chargement impossible : $error')),
           data: (data) => DefaultTabController(
-            length: 5,
+            length: 6,
             child: Column(
               children: [
                 const TabBar(
@@ -33,6 +36,7 @@ class WealthPage extends ConsumerWidget {
                     Tab(text: 'Financements'),
                     Tab(text: 'Logement'),
                     Tab(text: 'Véhicules'),
+                    Tab(text: 'Historique & échéances'),
                   ],
                 ),
                 Expanded(
@@ -43,6 +47,7 @@ class WealthPage extends ConsumerWidget {
                       _Financings(data),
                       HomePanel(wealth: data),
                       VehiclePanel(wealth: data),
+                      _HistoryAndDues(data),
                     ],
                   ),
                 ),
@@ -292,6 +297,101 @@ class WealthPage extends ConsumerWidget {
       'periodicity_months': 1,
       'annual_rate': structure == 'interest_loan' ? 0.0 : null,
     });
+  }
+}
+
+class _HistoryAndDues extends StatelessWidget {
+  const _HistoryAndDues(this.data);
+  final WealthData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final annual = compareAnnualWealth(data.history, now.year);
+    return ListView(
+      key: const Key('wealth-history-and-dues'),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      children: [
+        Text(
+          'Évolution patrimoniale',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Card(
+          child: ListTile(
+            title: Text('Bilan ${now.year - 1} / ${now.year}'),
+            subtitle: Text(
+              annual.change == null
+                  ? 'Comparaison complète indisponible : aucune valeur nette historique ne sera inventée.'
+                  : 'Variation expliquée par les points datés : ${_money(annual.change!)}',
+            ),
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            key: const Key('export-wealth-history'),
+            onPressed: data.history.isEmpty
+                ? null
+                : () async {
+                    await savePortableFile(
+                      PortableFile(
+                        'patrimoine_historique.csv',
+                        'text/csv;charset=utf-8',
+                        encodeWealthHistoryCsv(data.history),
+                      ),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Historique patrimonial exporté.'),
+                        ),
+                      );
+                    }
+                  },
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Exporter l’historique prouvé (CSV)'),
+          ),
+        ),
+        ...data.history.reversed.map(
+          (point) => Card(
+            child: ListTile(
+              title: Text(point.date.toIso8601String().split('T').first),
+              subtitle: Text(point.explanations.join('\n')),
+              trailing: Text(
+                point.netWorth == null ? 'Partiel' : _money(point.netWorth!),
+                key: Key('wealth-history-${point.date.toIso8601String()}'),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          'Échéancier consolidé',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const Text(
+          'Obligations, financements et opérations attendues sont composés sans transformer une projection en paiement réel.',
+        ),
+        if (data.consolidatedDues.isEmpty)
+          const ListTile(title: Text('Aucune échéance connue'))
+        else
+          ...data.consolidatedDues.map(
+            (due) => ListTile(
+              leading: Icon(switch (due.kind) {
+                ConsolidatedDueKind.obligation => Icons.receipt_long_outlined,
+                ConsolidatedDueKind.financing => Icons.account_balance_outlined,
+                ConsolidatedDueKind.expected => Icons.event_outlined,
+              }),
+              title: Text(due.label),
+              subtitle: Text(
+                '${due.date.toIso8601String().split('T').first} · ${due.state.name} · source ${due.kind.name}',
+              ),
+              trailing: Text(_money(due.amount)),
+            ),
+          ),
+      ],
+    );
   }
 }
 

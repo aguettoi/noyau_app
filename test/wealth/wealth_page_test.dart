@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/financial_availability/domain/financial_availability.dart';
 import 'package:noyau_app/features/wealth/application/providers/wealth_provider.dart';
+import 'package:noyau_app/features/wealth/domain/wealth_history.dart';
 import 'package:noyau_app/features/wealth/domain/wealth_models.dart';
 import 'package:noyau_app/features/wealth/presentation/wealth_page.dart';
 
@@ -127,6 +128,73 @@ void main() {
       find.textContaining('ne désignent pas automatiquement'),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('historique et échéancier sont accessibles sans écriture', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const zero = Money.fromMinorUnits(0);
+    final data = WealthData(
+      snapshot: const WealthSnapshot(
+        liquidity: zero,
+        investments: zero,
+        assets: zero,
+        liabilities: zero,
+      ),
+      assets: const [],
+      investments: const [],
+      financings: const [],
+      eventCandidates: const [],
+      availability: const FinancialAvailabilitySnapshot(
+        realLiquidity: zero,
+        envelopeTotal: zero,
+        toAllocate: zero,
+        debtCommitments: zero,
+        potentialReceivables: zero,
+        goals: {},
+        planEntries: {},
+        warnings: [],
+      ),
+      history: [
+        WealthHistoryPoint(
+          date: DateTime(2026, 10, 24),
+          assets: zero,
+          investments: zero,
+          liquidity: zero,
+          liabilities: zero,
+          isComplete: true,
+          explanations: const ['Situation actuelle canonique'],
+        ),
+      ],
+      consolidatedDues: [
+        ConsolidatedDue(
+          identity: 'expected:test',
+          label: 'Échéance test',
+          date: DateTime(2026, 10, 31),
+          amount: const Money.fromMinorUnits(10000),
+          kind: ConsolidatedDueKind.expected,
+          state: ConsolidatedDueState.expected,
+          sourceId: 'test',
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [wealthDataProvider.overrideWith((ref) async => data)],
+        child: const MaterialApp(home: WealthPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(Tab, 'Historique & échéances'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('wealth-history-and-dues')), findsOneWidget);
+    expect(find.text('Échéance test'), findsOneWidget);
+    expect(find.byKey(const Key('export-wealth-history')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
