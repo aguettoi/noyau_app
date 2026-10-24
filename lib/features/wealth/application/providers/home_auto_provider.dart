@@ -142,6 +142,14 @@ HomeBenefit _benefit(Map<String, Object?> row) => HomeBenefit(
   },
   amount: _money(row['amount']),
   financialEventId: row['financial_event_id'] as String?,
+  periodStart: _date(row['period_start']),
+  periodEnd: _date(row['period_end']),
+  effectiveDate: _date(row['effective_date']),
+  rate: (row['rate'] as num?)?.toDouble(),
+  eligibleBase: row['eligible_base'] == null
+      ? null
+      : _money(row['eligible_base']),
+  ceiling: row['ceiling_amount'] == null ? null : _money(row['ceiling_amount']),
 );
 
 AssetExpenseLink _expense(Map<String, Object?> row) => AssetExpenseLink(
@@ -175,3 +183,6 @@ VehicleCostPlan _plan(Map<String, Object?> row) => VehicleCostPlan(
 
 Money _money(Object? value) =>
     Money.fromDirhams(num.tryParse(value?.toString() ?? '') ?? 0);
+
+DateTime? _date(Object? value) =>
+    value == null ? null : DateTime.tryParse(value.toString());

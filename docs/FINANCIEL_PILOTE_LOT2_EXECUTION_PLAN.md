@@ -285,3 +285,22 @@ budget récurrent jusqu’à leur réalisation. Les agrégats sont composés apr
 contrats de lecture/RLS L1; aucune donnée privée brute n’est chargée pour être
 masquée ensuite.
 
+## État d’exécution L2.3 — 2026-10-24
+
+L2.3 complète F5 sans nouveau moteur ni migration. Le comparateur transforme
+des hypothèses locales en profils F5 éphémères, réutilise l’échéancier
+canonique et FinancialAvailability, puis restitue séparément coût, échéance,
+durée, apport, avantages projetés et limites. Aucune simulation ne crée de
+dette, obligation ou écriture financière.
+
+| ID | Avant | Après | Preuve | Statut final |
+|---|---|---|---|:---:|
+| WLT-05 | Échéancier et anticipation unitaires, saisie d’anticipation illustrative | Temporalité fin de mois déterministe, comparaison durée/échéance et résultats structurés sans mutation | `financing_simulation.dart`; tests F5/L2.3 | A |
+| WLT-06 | Avantage projeté limité à un montant libre | Aide, fiscalité et contribution paramétrables par type, base, taux, plafond et période ; Murabaha conservée | `home_auto_models.dart`; panneau Logement; tests avantages | A |
+| R4-08 | Aucun comparateur d’offres exploitable | Comparaison responsive de plusieurs hypothèses sur apport, financement, durée, échéance, coût, total, avantage et capacité | `financing_comparison_dialog.dart`; tests domaine/widget | A |
+
+La comparaison expose plusieurs dimensions sans déclarer automatiquement un
+« meilleur choix ». Une capacité incomplète reste « à confirmer » et aucun
+montant privé n’est déduit. Les avantages projetés restent analytiques et les
+avantages réels continuent d’exiger un FinancialEvent canonique.
+

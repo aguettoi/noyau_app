@@ -3,6 +3,24 @@ import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/wealth/domain/home_auto_models.dart';
 
 void main() {
+  test('avantage projeté applique base, taux et plafond configurables', () {
+    expect(
+      calculateProjectedHomeBenefit(
+        eligibleBase: const Money.fromMinorUnits(1000000),
+        rate: .10,
+      ).minorUnits,
+      100000,
+    );
+    expect(
+      calculateProjectedHomeBenefit(
+        eligibleBase: const Money.fromMinorUnits(1000000),
+        rate: .10,
+        ceiling: const Money.fromMinorUnits(50000),
+      ).minorUnits,
+      50000,
+    );
+  });
+
   test('coût logement sépare réalisé, projeté et évite le double comptage', () {
     final result = calculateHomeCost(
       grossFinancingCost: const Money.fromMinorUnits(1000000),

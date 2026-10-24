@@ -7,6 +7,7 @@ import '../../finance/application/providers/remote_debts_provider.dart';
 import '../../finance/presentation/transactions_page.dart';
 import '../application/providers/wealth_provider.dart';
 import '../domain/wealth_models.dart';
+import 'financing_comparison_dialog.dart';
 import 'home_auto_panels.dart';
 
 class WealthPage extends ConsumerWidget {
@@ -613,6 +614,19 @@ class _Financings extends StatelessWidget {
                 ? 'Liquidité réelle disponible : ${_money(data.availability.realLiquidity)}. Toute décision “puis-je rembourser ?” réutilise FinancialAvailability.'
                 : 'Liquidité visible : ${_money(data.availability.realLiquidity)}. Total partiel : les soldes privés sont exclus et toute décision exige la capacité serveur bornée.',
           ),
+        ),
+      ),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          key: const Key('open-financing-comparison'),
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (_) =>
+                FinancingComparisonDialog(availability: data.availability),
+          ),
+          icon: const Icon(Icons.compare_arrows),
+          label: const Text('Comparer des simulations'),
         ),
       ),
       if (data.financings.isEmpty)

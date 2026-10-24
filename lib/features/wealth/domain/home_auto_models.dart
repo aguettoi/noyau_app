@@ -12,6 +12,12 @@ class HomeBenefit {
     required this.recognition,
     required this.amount,
     this.financialEventId,
+    this.periodStart,
+    this.periodEnd,
+    this.effectiveDate,
+    this.rate,
+    this.eligibleBase,
+    this.ceiling,
   });
   final String id;
   final String assetId;
@@ -19,8 +25,29 @@ class HomeBenefit {
   final BenefitRecognition recognition;
   final Money amount;
   final String? financialEventId;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
+  final DateTime? effectiveDate;
+  final double? rate;
+  final Money? eligibleBase;
+  final Money? ceiling;
 
   bool get isProjected => recognition == BenefitRecognition.projected;
+}
+
+Money calculateProjectedHomeBenefit({
+  required Money eligibleBase,
+  required double rate,
+  Money? ceiling,
+}) {
+  if (eligibleBase.minorUnits < 0 || rate < 0) {
+    throw ArgumentError('Paramètres d’avantage invalides.');
+  }
+  final calculated = Money.fromDirhams(eligibleBase.dirhams * rate);
+  if (ceiling == null || calculated.minorUnits <= ceiling.minorUnits) {
+    return calculated;
+  }
+  return ceiling;
 }
 
 class HomeCostSummary {

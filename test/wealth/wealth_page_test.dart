@@ -50,4 +50,83 @@ void main() {
     expect(find.text('Aucun financement configuré'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('comparateur de financements est accessible et read-only', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const zero = Money.fromMinorUnits(0);
+    final data = WealthData(
+      snapshot: const WealthSnapshot(
+        liquidity: zero,
+        investments: zero,
+        assets: zero,
+        liabilities: zero,
+      ),
+      assets: const [],
+      investments: const [],
+      financings: const [],
+      eventCandidates: const [],
+      availability: const FinancialAvailabilitySnapshot(
+        realLiquidity: Money.fromMinorUnits(5000000),
+        envelopeTotal: zero,
+        toAllocate: zero,
+        debtCommitments: zero,
+        potentialReceivables: zero,
+        goals: {},
+        planEntries: {},
+        warnings: [],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [wealthDataProvider.overrideWith((ref) async => data)],
+        child: const MaterialApp(home: WealthPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(Tab, 'Financements'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('open-financing-comparison')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Comparer des simulations de financement'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('financing-offer-0')), findsOneWidget);
+    expect(find.byKey(const Key('financing-offer-1')), findsOneWidget);
+    expect(find.textContaining('Aucune dette'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('financed-amount-0')),
+      '100000',
+    );
+    await tester.enterText(
+      find.byKey(const Key('financed-amount-1')),
+      '120000',
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('compare-financing-offers')),
+      500,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView).last,
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(find.byKey(const Key('compare-financing-offers')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('financing-comparison-results')),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('ne désignent pas automatiquement'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

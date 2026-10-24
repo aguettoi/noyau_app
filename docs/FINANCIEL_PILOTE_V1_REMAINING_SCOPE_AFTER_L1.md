@@ -440,3 +440,21 @@ statut historique dans la matrice détaillée.
 La confirmation d’une action reste dans le module canonique concerné. Aucun
 transfert bancaire, FinancialEvent, posting ou mouvement d’enveloppe n’est créé
 par L2.2.
+
+## Mise à jour L2.3 — 2026-10-24
+
+Les trois écarts `WLT-05`, `WLT-06` et `R4-08` passent à **A — terminé et
+validé**. Cette section prévaut sur leur statut historique dans la matrice
+détaillée.
+
+- échéanciers, coûts et anticipations restent calculés par F5 ;
+- les dates de fin de mois sont déterministes et reproductibles ;
+- Murabaha, coût fixe, autre structure et prêt à intérêt restent distincts ;
+- fiscalité, aide et contribution employeur projetées utilisent des paramètres
+  saisis (base, taux, plafond, période), sans règle personnelle hardcodée ;
+- le comparateur restitue les dimensions concurrentes sans score arbitraire ni
+  recommandation silencieuse ;
+- FinancialAvailability incomplet produit une capacité « à confirmer », sans
+  calcul différentiel révélant une donnée privée ;
+- toutes les simulations sont locales/read-only et créent zéro écriture
+  financière ou obligation.

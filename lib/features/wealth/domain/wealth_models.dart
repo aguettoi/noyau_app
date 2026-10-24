@@ -226,10 +226,9 @@ List<FinancingScheduleLine> buildFinancingSchedule(FinancingProfile profile) {
     result.add(
       FinancingScheduleLine(
         number: index,
-        date: DateTime(
-          profile.startDate.year,
-          profile.startDate.month + index * profile.periodicityMonths,
-          profile.startDate.day,
+        date: addFinancingMonths(
+          profile.startDate,
+          index * profile.periodicityMonths,
         ),
         payment: Money.fromDirhams(principal + cost),
         principal: Money.fromDirhams(principal),
@@ -239,6 +238,14 @@ List<FinancingScheduleLine> buildFinancingSchedule(FinancingProfile profile) {
     );
   }
   return List.unmodifiable(result);
+}
+
+DateTime addFinancingMonths(DateTime date, int months) {
+  final monthIndex = date.month - 1 + months;
+  final year = date.year + monthIndex ~/ 12;
+  final month = monthIndex % 12 + 1;
+  final lastDay = DateTime(year, month + 1, 0).day;
+  return DateTime(year, month, math.min(date.day, lastDay));
 }
 
 class EarlyRepaymentProjection {

@@ -119,13 +119,10 @@ class HomePanel extends ConsumerWidget {
     WealthAsset asset, {
     required bool projected,
   }) async {
-    final amount = await _amount(
-      context,
-      projected
-          ? 'Avantage fiscal/aide projeté'
-          : 'Avantage réellement constaté',
-    );
-    if (amount == null || !context.mounted) return;
+    final input = projected
+        ? await _projectedBenefit(context)
+        : await _actualBenefit(context);
+    if (input == null || !context.mounted) return;
     String? eventId;
     if (!projected) {
       eventId = await _event(context, wealth.eventCandidates);
@@ -133,11 +130,18 @@ class HomePanel extends ConsumerWidget {
     }
     await ref.read(homeAutoActionsProvider).insert('home_benefits', {
       'asset_id': asset.id,
-      'benefit_type': 'tax_saving',
+      'benefit_type': input.type,
       'recognition': projected ? 'projected' : 'cash_received',
-      'amount': amount.dirhams,
+      'amount': input.amount.dirhams,
       'financial_event_id': eventId,
-      'effective_date': DateTime.now().toIso8601String().split('T').first,
+      'effective_date': _date(input.effectiveDate),
+      'period_start': input.periodStart == null
+          ? null
+          : _date(input.periodStart!),
+      'period_end': input.periodEnd == null ? null : _date(input.periodEnd!),
+      'rate': input.rate,
+      'eligible_base': input.eligibleBase?.dirhams,
+      'ceiling_amount': input.ceiling?.dirhams,
     });
   }
 
@@ -321,6 +325,150 @@ Widget _metric(String label, Money value) => Card(
   child: ListTile(title: Text(label), subtitle: Text(_money(value))),
 );
 String _money(Money value) => '${value.dirhams.toStringAsFixed(2)} MAD';
+String _date(DateTime value) => value.toIso8601String().split('T').first;
+
+class _BenefitInput {
+  const _BenefitInput({
+    required this.type,
+    required this.amount,
+    required this.effectiveDate,
+    this.periodStart,
+    this.periodEnd,
+    this.rate,
+    this.eligibleBase,
+    this.ceiling,
+  });
+
+  final String type;
+  final Money amount;
+  final DateTime effectiveDate;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
+  final double? rate;
+  final Money? eligibleBase;
+  final Money? ceiling;
+}
+
+Future<_BenefitInput?> _actualBenefit(BuildContext context) async {
+  final amount = await _amount(context, 'Avantage réellement constaté');
+  if (amount == null) return null;
+  return _BenefitInput(
+    type: 'tax_saving',
+    amount: amount,
+    effectiveDate: DateTime.now(),
+  );
+}
+
+Future<_BenefitInput?> _projectedBenefit(BuildContext context) async {
+  final base = TextEditingController();
+  final rate = TextEditingController();
+  final ceiling = TextEditingController();
+  var type = 'tax_saving';
+  final now = DateTime.now();
+  final accepted = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: const Text('Simuler un avantage logement'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'acquisition_aid',
+                    child: Text('Aide / subvention'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'tax_saving',
+                    child: Text('Économie fiscale estimée'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'employer_contribution',
+                    child: Text('Contribution employeur'),
+                  ),
+                  DropdownMenuItem(value: 'other', child: Text('Autre')),
+                ],
+                onChanged: (value) => setState(() => type = value!),
+                decoration: const InputDecoration(labelText: 'Type'),
+              ),
+              TextField(
+                controller: base,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Base éligible (MAD)',
+                ),
+              ),
+              TextField(
+                controller: rate,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Taux (%)',
+                  helperText:
+                      'Paramètre saisi, jamais une règle fiscale codée en dur.',
+                ),
+              ),
+              TextField(
+                controller: ceiling,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Plafond facultatif (MAD)',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Période ${now.year} · estimation uniquement · 0 écriture financière',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Ajouter la projection'),
+          ),
+        ],
+      ),
+    ),
+  );
+  final baseValue = double.tryParse(base.text.replaceAll(',', '.'));
+  final percent = double.tryParse(rate.text.replaceAll(',', '.'));
+  final ceilingValue = ceiling.text.trim().isEmpty
+      ? null
+      : double.tryParse(ceiling.text.replaceAll(',', '.'));
+  if (accepted != true ||
+      baseValue == null ||
+      baseValue < 0 ||
+      percent == null ||
+      percent < 0 ||
+      ceilingValue != null && ceilingValue < 0) {
+    return null;
+  }
+  final eligibleBase = Money.fromDirhams(baseValue);
+  final ceilingMoney = ceilingValue == null
+      ? null
+      : Money.fromDirhams(ceilingValue);
+  return _BenefitInput(
+    type: type,
+    amount: calculateProjectedHomeBenefit(
+      eligibleBase: eligibleBase,
+      rate: percent / 100,
+      ceiling: ceilingMoney,
+    ),
+    effectiveDate: now,
+    periodStart: DateTime(now.year),
+    periodEnd: DateTime(now.year, 12, 31),
+    rate: percent / 100,
+    eligibleBase: eligibleBase,
+    ceiling: ceilingMoney,
+  );
+}
 
 Future<Money?> _amount(BuildContext context, String title) async {
   final controller = TextEditingController();
