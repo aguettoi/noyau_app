@@ -113,12 +113,12 @@ Base : commit 461020056cf12c89b5f3735843d5ebb95f3df966, 19 octobre 2026. Cet inv
 | R4-02 | Restitution | Excel structuré 4 feuilles | Excel structuré 4 feuilles | XLSX existe, pack métier non structuré | MASTER_SCOPE_V2 R4-02; Roadmap V2 | `lib/features/portability/application/portability_provider.dart`; DB/RPC: Lectures canoniques | `test/portability/export_encoders_test.dart` | Export | B | neutre ou 1/N | modéré: visibilité foyer | Ledgers, obligations | moyen | Étendre encodeur | L2 |
 | R4-03 | Restitution | PDF périodique | PDF périodique | PDF générique existe | MASTER_SCOPE_V2 R4-03; Roadmap V2 | `lib/features/portability/application/portability_provider.dart`; DB/RPC: Lectures canoniques | `test/portability/export_encoders_test.dart` | Export | B | neutre ou 1/N | modéré: visibilité foyer | R2, Dashboard | moyen | Étendre encodeur | L2 |
 | R4-04 | Restitution | PowerPoint | PowerPoint | Aucun générateur PPTX | MASTER_SCOPE_V2 R4-04; Roadmap V2 | — | — | Export | C | neutre ou 1/N | modéré: visibilité foyer | R4-03 | à arbitrer | Après reporting stable | L2 |
-| R4-05 | Restitution | Rapport de clôture | Rapport de clôture | Dépend de R2 absent | MASTER_SCOPE_V2 R4-05; Roadmap V2 | — | — | Clôture | C | neutre ou 1/N | modéré: visibilité foyer | R2-03 | moyen | Construire après R2 | L2 |
+| R4-05 | Restitution | Rapport de clôture | Rapport de clôture | Rapport mensuel explicable livré | MASTER_SCOPE_V2 R4-05; Roadmap V2 | `lib/features/reporting`; clôture R2 | `test/reporting` | Rapports & timeline | A | neutre ou 1/N | fort: filtrage L1 conservé | R2-03, L1 | couvert | Préserver | — |
 | R4-06 | Restitution | Bilan annuel N/N-1 | Bilan annuel N/N-1 | Comparaison explicable, indisponibilité si points incomplets | MASTER_SCOPE_V2 R4-06; Roadmap V2 | `compareAnnualWealth` | `wealth_history_test.dart` | Patrimoine | A | neutre ou 1/N | modéré: visibilité autorisée | F2, F5 | faible | Maintenir | — |
 | R4-07 | Restitution | Échéancier global | Échéancier global | Composition obligations/F5/R3 avec provenance et déduplication | MASTER_SCOPE_V2 R4-07; Roadmap V2 | `consolidateDues`; `wealth_provider.dart` | `wealth_history_test.dart` | Patrimoine | A | neutre ou 1/N | modéré: sources filtrées | F5, R3 | faible | Maintenir | — |
 | R4-08 | Restitution | Simulateur emprunt complet | Simulateur emprunt complet | F5 couvre échéancier et anticipation | MASTER_SCOPE_V2 R4-08; Roadmap V2 | `lib/features/wealth/domain/wealth_models.dart`; DB/RPC: financing_profiles | `test/wealth/wealth_models_test.dart` | Financements | B | neutre ou 1/N | modéré: visibilité foyer | Scenarios | moyen | Étendre F5 | L2 |
 | R4-09 | Restitution | Reconstruction sauvegarde | Reconstruction sauvegarde | Export foyer existe, restauration non conçue | MASTER_SCOPE_V2 R4-09; Roadmap V2 | `lib/features/portability/application/portability_provider.dart` | portability tests | Import/Export | F | 1/2/N à vérifier | modéré: visibilité foyer | F7, R7 | à arbitrer | Concevoir séparément | L2 |
-| R4-10 | Restitution | Timeline significative | Timeline significative | Historique exhaustif existe | MASTER_SCOPE_V2 R4-10; Roadmap V2 | `lib/features/finance/presentation/transactions_page.dart`; DB/RPC: financial_event_history | transactions tests | Pilotage | F | neutre ou 1/N | modéré: visibilité foyer | Reporting | à arbitrer | Après R2 | L2 |
+| R4-10 | Restitution | Timeline significative | Timeline significative | Timeline déterministe distincte livrée | MASTER_SCOPE_V2 R4-10; Roadmap V2 | `lib/features/reporting`; `timeline_significance_marks` | tests Flutter + SQL/RLS L2.5 | Rapports & timeline | A | neutre ou 1/N | fort: audience source inchangée | Reporting, L1 | couvert | Préserver | — |
 | R5-01 | Expérience produit | Invitation visible à la connexion | Invitation visible à la connexion | Invitations présentées après auth | MASTER_SCOPE_V2 R5-01; Roadmap V2 | `lib/features/finance/presentation/supabase_auth_page.dart`; `lib/features/finance/presentation/household_onboarding_page.dart`; DB/RPC: list_my_pending_household_invitations | `test/finance/household_onboarding_page_test.dart` | Connexion | B | neutre ou 1/N | modéré: visibilité foyer | Auth | moyen | Étendre onboarding | L4 |
 | R5-02 | Expérience produit | Onboarding première utilisation | Onboarding première utilisation | Création foyer et invitation existent | MASTER_SCOPE_V2 R5-02; Roadmap V2 | `lib/features/finance/presentation/household_onboarding_page.dart`; DB/RPC: create_household; invitations | `test/finance/household_onboarding_page_test.dart` | Onboarding | B | 1/2/N à vérifier | modéré: visibilité foyer | F1, comptes | moyen | Étendre | L4 |
 | R5-03 | Expérience produit | Onboarding skippable par module | Onboarding skippable par module | Aucun état tutoriel | MASTER_SCOPE_V2 R5-03; Roadmap V2 | — | — | Modules | C | neutre ou 1/N | modéré: visibilité foyer | R5-02 | à arbitrer | Ajouter préférence | L4 |
@@ -231,12 +231,12 @@ Cette vue contient les B, C, D et E à traiter ainsi que les F nécessitant un a
 | R4-02 | B | Étendre encodeur | moyen | L2 |
 | R4-03 | B | Étendre encodeur | moyen | L2 |
 | R4-04 | C | Après reporting stable | à arbitrer | L2 |
-| R4-05 | C | Construire après R2 | moyen | L2 |
+| R4-05 | A | Livré L2.5 | couvert | — |
 | R4-06 | C | Vue et exports | moyen | L2 |
 | R4-07 | B | Composer sans nouveau moteur | moyen | L2 |
 | R4-08 | B | Étendre F5 | moyen | L2 |
 | R4-09 | F | Concevoir séparément | à arbitrer | L2 |
-| R4-10 | F | Après R2 | à arbitrer | L2 |
+| R4-10 | A | Livré L2.5 | couvert | — |
 | R5-01 | B | Étendre onboarding | moyen | L4 |
 | R5-02 | B | Étendre | moyen | L4 |
 | R5-03 | C | Ajouter préférence | à arbitrer | L4 |

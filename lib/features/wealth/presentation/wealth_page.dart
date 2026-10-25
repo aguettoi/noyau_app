@@ -7,6 +7,7 @@ import '../../finance/application/providers/remote_debts_provider.dart';
 import '../../finance/presentation/transactions_page.dart';
 import '../../portability/application/portable_file_saver.dart';
 import '../../portability/domain/portability_models.dart';
+import '../../reporting/presentation/business_reporting_panel.dart';
 import '../application/providers/wealth_provider.dart';
 import '../domain/wealth_history.dart';
 import '../domain/wealth_models.dart';
@@ -47,7 +48,7 @@ class WealthPage extends ConsumerWidget {
                       _Financings(data),
                       HomePanel(wealth: data),
                       VehiclePanel(wealth: data),
-                      _HistoryAndDues(data),
+                      _HistoryReportingHub(data),
                     ],
                   ),
                 ),
@@ -393,6 +394,31 @@ class _HistoryAndDues extends StatelessWidget {
       ],
     );
   }
+}
+
+class _HistoryReportingHub extends StatelessWidget {
+  const _HistoryReportingHub(this.data);
+  final WealthData data;
+
+  @override
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 2,
+    child: Column(
+      children: [
+        const TabBar(
+          tabs: [
+            Tab(text: 'Vue historique'),
+            Tab(text: 'Rapport & timeline'),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            children: [_HistoryAndDues(data), const BusinessReportingPanel()],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _WealthOverview extends StatelessWidget {
