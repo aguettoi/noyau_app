@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 import '../domain/portability_models.dart';
 
-Future<void> save(PortableFile file) async {
+Future<bool> save(PortableFile file) async {
   final blob = web.Blob(
     [Uint8List.fromList(file.bytes).toJS].toJS,
     web.BlobPropertyBag(type: file.mimeType),
@@ -14,4 +14,5 @@ Future<void> save(PortableFile file) async {
         ..download = file.name)
       .click();
   web.URL.revokeObjectURL(url);
+  return true;
 }

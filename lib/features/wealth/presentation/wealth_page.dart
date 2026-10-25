@@ -335,14 +335,14 @@ class _HistoryAndDues extends StatelessWidget {
             onPressed: data.history.isEmpty
                 ? null
                 : () async {
-                    await savePortableFile(
+                    final saved = await savePortableFile(
                       PortableFile(
                         'patrimoine_historique.csv',
                         'text/csv;charset=utf-8',
                         encodeWealthHistoryCsv(data.history),
                       ),
                     );
-                    if (context.mounted) {
+                    if (context.mounted && saved) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Historique patrimonial exporté.'),

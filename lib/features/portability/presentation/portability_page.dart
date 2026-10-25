@@ -15,9 +15,12 @@ import '../../priorities/presentation/priorities_page.dart';
 import '../../savings_goals/presentation/savings_goals_page.dart';
 import '../../shopping_list/presentation/shopping_list_page.dart';
 import '../../wealth/presentation/wealth_page.dart';
+import '../../wealth/application/providers/wealth_provider.dart';
 import '../application/portability_provider.dart';
 import '../application/portable_file_saver.dart';
+import '../application/restitution_export_service.dart';
 import '../domain/portability_models.dart';
+import '../domain/restitution_models.dart';
 
 class PortabilityPage extends StatelessWidget {
   const PortabilityPage({super.key});
@@ -178,14 +181,16 @@ class _ExportsTab extends ConsumerStatefulWidget {
 
 class _ExportsTabState extends ConsumerState<_ExportsTab> {
   bool busy = false;
+  ReportPeriodicity periodicity = ReportPeriodicity.monthly;
+  DateTime anchor = DateTime.now();
   Future<void> run(Future<PortableFile> Function() build) async {
     setState(() => busy = true);
     try {
-      await savePortableFile(await build());
+      final saved = await savePortableFile(await build());
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Export prêt.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(saved ? 'Export prêt.' : 'Export annulé.')),
+        );
       }
     } catch (_) {
       if (mounted) {
@@ -201,6 +206,9 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
   @override
   Widget build(BuildContext context) {
     final service = ref.read(householdExportServiceProvider);
+    final restitution = ref.read(restitutionExportServiceProvider);
+    final period = RestitutionPeriod.forDate(anchor, periodicity);
+    final wealth = ref.watch(wealthDataProvider).valueOrNull;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
@@ -236,6 +244,120 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
           trailing: const Icon(Icons.archive),
           onTap: busy ? null : () => run(service.householdArchive),
         ),
+        const Divider(),
+        Text(
+          'Restitutions métier',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Périmètre autorisé de la session : les comptes privés non partagés et les soldes masqués sont exclus côté serveur.',
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            DropdownButton<ReportPeriodicity>(
+              key: const Key('restitution-periodicity'),
+              value: periodicity,
+              items: const [
+                DropdownMenuItem(
+                  value: ReportPeriodicity.monthly,
+                  child: Text('Mensuel'),
+                ),
+                DropdownMenuItem(
+                  value: ReportPeriodicity.quarterly,
+                  child: Text('Trimestriel'),
+                ),
+                DropdownMenuItem(
+                  value: ReportPeriodicity.semiannual,
+                  child: Text('Semestriel'),
+                ),
+                DropdownMenuItem(
+                  value: ReportPeriodicity.annual,
+                  child: Text('Annuel'),
+                ),
+              ],
+              onChanged: busy
+                  ? null
+                  : (value) => setState(() => periodicity = value!),
+            ),
+            OutlinedButton.icon(
+              key: const Key('restitution-date'),
+              icon: const Icon(Icons.date_range),
+              label: Text(period.label),
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final chosen = await showDatePicker(
+                        context: context,
+                        initialDate: anchor,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (chosen != null && mounted) {
+                        setState(() => anchor = chosen);
+                      }
+                    },
+            ),
+          ],
+        ),
+        ListTile(
+          key: const Key('export-structured-xlsx'),
+          title: const Text('XLSX structuré — 4 feuilles'),
+          subtitle: const Text('Enveloppes, journal, cash, dettes et créances'),
+          trailing: const Icon(Icons.grid_on),
+          onTap: busy
+              ? null
+              : () => run(() => restitution.structuredXlsx(period)),
+        ),
+        ListTile(
+          key: const Key('export-period-pdf'),
+          title: const Text('Rapport PDF'),
+          subtitle: Text('Restitution ${period.label} avec statut et limites'),
+          trailing: const Icon(Icons.picture_as_pdf),
+          onTap: busy ? null : () => run(() => restitution.periodPdf(period)),
+        ),
+        ListTile(
+          key: const Key('export-period-pptx'),
+          title: const Text('Présentation PowerPoint'),
+          subtitle: const Text(
+            'Synthèse prête à présenter, sans dépendance à un tableur',
+          ),
+          trailing: const Icon(Icons.slideshow),
+          onTap: busy ? null : () => run(() => restitution.periodPptx(period)),
+        ),
+        ListTile(
+          key: const Key('export-fiscal-housing'),
+          title: const Text('Fiscalité logement XLSX'),
+          subtitle: const Text(
+            'Hypothèses et avantages estimés/réels, document non déclaratif',
+          ),
+          trailing: const Icon(Icons.home_work_outlined),
+          onTap: busy
+              ? null
+              : () => run(() => restitution.fiscalHousingXlsx(period)),
+        ),
+        if (wealth != null && wealth.financings.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text('Tableaux d’amortissement'),
+          ),
+          for (final financing in wealth.financings)
+            ListTile(
+              key: Key('export-amortization-${financing.id}'),
+              title: Text(financing.label),
+              subtitle: Text(
+                'Structure ${financing.structure.name} • échéancier canonique',
+              ),
+              trailing: const Icon(Icons.table_chart_outlined),
+              onTap: busy
+                  ? null
+                  : () => run(() => restitution.amortizationXlsx(financing)),
+            ),
+        ],
       ],
     );
   }

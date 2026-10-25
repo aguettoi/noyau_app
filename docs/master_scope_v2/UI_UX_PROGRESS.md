@@ -59,3 +59,6 @@
 - L'action textuelle `Règles de rappels` expose activation, avance, relance, heure locale et priorité.
 - Les rappels ouvrent les surfaces canoniques Opérations attendues, Fin de mois ou Prévisions de trésorerie.
 - Les notifications natives sont explicitement reportées à P1 ; aucun redesign D1.2 n'est engagé.
+# Mise à jour L2.6
+
+La surface `Recherche et portabilité > Exports` conserve tous les exports F7 et ajoute une section responsive « Restitutions métier » : choix mensuel/trimestriel/semestriel/annuel, période visible, XLSX quatre feuilles, PDF, PPTX, fiscalité logement et échéanciers disponibles. Le texte précise le périmètre autorisé et les limites de confidentialité.
