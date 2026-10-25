@@ -9,6 +9,7 @@ import 'package:noyau_app/features/finance/application/providers/remote_accounts
 import 'package:noyau_app/features/finance/application/providers/remote_household_members_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_transactions_provider.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
+import 'package:noyau_app/features/finance/domain/cash_inventory.dart';
 import 'package:noyau_app/features/finance/presentation/accounts_page.dart';
 
 void main() {
@@ -163,6 +164,51 @@ void main() {
   });
 
   testWidgets(
+    'la caisse compte facultativement billets et pièces avec total dynamique',
+    (tester) async {
+      final gateway = _ObservationGateway();
+      await _pump(tester, _cashAccount(), gateway);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Caisse maison'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('record-account-balance-observation-button')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Compter les coupures'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('cash-denomination-20000')),
+        '4',
+      );
+      await tester.enterText(
+        find.byKey(const Key('cash-denomination-100')),
+        '7',
+      );
+      await tester.pump();
+      expect(
+        find.textContaining('Total des coupures : 807,00 MAD'),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.byKey(const Key('account-balance-observation-reason-field')),
+        'Inventaire physique',
+      );
+      await tester.tap(
+        find.byKey(
+          const Key('record-account-balance-observation-submit-button'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(gateway.recordedInputMode, CashCountInputMode.denominations);
+      expect(gateway.recordedAmount, const Money.fromMinorUnits(80700));
+      expect(gateway.recordedDenominations, hasLength(2));
+      expect(gateway.glMutationRequested, isFalse);
+      expect(gateway.envelopeMutationRequested, isFalse);
+    },
+  );
+
+  testWidgets(
     'la fiche compte ouvre l’historique et rend les legacy lisibles',
     (tester) async {
       final gateway = _ObservationGateway(legacyHistory: true);
@@ -235,6 +281,8 @@ class _ObservationGateway implements AccountBalanceObservationGateway {
   Money? recordedAmount;
   bool glMutationRequested = false;
   bool envelopeMutationRequested = false;
+  CashCountInputMode? recordedInputMode;
+  List<Map<String, Object?>>? recordedDenominations;
 
   @override
   Future<AccountBalanceObservation?> fetchLatest({
@@ -353,5 +401,25 @@ class _ObservationGateway implements AccountBalanceObservationGateway {
   }) async {
     recordedAccountId = accountId;
     recordedAmount = actualBalance;
+  }
+
+  @override
+  Future<void> recordCashInventory({
+    required String accountId,
+    required DateTime observedAt,
+    required Money actualBalance,
+    required String reason,
+    required CashCountInputMode inputMode,
+    required List<Map<String, Object?>> denominationDetail,
+    required String idempotencyKey,
+  }) async {
+    recordedInputMode = inputMode;
+    recordedDenominations = denominationDetail;
+    await record(
+      accountId: accountId,
+      observedAt: observedAt,
+      actualBalance: actualBalance,
+      reason: reason,
+    );
   }
 }

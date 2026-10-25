@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/finance/application/providers/account_balance_observation_provider.dart';
+import 'package:noyau_app/features/finance/domain/cash_inventory.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 
 void main() {
@@ -157,4 +158,20 @@ class _Gateway implements AccountBalanceObservationGateway {
     recordedActualBalance = actualBalance;
     recordedReason = reason;
   }
+
+  @override
+  Future<void> recordCashInventory({
+    required String accountId,
+    required DateTime observedAt,
+    required Money actualBalance,
+    required String reason,
+    required CashCountInputMode inputMode,
+    required List<Map<String, Object?>> denominationDetail,
+    required String idempotencyKey,
+  }) => record(
+    accountId: accountId,
+    observedAt: observedAt,
+    actualBalance: actualBalance,
+    reason: reason,
+  );
 }

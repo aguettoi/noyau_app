@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/money/money.dart';
+import '../../domain/cash_inventory.dart';
 import 'active_household_provider.dart';
 import 'supabase_client_provider.dart';
 
@@ -20,6 +21,9 @@ class AccountBalanceObservation {
     this.differenceSnapshot,
     this.status,
     this.remainingDifference,
+    this.inputMode = CashCountInputMode.direct,
+    this.denominationDetail = const [],
+    this.provenance = 'manual_inventory',
   });
 
   final String id;
@@ -34,6 +38,9 @@ class AccountBalanceObservation {
   final Money? differenceSnapshot;
   final String? status;
   final Money? remainingDifference;
+  final CashCountInputMode inputMode;
+  final List<Map<String, Object?>> denominationDetail;
+  final String provenance;
 }
 
 class AccountReconciliationResolution {
@@ -81,6 +88,16 @@ abstract interface class AccountBalanceObservationGateway {
     required DateTime observedAt,
     required Money actualBalance,
     required String reason,
+  });
+
+  Future<void> recordCashInventory({
+    required String accountId,
+    required DateTime observedAt,
+    required Money actualBalance,
+    required String reason,
+    required CashCountInputMode inputMode,
+    required List<Map<String, Object?>> denominationDetail,
+    required String idempotencyKey,
   });
 
   Future<List<AccountReconciliationCase>> fetchHistory({
@@ -132,7 +149,7 @@ class SupabaseAccountBalanceObservationGateway
     final rows = await _client
         .from('account_balance_observations')
         .select(
-          'id, account_id, actual_balance, observed_at, reason, created_by, created_at, theoretical_balance_snapshot, difference_snapshot, snapshot_version',
+          'id, account_id, actual_balance, observed_at, reason, created_by, created_at, theoretical_balance_snapshot, difference_snapshot, snapshot_version, input_mode, denomination_detail, observation_provenance',
         )
         .eq('household_id', householdId)
         .eq('account_id', accountId)
@@ -190,6 +207,16 @@ class SupabaseAccountBalanceObservationGateway
           ? null
           : _money(caseRow['remaining_difference']),
       status: caseRow?['status'] as String?,
+      inputMode: row['input_mode'] == 'denominations'
+          ? CashCountInputMode.denominations
+          : CashCountInputMode.direct,
+      denominationDetail: List<Map<String, Object?>>.unmodifiable(
+        ((row['denomination_detail'] as List?) ?? const []).map(
+          (item) => Map<String, Object?>.from(item as Map),
+        ),
+      ),
+      provenance:
+          row['observation_provenance']?.toString() ?? 'manual_inventory',
     );
   }
 
@@ -201,7 +228,7 @@ class SupabaseAccountBalanceObservationGateway
     final rows = await _client
         .from('account_balance_observations')
         .select(
-          'id, account_id, actual_balance, observed_at, reason, created_by, created_at, theoretical_balance_snapshot, difference_snapshot',
+          'id, account_id, actual_balance, observed_at, reason, created_by, created_at, theoretical_balance_snapshot, difference_snapshot, input_mode, denomination_detail, observation_provenance',
         )
         .eq('household_id', householdId)
         .eq('account_id', accountId)
@@ -289,6 +316,16 @@ class SupabaseAccountBalanceObservationGateway
           remainingDifference: c == null || c['remaining_difference'] == null
               ? null
               : _money(c['remaining_difference']),
+          inputMode: row['input_mode'] == 'denominations'
+              ? CashCountInputMode.denominations
+              : CashCountInputMode.direct,
+          denominationDetail: List<Map<String, Object?>>.unmodifiable(
+            ((row['denomination_detail'] as List?) ?? const []).map(
+              (item) => Map<String, Object?>.from(item as Map),
+            ),
+          ),
+          provenance:
+              row['observation_provenance']?.toString() ?? 'manual_inventory',
         );
         return AccountReconciliationCase(
           observation: observation,
@@ -388,6 +425,30 @@ class SupabaseAccountBalanceObservationGateway
       },
     );
   }
+
+  @override
+  Future<void> recordCashInventory({
+    required String accountId,
+    required DateTime observedAt,
+    required Money actualBalance,
+    required String reason,
+    required CashCountInputMode inputMode,
+    required List<Map<String, Object?>> denominationDetail,
+    required String idempotencyKey,
+  }) => _client.rpc(
+    'record_cash_inventory_observation',
+    params: {
+      'p_account_id': accountId,
+      'p_observed_at': observedAt.toUtc().toIso8601String(),
+      'p_input_mode': inputMode.name,
+      'p_actual_balance': actualBalance.dirhams.toStringAsFixed(2),
+      'p_denomination_detail': inputMode == CashCountInputMode.denominations
+          ? denominationDetail
+          : null,
+      'p_reason': reason.trim(),
+      'p_idempotency_key': idempotencyKey,
+    },
+  );
 }
 
 final accountBalanceObservationGatewayProvider =
@@ -459,6 +520,49 @@ final recordAccountBalanceObservationProvider =
         ref.invalidate(accountReconciliationHistoryProvider(accountId));
       };
     });
+
+final recordCashInventoryProvider =
+    Provider<
+      Future<void> Function({
+        required String accountId,
+        required DateTime observedAt,
+        required Money actualBalance,
+        required String reason,
+        required CashCountInputMode inputMode,
+        required List<Map<String, Object?>> denominationDetail,
+        required String idempotencyKey,
+      })
+    >(
+      (ref) =>
+          ({
+            required String accountId,
+            required DateTime observedAt,
+            required Money actualBalance,
+            required String reason,
+            required CashCountInputMode inputMode,
+            required List<Map<String, Object?>> denominationDetail,
+            required String idempotencyKey,
+          }) async {
+            if (reason.trim().isEmpty || reason.trim().length > 280) {
+              throw StateError(
+                'Le commentaire doit contenir entre 1 et 280 caractères.',
+              );
+            }
+            await ref
+                .read(accountBalanceObservationGatewayProvider)
+                .recordCashInventory(
+                  accountId: accountId,
+                  observedAt: observedAt,
+                  actualBalance: actualBalance,
+                  reason: reason,
+                  inputMode: inputMode,
+                  denominationDetail: denominationDetail,
+                  idempotencyKey: idempotencyKey,
+                );
+            ref.invalidate(latestAccountBalanceObservationProvider(accountId));
+            ref.invalidate(accountReconciliationHistoryProvider(accountId));
+          },
+    );
 
 final addAccountReconciliationExplanationProvider =
     Provider<

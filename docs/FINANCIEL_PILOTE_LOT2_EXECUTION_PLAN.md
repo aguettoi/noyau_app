@@ -6,7 +6,7 @@ Ce document planifie uniquement l'ancien « Lot 1 — Décision financière, qua
 
 ## 1. Périmètre strict
 
-Le Lot 2 contient **28 fonctions historiques**, toutes encore non-A : B=18, C=9 et D=1. Les quatre anciens F (`R4-09`, `R4-10`, `ACC-12`, `HIS-03`) sont inclus dans les neuf C après arbitrage. Aucun ID extérieur à la baseline post-L1 n'est ajouté.
+À sa baseline, le Lot 2 contenait **28 fonctions historiques** non-A : B=18, C=9 et D=1. Aucun ID extérieur à cette baseline post-L1 n'est ajouté; les livraisons L2 mettent ensuite chaque ligne à jour sans réécrire cet inventaire initial.
 
 ### Matrice des fonctions
 
@@ -38,8 +38,8 @@ Le Lot 2 contient **28 fonctions historiques**, toutes encore non-A : B=18, C=9 
 | R4-10 | Restitution | Timeline significative | A | Timeline déterministe distincte de l'historique exhaustif, provenance et marquage personnel | FinancialEvent, clôture, obligations/financements, historique analytique | Onglet Rapports & timeline; `timeline_significance_marks`; tests Flutter + SQL/RLS | Reporting, L1 | — | Significatif ne change jamais l'audience | Marquage personnel 1/2/N | Lecture + métadonnée personnelle | Lecture | Livré L2.5 |
 | EXP-X1 | Exports | Export fiscal logement | C | Restitution absente | Modèles F5B | Panneau logement; aucun test export | F5B, R4 | M | Propriétaire/foyer autorisé seulement | Propriétaires N | Lecture des hypothèses versionnées | Neutre | Invariants stricts |
 | EXP-X2 | Exports | Historique net exportable | B | Série prouvée non exportée | Wealth provider | Patrimoine; tests page | F5A, Export | M | Pas de net worth reconstituant un privé | Propriétaires N | Lecture | Neutre | Invariants stricts |
-| ACC-12 | Comptes/espèces | Inventaire par coupures | C | Détail billets/pièces absent | Observation de solde existante | Caisse, sans détail | ACC-02 | S | Observation accessible selon compte | Caisses/observateurs N | Observation sans écriture | Aucun mouvement | Invariants stricts |
-| HIS-03 | Finance | Comptage espèces par coupures | C | Même manque qu'ACC-12 | Même extension canonique | Aucun écran séparé | ACC-12 | S | Identique ACC-12 | Identique ACC-12 | Aucun second moteur | Aucun mouvement | Invariants stricts |
+| ACC-12 | Comptes/espèces | Inventaire par coupures | A | Livré L2.7 | Observation canonique enrichie | Compte espèces, total ou coupures | ACC-02 | S | Droits du compte | Caisses/observateurs N | Observation sans écriture | Aucun mouvement | PASS L2.7 |
+| HIS-03 | Finance | Comptage espèces par coupures | A | Livré L2.7 | Même extension canonique | Historique du constat | ACC-12 | S | Identique ACC-12 | Identique ACC-12 | Aucun second moteur | Aucun mouvement | PASS L2.7 |
 
 `ACC-12` et `HIS-03` restent deux références historiques mais une seule livraison technique.
 
@@ -196,17 +196,19 @@ dans le passé. Aucune migration ni écriture financière n'est introduite.
 
 ### L2.7 — Comptage espèces facultatif par coupures
 
+- **Statut au 25/10/2026** : livré et certifié (`ACC-12` + `HIS-03` → A).
 - **Objectif** : une extension canonique et facultative du parcours d'observation espèces.
 - **Fonctions** : `ACC-12`, `HIS-03`.
 - **Statuts visés** : deux références C → A par une seule livraison.
 - **Dépendances** : observation/réconciliation espèces existante.
-- **Migrations probables** : aucune si détail éphémère; additive si audit persistant explicitement requis.
+- **Migration livrée** : extension additive de `account_balance_observations`, catalogue serveur des coupures et RPC idempotente; aucune nouvelle source de solde.
 - **Backend/frontend** : total simple conservé; panneau optionnel billets/pièces, somme et contrôle de cohérence.
 - **Confidentialité/1/2/N** : droits du compte/caisse et actor générique.
 - **Tests** : total seul, détail, incohérence, zéro écriture financière, régularisation séparée.
 - **C3/C4B** : aucune observation pilote durable pendant les tests.
 - **Sortie** : les deux parcours fonctionnent; le détail n'est jamais obligatoire.
 - **Taille/risque** : S; risque modéré de confondre observation et régularisation.
+- **Preuve** : tests domaine/widget/contrat, test SQL/RLS et matrice runtime transactionnelle rollbackée; aucun FinancialEvent, posting ou mouvement d'enveloppe.
 
 ### L2.8 — Restauration fonctionnelle isolée
 

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +8,7 @@ import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/providers/remote_account_balances_provider.dart';
 import '../application/providers/account_balance_observation_provider.dart';
+import '../domain/cash_inventory.dart';
 import '../application/providers/remote_accounts_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
 import '../application/providers/remote_transactions_provider.dart';
@@ -400,13 +403,29 @@ class _AccountDetailPage extends ConsumerWidget {
         account: account,
         theoreticalBalance: visibleBalance,
         onRecord:
-            ({required observedAt, required actualBalance, required reason}) =>
-                ref.read(recordAccountBalanceObservationProvider)(
-                  accountId: account.id,
-                  observedAt: observedAt,
-                  actualBalance: actualBalance,
-                  reason: reason,
-                ),
+            ({
+              required observedAt,
+              required actualBalance,
+              required reason,
+              required inputMode,
+              required denominationDetail,
+              required idempotencyKey,
+            }) => account.type == FinancialAccountType.cash
+            ? ref.read(recordCashInventoryProvider)(
+                accountId: account.id,
+                observedAt: observedAt,
+                actualBalance: actualBalance,
+                reason: reason,
+                inputMode: inputMode,
+                denominationDetail: denominationDetail,
+                idempotencyKey: idempotencyKey,
+              )
+            : ref.read(recordAccountBalanceObservationProvider)(
+                accountId: account.id,
+                observedAt: observedAt,
+                actualBalance: actualBalance,
+                reason: reason,
+              ),
       ),
     );
     if (saved == true && context.mounted) {
@@ -1129,6 +1148,9 @@ class _RecordAccountBalanceDialog extends StatefulWidget {
     required DateTime observedAt,
     required Money actualBalance,
     required String reason,
+    required CashCountInputMode inputMode,
+    required List<Map<String, Object?>> denominationDetail,
+    required String idempotencyKey,
   })
   onRecord;
 
@@ -1145,6 +1167,9 @@ class _RecordAccountBalanceDialogState
   var _observedAt = DateTime.now();
   var _submitting = false;
   String? _error;
+  var _inputMode = CashCountInputMode.direct;
+  late final Map<int, TextEditingController> _quantities;
+  late final String _idempotencyKey;
 
   @override
   void initState() {
@@ -1154,6 +1179,16 @@ class _RecordAccountBalanceDialogState
           ? ''
           : widget.theoreticalBalance.dirhams.toStringAsFixed(2),
     )..addListener(_refreshDifference);
+    _quantities = {
+      for (final item in cashDenominationsByCurrency['MAD']!)
+        item.valueMinor: TextEditingController()..addListener(_refreshCount),
+    };
+    _idempotencyKey = _newCashInventoryIdempotencyKey();
+  }
+
+  void _refreshCount() {
+    if (_inputMode != CashCountInputMode.denominations) return;
+    _actualBalance.text = _cashCountsTotal.dirhams.toStringAsFixed(2);
   }
 
   void _refreshDifference() => setState(() {});
@@ -1163,6 +1198,10 @@ class _RecordAccountBalanceDialogState
     _actualBalance.removeListener(_refreshDifference);
     _actualBalance.dispose();
     _reason.dispose();
+    for (final controller in _quantities.values) {
+      controller.removeListener(_refreshCount);
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -1203,6 +1242,9 @@ class _RecordAccountBalanceDialogState
         observedAt: _observedAt,
         actualBalance: Money.fromMinorUnits(cents),
         reason: _reason.text.trim(),
+        inputMode: _inputMode,
+        denominationDetail: cashCountPayload(_cashCounts),
+        idempotencyKey: _idempotencyKey,
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
@@ -1232,9 +1274,84 @@ class _RecordAccountBalanceDialogState
                 'Solde théorique GL : ${_frenchMoney(widget.theoreticalBalance)}',
               ),
               const SizedBox(height: AppSpacing.sm),
+              if (widget.account.type == FinancialAccountType.cash) ...[
+                SegmentedButton<CashCountInputMode>(
+                  key: const Key('cash-inventory-mode'),
+                  segments: const [
+                    ButtonSegment(
+                      value: CashCountInputMode.direct,
+                      label: Text('Montant direct'),
+                    ),
+                    ButtonSegment(
+                      value: CashCountInputMode.denominations,
+                      label: Text('Compter les coupures'),
+                    ),
+                  ],
+                  selected: {_inputMode},
+                  onSelectionChanged: _submitting
+                      ? null
+                      : (selection) => setState(() {
+                          _inputMode = selection.single;
+                          if (_inputMode == CashCountInputMode.denominations) {
+                            _refreshCount();
+                          }
+                        }),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              if (_inputMode == CashCountInputMode.denominations) ...[
+                for (final item in cashDenominationsByCurrency['MAD']!)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${item.kind == CashDenominationKind.banknote ? 'Billet' : 'Pièce'} ${item.label}',
+                          ),
+                        ),
+                        SizedBox(
+                          width: 100,
+                          child: TextFormField(
+                            key: Key('cash-denomination-${item.valueMinor}'),
+                            controller: _quantities[item.valueMinor],
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Quantité',
+                            ),
+                            validator: (value) {
+                              if ((value ?? '').trim().isEmpty) return null;
+                              final quantity = int.tryParse(value!.trim());
+                              return quantity == null || quantity < 0
+                                  ? 'Entier ≥ 0'
+                                  : null;
+                            },
+                          ),
+                        ),
+                        SizedBox(
+                          width: 110,
+                          child: Text(
+                            _frenchMoney(
+                              Money.fromMinorUnits(
+                                item.valueMinor *
+                                    (_quantity(item.valueMinor) ?? 0),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Text(
+                  'Total des coupures : ${_frenchMoney(_cashCountsTotal)}',
+                  key: const Key('cash-denomination-total'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               TextFormField(
                 key: const Key('actual-account-balance-field'),
                 controller: _actualBalance,
+                readOnly: _inputMode == CashCountInputMode.denominations,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                   signed: true,
@@ -1324,6 +1441,22 @@ class _RecordAccountBalanceDialogState
     final cents = _madToCents(_actualBalance.text.trim());
     return cents != null && cents != widget.theoreticalBalance.minorUnits;
   }
+
+  int? _quantity(int valueMinor) {
+    final value = _quantities[valueMinor]?.text.trim() ?? '';
+    return value.isEmpty ? 0 : int.tryParse(value);
+  }
+
+  List<CashDenominationCount> get _cashCounts => [
+    for (final item in cashDenominationsByCurrency['MAD']!)
+      if ((_quantity(item.valueMinor) ?? -1) >= 0)
+        CashDenominationCount(
+          denomination: item,
+          quantity: _quantity(item.valueMinor)!,
+        ),
+  ];
+
+  Money get _cashCountsTotal => totalCashCount(_cashCounts);
 }
 
 String _frenchMoney(Money amount) =>
@@ -1331,6 +1464,18 @@ String _frenchMoney(Money amount) =>
 
 String _formatObservationDate(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year} • ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+String _newCashInventoryIdempotencyKey() {
+  final random = Random.secure();
+  final values = List<int>.generate(16, (_) => random.nextInt(256));
+  values[6] = (values[6] & 0x0f) | 0x40;
+  values[8] = (values[8] & 0x3f) | 0x80;
+  String group(int start, int end) => values
+      .sublist(start, end)
+      .map((value) => value.toRadixString(16).padLeft(2, '0'))
+      .join();
+  return '${group(0, 4)}-${group(4, 6)}-${group(6, 8)}-${group(8, 10)}-${group(10, 16)}';
+}
 
 String _accountHistoryLabel(Object type) => switch (type.toString()) {
   'LedgerTransactionType.expense' => 'Dépense',

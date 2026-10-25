@@ -1,5 +1,11 @@
 # Progression UI/UX
 
+## L2.7
+
+- Le parcours Compte espèces conserve la saisie simple du montant observé et propose, sans l'imposer, « Compter les coupures ».
+- Billets et pièces sont saisis par quantité avec sous-total et total dynamique exact; le montant observé devient la somme contrôlée.
+- L'observation reste explicitement distincte d'une régularisation : aucune écriture financière n'est produite, et l'historique conserve auteur, mode et détail du comptage.
+
 ## R2.7
 
 - Le paramétrage centralisé distingue désormais une recommandation mono-compte, une règle multi-comptes, une règle selon bénéficiaire et l'enveloppe système.
