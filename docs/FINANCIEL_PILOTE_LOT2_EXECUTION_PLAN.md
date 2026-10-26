@@ -224,6 +224,14 @@ dans le passé. Aucune migration ni écriture financière n'est introduite.
 - **Sortie** : reconstruction certifiée et documentée, sans perte ni élargissement de droits.
 - **Taille/risque** : L; risque critique de perte ou restauration trop permissive.
 
+**État d'exécution — 25 octobre 2026 : A / READY.** Le format canonique v1,
+son manifeste et ses empreintes, le remappage complet source→cible, l'ordre de
+dépendances, les contrôles GL/obligations, le rollback et l'idempotence sont
+livrés dans `canonical_household_archive.dart`. Une reconstruction réelle est
+exécutée dans une cible mémoire isolée par les tests 1/2/N. L'export utilisateur
+F7 est explicitement non restaurable et ne peut pas être accepté par erreur.
+Voir `FINANCIEL_PILOTE_L2_8_CANONICAL_RESTORATION.md`.
+
 ## 8. Graphe, ordre et parallélisation
 
 Ordre strict recommandé :

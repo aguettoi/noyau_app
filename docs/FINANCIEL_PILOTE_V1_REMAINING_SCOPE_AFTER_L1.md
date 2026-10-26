@@ -456,3 +456,13 @@ détaillée.
   calcul différentiel révélant une donnée privée ;
 - toutes les simulations sont locales/read-only et créent zéro écriture
   financière ou obligation.
+
+## Mise à jour L2.8 — 2026-10-25
+
+`R4-09` passe de C à **A — terminé et validé**. L'archive canonique version 1
+est distincte de l'export utilisateur filtré, remappe toutes les identités vers
+une cible isolée, valide les références, le GL et les obligations, et garantit
+atomicité et idempotence. La reconstruction fonctionnelle a été réellement
+exécutée en mémoire isolée pour 1/2/N membres sans écriture sur C3. La
+reconstruction physique Supabase, Auth, Storage et le cutover Sheet restent
+hors du périmètre R4-09.

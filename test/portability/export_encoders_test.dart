@@ -45,7 +45,20 @@ void main() {
     final archive = ZipDecoder().decodeBytes(zip);
     expect(
       archive.files.map((f) => f.name),
-      containsAll(['README.txt', 'transactions.csv', 'accounts.json']),
+      containsAll([
+        'README.txt',
+        'manifest.json',
+        'transactions.csv',
+        'accounts.json',
+      ]),
     );
+    final manifest =
+        jsonDecode(
+              utf8.decode(
+                archive.findFile('manifest.json')!.content as List<int>,
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(manifest['restore_eligible'], isFalse);
   });
 }

@@ -293,6 +293,15 @@ List<int> encodeHouseholdArchive(
   Map<String, List<Map<String, Object?>>> data,
   List<int> transactionsCsv,
 ) {
+  final manifest = utf8.encode(
+    const JsonEncoder.withIndent('  ').convert({
+      'format': 'financiel-pilote-user-export',
+      'version': 1,
+      'restore_eligible': false,
+      'reason':
+          'Export filtre selon les droits courants; ce fichier ne constitue pas une sauvegarde canonique restaurable.',
+    }),
+  );
   final archive = Archive()
     ..addFile(
       ArchiveFile.string(
@@ -302,7 +311,8 @@ List<int> encodeHouseholdArchive(
     )
     ..addFile(
       ArchiveFile('transactions.csv', transactionsCsv.length, transactionsCsv),
-    );
+    )
+    ..addFile(ArchiveFile('manifest.json', manifest.length, manifest));
   for (final entry in data.entries) {
     final bytes = utf8.encode(
       const JsonEncoder.withIndent('  ').convert(entry.value),
