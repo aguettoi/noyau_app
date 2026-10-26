@@ -135,3 +135,11 @@ Addendum L1 final : les trois RPC cutover sont opérateur-only et reclassées D 
 # Mise à jour L2.6 — restitutions métier
 
 L2.6 reclassifie `R4-02`, `R4-03`, `R4-04` et `EXP-X1` en **A — terminé + validé**. La preuve canonique est `docs/FINANCIEL_PILOTE_L2_6_RESTITUTIONS.md`; elle prévaut sur leurs lignes historiques B/C ci-dessous sans réécrire leur trace antérieure.
+
+## Mise à jour L3A — KPI et régularisation opérationnelle
+
+Le master V1 étendu compte 175 fonctions. Les cinq IDs `KPI-X1`, `KPI-X2`,
+`R2-X1`, `DSH-X1` et `EXP-X3` passent en **A** après validation globale L3A.
+Les contrats empêchent toute attribution depuis l'acteur technique, conservent
+les espèces non attribuées, distinguent action physique et mouvement
+d'enveloppe, et réutilisent F5 pour l'amortissement.

@@ -338,3 +338,11 @@ Pour la couverture fonctionnelle, les lignes métier hors gates P1/D1.2/cutover 
 # Addendum L2.6
 
 Depuis L2.6, `R4-02`, `R4-03`, `R4-04` et `EXP-X1` sont classés **A — terminé + validé**. Les preuves sont documentées dans `docs/FINANCIEL_PILOTE_L2_6_RESTITUTIONS.md`. Les lignes B/C historiques de la matrice restent volontairement inchangées pour préserver l'état observé au moment de l'audit.
+
+## Addendum L3A
+
+Le master étendu post-Lot 2 contient 175 fonctions. `KPI-X1`, `KPI-X2`,
+`R2-X1`, `DSH-X1` et `EXP-X3` sont couverts par L3A. `EXP-X3` consacre
+l'export d'amortissement déjà présent depuis L2.6 ; les autres IDs composent
+les moteurs existants sans écriture financière ni nouveau schéma. Preuve :
+`docs/FINANCIEL_PILOTE_L3A_KPI_REGULARISATION.md`.

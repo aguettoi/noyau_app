@@ -466,3 +466,11 @@ atomicité et idempotence. La reconstruction fonctionnelle a été réellement
 exécutée en mémoire isolée pour 1/2/N membres sans écriture sur C3. La
 reconstruction physique Supabase, Auth, Storage et le cutover Sheet restent
 hors du périmètre R4-09.
+
+## Mise à jour L3A — 2026-10-26
+
+Le référentiel étendu post-Lot 2 contient 175 fonctions. `KPI-X1`, `KPI-X2`,
+`R2-X1`, `DSH-X1` et `EXP-X3` sont livrés par une composition read-only des
+sources canoniques. Le détail avant/après/preuve est documenté dans
+`FINANCIEL_PILOTE_L3A_KPI_REGULARISATION.md`. La certification humaine L1
+reste volontairement différée après P1 et n'a pas été relancée.

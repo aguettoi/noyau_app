@@ -214,6 +214,19 @@ class _CurrentTargetPanel extends ConsumerWidget {
                   ),
               ];
               final simulation = simulateGlobalTransfers(rows);
+              final memberSummary = summarizeRegularizationByMember(
+                simulation,
+                [
+                  for (final item in accounts)
+                    RegularizationAccountContext(
+                      accountId: item.id,
+                      cash: item.type == FinancialAccountType.cash,
+                      holderIds: [
+                        for (final holder in item.holders) holder.userId,
+                      ],
+                    ),
+                ],
+              );
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -251,6 +264,40 @@ class _CurrentTargetPanel extends ConsumerWidget {
                     '${simulation.physicalTransfers.length} action(s) physique(s)',
                     key: const Key('reallocation-count'),
                   ),
+                  if (memberSummary.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Synthèse par membre',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    for (final summary in memberSummary)
+                      ListTile(
+                        key: Key(
+                          'regularization-member-${summary.memberId ?? 'household'}',
+                        ),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          summary.memberId == null
+                              ? 'Foyer / compte partagé'
+                              : members
+                                        .where(
+                                          (member) =>
+                                              member.id == summary.memberId,
+                                        )
+                                        .map((member) => member.displayName)
+                                        .firstOrNull ??
+                                    'Membre du foyer',
+                        ),
+                        subtitle: Text(
+                          'À virer ${summary.toTransfer.dirhams.toStringAsFixed(2)} • '
+                          'à recevoir ${summary.toReceive.dirhams.toStringAsFixed(2)} • '
+                          'retrait espèces ${summary.cashToWithdraw.dirhams.toStringAsFixed(2)} • '
+                          'dépôt espèces ${summary.cashToDeposit.dirhams.toStringAsFixed(2)} MAD',
+                        ),
+                        trailing: Text('${summary.actionCount} action(s)'),
+                      ),
+                  ],
                   Text(
                     'Besoins bruts : ${simulation.grossAmount.dirhams.toStringAsFixed(2)} MAD • à déplacer après netting : ${simulation.netAmount.dirhams.toStringAsFixed(2)} MAD',
                   ),

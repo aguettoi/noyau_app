@@ -560,6 +560,81 @@ class GlobalTransferSimulation {
       analyticalMoves.length - physicalTransfers.length;
 }
 
+class RegularizationAccountContext {
+  const RegularizationAccountContext({
+    required this.accountId,
+    required this.cash,
+    required this.holderIds,
+  });
+  final String accountId;
+  final bool cash;
+  final List<String> holderIds;
+
+  /// A shared/household account is deliberately not attributed to one member.
+  String? get soleHolderId => holderIds.length == 1 ? holderIds.single : null;
+}
+
+class MemberRegularizationSummary {
+  const MemberRegularizationSummary({
+    required this.memberId,
+    required this.toTransfer,
+    required this.toReceive,
+    required this.cashToWithdraw,
+    required this.cashToDeposit,
+    required this.actionCount,
+  });
+  final String? memberId;
+  final Money toTransfer, toReceive, cashToWithdraw, cashToDeposit;
+  final int actionCount;
+}
+
+/// Summarizes the already-netted physical plan by explicitly declared account
+/// holders. It never uses the current user or transaction actor as an economic
+/// owner. Shared/household accounts remain under the neutral household scope.
+List<MemberRegularizationSummary> summarizeRegularizationByMember(
+  GlobalTransferSimulation simulation,
+  Iterable<RegularizationAccountContext> contexts,
+) {
+  final byAccount = {for (final item in contexts) item.accountId: item};
+  final values = <String?, List<int>>{};
+  List<int> row(String? memberId) =>
+      values.putIfAbsent(memberId, () => [0, 0, 0, 0, 0]);
+  for (final action in simulation.physicalTransfers) {
+    final source = byAccount[action.fromAccountId];
+    final destination = byAccount[action.toAccountId];
+    final sourceMember = source?.soleHolderId;
+    final destinationMember = destination?.soleHolderId;
+    if (source?.cash == true && destination?.cash != true) {
+      final target = row(destinationMember);
+      target[3] += action.amount.minorUnits;
+      target[4]++;
+    } else if (source?.cash != true && destination?.cash == true) {
+      final target = row(sourceMember);
+      target[2] += action.amount.minorUnits;
+      target[4]++;
+    } else {
+      final outgoing = row(sourceMember);
+      outgoing[0] += action.amount.minorUnits;
+      outgoing[4]++;
+      final incoming = row(destinationMember);
+      incoming[1] += action.amount.minorUnits;
+      if (destinationMember != sourceMember) incoming[4]++;
+    }
+  }
+  return List.unmodifiable(
+    values.entries.map(
+      (entry) => MemberRegularizationSummary(
+        memberId: entry.key,
+        toTransfer: Money.fromMinorUnits(entry.value[0]),
+        toReceive: Money.fromMinorUnits(entry.value[1]),
+        cashToWithdraw: Money.fromMinorUnits(entry.value[2]),
+        cashToDeposit: Money.fromMinorUnits(entry.value[3]),
+        actionCount: entry.value[4],
+      ),
+    ),
+  );
+}
+
 class MonthlyCloseSnapshot {
   const MonthlyCloseSnapshot({
     required this.month,

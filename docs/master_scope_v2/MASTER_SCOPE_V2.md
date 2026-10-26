@@ -185,3 +185,11 @@ Mise à jour finale : les trois RPC cutover sont maintenant opérateur-only ; re
 # Mise à jour L2.6 — restitutions métier
 
 `R4-02`, `R4-03`, `R4-04` et `EXP-X1` sont **TERMINÉS / V1** depuis L2.6. Implémentation : read-model autorisé partagé et formateurs XLSX/PDF/PPTX dans `lib/features/portability`; preuves : `test/portability/restitution_exports_test.dart`. Les anciennes mentions « à étendre/absente » sont conservées plus bas comme historique antérieur à L2.6.
+
+## Mise à jour L3A
+
+Le master étendu compte 175 fonctions. `KPI-X1`, `KPI-X2`, `R2-X1`,
+`DSH-X1` et `EXP-X3` sont couverts par les lectures canoniques, le Dashboard,
+la clôture R2 et F5. Les KPI sont descriptifs, jamais compétitifs ; l'acteur
+technique n'est pas une responsabilité économique. La simulation ne crée
+aucune écriture. Voir `../FINANCIEL_PILOTE_L3A_KPI_REGULARISATION.md`.

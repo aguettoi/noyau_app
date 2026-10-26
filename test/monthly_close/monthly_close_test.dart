@@ -210,6 +210,83 @@ void main() {
     );
   });
 
+  test('physical plan is summarized by member, account and cash direction', () {
+    const simulation = GlobalTransferSimulation(
+      analyticalMoves: [],
+      physicalTransfers: [
+        PhysicalTransferAction(
+          fromAccountId: 'bank-a',
+          toAccountId: 'cash',
+          amount: Money.fromMinorUnits(10000),
+          justifications: [],
+        ),
+        PhysicalTransferAction(
+          fromAccountId: 'cash',
+          toAccountId: 'bank-b',
+          amount: Money.fromMinorUnits(5000),
+          justifications: [],
+        ),
+        PhysicalTransferAction(
+          fromAccountId: 'bank-a',
+          toAccountId: 'bank-b',
+          amount: Money.fromMinorUnits(2000),
+          justifications: [],
+        ),
+      ],
+    );
+    final result = summarizeRegularizationByMember(simulation, const [
+      RegularizationAccountContext(
+        accountId: 'bank-a',
+        cash: false,
+        holderIds: ['member-a'],
+      ),
+      RegularizationAccountContext(
+        accountId: 'bank-b',
+        cash: false,
+        holderIds: ['member-b'],
+      ),
+      RegularizationAccountContext(
+        accountId: 'cash',
+        cash: true,
+        holderIds: [],
+      ),
+    ]);
+    final a = result.singleWhere((item) => item.memberId == 'member-a');
+    final b = result.singleWhere((item) => item.memberId == 'member-b');
+    expect(a.cashToWithdraw, Money.fromDirhams(100));
+    expect(a.toTransfer, Money.fromDirhams(20));
+    expect(b.cashToDeposit, Money.fromDirhams(50));
+    expect(b.toReceive, Money.fromDirhams(20));
+  });
+
+  test('shared account is never attributed to an arbitrary member', () {
+    const simulation = GlobalTransferSimulation(
+      analyticalMoves: [],
+      physicalTransfers: [
+        PhysicalTransferAction(
+          fromAccountId: 'shared',
+          toAccountId: 'single',
+          amount: Money.fromMinorUnits(100),
+          justifications: [],
+        ),
+      ],
+    );
+    final result = summarizeRegularizationByMember(simulation, const [
+      RegularizationAccountContext(
+        accountId: 'shared',
+        cash: false,
+        holderIds: ['one', 'two', 'three'],
+      ),
+      RegularizationAccountContext(
+        accountId: 'single',
+        cash: false,
+        holderIds: ['one'],
+      ),
+    ]);
+    expect(result.any((item) => item.memberId == null), isTrue);
+    expect(result.any((item) => item.memberId == 'two'), isFalse);
+  });
+
   test('incomplete historical matrix is represented, never invented', () {
     const matrix = EnvelopeAccountMatrix(
       positions: [],

@@ -15,6 +15,7 @@ import 'dashboard_v2_panels.dart';
 import '../../organization/application/organization_provider.dart';
 import '../../organization/presentation/organization_page.dart';
 import '../../monthly_close/presentation/monthly_close_page.dart';
+import '../../operational_kpis/presentation/operational_kpi_panel.dart';
 
 class FinancialDashboardPage extends ConsumerWidget {
   const FinancialDashboardPage({super.key});
@@ -86,6 +87,8 @@ class FinancialDashboardPage extends ConsumerWidget {
                   snapshot: snapshot,
                   open: (destination) => _openDestination(context, destination),
                 ),
+                const SizedBox(height: 12),
+                const OperationalKpiPanel(),
               ],
             );
           },
