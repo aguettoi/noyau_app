@@ -143,3 +143,11 @@ Le master V1 étendu compte 175 fonctions. Les cinq IDs `KPI-X1`, `KPI-X2`,
 Les contrats empêchent toute attribution depuis l'acteur technique, conservent
 les espèces non attribuées, distinguent action physique et mouvement
 d'enveloppe, et réutilisent F5 pour l'amortissement.
+
+## Mise à jour L3B — Organisation quotidienne et données privées
+
+Après livraison L3B, `ORG-06`, `ORG-07`, `ORG-08`, `R6-01`, `ORG-X1`,
+`ORG-X2`, `ORG-X3`, `HID-02`, `R6-02` et `CYC-X1` passent en **A**. Le cycle
+est privé par défaut; son calendrier ne devient visible qu’après partage ciblé
+et révocable, sans notes, symptômes ni flux. Voir
+`FINANCIEL_PILOTE_L3B_ORGANISATION_QUOTIDIENNE.md`.

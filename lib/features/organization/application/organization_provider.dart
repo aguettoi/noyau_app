@@ -16,6 +16,8 @@ import '../../wealth/application/providers/home_auto_provider.dart';
 import '../../cashflow_projection/application/cashflow_projection_provider.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../domain/organization_models.dart';
+import '../domain/reminder_snooze_policy.dart';
+import 'daily_life_provider.dart';
 
 abstract interface class OrganizationGateway {
   Future<List<HouseholdTask>> fetchTasks(String householdId);
@@ -42,6 +44,12 @@ abstract interface class OrganizationGateway {
     String action,
     DateTime? until,
     String idempotencyKey,
+  );
+  Future<void> actOnDailyReminder(
+    String householdId,
+    String key,
+    String action,
+    DateTime? until,
   );
   Future<List<ReminderRule>> fetchReminderRules(String householdId);
   Future<void> saveReminderRule(
@@ -173,6 +181,22 @@ class SupabaseOrganizationGateway implements OrganizationGateway {
   );
 
   @override
+  Future<void> actOnDailyReminder(
+    String householdId,
+    String key,
+    String action,
+    DateTime? until,
+  ) => client.rpc(
+    'act_on_daily_entry_reminder',
+    params: {
+      'p_household_id': householdId,
+      'p_alert_key': key,
+      'p_action': action,
+      'p_snoozed_until': until?.toUtc().toIso8601String(),
+    },
+  );
+
+  @override
   Future<List<ReminderRule>> fetchReminderRules(String householdId) async {
     final rows = await client
         .from('reminder_rules')
@@ -256,6 +280,7 @@ class SupabaseOrganizationGateway implements OrganizationGateway {
 final organizationGatewayProvider = Provider<OrganizationGateway>(
   (ref) => SupabaseOrganizationGateway(ref.watch(supabaseClientProvider)),
 );
+final organizationClockProvider = Provider<DateTime>((ref) => DateTime.now());
 final householdTasksProvider = FutureProvider<List<HouseholdTask>>((ref) async {
   final household = await ref.watch(activeHouseholdProvider.future);
   if (household.householdId == null) throw StateError('Aucun foyer actif.');
@@ -273,6 +298,7 @@ final organizationCalendarProvider = FutureProvider<List<CalendarEntry>>((
   final debts = await ref.watch(remoteDebtBalancesProvider.future);
   final goals = await ref.watch(savingsGoalsProvider.future);
   final shopping = await ref.watch(shoppingItemsProvider.future);
+  final homeRecords = await ref.watch(homeRecordsProvider.future);
   final entries = <CalendarEntry>[
     for (final task in tasks)
       if (task.dueDate != null)
@@ -332,6 +358,7 @@ final organizationCalendarProvider = FutureProvider<List<CalendarEntry>>((
           source: CalendarSource.shopping,
           sourceId: item.item.id,
         ),
+    ...homeRecordCalendarEntries(homeRecords),
   ]..sort((a, b) => a.date.compareTo(b.date));
   return List.unmodifiable(entries);
 });
@@ -392,7 +419,27 @@ final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
   }
   final preferences = await ref.watch(notificationPreferencesProvider.future);
   final now = DateTime.now();
+  var timezone = 'Africa/Casablanca';
+  try {
+    timezone = await ref.watch(userTimezoneProvider.future);
+  } catch (_) {
+    // The product default remains safe while the profile read is unavailable;
+    // the server still validates every persisted reminder timestamp.
+  }
+  final dailyNow = ref.watch(organizationClockProvider);
+  final localNow = ReminderSnoozePolicy.localNow(timezone, dailyNow.toUtc());
+  final dailyKey =
+      'daily-entry:${localNow.year.toString().padLeft(4, '0')}-${localNow.month.toString().padLeft(2, '0')}-${localNow.day.toString().padLeft(2, '0')}';
   final alerts = <AppAlert>[
+    if (localNow.hour >= 20)
+      AppAlert(
+        key: dailyKey,
+        title: 'Saisie quotidienne',
+        detail: 'Avez-vous terminé vos saisies du jour ?',
+        category: 'reminders',
+        read: states[dailyKey]?.readAt != null,
+        actionType: 'daily_entry',
+      ),
     for (final task in tasks.where((task) => task.isOverdue(DateTime.now())))
       AppAlert(
         key: 'task-overdue:${task.id}',
@@ -584,6 +631,7 @@ abstract interface class OrganizationActionsApi {
   Future<void> markRead(String key);
   Future<void> snooze(String key, DateTime until, {bool notYet = false});
   Future<void> dismiss(String key);
+  Future<void> finishDailyReminder(String key);
   Future<void> saveRule(ReminderRule rule);
   Future<void> setPreference(String category, bool enabled);
 }
@@ -632,15 +680,31 @@ class OrganizationActions implements OrganizationActionsApi {
     final h = await ref.read(activeHouseholdProvider.future);
     final u = ref.read(currentUserIdProvider);
     if (h.householdId == null || u == null) return;
+    if (key.startsWith('daily-entry:')) {
+      await ref
+          .read(organizationGatewayProvider)
+          .actOnDailyReminder(h.householdId!, key, 'not_yet', until);
+    } else {
+      await ref
+          .read(organizationGatewayProvider)
+          .actOnReminder(
+            h.householdId!,
+            key,
+            notYet ? 'not_yet' : 'snoozed',
+            until,
+            _uuid(),
+          );
+    }
+    ref.invalidate(organizationAlertsProvider);
+  }
+
+  @override
+  Future<void> finishDailyReminder(String key) async {
+    final h = await ref.read(activeHouseholdProvider.future);
+    if (h.householdId == null) return;
     await ref
         .read(organizationGatewayProvider)
-        .actOnReminder(
-          h.householdId!,
-          key,
-          notYet ? 'not_yet' : 'snoozed',
-          until,
-          _uuid(),
-        );
+        .actOnDailyReminder(h.householdId!, key, 'done', null);
     ref.invalidate(organizationAlertsProvider);
   }
 
@@ -742,4 +806,7 @@ HouseholdTask _task(Map<String, Object?> row) => HouseholdTask(
   createdAt: DateTime.parse(row['created_at'] as String),
   sourceModule: row['source_module'] as String?,
   sourceId: row['source_id'] as String?,
+  room: row['room'] as String?,
+  estimatedMinutes: row['estimated_minutes'] as int?,
+  workload: row['workload'] as String?,
 );

@@ -12,6 +12,7 @@ import '../application/organization_provider.dart';
 import '../domain/organization_models.dart';
 import '../domain/reminder_snooze_policy.dart';
 import 'calendar_source_navigator.dart';
+import 'daily_life_page.dart';
 
 class OrganizationPage extends ConsumerWidget {
   const OrganizationPage({super.key});
@@ -94,6 +95,10 @@ Future<void> _showPreferences(BuildContext context, WidgetRef ref) async {
                       'compensations': 'Compensations',
                       'goals': 'Objectifs',
                       'home_auto': 'Logement / auto',
+                      'reminders': 'Rappels',
+                      'groceries': 'Courses domestiques',
+                      'home': 'Maison',
+                      'cycle': 'Cycle personnel',
                     }.entries)
                       SwitchListTile(
                         title: Text(category.value),
@@ -134,7 +139,7 @@ class _TasksTab extends ConsumerWidget {
             const Center(child: Text('Impossible de charger les tâches.')),
         data: (tasks) => ListView.builder(
           padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: tasks.length + 3,
+          itemCount: tasks.length + 4,
           itemBuilder: (_, index) {
             if (index == 0) {
               return Card(
@@ -178,7 +183,25 @@ class _TasksTab extends ConsumerWidget {
                 ),
               );
             }
-            final task = tasks[index - 3];
+            if (index == 3) {
+              return Card(
+                child: ListTile(
+                  key: const Key('open-daily-life'),
+                  leading: const Icon(Icons.home_outlined),
+                  title: const Text('Vie quotidienne'),
+                  subtitle: const Text(
+                    'Courses, maison, cycle privé et catégories.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const DailyLifePage(),
+                    ),
+                  ),
+                ),
+              );
+            }
+            final task = tasks[index - 4];
             return Card(
               child: ListTile(
                 key: Key('household-task-${task.id}'),
@@ -194,6 +217,10 @@ class _TasksTab extends ConsumerWidget {
                       DateFormat.yMMMd('fr').format(task.dueDate!),
                     if (task.recurrence != TaskRecurrence.none)
                       'Récurrence : ${task.recurrence.name}',
+                    if (task.room != null) 'Pièce : ${task.room}',
+                    if (task.estimatedMinutes != null)
+                      '${task.estimatedMinutes} min',
+                    if (task.workload != null) 'Charge : ${task.workload}',
                   ].join(' • '),
                 ),
                 trailing: task.isActive
@@ -642,6 +669,11 @@ class _AlertsTab extends ConsumerWidget {
                         onSelected: (value) =>
                             _actOnAlert(context, ref, alert, value),
                         itemBuilder: (_) => [
+                          if (alert.actionType == 'daily_entry')
+                            const PopupMenuItem(
+                              value: 'done',
+                              child: Text('Fait'),
+                            ),
                           if (!alert.read)
                             const PopupMenuItem(
                               value: 'read',
@@ -715,6 +747,9 @@ Future<void> _showTaskDialog(BuildContext context, WidgetRef ref) async {
   String? assignee;
   var recurrence = TaskRecurrence.none;
   var priority = HouseholdTaskPriority.normal;
+  final room = TextEditingController();
+  final duration = TextEditingController();
+  var workload = 'normal';
   final members = await ref.read(remoteHouseholdMembersProvider.future);
   if (!context.mounted) return;
   final save = await showDialog<bool>(
@@ -731,6 +766,29 @@ Future<void> _showTaskDialog(BuildContext context, WidgetRef ref) async {
                 TextField(
                   controller: title,
                   decoration: const InputDecoration(labelText: 'Titre'),
+                ),
+                TextField(
+                  controller: room,
+                  decoration: const InputDecoration(
+                    labelText: 'Pièce (facultatif)',
+                  ),
+                ),
+                TextField(
+                  controller: duration,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Durée estimée en minutes',
+                  ),
+                ),
+                DropdownButtonFormField(
+                  initialValue: workload,
+                  decoration: const InputDecoration(labelText: 'Charge'),
+                  items: const [
+                    DropdownMenuItem(value: 'light', child: Text('Légère')),
+                    DropdownMenuItem(value: 'normal', child: Text('Normale')),
+                    DropdownMenuItem(value: 'heavy', child: Text('Importante')),
+                  ],
+                  onChanged: (v) => setState(() => workload = v!),
                 ),
                 DropdownButtonFormField<String?>(
                   initialValue: assignee,
@@ -810,7 +868,12 @@ Future<void> _showTaskDialog(BuildContext context, WidgetRef ref) async {
     'priority': priority.name,
     'recurrence': recurrence.name,
     'idempotency_key': _uuid(),
+    'room': room.text.trim().isEmpty ? null : room.text.trim(),
+    'estimated_minutes': int.tryParse(duration.text.trim()),
+    'workload': workload,
   });
+  room.dispose();
+  duration.dispose();
 }
 
 String _sourceLabel(CalendarSource source) => switch (source) {
@@ -837,6 +900,10 @@ Future<void> _actOnAlert(
 ) async {
   final actions = ref.read(organizationActionsProvider);
   try {
+    if (action == 'done' && alert.actionType == 'daily_entry') {
+      await actions.finishDailyReminder(alert.key);
+      return;
+    }
     if (action == 'read') {
       await actions.markRead(alert.key);
       return;

@@ -29,6 +29,7 @@ void main() {
         cashflowProjectionProvider.overrideWith((ref) async => _Projection()),
         notificationPreferencesProvider.overrideWith((ref) async => {}),
         organizationGatewayProvider.overrideWithValue(gateway),
+        organizationClockProvider.overrideWithValue(DateTime(2026, 10, 26, 12)),
       ],
     );
     var a = open('a');

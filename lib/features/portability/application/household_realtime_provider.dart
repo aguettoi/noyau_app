@@ -16,6 +16,7 @@ import '../../savings_goals/application/providers/remote_savings_goals_provider.
 import '../../shopping_list/application/providers/remote_shopping_list_provider.dart';
 import '../../priorities/application/providers/remote_priority_plans_provider.dart';
 import '../../organization/application/organization_provider.dart';
+import '../../organization/application/daily_life_provider.dart';
 import '../../wealth/application/providers/wealth_provider.dart';
 import '../../monthly_close/application/monthly_close_provider.dart';
 import '../../recurring_finance/application/recurring_finance_provider.dart';
@@ -100,6 +101,13 @@ void _invalidateTable(Ref ref, String table) {
       ref.invalidate(householdTasksProvider);
       ref.invalidate(organizationCalendarProvider);
       ref.invalidate(organizationAlertsProvider);
+      break;
+    case 'household_grocery_items':
+      ref.invalidate(groceryItemsProvider);
+      break;
+    case 'household_home_records':
+      ref.invalidate(homeRecordsProvider);
+      ref.invalidate(organizationCalendarProvider);
       break;
     case 'wealth_assets':
       ref.invalidate(wealthDataProvider);

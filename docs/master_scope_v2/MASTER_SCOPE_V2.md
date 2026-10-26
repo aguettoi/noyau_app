@@ -193,3 +193,11 @@ Le master étendu compte 175 fonctions. `KPI-X1`, `KPI-X2`, `R2-X1`,
 la clôture R2 et F5. Les KPI sont descriptifs, jamais compétitifs ; l'acteur
 technique n'est pas une responsabilité économique. La simulation ne crée
 aucune écriture. Voir `../FINANCIEL_PILOTE_L3A_KPI_REGULARISATION.md`.
+
+## Mise à jour L3B
+
+Les dix références `ORG-06`, `ORG-07`, `ORG-08`, `R6-01`, `ORG-X1`,
+`ORG-X2`, `ORG-X3`, `HID-02`, `R6-02` et `CYC-X1` sont désormais couvertes.
+La livraison réutilise F6/R3.3/L1, sépare les courses domestiques du Shopping
+financier et protège le cycle côté serveur. Voir
+`../FINANCIEL_PILOTE_L3B_ORGANISATION_QUOTIDIENNE.md`.

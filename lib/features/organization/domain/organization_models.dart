@@ -19,6 +19,9 @@ class HouseholdTask {
     this.dueDate,
     this.sourceModule,
     this.sourceId,
+    this.room,
+    this.estimatedMinutes,
+    this.workload,
   });
   final String id;
   final String householdId;
@@ -33,6 +36,9 @@ class HouseholdTask {
   final DateTime createdAt;
   final String? sourceModule;
   final String? sourceId;
+  final String? room;
+  final int? estimatedMinutes;
+  final String? workload;
 
   bool get isActive =>
       status == HouseholdTaskStatus.todo ||

@@ -52,8 +52,10 @@ class ReminderSnoozePolicy {
         }
         break;
       case ReminderSnoozeChoice.tomorrow:
-      case ReminderSnoozeChoice.notYet:
         target = tz.TZDateTime(location, now.year, now.month, now.day + 1, 20);
+        break;
+      case ReminderSnoozeChoice.notYet:
+        target = now.add(const Duration(minutes: 15));
         break;
       case ReminderSnoozeChoice.threeDays:
         target = tz.TZDateTime(location, now.year, now.month, now.day + 3, 20);
