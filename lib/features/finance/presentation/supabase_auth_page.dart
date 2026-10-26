@@ -7,7 +7,14 @@ import '../../../core/theme/app_design_system.dart';
 import '../application/providers/supabase_client_provider.dart';
 
 class SupabaseAuthPage extends ConsumerStatefulWidget {
-  const SupabaseAuthPage({super.key});
+  const SupabaseAuthPage({
+    super.key,
+    this.createAccount = false,
+    this.invitationIntent = false,
+  });
+
+  final bool createAccount;
+  final bool invitationIntent;
 
   @override
   ConsumerState<SupabaseAuthPage> createState() => _SupabaseAuthPageState();
@@ -21,7 +28,7 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
   final _passwordController = TextEditingController();
   final _passwordConfirmationController = TextEditingController();
   var _submitting = false;
-  var _creatingAccount = false;
+  late var _creatingAccount = widget.createAccount;
   String? _errorMessage;
   String? _successMessage;
 
@@ -226,6 +233,18 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                         style: Theme.of(context).textTheme.headlineSmall,
                         textAlign: TextAlign.center,
                       ),
+                      if (widget.invitationIntent) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        const Card(
+                          color: Color(0xFFEAF3FF),
+                          child: Padding(
+                            padding: EdgeInsets.all(AppSpacing.sm),
+                            child: Text(
+                              'Connectez-vous ou créez le compte correspondant à l’adresse qui a reçu l’invitation. Vous pourrez ensuite la consulter et l’accepter.',
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: AppSpacing.xs),
                       Text(
                         _creatingAccount

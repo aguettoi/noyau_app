@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/services.dart';
 
+import '../core/localization/app_locale.dart';
 import '../core/theme/noyau_theme.dart';
 import '../core/theme/app_design_system.dart';
 import '../features/finance/presentation/finance_overview_page.dart';
@@ -21,27 +23,41 @@ import '../features/shopping_list/presentation/shopping_list_page.dart';
 import '../features/priorities/presentation/priorities_page.dart';
 import '../features/portability/application/household_realtime_provider.dart';
 import '../features/portability/presentation/portability_page.dart';
+import '../features/experience/application/experience_provider.dart';
+import '../features/experience/presentation/guided_onboarding_page.dart';
+import '../features/experience/presentation/help_center_page.dart';
+import '../features/experience/presentation/landing_page.dart';
+import '../features/experience/presentation/quick_actions_dialog.dart';
 import 'finance_shell_navigation.dart';
 import 'global_refresh_provider.dart';
 
-class NoyauApp extends StatelessWidget {
+class NoyauApp extends ConsumerWidget {
   const NoyauApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'FINANCIEL PILOTE',
-    debugShowCheckedModeBanner: false,
-    theme: NoyauTheme.light,
-    darkTheme: NoyauTheme.dark,
-    themeMode: ThemeMode.system,
-    supportedLocales: const [Locale('fr')],
-    localizationsDelegates: const [
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    home: const _AuthenticationGate(),
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final language = ref.watch(appLocaleProvider);
+    return MaterialApp(
+      title: 'FINANCIEL PILOTE',
+      debugShowCheckedModeBanner: false,
+      theme: NoyauTheme.light,
+      darkTheme: NoyauTheme.dark,
+      themeMode: ThemeMode.system,
+      locale: language.locale,
+      supportedLocales: const [
+        Locale('fr'),
+        Locale('ar'),
+        Locale('ary'),
+        Locale('en'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: const _AuthenticationGate(),
+    );
+  }
 }
 
 class _AuthenticationGate extends ConsumerWidget {
@@ -55,7 +71,7 @@ class _AuthenticationGate extends ConsumerWidget {
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => const SupabaseAuthPage(),
       data: (id) {
-        if (id == null) return const SupabaseAuthPage();
+        if (id == null) return const LandingPage();
         final household = ref.watch(activeHouseholdProvider);
         return household.when(
           loading: () =>
@@ -210,6 +226,13 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      _ExperienceMenu(
+                        key: const Key('experience-menu'),
+                        onSettings: _showHouseholdSettings,
+                        onQuickActions: _showQuickActions,
+                        onOnboarding: _showGuidedOnboarding,
+                        onHelp: _showHelp,
+                      ),
                       IconButton(
                         key: const Key('portability-button'),
                         tooltip: 'Recherche et portabilité',
@@ -220,12 +243,6 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                         tooltip: 'Membres du foyer',
                         onPressed: _showHouseholdMembers,
                         icon: const Icon(Icons.group_outlined),
-                      ),
-                      IconButton(
-                        key: const Key('household-settings-button'),
-                        tooltip: 'Profil et paramètres',
-                        onPressed: _showHouseholdSettings,
-                        icon: const Icon(Icons.settings_outlined),
                       ),
                       _RefreshButton(
                         refreshing: _refreshing,
@@ -302,6 +319,13 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                           : 'Reconnexion en cours…',
                       child: const Icon(Icons.cloud_off_outlined),
                     ),
+                  _ExperienceMenu(
+                    key: const Key('experience-menu-mobile'),
+                    onSettings: _showHouseholdSettings,
+                    onQuickActions: _showQuickActions,
+                    onOnboarding: _showGuidedOnboarding,
+                    onHelp: _showHelp,
+                  ),
                   IconButton(
                     key: const Key('portability-button-mobile'),
                     tooltip: 'Recherche et portabilité',
@@ -312,12 +336,6 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                     tooltip: 'Membres du foyer',
                     onPressed: _showHouseholdMembers,
                     icon: const Icon(Icons.group_outlined),
-                  ),
-                  IconButton(
-                    key: const Key('household-settings-button'),
-                    tooltip: 'Profil et paramètres',
-                    onPressed: _showHouseholdSettings,
-                    icon: const Icon(Icons.settings_outlined),
                   ),
                   _RefreshButton(
                     refreshing: _refreshing,
@@ -334,73 +352,82 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
           ),
       ],
     );
-    return FinanceShellNavigation(
-      selectDestination: (index) => setState(() => _selectedIndex = index),
-      child: Scaffold(
-        body: desktop
-            ? Row(
-                children: [
-                  navigation!,
-                  const VerticalDivider(width: 1),
-                  Expanded(child: content),
-                ],
-              )
-            : content,
-        bottomNavigationBar: desktop
-            ? null
-            : compactNavigation
-            ? CompactFinanceNavigation(
-                selectedIndex: _selectedIndex,
-                onDestinationSelected: (index) =>
-                    setState(() => _selectedIndex = index),
-              )
-            : NavigationBar(
-                selectedIndex: _selectedIndex,
-                onDestinationSelected: (index) =>
-                    setState(() => _selectedIndex = index),
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.dashboard_outlined),
-                    selectedIcon: Icon(Icons.dashboard),
-                    label: 'Pilotage',
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            _showQuickActions,
+      },
+      child: Focus(
+        autofocus: true,
+        child: FinanceShellNavigation(
+          selectDestination: (index) => setState(() => _selectedIndex = index),
+          child: Scaffold(
+            body: desktop
+                ? Row(
+                    children: [
+                      navigation!,
+                      const VerticalDivider(width: 1),
+                      Expanded(child: content),
+                    ],
+                  )
+                : content,
+            bottomNavigationBar: desktop
+                ? null
+                : compactNavigation
+                ? CompactFinanceNavigation(
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: (index) =>
+                        setState(() => _selectedIndex = index),
+                  )
+                : NavigationBar(
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: (index) =>
+                        setState(() => _selectedIndex = index),
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.dashboard_outlined),
+                        selectedIcon: Icon(Icons.dashboard),
+                        label: 'Pilotage',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.account_balance_outlined),
+                        selectedIcon: Icon(Icons.account_balance),
+                        label: 'Comptes',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.dashboard_outlined),
+                        selectedIcon: Icon(Icons.dashboard),
+                        label: 'Fondation',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.account_balance_wallet_outlined),
+                        selectedIcon: Icon(Icons.account_balance_wallet),
+                        label: 'Enveloppes',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.savings_outlined),
+                        selectedIcon: Icon(Icons.savings),
+                        label: 'Objectifs',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.shopping_cart_outlined),
+                        selectedIcon: Icon(Icons.shopping_cart),
+                        label: 'Achats',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.low_priority_outlined),
+                        selectedIcon: Icon(Icons.low_priority),
+                        label: 'Priorités',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.upload_file_outlined),
+                        selectedIcon: Icon(Icons.upload_file),
+                        label: 'Import',
+                      ),
+                    ],
                   ),
-                  NavigationDestination(
-                    icon: Icon(Icons.account_balance_outlined),
-                    selectedIcon: Icon(Icons.account_balance),
-                    label: 'Comptes',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.dashboard_outlined),
-                    selectedIcon: Icon(Icons.dashboard),
-                    label: 'Fondation',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.account_balance_wallet_outlined),
-                    selectedIcon: Icon(Icons.account_balance_wallet),
-                    label: 'Enveloppes',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.savings_outlined),
-                    selectedIcon: Icon(Icons.savings),
-                    label: 'Objectifs',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.shopping_cart_outlined),
-                    selectedIcon: Icon(Icons.shopping_cart),
-                    label: 'Achats',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.low_priority_outlined),
-                    selectedIcon: Icon(Icons.low_priority),
-                    label: 'Priorités',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.upload_file_outlined),
-                    selectedIcon: Icon(Icons.upload_file),
-                    label: 'Import',
-                  ),
-                ],
-              ),
+          ),
+        ),
       ),
     );
   }
@@ -409,7 +436,54 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     context,
   ).push(MaterialPageRoute<void>(builder: (_) => const PortabilityPage()));
 
+  void _showGuidedOnboarding() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const GuidedOnboardingPage()));
+
+  void _showHelp() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const HelpCenterPage()));
+
+  Future<void> _showQuickActions() => showDialog<void>(
+    context: context,
+    builder: (_) => QuickActionsDialog(
+      actions: [
+        QuickActionItem(
+          label: 'Pilotage',
+          icon: Icons.dashboard_outlined,
+          run: () => setState(() => _selectedIndex = 0),
+        ),
+        QuickActionItem(
+          label: 'Comptes',
+          icon: Icons.account_balance_outlined,
+          run: () => setState(() => _selectedIndex = 1),
+        ),
+        QuickActionItem(
+          label: 'Enveloppes',
+          icon: Icons.account_balance_wallet_outlined,
+          run: () => setState(() => _selectedIndex = 3),
+        ),
+        QuickActionItem(
+          label: 'Objectifs',
+          icon: Icons.savings_outlined,
+          run: () => setState(() => _selectedIndex = 4),
+        ),
+        QuickActionItem(
+          label: 'Aide et mode d’emploi',
+          icon: Icons.help_outline,
+          run: _showHelp,
+        ),
+        QuickActionItem(
+          label: 'Configuration guidée',
+          icon: Icons.assistant_outlined,
+          run: _showGuidedOnboarding,
+        ),
+      ],
+    ),
+  );
+
   Future<void> _signOut() async {
+    await ref.read(experienceStoreProvider).purgePrivateState();
     await ref.read(supabaseAuthGatewayProvider).signOut();
     ref.invalidate(activeHouseholdProvider);
     ref.invalidate(remoteAccountsProvider);
@@ -465,6 +539,44 @@ class _RefreshButton extends StatelessWidget {
             child: CircularProgressIndicator(strokeWidth: 2),
           )
         : const Icon(Icons.refresh),
+  );
+}
+
+class _ExperienceMenu extends StatelessWidget {
+  const _ExperienceMenu({
+    super.key,
+    required this.onSettings,
+    required this.onQuickActions,
+    required this.onOnboarding,
+    required this.onHelp,
+  });
+
+  final VoidCallback onSettings;
+  final VoidCallback onQuickActions;
+  final VoidCallback onOnboarding;
+  final VoidCallback onHelp;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    tooltip: 'Aide et configuration',
+    icon: const Icon(Icons.help_outline),
+    onSelected: (value) {
+      if (value == 'settings') {
+        onSettings();
+      } else if (value == 'quick') {
+        onQuickActions();
+      } else if (value == 'onboarding') {
+        onOnboarding();
+      } else {
+        onHelp();
+      }
+    },
+    itemBuilder: (_) => const [
+      PopupMenuItem(value: 'settings', child: Text('Profil et paramètres')),
+      PopupMenuItem(value: 'quick', child: Text('Actions rapides (Ctrl+K)')),
+      PopupMenuItem(value: 'onboarding', child: Text('Configuration guidée')),
+      PopupMenuItem(value: 'help', child: Text('Aide et mode d’emploi')),
+    ],
   );
 }
 
