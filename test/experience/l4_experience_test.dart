@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:noyau_app/core/localization/app_locale.dart';
 import 'package:noyau_app/features/experience/domain/offline_draft.dart';
+import 'package:noyau_app/features/experience/application/experience_provider.dart';
+import 'package:noyau_app/features/experience/application/offline_sync.dart';
 import 'package:noyau_app/features/experience/presentation/help_center_page.dart';
 import 'package:noyau_app/features/experience/presentation/landing_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +33,56 @@ void main() {
     );
     expect(draft.mayCreateFinancialData, isFalse);
     expect(OfflineDraft.fromJson(draft.toJson()).idempotencyKey, 'stable-key');
+  });
+
+  test(
+    'offline synchronization retries with one stable idempotency key',
+    () async {
+      final store = ExperienceStore();
+      final draft = OfflineDraft(
+        idempotencyKey: '00000000-0000-4000-8000-000000000001',
+        actionKind: 'task',
+        updatedAt: DateTime.utc(2026, 10, 26),
+        state: OfflineDraftState.pending,
+        householdId: 'household',
+        memberId: 'member',
+        payload: const {'title': 'Test'},
+      );
+      await store.saveDrafts([draft]);
+      final adapter = _LostResponseAdapter();
+      final coordinator = OfflineSyncCoordinator(store, {'task': adapter});
+
+      final first = await coordinator.synchronize();
+      expect(first.remaining.single.state, OfflineDraftState.actionRequired);
+      final second = await coordinator.synchronize();
+      expect(second.synced, 1);
+      expect(await store.loadDrafts(), isEmpty);
+      expect(adapter.canonicalKeys, {'00000000-0000-4000-8000-000000000001'});
+    },
+  );
+
+  test('parallel reconnect signals share one synchronization cycle', () async {
+    final store = ExperienceStore();
+    final draft = OfflineDraft(
+      idempotencyKey: '00000000-0000-4000-8000-000000000002',
+      actionKind: 'task',
+      updatedAt: DateTime.utc(2026, 10, 27),
+      state: OfflineDraftState.pending,
+      householdId: 'household',
+      memberId: 'member',
+      payload: const {'title': 'Concurrent'},
+    );
+    await store.saveDrafts([draft]);
+    final adapter = _DelayedAdapter();
+    final coordinator = OfflineSyncCoordinator(store, {'task': adapter});
+
+    final first = coordinator.synchronize();
+    final second = coordinator.synchronize();
+    expect(identical(first, second), isTrue);
+    await Future.wait([first, second]);
+
+    expect(adapter.calls, 1);
+    expect(await store.loadDrafts(), isEmpty);
   });
 
   testWidgets(
@@ -80,6 +132,30 @@ void main() {
       TextDirection.rtl,
     );
   });
+}
+
+class _LostResponseAdapter implements OfflineDraftAdapter {
+  var calls = 0;
+  final canonicalKeys = <String>{};
+  @override
+  String get actionKind => 'task';
+  @override
+  Future<void> submit(OfflineDraft draft) async {
+    calls++;
+    canonicalKeys.add(draft.idempotencyKey);
+    if (calls == 1) throw Exception('response lost after server success');
+  }
+}
+
+class _DelayedAdapter implements OfflineDraftAdapter {
+  var calls = 0;
+  @override
+  String get actionKind => 'task';
+  @override
+  Future<void> submit(OfflineDraft draft) async {
+    calls++;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
 }
 
 class _LocalizedHarness extends ConsumerWidget {

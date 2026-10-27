@@ -5,7 +5,9 @@ import '../../../core/theme/app_design_system.dart';
 import '../application/experience_provider.dart';
 
 class GuidedOnboardingPage extends ConsumerStatefulWidget {
-  const GuidedOnboardingPage({super.key});
+  const GuidedOnboardingPage({super.key, this.modules = const []});
+
+  final List<OnboardingModuleLink> modules;
   @override
   ConsumerState<GuidedOnboardingPage> createState() =>
       _GuidedOnboardingPageState();
@@ -70,8 +72,12 @@ class _GuidedOnboardingPageState extends ConsumerState<GuidedOnboardingPage> {
                 const SizedBox(height: AppSpacing.sm),
                 Text(step.$2),
                 const SizedBox(height: AppSpacing.lg),
-                if (index == 3 || index == 4)
-                  _ModuleChoices(progress: progress, onChanged: _updateModule),
+                if (index >= 1 && index <= 5)
+                  _ModuleChoices(
+                    progress: progress,
+                    modules: widget.modules,
+                    onChanged: _updateModule,
+                  ),
                 const SizedBox(height: AppSpacing.xl),
                 FilledButton(
                   key: const Key('onboarding-continue'),
@@ -127,30 +133,58 @@ class _GuidedOnboardingPageState extends ConsumerState<GuidedOnboardingPage> {
 }
 
 class _ModuleChoices extends StatelessWidget {
-  const _ModuleChoices({required this.progress, required this.onChanged});
+  const _ModuleChoices({
+    required this.progress,
+    required this.modules,
+    required this.onChanged,
+  });
   final OnboardingProgress progress;
+  final List<OnboardingModuleLink> modules;
   final Future<void> Function(OnboardingProgress, String, ModuleSetupState)
   onChanged;
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      for (final module in const [
-        'budget',
-        'organization',
-        'objectives',
-        'reminders',
-      ])
-        DropdownButtonFormField<ModuleSetupState>(
-          key: Key('module-state-$module'),
-          initialValue: progress.modules[module] ?? ModuleSetupState.notStarted,
-          decoration: InputDecoration(labelText: module),
-          items: [
-            for (final state in ModuleSetupState.values)
-              DropdownMenuItem(value: state, child: Text(_label(state))),
-          ],
-          onChanged: (state) {
-            if (state != null) onChanged(progress, module, state);
-          },
+      for (final module in modules)
+        Card(
+          child: ListTile(
+            key: Key('onboarding-module-${module.id}'),
+            leading: Icon(module.icon),
+            title: Text(module.label),
+            subtitle: Text(
+              _label(
+                progress.modules[module.id] ?? ModuleSetupState.notStarted,
+              ),
+            ),
+            trailing: Wrap(
+              children: [
+                TextButton(
+                  onPressed: () =>
+                      onChanged(progress, module.id, ModuleSetupState.skipped),
+                  child: const Text('Plus tard'),
+                ),
+                FilledButton.tonal(
+                  onPressed: () async {
+                    await onChanged(
+                      progress,
+                      module.id,
+                      ModuleSetupState.inProgress,
+                    );
+                    await module.open();
+                    final configured = await module.isConfigured();
+                    await onChanged(
+                      progress,
+                      module.id,
+                      configured
+                          ? ModuleSetupState.configured
+                          : ModuleSetupState.inProgress,
+                    );
+                  },
+                  child: const Text('Configurer'),
+                ),
+              ],
+            ),
+          ),
         ),
     ],
   );
@@ -161,4 +195,20 @@ class _ModuleChoices extends StatelessWidget {
     ModuleSetupState.configured => 'Configuré',
     ModuleSetupState.skipped => 'Passé pour le moment',
   };
+}
+
+class OnboardingModuleLink {
+  const OnboardingModuleLink({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.open,
+    required this.isConfigured,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final Future<void> Function() open;
+  final Future<bool> Function() isConfigured;
 }

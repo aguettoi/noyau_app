@@ -115,6 +115,7 @@ class DailyLifeActions {
 
   Future<void> addGrocery(
     String label, {
+    String? idempotencyKey,
     String? assignee,
     double quantity = 1,
     String? unit,
@@ -124,6 +125,7 @@ class DailyLifeActions {
         .read(supabaseClientProvider)
         .from('household_grocery_items')
         .insert({
+          'id': ?idempotencyKey,
           'household_id': h,
           'label': label.trim(),
           'quantity': quantity,

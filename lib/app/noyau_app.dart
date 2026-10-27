@@ -24,10 +24,13 @@ import '../features/priorities/presentation/priorities_page.dart';
 import '../features/portability/application/household_realtime_provider.dart';
 import '../features/portability/presentation/portability_page.dart';
 import '../features/experience/application/experience_provider.dart';
+import '../features/experience/application/offline_sync.dart';
 import '../features/experience/presentation/guided_onboarding_page.dart';
 import '../features/experience/presentation/help_center_page.dart';
 import '../features/experience/presentation/landing_page.dart';
 import '../features/experience/presentation/quick_actions_dialog.dart';
+import '../features/budget_intelligence/presentation/budget_page.dart';
+import '../features/organization/presentation/organization_page.dart';
 import 'finance_shell_navigation.dart';
 import 'global_refresh_provider.dart';
 
@@ -128,6 +131,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
   Widget build(BuildContext context) {
     ref.watch(householdRealtimeProvider);
     final syncState = ref.watch(syncConnectionStateProvider);
+    ref.listen(syncConnectionStateProvider, (previous, next) {
+      if (next == SyncConnectionState.synchronized && previous != next) {
+        ref.read(offlineSyncCoordinatorProvider).synchronize();
+      }
+    });
     const pages = [
       FinancialDashboardPage(),
       AccountsPage(),
@@ -436,9 +444,112 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     context,
   ).push(MaterialPageRoute<void>(builder: (_) => const PortabilityPage()));
 
-  void _showGuidedOnboarding() => Navigator.of(
-    context,
-  ).push(MaterialPageRoute<void>(builder: (_) => const GuidedOnboardingPage()));
+  void _showGuidedOnboarding() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => GuidedOnboardingPage(modules: _onboardingModules()),
+    ),
+  );
+
+  List<OnboardingModuleLink> _onboardingModules() => [
+    OnboardingModuleLink(
+      id: 'household',
+      label: 'Paramètres du foyer',
+      icon: Icons.home_outlined,
+      open: () => _push(const HouseholdSettingsPage()),
+      isConfigured: () async =>
+          (await ref.read(activeHouseholdProvider.future)).householdId != null,
+    ),
+    OnboardingModuleLink(
+      id: 'members',
+      label: 'Membres',
+      icon: Icons.group_outlined,
+      open: _showHouseholdMembers,
+      isConfigured: () =>
+          _hasRows('household_members', selectColumn: 'user_id'),
+    ),
+    OnboardingModuleLink(
+      id: 'accounts',
+      label: 'Comptes et positions',
+      icon: Icons.account_balance_outlined,
+      open: () => _push(const AccountsPage()),
+      isConfigured: () => _hasRows('accounts'),
+    ),
+    OnboardingModuleLink(
+      id: 'envelopes',
+      label: 'Enveloppes et budget',
+      icon: Icons.account_balance_wallet_outlined,
+      open: () => _push(const BudgetPage()),
+      isConfigured: () => _hasRows('envelopes'),
+    ),
+    OnboardingModuleLink(
+      id: 'organization',
+      label: 'Organisation domestique',
+      icon: Icons.event_note_outlined,
+      open: () => _push(const OrganizationPage()),
+      isConfigured: () async =>
+          await _hasRows('household_tasks') ||
+          await _hasRows('household_grocery_items'),
+    ),
+    OnboardingModuleLink(
+      id: 'objectives',
+      label: 'Objectifs et priorités',
+      icon: Icons.flag_outlined,
+      open: () => _push(const SavingsGoalsPage()),
+      isConfigured: () async =>
+          await _hasRows('savings_goals') || await _hasRows('priority_plans'),
+    ),
+    OnboardingModuleLink(
+      id: 'reminders',
+      label: 'Rappels et calendrier',
+      icon: Icons.notifications_outlined,
+      open: () => _push(const OrganizationPage()),
+      isConfigured: () => _hasRows('reminder_rules'),
+    ),
+    OnboardingModuleLink(
+      id: 'privacy',
+      label: 'Confidentialité et partage',
+      icon: Icons.shield_outlined,
+      open: () => _push(const AccountsPage()),
+      isConfigured: _hasPrivacyConfiguration,
+    ),
+  ];
+
+  Future<void> _push(Widget page) =>
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+
+  Future<bool> _hasRows(String table, {String selectColumn = 'id'}) async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    if (household.householdId == null) return false;
+    try {
+      final rows = await ref
+          .read(supabaseClientProvider)
+          .from(table)
+          .select(selectColumn)
+          .eq('household_id', household.householdId!)
+          .limit(1);
+      return (rows as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _hasPrivacyConfiguration() async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    if (household.householdId == null) return false;
+    try {
+      final rows = await ref
+          .read(supabaseClientProvider)
+          .rpc(
+            'list_account_privacy_summaries_v2',
+            params: {'p_household_id': household.householdId},
+          );
+      return (rows as List).any(
+        (row) => (row as Map)['visibility'] != 'visible',
+      );
+    } catch (_) {
+      return false;
+    }
+  }
 
   void _showHelp() => Navigator.of(
     context,

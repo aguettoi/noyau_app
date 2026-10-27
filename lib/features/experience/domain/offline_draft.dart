@@ -31,6 +31,16 @@ class OfflineDraft {
 
   bool get mayCreateFinancialData => false;
 
+  OfflineDraft copyWith({OfflineDraftState? state}) => OfflineDraft(
+    idempotencyKey: idempotencyKey,
+    actionKind: actionKind,
+    updatedAt: updatedAt,
+    state: state ?? this.state,
+    householdId: householdId,
+    memberId: memberId,
+    payload: payload,
+  );
+
   Map<String, Object?> toJson() => {
     'idempotency_key': idempotencyKey,
     'action_kind': actionKind,

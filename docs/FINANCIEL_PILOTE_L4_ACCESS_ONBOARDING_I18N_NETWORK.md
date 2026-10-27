@@ -58,3 +58,87 @@ n'est requis par le stockage L4.
 - tests Auth/foyer et shell existants rejoués;
 - suite Flutter, analyse, format et builds Windows/Web exécutés au closing;
 - compteurs C3/C4B contrôlés en lecture seule avant/après.
+
+## Passage de fermeture des écarts
+
+### R5-02
+
+- **Avant** : progression persistée, mais choix de modules déclaratifs.
+- **Correction** : neuf raccordements ouvrent les surfaces canoniques foyer,
+  membres, comptes, budget/enveloppes, organisation, objectifs, rappels et
+  confidentialité. Au retour, une lecture canonique décide si le module est
+  réellement configuré; une simple visite laisse l'état `inProgress`.
+- **Preuve** : le shell fournit les callbacks réels au parcours; skip et reprise
+  restent personnels et persistants.
+- **Statut** : A fonctionnel, recette humaine finale conservée.
+
+Le contrôle de retour utilise les tables/RPC canoniques. En particulier,
+`household_members.user_id` est lu pour les membres et
+`list_account_privacy_summaries_v2` pour la confidentialité; une erreur ou une
+surface simplement visitée ne produit jamais un faux état `configured`.
+
+### NET-X1
+
+- **Avant** : modèle et persistance locale sans soumission réelle.
+- **Correction** : coordinateur de synchronisation déclenché à la reconnexion,
+  adapters tâches/courses vers les gateways existantes, revalidation stricte du
+  couple utilisateur/foyer, identifiant stable transmis à la création et
+  conservation en `actionRequired` en cas d'échec.
+- **Preuve** : test de réponse perdue puis retry; une seule clé canonique est
+  utilisée et le brouillon n'est purgé qu'après réponse serveur positive.
+- **Durcissement de fermeture** : les signaux de reconnexion concurrents
+  partagent une seule exécution; un conflit de clé primaire après perte de la
+  réponse est traité comme le succès idempotent de ce brouillon.
+- **Limite** : le stockage et les adapters sont raccordés, mais toutes les
+  surfaces de saisie concernées ne proposent pas encore explicitement la mise
+  en file lors d'une panne. Le statut demeure B tant que cette UX et toute la
+  matrice timeout/session/révocation ne sont pas couvertes de bout en bout.
+
+### R5-06 / R5-07 / R5-08
+
+- **Avant** : sélecteur et corpus L4 réduit.
+- **Contrôle** : l'inventaire statique recense 2 695 occurrences candidates
+  (`Text`, labels, hints, tooltips, SnackBars et dialogues) dans `lib/`.
+- **Inventaire lexical de fermeture** : 177 fichiers Dart de production;
+  2 178 constructions `Text`, 568 labels, 5 hints, 50 tooltips, 75 SnackBars et
+  99 dialogues. Ces classes se recouvrent et incluent données dynamiques,
+  libellés déjà indirects et faux positifs; elles ne constituent donc pas un
+  nombre de traductions. Les 207 erreurs/exceptions et 3 sorties debug sont
+  inventoriées séparément.
+- **Écart** : l'ancien corpus V1 n'est pas intégralement extrait ni traduit.
+- **Statut** : B. Le fallback ne doit pas être présenté comme une traduction.
+
+### R5-12
+
+- **Avant** : accessibilité ciblée L4 et couverture responsive historique.
+- **Correction** : toutes les nouvelles commandes ont une voie tactile et
+  clavier; les surfaces critiques conservent leurs tests responsive existants.
+- **Limite** : l'audit fonctionnel systématique des anciens widgets reste à
+  terminer avant classement A; la certification visuelle demeure D1.2/P1.
+- **Statut** : B.
+
+## Validation de fermeture du 27 octobre 2026
+
+- tests L4 ciblés : 7/7 PASS;
+- suite Flutter : 1 034 PASS, 3 skips conditionnels;
+- `flutter analyze lib test` : PASS;
+- format : 355 fichiers, 0 modification;
+- Windows release : PASS;
+- Web release : PASS (avertissements Wasm provenant du package tiers `image`);
+- C3 : 6 comptes, 26 enveloppes, 3 obligations / 598 277,40 MAD,
+  9 FinancialEvents, 5 transactions GL, 10 postings, 18 mouvements;
+- C4B : 1 581 lignes, 45 décisions;
+- migration et écriture serveur L4 : aucune.
+
+Le closing est publiable mais reste **PARTIAL** : R5-06, R5-07, R5-08,
+R5-12 et NET-X1 restent B. Aucun fallback de traduction, PASS d'accessibilité
+ou synchronisation financière fictive n'est revendiqué.
+
+## Matrice des adapters offline réellement raccordés
+
+| Action | Offline | Brouillon | Adapter canonique | Identité stable | Revalidation | Conflit/résultat |
+|---|---|---|---|---|---|---|
+| Tâche domestique | oui | `task` | `OrganizationGateway.createTask` | UUID du brouillon transmis comme `id` | session + foyer + RLS | succès: purge; sinon `actionRequired` |
+| Course domestique | oui | `grocery_item` | `DailyLifeActions.addGrocery` | UUID du brouillon transmis comme `id` | session + foyer + RLS | succès: purge; sinon `actionRequired` |
+| Note onboarding | local seulement | `onboarding_note` | préférence locale | clé stable | utilisateur local | reste locale |
+| FinancialEvent / GL / transfert / clôture | non | préparation uniquement | RPC canonique lors de l'action utilisateur | idempotence RPC existante | serveur complète | jamais synchronisé silencieusement |
