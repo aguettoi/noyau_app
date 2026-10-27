@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/localization/app_locale.dart';
+import '../../../core/localization/app_language_picker.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../finance/presentation/supabase_auth_page.dart';
 import 'help_center_page.dart';
@@ -52,23 +53,9 @@ class LandingPage extends ConsumerWidget {
       appBar: AppBar(
         title: Text(words.text('title')),
         actions: [
-          Semantics(
-            label: 'Language',
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<AppLanguage>(
-                key: const Key('public-language-picker'),
-                value: language,
-                onChanged: (value) {
-                  if (value != null) {
-                    ref.read(appLocaleProvider.notifier).select(value);
-                  }
-                },
-                items: [
-                  for (final item in AppLanguage.values)
-                    DropdownMenuItem(value: item, child: Text(item.label)),
-                ],
-              ),
-            ),
+          const AppLanguagePicker(
+            key: Key('public-language-picker'),
+            compact: true,
           ),
           const SizedBox(width: AppSpacing.sm),
         ],
@@ -124,7 +111,7 @@ class LandingPage extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  const _ModuleGrid(),
+                  _ModuleGrid(words: words),
                   const SizedBox(height: AppSpacing.xl),
                   Wrap(
                     spacing: AppSpacing.sm,
@@ -141,11 +128,13 @@ class LandingPage extends ConsumerWidget {
                         label: Text(words.text('help')),
                       ),
                       _DistributionButton(
-                        label: 'Windows',
+                        words: words,
+                        platformKey: 'landing.platform.windows',
                         link: distribution.windows,
                       ),
                       _DistributionButton(
-                        label: 'Android APK',
+                        words: words,
+                        platformKey: 'landing.platform.android',
                         link: distribution.android,
                       ),
                     ],
@@ -174,31 +163,34 @@ class LandingPage extends ConsumerWidget {
 }
 
 class _ModuleGrid extends StatelessWidget {
-  const _ModuleGrid();
+  const _ModuleGrid({required this.words});
+
+  final AppWords words;
+
   @override
   Widget build(BuildContext context) => Wrap(
     spacing: AppSpacing.md,
     runSpacing: AppSpacing.md,
-    children: const [
+    children: [
       _ModuleCard(
         Icons.account_balance_wallet_outlined,
-        'Finances',
-        'Comptes, enveloppes, budget et projections.',
+        words.text('landing.module.finance.title'),
+        words.text('landing.module.finance.description'),
       ),
       _ModuleCard(
         Icons.home_outlined,
-        'Foyer',
-        'Membres, tâches, courses et calendrier.',
+        words.text('landing.module.household.title'),
+        words.text('landing.module.household.description'),
       ),
       _ModuleCard(
         Icons.flag_outlined,
-        'Projets',
-        'Objectifs, priorités et patrimoine.',
+        words.text('landing.module.projects.title'),
+        words.text('landing.module.projects.description'),
       ),
       _ModuleCard(
         Icons.shield_outlined,
-        'Confidentialité',
-        'Partage explicite et données privées protégées.',
+        words.text('landing.module.privacy.title'),
+        words.text('landing.module.privacy.description'),
       ),
     ],
   );
@@ -229,13 +221,25 @@ class _ModuleCard extends StatelessWidget {
 }
 
 class _DistributionButton extends StatelessWidget {
-  const _DistributionButton({required this.label, required this.link});
-  final String label;
+  const _DistributionButton({
+    required this.words,
+    required this.platformKey,
+    required this.link,
+  });
+  final AppWords words;
+  final String platformKey;
   final DistributionLink link;
   @override
-  Widget build(BuildContext context) => OutlinedButton.icon(
-    onPressed: link.canOpen ? () => launchUrl(Uri.parse(link.url!)) : null,
-    icon: const Icon(Icons.download_outlined),
-    label: Text(link.canOpen ? label : '$label — bientôt'),
-  );
+  Widget build(BuildContext context) {
+    final platform = words.text(platformKey);
+    return OutlinedButton.icon(
+      onPressed: link.canOpen ? () => launchUrl(Uri.parse(link.url!)) : null,
+      icon: const Icon(Icons.download_outlined),
+      label: Text(
+        link.canOpen
+            ? platform
+            : words.format('landing.coming_soon', {'platform': platform}),
+      ),
+    );
+  }
 }

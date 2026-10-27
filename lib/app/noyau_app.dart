@@ -40,8 +40,9 @@ class NoyauApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final language = ref.watch(appLocaleProvider);
+    final words = AppWords(language);
     return MaterialApp(
-      title: 'FINANCIEL PILOTE',
+      title: words.text('title'),
       debugShowCheckedModeBanner: false,
       theme: NoyauTheme.light,
       darkTheme: NoyauTheme.dark,
@@ -50,7 +51,7 @@ class NoyauApp extends ConsumerWidget {
       supportedLocales: const [
         Locale('fr'),
         Locale('ar'),
-        Locale('ary'),
+        Locale('ar', 'MA'),
         Locale('en'),
       ],
       localizationsDelegates: const [
@@ -129,6 +130,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
 
   @override
   Widget build(BuildContext context) {
+    final words = AppWords(ref.watch(appLocaleProvider));
     ref.watch(householdRealtimeProvider);
     final syncState = ref.watch(syncConnectionStateProvider);
     ref.listen(syncConnectionStateProvider, (previous, next) {
@@ -186,7 +188,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Tooltip(
-                      message: 'FINANCIEL PILOTE',
+                      message: words.text('title'),
                       child: ClipRRect(
                         borderRadius: AppRadius.button,
                         child: Image.asset(
@@ -194,19 +196,19 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                           width: 58,
                           height: 58,
                           fit: BoxFit.cover,
-                          semanticLabel: 'FINANCIEL PILOTE',
+                          semanticLabel: words.text('title'),
                         ),
                       ),
                     ),
                     if (largeDesktop) ...[
                       const SizedBox(width: AppSpacing.sm),
-                      const Flexible(
+                      Flexible(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'FINANCIEL PILOTE',
+                              words.text('title'),
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: Colors.white,
@@ -214,7 +216,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                               ),
                             ),
                             Text(
-                              'Pilotez. Planifiez. Épargnez. Prospérez.',
+                              words.text('tagline'),
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: AppColors.darkTextSecondary,
@@ -243,12 +245,12 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                       ),
                       IconButton(
                         key: const Key('portability-button'),
-                        tooltip: 'Recherche et portabilité',
+                        tooltip: words.text('nav.search'),
                         onPressed: _showPortability,
                         icon: const Icon(Icons.manage_search),
                       ),
                       IconButton(
-                        tooltip: 'Membres du foyer',
+                        tooltip: words.text('nav.members'),
                         onPressed: _showHouseholdMembers,
                         icon: const Icon(Icons.group_outlined),
                       ),
@@ -257,7 +259,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                         onPressed: _refreshing ? null : _refreshAll,
                       ),
                       IconButton(
-                        tooltip: 'Se déconnecter',
+                        tooltip: words.text('nav.logout'),
                         onPressed: _signOut,
                         icon: const Icon(Icons.logout_outlined),
                       ),
@@ -265,46 +267,46 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                   ),
                 ),
               ),
-              destinations: const [
+              destinations: [
                 NavigationRailDestination(
                   icon: Icon(Icons.dashboard_outlined),
                   selectedIcon: Icon(Icons.dashboard),
-                  label: Text('Pilotage'),
+                  label: Text(words.text('nav.dashboard')),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.account_balance_outlined),
                   selectedIcon: Icon(Icons.account_balance),
-                  label: Text('Comptes'),
+                  label: Text(words.text('nav.accounts')),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.dashboard_outlined),
                   selectedIcon: Icon(Icons.dashboard),
-                  label: Text('Fondation'),
+                  label: Text(words.text('nav.foundation')),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.account_balance_wallet_outlined),
                   selectedIcon: Icon(Icons.account_balance_wallet),
-                  label: Text('Enveloppes'),
+                  label: Text(words.text('nav.envelopes')),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.savings_outlined),
                   selectedIcon: Icon(Icons.savings),
-                  label: Text('Objectifs'),
+                  label: Text(words.text('nav.goals')),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.shopping_cart_outlined),
                   selectedIcon: Icon(Icons.shopping_cart),
-                  label: Text('Achats'),
+                  label: Text(words.text('nav.shopping')),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.low_priority_outlined),
                   selectedIcon: Icon(Icons.low_priority),
-                  label: Text('Priorités'),
+                  label: Text(words.text('nav.priorities')),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.upload_file_outlined),
                   selectedIcon: Icon(Icons.upload_file),
-                  label: Text('Import'),
+                  label: Text(words.text('nav.import')),
                 ),
               ],
             ),
@@ -323,8 +325,8 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                   if (syncState != SyncConnectionState.synchronized)
                     Tooltip(
                       message: syncState == SyncConnectionState.offline
-                          ? 'Hors ligne — aucune mutation non confirmée ne sera présentée comme réussie.'
-                          : 'Reconnexion en cours…',
+                          ? words.text('shell.offline')
+                          : words.text('shell.reconnecting'),
                       child: const Icon(Icons.cloud_off_outlined),
                     ),
                   _ExperienceMenu(
@@ -336,12 +338,12 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                   ),
                   IconButton(
                     key: const Key('portability-button-mobile'),
-                    tooltip: 'Recherche et portabilité',
+                    tooltip: words.text('nav.search'),
                     onPressed: _showPortability,
                     icon: const Icon(Icons.manage_search),
                   ),
                   IconButton(
-                    tooltip: 'Membres du foyer',
+                    tooltip: words.text('nav.members'),
                     onPressed: _showHouseholdMembers,
                     icon: const Icon(Icons.group_outlined),
                   ),
@@ -350,7 +352,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                     onPressed: _refreshing ? null : _refreshAll,
                   ),
                   IconButton(
-                    tooltip: 'Se déconnecter',
+                    tooltip: words.text('nav.logout'),
                     onPressed: _signOut,
                     icon: const Icon(Icons.logout_outlined),
                   ),
@@ -391,46 +393,46 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                     selectedIndex: _selectedIndex,
                     onDestinationSelected: (index) =>
                         setState(() => _selectedIndex = index),
-                    destinations: const [
+                    destinations: [
                       NavigationDestination(
                         icon: Icon(Icons.dashboard_outlined),
                         selectedIcon: Icon(Icons.dashboard),
-                        label: 'Pilotage',
+                        label: words.text('nav.dashboard'),
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.account_balance_outlined),
                         selectedIcon: Icon(Icons.account_balance),
-                        label: 'Comptes',
+                        label: words.text('nav.accounts'),
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.dashboard_outlined),
                         selectedIcon: Icon(Icons.dashboard),
-                        label: 'Fondation',
+                        label: words.text('nav.foundation'),
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.account_balance_wallet_outlined),
                         selectedIcon: Icon(Icons.account_balance_wallet),
-                        label: 'Enveloppes',
+                        label: words.text('nav.envelopes'),
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.savings_outlined),
                         selectedIcon: Icon(Icons.savings),
-                        label: 'Objectifs',
+                        label: words.text('nav.goals'),
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.shopping_cart_outlined),
                         selectedIcon: Icon(Icons.shopping_cart),
-                        label: 'Achats',
+                        label: words.text('nav.shopping'),
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.low_priority_outlined),
                         selectedIcon: Icon(Icons.low_priority),
-                        label: 'Priorités',
+                        label: words.text('nav.priorities'),
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.upload_file_outlined),
                         selectedIcon: Icon(Icons.upload_file),
-                        label: 'Import',
+                        label: words.text('nav.import'),
                       ),
                     ],
                   ),
@@ -453,7 +455,9 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
   List<OnboardingModuleLink> _onboardingModules() => [
     OnboardingModuleLink(
       id: 'household',
-      label: 'Paramètres du foyer',
+      label: AppWords(
+        ref.read(appLocaleProvider),
+      ).text('shell.onboarding.household_settings'),
       icon: Icons.home_outlined,
       open: () => _push(const HouseholdSettingsPage()),
       isConfigured: () async =>
@@ -461,7 +465,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     ),
     OnboardingModuleLink(
       id: 'members',
-      label: 'Membres',
+      label: AppWords(ref.read(appLocaleProvider)).text('nav.members'),
       icon: Icons.group_outlined,
       open: _showHouseholdMembers,
       isConfigured: () =>
@@ -469,21 +473,27 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     ),
     OnboardingModuleLink(
       id: 'accounts',
-      label: 'Comptes et positions',
+      label: AppWords(
+        ref.read(appLocaleProvider),
+      ).text('shell.onboarding.accounts_positions'),
       icon: Icons.account_balance_outlined,
       open: () => _push(const AccountsPage()),
       isConfigured: () => _hasRows('accounts'),
     ),
     OnboardingModuleLink(
       id: 'envelopes',
-      label: 'Enveloppes et budget',
+      label: AppWords(
+        ref.read(appLocaleProvider),
+      ).text('shell.onboarding.envelopes_budget'),
       icon: Icons.account_balance_wallet_outlined,
       open: () => _push(const BudgetPage()),
       isConfigured: () => _hasRows('envelopes'),
     ),
     OnboardingModuleLink(
       id: 'organization',
-      label: 'Organisation domestique',
+      label: AppWords(
+        ref.read(appLocaleProvider),
+      ).text('onboarding.module.organization'),
       icon: Icons.event_note_outlined,
       open: () => _push(const OrganizationPage()),
       isConfigured: () async =>
@@ -492,7 +502,9 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     ),
     OnboardingModuleLink(
       id: 'objectives',
-      label: 'Objectifs et priorités',
+      label: AppWords(
+        ref.read(appLocaleProvider),
+      ).text('shell.onboarding.goals_priorities'),
       icon: Icons.flag_outlined,
       open: () => _push(const SavingsGoalsPage()),
       isConfigured: () async =>
@@ -500,14 +512,18 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     ),
     OnboardingModuleLink(
       id: 'reminders',
-      label: 'Rappels et calendrier',
+      label: AppWords(
+        ref.read(appLocaleProvider),
+      ).text('onboarding.module.reminders'),
       icon: Icons.notifications_outlined,
       open: () => _push(const OrganizationPage()),
       isConfigured: () => _hasRows('reminder_rules'),
     ),
     OnboardingModuleLink(
       id: 'privacy',
-      label: 'Confidentialité et partage',
+      label: AppWords(
+        ref.read(appLocaleProvider),
+      ).text('onboarding.module.privacy'),
       icon: Icons.shield_outlined,
       open: () => _push(const AccountsPage()),
       isConfigured: _hasPrivacyConfiguration,
@@ -560,32 +576,32 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     builder: (_) => QuickActionsDialog(
       actions: [
         QuickActionItem(
-          label: 'Pilotage',
+          label: AppWords(ref.read(appLocaleProvider)).text('nav.dashboard'),
           icon: Icons.dashboard_outlined,
           run: () => setState(() => _selectedIndex = 0),
         ),
         QuickActionItem(
-          label: 'Comptes',
+          label: AppWords(ref.read(appLocaleProvider)).text('nav.accounts'),
           icon: Icons.account_balance_outlined,
           run: () => setState(() => _selectedIndex = 1),
         ),
         QuickActionItem(
-          label: 'Enveloppes',
+          label: AppWords(ref.read(appLocaleProvider)).text('nav.envelopes'),
           icon: Icons.account_balance_wallet_outlined,
           run: () => setState(() => _selectedIndex = 3),
         ),
         QuickActionItem(
-          label: 'Objectifs',
+          label: AppWords(ref.read(appLocaleProvider)).text('nav.goals'),
           icon: Icons.savings_outlined,
           run: () => setState(() => _selectedIndex = 4),
         ),
         QuickActionItem(
-          label: 'Aide et mode d’emploi',
+          label: AppWords(ref.read(appLocaleProvider)).text('help'),
           icon: Icons.help_outline,
           run: _showHelp,
         ),
         QuickActionItem(
-          label: 'Configuration guidée',
+          label: AppWords(ref.read(appLocaleProvider)).text('onboarding.title'),
           icon: Icons.assistant_outlined,
           run: _showGuidedOnboarding,
         ),
@@ -615,15 +631,19 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     try {
       await ref.read(globalRefreshActionProvider)();
       if (!mounted || silentSuccess) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Données actualisées.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppWords(ref.read(appLocaleProvider)).text('shell.refresh.success'),
+          ),
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Actualisation impossible. Vérifiez votre connexion puis réessayez.',
+            AppWords(ref.read(appLocaleProvider)).text('shell.refresh.error'),
           ),
         ),
       );
@@ -642,7 +662,9 @@ class _RefreshButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IconButton(
     key: const Key('global-refresh-button'),
-    tooltip: refreshing ? 'Actualisation en cours' : 'Actualiser',
+    tooltip: AppWords.of(
+      context,
+    ).text(refreshing ? 'shell.refresh.in_progress' : 'shell.refresh.action'),
     onPressed: onPressed,
     icon: refreshing
         ? const SizedBox.square(
@@ -669,7 +691,7 @@ class _ExperienceMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<String>(
-    tooltip: 'Aide et configuration',
+    tooltip: AppWords.of(context).text('shell.help_configuration'),
     icon: const Icon(Icons.help_outline),
     onSelected: (value) {
       if (value == 'settings') {
@@ -682,11 +704,23 @@ class _ExperienceMenu extends StatelessWidget {
         onHelp();
       }
     },
-    itemBuilder: (_) => const [
-      PopupMenuItem(value: 'settings', child: Text('Profil et paramètres')),
-      PopupMenuItem(value: 'quick', child: Text('Actions rapides (Ctrl+K)')),
-      PopupMenuItem(value: 'onboarding', child: Text('Configuration guidée')),
-      PopupMenuItem(value: 'help', child: Text('Aide et mode d’emploi')),
+    itemBuilder: (context) => [
+      PopupMenuItem(
+        value: 'settings',
+        child: Text(AppWords.of(context).text('shell.profile_settings')),
+      ),
+      PopupMenuItem(
+        value: 'quick',
+        child: Text(AppWords.of(context).text('shell.quick.ctrl_k')),
+      ),
+      PopupMenuItem(
+        value: 'onboarding',
+        child: Text(AppWords.of(context).text('onboarding.title')),
+      ),
+      PopupMenuItem(
+        value: 'help',
+        child: Text(AppWords.of(context).text('help')),
+      ),
     ],
   );
 }
@@ -717,31 +751,31 @@ class CompactFinanceNavigation extends StatelessWidget {
       }
       onDestinationSelected(_primaryDestinationIndexes[index]);
     },
-    destinations: const [
+    destinations: [
       NavigationDestination(
         icon: Icon(Icons.dashboard_outlined),
         selectedIcon: Icon(Icons.dashboard),
-        label: 'Pilotage',
+        label: AppWords.of(context).text('nav.dashboard'),
       ),
       NavigationDestination(
         icon: Icon(Icons.account_balance_outlined),
         selectedIcon: Icon(Icons.account_balance),
-        label: 'Comptes',
+        label: AppWords.of(context).text('nav.accounts'),
       ),
       NavigationDestination(
         icon: Icon(Icons.account_balance_wallet_outlined),
         selectedIcon: Icon(Icons.account_balance_wallet),
-        label: 'Enveloppes',
+        label: AppWords.of(context).text('nav.envelopes'),
       ),
       NavigationDestination(
         icon: Icon(Icons.savings_outlined),
         selectedIcon: Icon(Icons.savings),
-        label: 'Objectifs',
+        label: AppWords.of(context).text('nav.goals'),
       ),
       NavigationDestination(
         icon: Icon(Icons.more_horiz),
         selectedIcon: Icon(Icons.more),
-        label: 'Plus',
+        label: AppWords.of(context).text('nav.more'),
       ),
     ],
   );
@@ -757,36 +791,36 @@ class CompactFinanceNavigation extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const ListTile(
+              ListTile(
                 title: Text(
-                  'Plus',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                  AppWords.of(context).text('nav.more'),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
-                subtitle: Text('Autres espaces de FINANCIEL PILOTE'),
+                subtitle: Text(AppWords.of(context).text('nav.more_spaces')),
               ),
               _moreDestination(
                 context,
                 index: 2,
                 icon: Icons.dashboard_outlined,
-                label: 'Fondation',
+                label: AppWords.of(context).text('nav.foundation'),
               ),
               _moreDestination(
                 context,
                 index: 5,
                 icon: Icons.shopping_cart_outlined,
-                label: 'Achats',
+                label: AppWords.of(context).text('nav.shopping'),
               ),
               _moreDestination(
                 context,
                 index: 6,
                 icon: Icons.low_priority_outlined,
-                label: 'Priorités',
+                label: AppWords.of(context).text('nav.priorities'),
               ),
               _moreDestination(
                 context,
                 index: 7,
                 icon: Icons.upload_file_outlined,
-                label: 'Import',
+                label: AppWords.of(context).text('nav.import'),
               ),
             ],
           ),

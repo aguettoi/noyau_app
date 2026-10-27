@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/app_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../application/experience_provider.dart';
 
@@ -15,33 +16,19 @@ class GuidedOnboardingPage extends ConsumerStatefulWidget {
 
 class _GuidedOnboardingPageState extends ConsumerState<GuidedOnboardingPage> {
   static const _steps = [
-    ('Bienvenue', 'Choisissez uniquement les modules utiles aujourd’hui.'),
-    (
-      'Votre foyer',
-      'Créez ou rejoignez le foyer avec les primitives Auth existantes.',
-    ),
-    ('Membres', 'Ajoutez un, deux ou plusieurs membres selon votre situation.'),
-    (
-      'Finances',
-      'Comptes, enveloppes et budget peuvent être configurés maintenant ou plus tard.',
-    ),
-    (
-      'Organisation',
-      'Activez tâches, courses, calendrier et rappels à votre rythme.',
-    ),
-    (
-      'Confidentialité',
-      'Vérifiez qui peut voir chaque donnée sensible ou financière.',
-    ),
-    (
-      'Terminé',
-      'Vous pourrez reprendre ou ajuster chaque module depuis les paramètres.',
-    ),
+    ('onboarding.welcome.title', 'onboarding.welcome.description'),
+    ('onboarding.household.title', 'onboarding.household.description'),
+    ('onboarding.members.title', 'onboarding.members.description'),
+    ('onboarding.finance.title', 'onboarding.finance.description'),
+    ('onboarding.organization.title', 'onboarding.organization.description'),
+    ('onboarding.privacy.title', 'onboarding.privacy.description'),
+    ('onboarding.done.title', 'onboarding.done.description'),
   ];
   OnboardingProgress? _progress;
 
   @override
   Widget build(BuildContext context) {
+    final words = AppWords.of(context);
     final loaded = ref.watch(onboardingProgressProvider);
     final progress = _progress ?? loaded.valueOrNull;
     if (progress == null) {
@@ -50,7 +37,7 @@ class _GuidedOnboardingPageState extends ConsumerState<GuidedOnboardingPage> {
     final index = progress.step.clamp(0, _steps.length - 1);
     final step = _steps[index];
     return Scaffold(
-      appBar: AppBar(title: const Text('Configuration guidée')),
+      appBar: AppBar(title: Text(words.text('onboarding.title'))),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -59,18 +46,21 @@ class _GuidedOnboardingPageState extends ConsumerState<GuidedOnboardingPage> {
               padding: AppSpacing.page,
               children: [
                 Semantics(
-                  label: 'Étape ${index + 1} sur ${_steps.length}',
+                  label: words.format('onboarding.step', {
+                    'current': index + 1,
+                    'total': _steps.length,
+                  }),
                   child: LinearProgressIndicator(
                     value: (index + 1) / _steps.length,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  step.$1,
+                  words.text(step.$1),
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                Text(step.$2),
+                Text(words.text(step.$2)),
                 const SizedBox(height: AppSpacing.lg),
                 if (index >= 1 && index <= 5)
                   _ModuleChoices(
@@ -83,13 +73,15 @@ class _GuidedOnboardingPageState extends ConsumerState<GuidedOnboardingPage> {
                   key: const Key('onboarding-continue'),
                   onPressed: () => _move(progress, index + 1),
                   child: Text(
-                    index == _steps.length - 1 ? 'Terminer' : 'Continuer',
+                    index == _steps.length - 1
+                        ? words.text('common.finish')
+                        : words.text('continue'),
                   ),
                 ),
                 TextButton(
                   key: const Key('onboarding-skip'),
                   onPressed: () => _move(progress, index + 1, skipped: true),
-                  child: const Text('Passer pour le moment'),
+                  child: Text(words.text('skip')),
                 ),
               ],
             ),
@@ -150,9 +142,10 @@ class _ModuleChoices extends StatelessWidget {
           child: ListTile(
             key: Key('onboarding-module-${module.id}'),
             leading: Icon(module.icon),
-            title: Text(module.label),
+            title: Text(_moduleLabel(context, module.id)),
             subtitle: Text(
               _label(
+                context,
                 progress.modules[module.id] ?? ModuleSetupState.notStarted,
               ),
             ),
@@ -161,7 +154,7 @@ class _ModuleChoices extends StatelessWidget {
                 TextButton(
                   onPressed: () =>
                       onChanged(progress, module.id, ModuleSetupState.skipped),
-                  child: const Text('Plus tard'),
+                  child: Text(AppWords.of(context).text('common.later')),
                 ),
                 FilledButton.tonal(
                   onPressed: () async {
@@ -180,7 +173,7 @@ class _ModuleChoices extends StatelessWidget {
                           : ModuleSetupState.inProgress,
                     );
                   },
-                  child: const Text('Configurer'),
+                  child: Text(AppWords.of(context).text('common.configure')),
                 ),
               ],
             ),
@@ -189,12 +182,37 @@ class _ModuleChoices extends StatelessWidget {
     ],
   );
 
-  String _label(ModuleSetupState state) => switch (state) {
-    ModuleSetupState.notStarted => 'Pas commencé',
-    ModuleSetupState.inProgress => 'En cours',
-    ModuleSetupState.configured => 'Configuré',
-    ModuleSetupState.skipped => 'Passé pour le moment',
-  };
+  String _label(BuildContext context, ModuleSetupState state) =>
+      switch (state) {
+        ModuleSetupState.notStarted => AppWords.of(
+          context,
+        ).text('onboarding.not_started'),
+        ModuleSetupState.inProgress => AppWords.of(
+          context,
+        ).text('onboarding.in_progress'),
+        ModuleSetupState.configured => AppWords.of(
+          context,
+        ).text('onboarding.configured'),
+        ModuleSetupState.skipped => AppWords.of(
+          context,
+        ).text('onboarding.skipped'),
+      };
+
+  String _moduleLabel(BuildContext context, String id) {
+    final words = AppWords.of(context);
+    final key = switch (id) {
+      'household' => 'household.configure',
+      'members' => 'nav.members',
+      'accounts' => 'nav.accounts',
+      'envelopes' => 'nav.envelopes',
+      'objectives' => 'nav.goals',
+      'organization' => 'onboarding.module.organization',
+      'reminders' => 'onboarding.module.reminders',
+      'privacy' => 'onboarding.module.privacy',
+      _ => 'onboarding.module.other',
+    };
+    return words.text(key);
+  }
 }
 
 class OnboardingModuleLink {

@@ -134,6 +134,43 @@ Le closing est publiable mais reste **PARTIAL** : R5-06, R5-07, R5-08,
 R5-12 et NET-X1 restent B. Aucun fallback de traduction, PASS d'accessibilité
 ou synchronisation financière fictive n'est revendiqué.
 
+## Décision V1 — langue automatique
+
+Sans préférence explicite, l'application utilisera la locale de l'appareil
+(mobile), du système (desktop) ou la langue préférée du navigateur (Web).
+`fr`, `en`, `ar` et `ary` correspondent respectivement au français, à
+l'anglais, à l'arabe et à la darija; toute autre locale revient au français.
+Le choix Paramètres > Langue proposera Automatique, Français, English,
+العربية et Darija. La préférence manuelle persistante prime sur la locale;
+revenir à Automatique réactive son suivi. La langue UI reste indépendante de
+la devise, du foyer et des valeurs canoniques. L'implémentation fonctionnelle
+relève de L4; la certification Web/Windows/Android/iOS relève de P1.
+
+### Implémentation L4.1-A1
+
+La préférence est désormais explicitement soit `automatic`, soit manuelle.
+En mode automatique, Flutter fournit la liste ordonnée des locales de
+l'environnement et la première langue supportée est retenue; une locale non
+supportée retombe sur le français. Les variantes `fr-*`, `en-*` et `ar-*`
+restent dans leur famille, tandis que la Darija n'est choisie automatiquement
+que lorsque `ary` est réellement fourni. Le code persistant de la Darija reste
+`ary`; son rendu Material utilise `ar-MA` afin de bénéficier des delegates et
+du RTL.
+
+Le choix manuel est appliqué immédiatement et conservé localement. Revenir à
+« Automatique / langue de l'appareil » efface la langue détectée persistée et
+réactive les changements de locale transmis par Flutter. Le sélecteur est
+accessible avant authentification sur la landing et après authentification
+dans Profil et paramètres. Aucun champ canonique de préférence linguistique
+personnelle n'existe encore côté serveur : A1 ne crée donc ni migration ni
+dépendance réseau au démarrage, et ne confond jamais cette préférence locale
+avec une préférence du foyer.
+
+Le garde-fou progressif A1 couvre uniquement les fichiers déjà migrés
+(onboarding, Auth, landing, shell et composants de langue/actions rapides).
+Les modules métier restent volontairement hors de ce garde-fou jusqu'aux
+vagues A2 suivantes.
+
 ## Matrice des adapters offline réellement raccordés
 
 | Action | Offline | Brouillon | Adapter canonique | Identité stable | Revalidation | Conflit/résultat |

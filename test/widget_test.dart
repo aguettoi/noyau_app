@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/app/noyau_app.dart';
@@ -20,6 +21,7 @@ import 'package:noyau_app/features/finance/application/providers/supabase_client
 import 'package:noyau_app/features/dashboard/application/dashboard_metrics.dart';
 import 'package:noyau_app/features/dashboard/application/providers/remote_financial_dashboard_provider.dart';
 import 'package:noyau_app/core/money/money.dart';
+import 'package:noyau_app/core/localization/app_locale.dart';
 
 void main() {
   Future<void> pumpApp(
@@ -29,6 +31,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
           supabaseUserIdProvider.overrideWith(
             (ref) => Stream.value('test-user'),
           ),
@@ -464,6 +471,13 @@ void main() {
         var selectedIndex = 0;
         await tester.pumpWidget(
           MaterialApp(
+            locale: const Locale('fr'),
+            supportedLocales: const [Locale('fr')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
             home: StatefulBuilder(
               builder: (context, setState) => Scaffold(
                 body: Text('Destination $selectedIndex'),
@@ -566,6 +580,13 @@ void main() {
         var selectedIndex = 0;
         await tester.pumpWidget(
           MaterialApp(
+            locale: const Locale('fr'),
+            supportedLocales: const [Locale('fr')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
             home: StatefulBuilder(
               builder: (context, setState) => Scaffold(
                 body: Text('Destination $selectedIndex'),

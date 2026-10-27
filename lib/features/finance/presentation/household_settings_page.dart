@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/app_language_picker.dart';
+import '../../../core/localization/app_locale.dart';
 import '../application/providers/active_household_provider.dart';
 import '../application/providers/household_settings_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
@@ -65,6 +67,7 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final words = AppWords(ref.watch(appLocaleProvider));
     final profile = ref.watch(currentProfileProvider);
     final settings = ref.watch(householdSettingsProvider);
     final members = ref.watch(remoteHouseholdMembersProvider);
@@ -90,6 +93,13 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Text(
+                    words.text('language.settings.title'),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  const AppLanguagePicker(key: Key('settings-language-picker')),
+                  const SizedBox(height: AppSpacing.lg),
                   Text(
                     'Mon profil',
                     style: Theme.of(context).textTheme.titleLarge,

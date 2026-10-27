@@ -1,19 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/providers/supabase_client_provider.dart';
 import 'package:noyau_app/features/finance/presentation/supabase_auth_page.dart';
+import 'package:noyau_app/core/localization/app_locale.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('keeps the authentication error generic after an AuthException', (
     tester,
   ) async {
     final gateway = _FailingAuthGateway();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [supabaseAuthGatewayProvider.overrideWithValue(gateway)],
-        child: const MaterialApp(home: SupabaseAuthPage()),
+        overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
+          supabaseAuthGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr'), Locale('en')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: SupabaseAuthPage(),
+        ),
       ),
     );
 
@@ -44,8 +61,20 @@ void main() {
       final gateway = _ConfigurationFailingAuthGateway();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [supabaseAuthGatewayProvider.overrideWithValue(gateway)],
-          child: const MaterialApp(home: SupabaseAuthPage()),
+          overrides: [
+            appLocaleProvider.overrideWith(
+              (ref) => AppLocaleController(
+                environmentLocales: () => const [Locale('fr')],
+              ),
+            ),
+            supabaseAuthGatewayProvider.overrideWithValue(gateway),
+          ],
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr'), Locale('en')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: SupabaseAuthPage(),
+          ),
         ),
       );
 
@@ -74,8 +103,20 @@ void main() {
     final gateway = _RecordingAuthGateway();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [supabaseAuthGatewayProvider.overrideWithValue(gateway)],
-        child: const MaterialApp(home: SupabaseAuthPage()),
+        overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
+          supabaseAuthGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr'), Locale('en')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: SupabaseAuthPage(),
+        ),
       ),
     );
 
@@ -118,8 +159,20 @@ void main() {
     final gateway = _RecordingAuthGateway();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [supabaseAuthGatewayProvider.overrideWithValue(gateway)],
-        child: const MaterialApp(home: SupabaseAuthPage()),
+        overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
+          supabaseAuthGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr'), Locale('en')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: SupabaseAuthPage(),
+        ),
       ),
     );
     await tester.enterText(

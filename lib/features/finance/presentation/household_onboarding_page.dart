@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/app_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../application/providers/household_onboarding_provider.dart';
 import '../application/providers/supabase_client_provider.dart';
@@ -18,6 +19,7 @@ class _HouseholdOnboardingPageState
   final _nameController = TextEditingController();
   var _busy = false;
   String? _error;
+  String _w(String key) => AppWords.of(context).text(key);
 
   @override
   void dispose() {
@@ -28,7 +30,7 @@ class _HouseholdOnboardingPageState
   Future<void> _createHousehold() async {
     final name = _nameController.text.trim();
     if (_busy || name.isEmpty) {
-      setState(() => _error = 'Donnez un nom à votre foyer.');
+      setState(() => _error = _w('household.validation.name'));
       return;
     }
     setState(() {
@@ -40,10 +42,7 @@ class _HouseholdOnboardingPageState
       refreshHouseholdContext(ref);
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Création impossible. Confirmez votre e-mail puis réessayez.',
-        );
+        setState(() => _error = _w('household.error.create'));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -63,10 +62,7 @@ class _HouseholdOnboardingPageState
       refreshHouseholdContext(ref);
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'Cette invitation n’est plus disponible ou ne correspond pas à ce compte.',
-        );
+        setState(() => _error = _w('household.error.invitation'));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -78,10 +74,10 @@ class _HouseholdOnboardingPageState
     final invitations = ref.watch(pendingHouseholdInvitationsProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bienvenue dans FINANCIEL PILOTE'),
+        title: Text(_w('household.welcome')),
         actions: [
           IconButton(
-            tooltip: 'Se déconnecter',
+            tooltip: _w('nav.logout'),
             onPressed: _busy
                 ? null
                 : () => ref.read(supabaseAuthGatewayProvider).signOut(),
@@ -99,13 +95,11 @@ class _HouseholdOnboardingPageState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Configurer votre foyer',
+                    _w('household.configure'),
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  const Text(
-                    'Créez votre foyer principal ou acceptez une invitation reçue. Aucune donnée financière n’est créée ici.',
-                  ),
+                  Text(_w('household.intro')),
                   const SizedBox(height: AppSpacing.lg),
                   Card(
                     child: Padding(
@@ -114,22 +108,22 @@ class _HouseholdOnboardingPageState
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Créer mon foyer',
+                            _w('household.create'),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           TextField(
                             key: const Key('household-name-field'),
                             controller: _nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Nom du foyer',
+                            decoration: InputDecoration(
+                              labelText: _w('household.name'),
                             ),
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           FilledButton(
                             key: const Key('create-household-button'),
                             onPressed: _busy ? null : _createHousehold,
-                            child: const Text('Créer mon foyer'),
+                            child: Text(_w('household.create')),
                           ),
                         ],
                       ),
@@ -143,7 +137,7 @@ class _HouseholdOnboardingPageState
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Rejoindre un foyer',
+                            _w('household.join'),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: AppSpacing.sm),
@@ -151,13 +145,10 @@ class _HouseholdOnboardingPageState
                             loading: () => const Center(
                               child: CircularProgressIndicator(),
                             ),
-                            error: (_, _) => const Text(
-                              'Impossible de vérifier les invitations pour le moment.',
-                            ),
+                            error: (_, _) =>
+                                Text(_w('household.error.load_invitations')),
                             data: (items) => items.isEmpty
-                                ? const Text(
-                                    'Aucune invitation en attente pour cette adresse e-mail.',
-                                  )
+                                ? Text(_w('household.empty_invitations'))
                                 : Column(
                                     children: [
                                       for (final invitation in items)
@@ -168,13 +159,19 @@ class _HouseholdOnboardingPageState
                                           contentPadding: EdgeInsets.zero,
                                           title: Text(invitation.householdName),
                                           subtitle: Text(
-                                            'Invitation de ${invitation.invitedByName}',
+                                            AppWords.of(
+                                              context,
+                                            ).format('household.invited_by', {
+                                              'name': invitation.invitedByName,
+                                            }),
                                           ),
                                           trailing: FilledButton.tonal(
                                             onPressed: _busy
                                                 ? null
                                                 : () => _accept(invitation),
-                                            child: const Text('Rejoindre'),
+                                            child: Text(
+                                              _w('household.join_action'),
+                                            ),
                                           ),
                                         ),
                                     ],
@@ -207,38 +204,41 @@ class MultipleHouseholdsPage extends ConsumerWidget {
   const MultipleHouseholdsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
-    body: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
-          padding: AppSpacing.page,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.warning_amber_rounded, size: 44),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                'Plusieurs foyers opérationnels sont accessibles',
-                style: Theme.of(context).textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const Text(
-                'FINANCIEL PILOTE ne choisira jamais un foyer arbitrairement. Déconnectez-vous et contactez l’assistance pour régulariser cet accès.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              FilledButton.icon(
-                onPressed: () =>
-                    ref.read(supabaseAuthGatewayProvider).signOut(),
-                icon: const Icon(Icons.logout_outlined),
-                label: const Text('Se déconnecter'),
-              ),
-            ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = AppWords.of(context);
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: AppSpacing.page,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.warning_amber_rounded, size: 44),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  words.text('household.multiple.title'),
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  words.text('household.multiple.description'),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                FilledButton.icon(
+                  onPressed: () =>
+                      ref.read(supabaseAuthGatewayProvider).signOut(),
+                  icon: const Icon(Icons.logout_outlined),
+                  label: Text(words.text('nav.logout')),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

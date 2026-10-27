@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/localization/app_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../application/providers/supabase_client_provider.dart';
 
@@ -31,6 +32,7 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
   late var _creatingAccount = widget.createAccount;
   String? _errorMessage;
   String? _successMessage;
+  String _w(String key) => AppWords.of(context).text(key);
 
   @override
   void dispose() {
@@ -92,8 +94,8 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
       if (!mounted) return;
       setState(() {
         _successMessage = sessionCreated
-            ? 'Compte créé. Vous pouvez maintenant créer ou rejoindre votre foyer.'
-            : 'Compte créé. Confirmez votre adresse e-mail puis connectez-vous.';
+            ? _w('auth.signup_success_session')
+            : _w('auth.signup_success_confirmation');
         if (!sessionCreated) _creatingAccount = false;
       });
     } on AuthException catch (error) {
@@ -101,20 +103,15 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
       if (!mounted) return;
       setState(() {
         _errorMessage = switch (error.code) {
-          'user_already_exists' => 'Cette adresse e-mail est déjà utilisée.',
-          'weak_password' =>
-            'Le mot de passe ne respecte pas les règles de sécurité.',
-          _ =>
-            'Création impossible. Vérifiez les informations et votre connexion.',
+          'user_already_exists' => _w('auth.error.email_used'),
+          'weak_password' => _w('auth.error.weak_password'),
+          _ => _w('auth.error.signup'),
         };
       });
     } catch (error) {
       _debugAuthFailure(error);
       if (mounted) {
-        setState(
-          () => _errorMessage =
-              'Création impossible. Vérifiez les informations et votre connexion.',
-        );
+        setState(() => _errorMessage = _w('auth.error.signup'));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -124,10 +121,7 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
   Future<void> _forgotPassword() async {
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
-      setState(
-        () => _errorMessage =
-            'Saisissez votre adresse e-mail avant de demander un nouveau mot de passe.',
-      );
+      setState(() => _errorMessage = _w('auth.validation.reset_email'));
       return;
     }
     setState(() {
@@ -138,17 +132,11 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
     try {
       await ref.read(supabaseAuthGatewayProvider).sendPasswordReset(email);
       if (mounted) {
-        setState(
-          () => _successMessage =
-              'Si cette adresse existe, un e-mail de réinitialisation a été envoyé.',
-        );
+        setState(() => _successMessage = _w('auth.reset_sent'));
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _errorMessage =
-              'Demande impossible pour le moment. Vérifiez votre connexion.',
-        );
+        setState(() => _errorMessage = _w('auth.error.reset'));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -184,23 +172,18 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
 
   String _signInErrorMessage(Object error) {
     if (error is AssertionError) {
-      return 'Configuration de connexion indisponible. Relancez une version configurée de FINANCIEL PILOTE.';
+      return _w('auth.error.configuration');
     }
     if (error case AuthException authError) {
       return switch (authError.code) {
-        'invalid_credentials' =>
-          'Connexion impossible. Vérifiez votre e-mail et votre mot de passe.',
-        'email_not_confirmed' =>
-          'Votre adresse e-mail doit être confirmée avant la connexion.',
-        'user_banned' =>
-          'Ce compte ne peut pas se connecter. Contactez le responsable du foyer.',
-        _ when authError.statusCode == '429' =>
-          'Trop de tentatives. Patientez quelques instants puis réessayez.',
-        _ =>
-          'Le service de connexion est momentanément indisponible. Réessayez plus tard.',
+        'invalid_credentials' => _w('auth.error.credentials'),
+        'email_not_confirmed' => _w('auth.error.email_unconfirmed'),
+        'user_banned' => _w('auth.error.banned'),
+        _ when authError.statusCode == '429' => _w('auth.error.rate_limit'),
+        _ => _w('auth.error.service'),
       };
     }
-    return 'Connexion au service impossible. Vérifiez votre réseau puis réessayez.';
+    return _w('auth.error.network');
   }
 
   @override
@@ -227,29 +210,25 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Text(
-                        _creatingAccount
-                            ? 'Créer un compte'
-                            : 'FINANCIEL PILOTE',
+                        _creatingAccount ? _w('auth.create') : _w('title'),
                         style: Theme.of(context).textTheme.headlineSmall,
                         textAlign: TextAlign.center,
                       ),
                       if (widget.invitationIntent) ...[
                         const SizedBox(height: AppSpacing.sm),
-                        const Card(
+                        Card(
                           color: Color(0xFFEAF3FF),
                           child: Padding(
                             padding: EdgeInsets.all(AppSpacing.sm),
-                            child: Text(
-                              'Connectez-vous ou créez le compte correspondant à l’adresse qui a reçu l’invitation. Vous pourrez ensuite la consulter et l’accepter.',
-                            ),
+                            child: Text(_w('auth.invitation_help')),
                           ),
                         ),
                       ],
                       const SizedBox(height: AppSpacing.xs),
                       Text(
                         _creatingAccount
-                            ? 'Créez votre identité personnelle. Votre foyer sera configuré ensuite.'
-                            : 'Pilotez. Planifiez. Épargnez. Prospérez.\nConnectez-vous pour accéder à votre foyer.',
+                            ? _w('auth.signup_intro')
+                            : _w('auth.login_intro'),
                         style: Theme.of(context).textTheme.bodyMedium,
                         textAlign: TextAlign.center,
                       ),
@@ -259,12 +238,12 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                           key: const Key('auth-first-name-field'),
                           controller: _firstNameController,
                           textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Prénom',
+                          decoration: InputDecoration(
+                            labelText: _w('auth.first_name'),
                           ),
                           validator: (value) =>
                               value == null || value.trim().isEmpty
-                              ? 'Saisissez votre prénom.'
+                              ? _w('auth.validation.first_name')
                               : null,
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -272,8 +251,8 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                           key: const Key('auth-last-name-field'),
                           controller: _lastNameController,
                           textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Nom (facultatif)',
+                          decoration: InputDecoration(
+                            labelText: _w('auth.last_name_optional'),
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -283,12 +262,14 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         autofillHints: const [AutofillHints.username],
-                        decoration: const InputDecoration(labelText: 'E-mail'),
+                        decoration: InputDecoration(
+                          labelText: _w('common.email'),
+                        ),
                         validator: (value) =>
                             value == null ||
                                 value.trim().isEmpty ||
                                 !value.contains('@')
-                            ? 'Saisissez une adresse e-mail valide.'
+                            ? _w('auth.validation.email')
                             : null,
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -303,15 +284,15 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                               ? AutofillHints.newPassword
                               : AutofillHints.password,
                         ],
-                        decoration: const InputDecoration(
-                          labelText: 'Mot de passe',
+                        decoration: InputDecoration(
+                          labelText: _w('auth.password'),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Saisissez votre mot de passe.';
+                            return _w('auth.validation.password');
                           }
                           if (_creatingAccount && value.length < 8) {
-                            return 'Utilisez au moins 8 caractères.';
+                            return _w('auth.validation.password_length');
                           }
                           return null;
                         },
@@ -325,12 +306,12 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                           key: const Key('auth-password-confirmation-field'),
                           controller: _passwordConfirmationController,
                           obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Confirmer le mot de passe',
+                          decoration: InputDecoration(
+                            labelText: _w('auth.confirm_password'),
                           ),
                           validator: (value) =>
                               value != _passwordController.text
-                              ? 'Les mots de passe ne correspondent pas.'
+                              ? _w('auth.validation.password_match')
                               : null,
                           onFieldSubmitted: (_) => _signUp(),
                         ),
@@ -372,8 +353,8 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                               )
                             : Text(
                                 _creatingAccount
-                                    ? 'Créer mon compte'
-                                    : 'Se connecter',
+                                    ? _w('auth.create_mine')
+                                    : _w('login'),
                               ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -388,15 +369,15 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
                               }),
                         child: Text(
                           _creatingAccount
-                              ? 'J’ai déjà un compte'
-                              : 'Créer un compte',
+                              ? _w('auth.have_account')
+                              : _w('auth.create'),
                         ),
                       ),
                       if (!_creatingAccount)
                         TextButton(
                           key: const Key('auth-forgot-password-button'),
                           onPressed: _submitting ? null : _forgotPassword,
-                          child: const Text('Mot de passe oublié ?'),
+                          child: Text(_w('auth.forgot')),
                         ),
                     ],
                   ),

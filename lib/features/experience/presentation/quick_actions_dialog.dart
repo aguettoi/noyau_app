@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/localization/app_locale.dart';
+
 class QuickActionItem {
   const QuickActionItem({
     required this.label,
@@ -23,12 +25,13 @@ class _QuickActionsDialogState extends State<QuickActionsDialog> {
   var _query = '';
   @override
   Widget build(BuildContext context) {
+    final words = AppWords.of(context);
     final query = _query.trim().toLowerCase();
     final actions = widget.actions
         .where((item) => item.label.toLowerCase().contains(query))
         .toList();
     return AlertDialog(
-      title: const Text('Aller rapidement à…'),
+      title: Text(words.text('shell.quick.title')),
       content: SizedBox(
         width: 480,
         child: Column(
@@ -38,9 +41,9 @@ class _QuickActionsDialogState extends State<QuickActionsDialog> {
               key: const Key('quick-action-search'),
               autofocus: true,
               onChanged: (value) => setState(() => _query = value),
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Rechercher une action',
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: words.text('shell.quick.search'),
               ),
             ),
             const SizedBox(height: 8),
@@ -66,7 +69,7 @@ class _QuickActionsDialogState extends State<QuickActionsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Fermer'),
+          child: Text(words.text('shell.close')),
         ),
       ],
     );

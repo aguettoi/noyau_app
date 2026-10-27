@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/providers/household_onboarding_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/supabase_client_provider.dart';
 import 'package:noyau_app/features/finance/presentation/household_onboarding_page.dart';
+import 'package:noyau_app/core/localization/app_locale.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('creates a household through the secured gateway', (
     tester,
   ) async {
@@ -13,11 +18,21 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
           householdOnboardingGatewayProvider.overrideWithValue(gateway),
           pendingHouseholdInvitationsProvider.overrideWith((ref) async => []),
           supabaseAuthGatewayProvider.overrideWithValue(_AuthGateway()),
         ],
-        child: const MaterialApp(home: HouseholdOnboardingPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr'), Locale('en')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: HouseholdOnboardingPage(),
+        ),
       ),
     );
     await tester.enterText(
@@ -42,13 +57,23 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
           householdOnboardingGatewayProvider.overrideWithValue(gateway),
           pendingHouseholdInvitationsProvider.overrideWith(
             (ref) async => [invitation],
           ),
           supabaseAuthGatewayProvider.overrideWithValue(_AuthGateway()),
         ],
-        child: const MaterialApp(home: HouseholdOnboardingPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr'), Locale('en')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: HouseholdOnboardingPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
