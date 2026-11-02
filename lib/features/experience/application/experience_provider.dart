@@ -31,6 +31,7 @@ class OnboardingProgress {
 class ExperienceStore {
   static const _progressKey = 'l4.onboarding.progress';
   static const _draftsKey = 'l4.offline.drafts';
+  static const _assistantAuditKey = 'l5.assistant.audit.v1';
 
   Future<OnboardingProgress> loadProgress() async {
     final preferences = await SharedPreferences.getInstance();
@@ -102,6 +103,7 @@ class ExperienceStore {
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(_progressKey);
     await preferences.remove(_draftsKey);
+    await preferences.remove(_assistantAuditKey);
   }
 }
 

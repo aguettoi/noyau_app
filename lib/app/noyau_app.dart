@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../core/localization/app_locale.dart';
 import '../core/theme/noyau_theme.dart';
 import '../core/theme/app_design_system.dart';
+import '../features/assistant/presentation/assistant_locale.dart';
+import '../features/assistant/presentation/assistant_page.dart';
 import '../features/finance/presentation/finance_overview_page.dart';
 import '../features/finance/presentation/imports_page.dart';
 import '../features/finance/presentation/accounts_page.dart';
@@ -582,6 +584,18 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     context: context,
     builder: (_) => QuickActionsDialog(
       actions: [
+        QuickActionItem(
+          label: AssistantWords(
+            ref.read(appLocaleProvider),
+          ).text('assistant.title'),
+          icon: Icons.auto_awesome_outlined,
+          run: () => _push(
+            AssistantPage(
+              onOpenBudget: () => _push(const BudgetPage()),
+              onOpenPriorities: () => _push(const PrioritiesPage()),
+            ),
+          ),
+        ),
         QuickActionItem(
           label: AppWords(ref.read(appLocaleProvider)).text('nav.dashboard'),
           icon: Icons.dashboard_outlined,

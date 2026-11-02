@@ -133,7 +133,7 @@ Base : commit 461020056cf12c89b5f3735843d5ebb95f3df966, 19 octobre 2026. Cet inv
 | R5-12 | Expérience produit | Accessibilité et clavier | Accessibilité et clavier | Design system et responsive présents | MASTER_SCOPE_V2 R5-12; Roadmap V2 | `lib/core/theme/app_design_system.dart` | tests responsive | Toutes | B | neutre ou 1/N | modéré: visibilité foyer | D1 | moyen | D1/P1/A1 | L4 |
 | R6-01 | Modules complémentaires | Organisation ménage Sheet | Organisation ménage Sheet | F6 couvre tâches/routines/calendrier | MASTER_SCOPE_V2 R6-01; Roadmap V2 | `lib/features/organization/presentation/organization_page.dart`; DB/RPC: household_tasks | `test/organization/organization_page_test.dart` | Organisation | B | neutre ou 1/N | modéré: visibilité foyer | F6 | à arbitrer | Ajouter seulement écarts utiles | L3 |
 | R6-02 | Modules complémentaires | Cycle menstruel | Cycle menstruel | Aucun code détecté | MASTER_SCOPE_V2 R6-02; Roadmap V2; Le module est prévu dans Roadmap §10.2; modalités à arbitrer. | — | — | Module personnel | C | neutre ou 1/N | fort: filtrage futur | Confidentialité | à arbitrer | Conception privée d'abord | L3 |
-| R6-03 | Modules complémentaires | IA et conseils | IA et conseils | Aucun moteur IA; alertes déterministes | MASTER_SCOPE_V2 R6-03; Roadmap V2; Conseil IA prévu Roadmap §10.3; périmètre exact à arbitrer. | — | — | Aide | C | neutre ou 1/N | fort: filtrage futur | Confidentialité | à arbitrer | Ne pas implémenter avant accord | L3 |
+| R6-03 | Modules complémentaires | IA et conseils | IA et conseils | Assistant déterministe encadré livré L5 | MASTER_SCOPE_V2 R6-03; Roadmap V2; décision L5. | assistant_engine.dart; assistant_page.dart | tests assistant L5 | Aide | A | neutre ou 1/N | fort: filtrage appliqué | Confidentialité | faible | Préserver le contrat provider-ready | L5 |
 | R7-01 | Offline/confidentialité | Robustesse réseau | Robustesse réseau | Idempotence, fallback et réponse perdue | MASTER_SCOPE_V2 R7-01; Roadmap V2 | `lib/features/portability/application/household_realtime_provider.dart`; DB/RPC: RPC idempotentes | `test/portability/realtime_runtime_test.dart` | Global | A | neutre ou 1/N | fort: filtrage futur | Supabase | élevé | Préserver; confidentialité à réévaluer | — |
 | R7-02 | Offline/confidentialité | Lecture offline | Lecture offline | Pas de cache local persistant | MASTER_SCOPE_V2 R7-02; Roadmap V2 | — | — | Global | C | neutre ou 1/N | fort: filtrage futur | Architecture R7 | élevé | Décider exigence lancement | L1 |
 | R7-03 | Offline/confidentialité | Création offline et file chiffrée | Création offline et file chiffrée | Aucune file locale | MASTER_SCOPE_V2 R7-03; Roadmap V2 | — | — | Transactions | C | neutre ou 1/N | fort: filtrage futur | R7-02 | élevé | Limiter aux flux maîtrisables | L1 |
@@ -170,8 +170,8 @@ Base : commit 461020056cf12c89b5f3735843d5ebb95f3df966, 19 octobre 2026. Cet inv
 | ORG-X3 | Organisation | Maison | Contrats et maintenance | Échéances et contrats de la maison | programme-developpement; phase-1-produit §6 | lib/features/organization/domain/organization_models.dart | test/organization/organization_models_test.dart | Tâches génériques seulement | B | 1/2/N | modéré | F6 | moyen | Raccorder métadonnées utiles | L3 |
 | CYC-X1 | Cycle | Personnel | Phases, calendrier, notes et symptômes | Suivi privé à cadrer sans exposition foyer | Roadmap V2 §10.2 | aucun module dans lib/features | aucun | absent | F | 1/2/N | critique | PRV-07 | élevé | Arbitrer données, consentement et accès | L3 |
 | AI-X1 | Intelligence | Déterministe | Alertes et conseils explicables | Règles et indicateurs sans LLM | F4/F6/R2/R3.3 | lib/features/dashboard/application/dashboard_metrics.dart; lib/features/financial_availability/domain/financial_availability.dart | test/dashboard/dashboard_metrics_test.dart; test/financial_availability/financial_availability_test.dart | Pilotage; Prévisions | A | 1/2/N | fort | Sources canoniques | faible | Préserver | — |
-| AI-X2 | Intelligence | IA | Préparation architecturale | Références et contrat de lecture futurs | R3.3 documentation | docs/master_scope_v2/R3_3_TEMPORAL_REMINDERS.md | — | interne | B | 1/2/N | critique | PRV-07 | moyen | Définir consentement, moindre accès | L3 |
-| AI-X3 | Intelligence | IA | Actions proposées puis confirmées | Conseil sans mutation sans confirmation humaine | Roadmap V2 §10.3 | aucune couche IA; FinancialEvent canonique | aucun test IA | absent | C | 1/2/N | critique | PRV-05; audit | élevé | Définir workflow de proposition contrôlée | L3 |
+| AI-X2 | Intelligence | IA | Préparation architecturale | Contrat runtime provider-indépendant et contexte minimisé | R3.3 documentation; L5 | assistant_contract.dart; assistant_providers.dart | tests assistant L5 | interne | A | 1/2/N | critique | PRV-07 | faible | Préserver moindre accès | L5 |
+| AI-X3 | Intelligence | IA | Actions proposées puis confirmées | Proposition structurée, confirmation et revalidation | Roadmap V2 §10.3; L5 | AssistantProposal; AssistantActionWorkflow | tests assistant L5 | Assistant | A | 1/2/N | critique | PRV-05; audit | faible | Étendre seulement via use cases canoniques | L5 |
 | EXP-X1 | Exports | Fiscal | Export fiscal logement | Rapport fiscal tiré d'hypothèses versionnées | Roadmap V2 §8.1 | lib/features/wealth/presentation/home_auto_panels.dart | test/wealth/home_auto_panels_test.dart (hors export) | absent | C | 1/2/N | fort | F5B; R4 | moyen | Créer restitution, pas nouveau moteur fiscal | L2 |
 | EXP-X2 | Exports | Patrimoine | Historique net exportable | CSV des points datés, complétude et explication | Roadmap V2 §8.1 | `encodeWealthHistoryCsv` | `wealth_history_test.dart` | Patrimoine | A | 1/2/N | fort, aucun identifiant de compte | F5A; Export | faible | Maintenir | — |
 | UX-X1 | Expérience | D1.2 | Recette visuelle 74+ surfaces | Validation humaine Windows/Web/mobile | Roadmap V2 §13; UI_UX_PROGRESS | lib/core/theme/app_design_system.dart | test/theme/design_system_test.dart | surfaces existantes | B | 1/2/N | fort | gel fonctionnel | élevé | D1.2 après fonctions | D1.2 |
@@ -248,7 +248,7 @@ Cette vue contient les B, C, D et E à traiter ainsi que les F nécessitant un a
 | R5-12 | B | D1/P1/A1 | moyen | L4 |
 | R6-01 | B | Ajouter seulement écarts utiles | à arbitrer | L3 |
 | R6-02 | C | Conception privée d'abord | à arbitrer | L3 |
-| R6-03 | C | Ne pas implémenter avant accord | à arbitrer | L3 |
+| R6-03 | A | Livré et certifié L5 | faible | L5 |
 | R7-02 | C | Décider exigence lancement | élevé | L1 |
 | R7-03 | C | Limiter aux flux maîtrisables | élevé | L1 |
 | R7-04 | C | Après arbitrage offline | élevé | L1 |
@@ -274,8 +274,8 @@ Cette vue contient les B, C, D et E à traiter ainsi que les F nécessitant un a
 | ORG-X2 | B | Comparer colonnes source encore utiles | moyen | L3 |
 | ORG-X3 | B | Raccorder métadonnées utiles | moyen | L3 |
 | CYC-X1 | F | Arbitrer données, consentement et accès | élevé | L3 |
-| AI-X2 | B | Définir consentement, moindre accès | moyen | L3 |
-| AI-X3 | C | Définir workflow de proposition contrôlée | élevé | L3 |
+| AI-X2 | A | Livré et certifié L5 | faible | L5 |
+| AI-X3 | A | Livré et certifié L5 | faible | L5 |
 | EXP-X1 | C | Créer restitution, pas nouveau moteur fiscal | moyen | L2 |
 | EXP-X2 | B | Composer export de données prouvées | moyen | L2 |
 | UX-X1 | B | D1.2 après fonctions | élevé | D1.2 |
