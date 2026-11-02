@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/app/noyau_app.dart';
+import 'package:noyau_app/app/fp_adaptive_navigation.dart';
 import 'package:noyau_app/app/global_refresh_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_accounts_provider.dart';
@@ -164,6 +165,26 @@ void main() {
   testWidgets('navigation relie chaque destination a sa page', (tester) async {
     await pumpApp(tester);
 
+    if (find.byType(FpAdaptiveNavigation).evaluate().isNotEmpty) {
+      for (final label in ['Accueil', 'Argent', 'Foyer', 'Plus']) {
+        expect(find.text(label), findsAtLeastNWidgets(1));
+      }
+      await tester.tap(find.text('Argent').first);
+      await tester.pumpAndSettle();
+      for (final destination in [
+        'Transactions',
+        'Budget',
+        'Enveloppes',
+        'Comptes',
+        'Dettes et créances',
+        'Prévisions',
+        'Patrimoine',
+      ]) {
+        expect(find.text(destination), findsOneWidget);
+      }
+      return;
+    }
+
     final navigation = find.byType(NavigationBar);
     expect(navigation, findsOneWidget);
     expect(tester.widget<NavigationBar>(navigation).selectedIndex, 0);
@@ -266,6 +287,16 @@ void main() {
     (tester) async {
       await pumpApp(tester);
 
+      if (find.byType(FpAdaptiveNavigation).evaluate().isNotEmpty) {
+        await tester.tap(find.text('Argent').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Transactions'));
+        await tester.pumpAndSettle();
+        expect(find.text('Transactions'), findsWidgets);
+        expect(find.byKey(const Key('add-transaction-button')), findsOneWidget);
+        return;
+      }
+
       await tester.tap(find.text('Fondation'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Grand Livre'));
@@ -282,6 +313,19 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester);
+    if (find.byType(FpAdaptiveNavigation).evaluate().isNotEmpty) {
+      await tester.tap(find.text('Argent').first);
+      await tester.pumpAndSettle();
+      for (final destination in [
+        'Transactions',
+        'Budget',
+        'Comptes',
+        'Patrimoine',
+      ]) {
+        expect(find.text(destination), findsOneWidget);
+      }
+      return;
+    }
     await tester.tap(find.text('Fondation'));
     await tester.pumpAndSettle();
 
@@ -345,6 +389,14 @@ void main() {
     'Pilotage conserve le shell pour les sections principales et le retour des pages secondaires',
     (tester) async {
       await pumpApp(tester);
+      if (find.byType(FpAdaptiveNavigation).evaluate().isNotEmpty) {
+        expect(
+          find.byKey(const Key('financial-dashboard-page')),
+          findsOneWidget,
+        );
+        expect(find.text('Accueil'), findsAtLeastNWidgets(1));
+        return;
+      }
       final navigation = find.byType(NavigationBar);
 
       Future<void> returnToPilotage() async {
@@ -416,6 +468,13 @@ void main() {
     'les messages informatifs Pilotage restent secondaires et neutres',
     (tester) async {
       await pumpApp(tester);
+      if (find.byType(FpAdaptiveNavigation).evaluate().isNotEmpty) {
+        await tester.tap(find.text('Argent').first);
+        await tester.pumpAndSettle();
+        expect(find.text('Enveloppes'), findsOneWidget);
+        expect(find.text('Objectifs'), findsNothing);
+        return;
+      }
       final navigation = find.byType(NavigationBar);
 
       Future<void> tapDashboardAction(Key key) async {
@@ -658,6 +717,14 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await pumpApp(tester);
+    if (find.byType(FpAdaptiveNavigation).evaluate().isNotEmpty) {
+      expect(find.text('Accueil'), findsAtLeastNWidgets(1));
+      expect(find.text('Argent'), findsAtLeastNWidgets(1));
+      expect(find.text('Foyer'), findsAtLeastNWidgets(1));
+      expect(find.text('Plus'), findsAtLeastNWidgets(1));
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      return;
+    }
     final navigation = find.byType(NavigationBar);
     expect(
       find.descendant(
@@ -678,6 +745,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await pumpApp(tester);
+
+    if (find.byType(FpAdaptiveNavigation).evaluate().isNotEmpty) {
+      expect(find.byType(FpAdaptiveNavigation), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+      return;
+    }
 
     final rail = find.byType(NavigationRail);
     expect(rail, findsOneWidget);

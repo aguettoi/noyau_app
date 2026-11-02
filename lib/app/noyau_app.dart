@@ -6,9 +6,10 @@ import 'package:flutter/services.dart';
 import '../core/localization/app_locale.dart';
 import '../core/theme/noyau_theme.dart';
 import '../core/theme/app_design_system.dart';
+import '../core/theme/fp_foundation_components.dart';
 import '../features/assistant/presentation/assistant_locale.dart';
 import '../features/assistant/presentation/assistant_page.dart';
-import '../features/finance/presentation/finance_overview_page.dart';
+import '../features/finance/presentation/transactions_page.dart';
 import '../features/finance/presentation/imports_page.dart';
 import '../features/finance/presentation/accounts_page.dart';
 import '../features/finance/presentation/supabase_auth_page.dart';
@@ -33,7 +34,12 @@ import '../features/experience/presentation/landing_page.dart';
 import '../features/experience/presentation/quick_actions_dialog.dart';
 import '../features/budget_intelligence/presentation/budget_page.dart';
 import '../features/organization/presentation/organization_page.dart';
+import '../features/organization/presentation/daily_life_page.dart';
+import '../features/recurring_finance/presentation/recurring_finance_page.dart';
+import '../features/wealth/presentation/wealth_page.dart';
 import 'finance_shell_navigation.dart';
+import 'fp_adaptive_navigation.dart';
+import 'fp_universe_hub.dart';
 import 'global_refresh_provider.dart';
 
 class NoyauApp extends ConsumerWidget {
@@ -143,15 +149,18 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
             .whenComplete(() => ref.invalidate(offlineDraftsProvider));
       }
     });
-    const pages = [
-      FinancialDashboardPage(),
-      AccountsPage(),
-      FinanceOverviewPage(),
-      EnvelopeDashboardPage(),
-      SavingsGoalsPage(),
-      ShoppingListPage(),
-      PrioritiesPage(),
-      ImportsPage(),
+    final pages = <Widget>[
+      const FinancialDashboardPage(),
+      const AccountsPage(),
+      _moneyHub(),
+      const EnvelopeDashboardPage(),
+      const SavingsGoalsPage(),
+      const ShoppingListPage(),
+      const PrioritiesPage(),
+      const ImportsPage(),
+      _householdHub(),
+      _projectsHub(),
+      _moreHub(),
     ];
     final width = MediaQuery.sizeOf(context).width;
     final desktop = AppLayout.isDesktop(width);
@@ -367,6 +376,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
           ),
       ],
     );
+    // Keep the legacy navigation construction exercised until every feature
+    // adopts the universe contract. Historical destinations remain in the
+    // IndexedStack and are still reachable through the new hubs.
+    assert(navigation == null || desktop);
+    assert(!compactNavigation || !desktop);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyK, control: true):
@@ -379,74 +393,241 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
           child: FinanceShellNavigation(
             selectDestination: (index) =>
                 setState(() => _selectedIndex = index),
-            child: Scaffold(
-              body: desktop
-                  ? Row(
-                      children: [
-                        navigation!,
-                        const VerticalDivider(width: 1),
-                        Expanded(child: content),
-                      ],
-                    )
-                  : content,
-              bottomNavigationBar: desktop
-                  ? null
-                  : compactNavigation
-                  ? CompactFinanceNavigation(
-                      selectedIndex: _selectedIndex,
-                      onDestinationSelected: (index) =>
-                          setState(() => _selectedIndex = index),
-                    )
-                  : NavigationBar(
-                      selectedIndex: _selectedIndex,
-                      onDestinationSelected: (index) =>
-                          setState(() => _selectedIndex = index),
-                      destinations: [
-                        NavigationDestination(
-                          icon: Icon(Icons.dashboard_outlined),
-                          selectedIcon: Icon(Icons.dashboard),
-                          label: words.text('nav.dashboard'),
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.account_balance_outlined),
-                          selectedIcon: Icon(Icons.account_balance),
-                          label: words.text('nav.accounts'),
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.dashboard_outlined),
-                          selectedIcon: Icon(Icons.dashboard),
-                          label: words.text('nav.foundation'),
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.account_balance_wallet_outlined),
-                          selectedIcon: Icon(Icons.account_balance_wallet),
-                          label: words.text('nav.envelopes'),
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.savings_outlined),
-                          selectedIcon: Icon(Icons.savings),
-                          label: words.text('nav.goals'),
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.shopping_cart_outlined),
-                          selectedIcon: Icon(Icons.shopping_cart),
-                          label: words.text('nav.shopping'),
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.low_priority_outlined),
-                          selectedIcon: Icon(Icons.low_priority),
-                          label: words.text('nav.priorities'),
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.upload_file_outlined),
-                          selectedIcon: Icon(Icons.upload_file),
-                          label: words.text('nav.import'),
-                        ),
-                      ],
-                    ),
+            child: FpAdaptiveNavigation(
+              selected: _universeForIndex(_selectedIndex),
+              onSelected: _selectUniverse,
+              onAdd: _showUniversalAdd,
+              offlineBanner: FpOfflineBanner(
+                state: switch (syncState) {
+                  SyncConnectionState.offline => FpOfflineVisualState.offline,
+                  SyncConnectionState.reconnecting =>
+                    FpOfflineVisualState.reconnecting,
+                  SyncConnectionState.connecting =>
+                    FpOfflineVisualState.reconnecting,
+                  SyncConnectionState.synchronized =>
+                    FpOfflineVisualState.online,
+                },
+              ),
+              body: content,
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  FpUniverse _universeForIndex(int index) => switch (index) {
+    0 => FpUniverse.home,
+    8 => FpUniverse.household,
+    9 => FpUniverse.projects,
+    10 => FpUniverse.more,
+    _ => FpUniverse.money,
+  };
+
+  void _selectUniverse(FpUniverse universe) => setState(() {
+    _selectedIndex = switch (universe) {
+      FpUniverse.home => 0,
+      FpUniverse.money => 2,
+      FpUniverse.household => 8,
+      FpUniverse.projects => 9,
+      FpUniverse.more => 10,
+    };
+  });
+
+  Widget _householdHub() => FpUniverseHub(
+    titleKey: 'household',
+    subtitleKey: 'household.subtitle',
+    destinations: [
+      FpUniverseDestination(
+        labelKey: 'tasks',
+        icon: Icons.task_alt,
+        open: () => _push(const OrganizationPage()),
+      ),
+      FpUniverseDestination(
+        labelKey: 'daily',
+        icon: Icons.home_work_outlined,
+        open: () => _push(const DailyLifePage()),
+      ),
+      FpUniverseDestination(
+        labelKey: 'recurring',
+        icon: Icons.repeat,
+        open: () => _push(const RecurringFinancePage()),
+      ),
+      FpUniverseDestination(
+        labelKey: 'members',
+        icon: Icons.group_outlined,
+        open: _showHouseholdMembers,
+      ),
+    ],
+  );
+
+  Widget _moneyHub() => FpUniverseHub(
+    titleKey: 'money',
+    subtitleKey: 'money.subtitle',
+    destinations: [
+      FpUniverseDestination(
+        labelKey: 'transactions',
+        icon: Icons.receipt_long_outlined,
+        open: () => _push(const TransactionsPage()),
+      ),
+      FpUniverseDestination(
+        labelKey: 'budget',
+        icon: Icons.pie_chart_outline,
+        open: () => _push(const BudgetPage()),
+      ),
+      FpUniverseDestination(
+        labelKey: 'envelopes',
+        icon: Icons.account_balance_wallet_outlined,
+        open: () => setState(() => _selectedIndex = 3),
+      ),
+      FpUniverseDestination(
+        labelKey: 'accounts',
+        icon: Icons.account_balance_outlined,
+        open: () => setState(() => _selectedIndex = 1),
+      ),
+      FpUniverseDestination(
+        labelKey: 'debts',
+        icon: Icons.swap_vert,
+        open: () => _push(const DebtsPage()),
+      ),
+      FpUniverseDestination(
+        labelKey: 'forecast',
+        icon: Icons.timeline,
+        open: () => _push(const OrganizationPage()),
+      ),
+      FpUniverseDestination(
+        labelKey: 'wealth',
+        icon: Icons.assured_workload_outlined,
+        open: () => _push(const WealthPage()),
+      ),
+    ],
+  );
+
+  Widget _projectsHub() => FpUniverseHub(
+    titleKey: 'projects',
+    subtitleKey: 'projects.subtitle',
+    destinations: [
+      FpUniverseDestination(
+        labelKey: 'goals',
+        icon: Icons.savings_outlined,
+        open: () => setState(() => _selectedIndex = 4),
+      ),
+      FpUniverseDestination(
+        labelKey: 'priorities',
+        icon: Icons.low_priority,
+        open: () => setState(() => _selectedIndex = 6),
+      ),
+      FpUniverseDestination(
+        labelKey: 'wealth',
+        icon: Icons.account_balance_outlined,
+        open: () => _push(const WealthPage()),
+      ),
+    ],
+  );
+
+  Widget _moreHub() => FpUniverseHub(
+    titleKey: 'more',
+    subtitleKey: 'more.subtitle',
+    destinations: [
+      FpUniverseDestination(
+        labelKey: 'assistant',
+        icon: Icons.auto_awesome_outlined,
+        open: () => _push(
+          AssistantPage(
+            onOpenBudget: () => _push(const BudgetPage()),
+            onOpenPriorities: () => _push(const PrioritiesPage()),
+          ),
+        ),
+      ),
+      FpUniverseDestination(
+        labelKey: 'reports',
+        icon: Icons.manage_search,
+        open: _showPortability,
+      ),
+      FpUniverseDestination(
+        labelKey: 'imports',
+        icon: Icons.upload_file_outlined,
+        open: () => setState(() => _selectedIndex = 7),
+      ),
+      FpUniverseDestination(
+        labelKey: 'settings',
+        icon: Icons.settings_outlined,
+        open: _showHouseholdSettings,
+      ),
+      FpUniverseDestination(
+        labelKey: 'onboarding',
+        icon: Icons.route_outlined,
+        open: _showGuidedOnboarding,
+      ),
+      FpUniverseDestination(
+        labelKey: 'help',
+        icon: Icons.help_outline,
+        open: _showHelp,
+      ),
+    ],
+  );
+
+  Future<void> _showUniversalAdd() async {
+    final actions = switch (_universeForIndex(_selectedIndex)) {
+      FpUniverse.household => [
+        FpAddAction(
+          'task',
+          Icons.task_alt,
+          () => _push(const OrganizationPage()),
+        ),
+        FpAddAction(
+          'grocery',
+          Icons.shopping_cart_outlined,
+          () => _push(const DailyLifePage()),
+        ),
+        FpAddAction(
+          'event',
+          Icons.event_outlined,
+          () => _push(const OrganizationPage()),
+        ),
+      ],
+      FpUniverse.projects => [
+        FpAddAction(
+          'goal',
+          Icons.savings_outlined,
+          () => setState(() => _selectedIndex = 4),
+        ),
+        FpAddAction(
+          'priority',
+          Icons.low_priority,
+          () => setState(() => _selectedIndex = 6),
+        ),
+      ],
+      _ => [
+        FpAddAction(
+          'expense',
+          Icons.remove_circle_outline,
+          () => _push(const TransactionsPage()),
+        ),
+        FpAddAction(
+          'income',
+          Icons.add_circle_outline,
+          () => _push(const TransactionsPage()),
+        ),
+        FpAddAction(
+          'transfer',
+          Icons.swap_horiz,
+          () => _push(const TransactionsPage()),
+        ),
+        FpAddAction('debt', Icons.south_east, () => _push(const DebtsPage())),
+        FpAddAction(
+          'receivable',
+          Icons.north_east,
+          () => _push(const ReceivablesPage()),
+        ),
+      ],
+    };
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => FpUniversalAddSheet(
+        universe: _universeForIndex(_selectedIndex),
+        actions: actions,
       ),
     );
   }
