@@ -19,6 +19,13 @@ class OfflineSyncReport {
   final List<OfflineDraft> remaining;
 }
 
+enum OfflineSyncFailure { conflict, rejected, actionRequired }
+
+class OfflineSyncException implements Exception {
+  const OfflineSyncException(this.failure);
+  final OfflineSyncFailure failure;
+}
+
 class OfflineSyncCoordinator {
   OfflineSyncCoordinator(this.store, this.adapters);
   final ExperienceStore store;
@@ -52,6 +59,17 @@ class OfflineSyncCoordinator {
       try {
         await adapter.submit(draft.copyWith(state: OfflineDraftState.syncing));
         synced++;
+      } on OfflineSyncException catch (error) {
+        remaining.add(
+          draft.copyWith(
+            state: switch (error.failure) {
+              OfflineSyncFailure.conflict => OfflineDraftState.conflict,
+              OfflineSyncFailure.rejected => OfflineDraftState.rejected,
+              OfflineSyncFailure.actionRequired =>
+                OfflineDraftState.actionRequired,
+            },
+          ),
+        );
       } catch (_) {
         remaining.add(draft.copyWith(state: OfflineDraftState.actionRequired));
       }
@@ -73,7 +91,7 @@ class _TaskDraftAdapter implements OfflineDraftAdapter {
     if (household.householdId != draft.householdId ||
         user == null ||
         user != draft.memberId) {
-      throw StateError('Le contexte du brouillon a changé.');
+      throw const OfflineSyncException(OfflineSyncFailure.rejected);
     }
     try {
       await ref.read(organizationGatewayProvider).createTask(
@@ -82,7 +100,11 @@ class _TaskDraftAdapter implements OfflineDraftAdapter {
         {'id': draft.idempotencyKey, ...draft.payload},
       );
     } on PostgrestException catch (error) {
-      if (error.code != '23505') rethrow;
+      if (error.code == '23505') return;
+      if (error.code == '42501') {
+        throw const OfflineSyncException(OfflineSyncFailure.rejected);
+      }
+      rethrow;
     }
   }
 }
@@ -99,7 +121,7 @@ class _GroceryDraftAdapter implements OfflineDraftAdapter {
     if (household.householdId != draft.householdId ||
         user == null ||
         user != draft.memberId) {
-      throw StateError('Le contexte du brouillon a changé.');
+      throw const OfflineSyncException(OfflineSyncFailure.rejected);
     }
     try {
       await ref
@@ -112,7 +134,11 @@ class _GroceryDraftAdapter implements OfflineDraftAdapter {
             assignee: draft.payload['assignee_user_id'] as String?,
           );
     } on PostgrestException catch (error) {
-      if (error.code != '23505') rethrow;
+      if (error.code == '23505') return;
+      if (error.code == '42501') {
+        throw const OfflineSyncException(OfflineSyncFailure.rejected);
+      }
+      rethrow;
     }
   }
 }

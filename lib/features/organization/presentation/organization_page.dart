@@ -4,9 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/localization/app_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../cashflow_projection/presentation/cashflow_projection_page.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
+import '../../finance/application/providers/active_household_provider.dart';
+import '../../finance/application/providers/supabase_client_provider.dart';
+import '../../experience/application/experience_provider.dart';
+import '../../experience/domain/offline_draft.dart';
+import '../../portability/application/household_realtime_provider.dart';
 import '../../recurring_finance/presentation/recurring_finance_page.dart';
 import '../application/organization_provider.dart';
 import '../domain/organization_models.dart';
@@ -17,51 +23,76 @@ import 'daily_life_page.dart';
 class OrganizationPage extends ConsumerWidget {
   const OrganizationPage({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => DefaultTabController(
-    length: 3,
-    child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Organisation du foyer'),
-        actions: [
-          IconButton(
-            key: const Key('reminder-rules'),
-            tooltip: 'Règles de rappels',
-            onPressed: () => _showReminderRules(context, ref),
-            icon: const Icon(Icons.alarm),
-          ),
-          IconButton(
-            key: const Key('open-recurring-finance'),
-            tooltip: 'Opérations attendues',
-            onPressed: () => _openRecurringFinance(context),
-            icon: const Icon(Icons.event_repeat),
-          ),
-          IconButton(
-            key: const Key('notification-preferences'),
-            tooltip: 'Préférences des alertes',
-            onPressed: () => _showPreferences(context, ref),
-            icon: const Icon(Icons.tune),
-          ),
-        ],
-        bottom: const TabBar(
-          tabs: [
-            Tab(text: 'Tâches'),
-            Tab(text: 'Calendrier'),
-            Tab(text: 'Alertes'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = AppWords(ref.watch(appLocaleProvider));
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Organisation du foyer'),
+          actions: [
+            ref
+                .watch(offlineDraftsProvider)
+                .when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                  data: (drafts) => drafts.isEmpty
+                      ? const SizedBox.shrink()
+                      : Semantics(
+                          label: words.format('offline.pending_count', {
+                            'count': drafts.length,
+                          }),
+                          child: Tooltip(
+                            message: words.format('offline.pending_count', {
+                              'count': drafts.length,
+                            }),
+                            child: Badge.count(
+                              count: drafts.length,
+                              child: const Icon(Icons.cloud_upload_outlined),
+                            ),
+                          ),
+                        ),
+                ),
+            IconButton(
+              key: const Key('reminder-rules'),
+              tooltip: 'Règles de rappels',
+              onPressed: () => _showReminderRules(context, ref),
+              icon: const Icon(Icons.alarm),
+            ),
+            IconButton(
+              key: const Key('open-recurring-finance'),
+              tooltip: 'Opérations attendues',
+              onPressed: () => _openRecurringFinance(context),
+              icon: const Icon(Icons.event_repeat),
+            ),
+            IconButton(
+              key: const Key('notification-preferences'),
+              tooltip: 'Préférences des alertes',
+              onPressed: () => _showPreferences(context, ref),
+              icon: const Icon(Icons.tune),
+            ),
           ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Tâches'),
+              Tab(text: 'Calendrier'),
+              Tab(text: 'Alertes'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [_TasksTab(), _CalendarTab(), _AlertsTab()],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          heroTag: 'organization-add-task',
+          key: const Key('add-household-task'),
+          onPressed: () => _showTaskDialog(context, ref),
+          icon: const Icon(Icons.add_task),
+          label: const Text('Nouvelle tâche'),
         ),
       ),
-      body: const TabBarView(
-        children: [_TasksTab(), _CalendarTab(), _AlertsTab()],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'organization-add-task',
-        key: const Key('add-household-task'),
-        onPressed: () => _showTaskDialog(context, ref),
-        icon: const Icon(Icons.add_task),
-        label: const Text('Nouvelle tâche'),
-      ),
-    ),
-  );
+    );
+  }
 }
 
 void _openRecurringFinance(BuildContext context) => Navigator.of(
@@ -861,17 +892,49 @@ Future<void> _showTaskDialog(BuildContext context, WidgetRef ref) async {
     ),
   );
   if (save != true || title.text.trim().isEmpty) return;
-  await ref.read(organizationActionsProvider).createTask({
+  final idempotencyKey = _uuid();
+  final values = <String, Object?>{
     'title': title.text.trim(),
     'assignee_user_id': assignee,
     'due_date': due == null ? null : DateFormat('yyyy-MM-dd').format(due!),
     'priority': priority.name,
     'recurrence': recurrence.name,
-    'idempotency_key': _uuid(),
+    'idempotency_key': idempotencyKey,
     'room': room.text.trim().isEmpty ? null : room.text.trim(),
     'estimated_minutes': int.tryParse(duration.text.trim()),
     'workload': workload,
-  });
+  };
+  final connection = ref.read(syncConnectionStateProvider);
+  if (connection == SyncConnectionState.offline ||
+      connection == SyncConnectionState.reconnecting) {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final user = ref.read(currentUserIdProvider);
+    if (household.householdId == null || user == null) {
+      throw StateError('Session indisponible.');
+    }
+    await ref
+        .read(experienceStoreProvider)
+        .enqueueDraft(
+          OfflineDraft(
+            idempotencyKey: idempotencyKey,
+            actionKind: 'task',
+            updatedAt: DateTime.now().toUtc(),
+            state: OfflineDraftState.pending,
+            householdId: household.householdId,
+            memberId: user,
+            payload: values,
+          ),
+        );
+    ref.invalidate(offlineDraftsProvider);
+    if (context.mounted) {
+      final words = AppWords(ref.read(appLocaleProvider));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(words.text('offline.task_queued'))),
+      );
+    }
+  } else {
+    await ref.read(organizationActionsProvider).createTask(values);
+  }
   room.dispose();
   duration.dispose();
 }

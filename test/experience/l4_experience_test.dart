@@ -126,6 +126,20 @@ void main() {
     }
   });
 
+  test('offline UX catalog is complete in all four languages', () {
+    const keys = {
+      'offline.pending_count',
+      'offline.task_queued',
+      'offline.grocery_queued',
+    };
+    for (final language in AppLanguage.values) {
+      for (final key in keys) {
+        expect(AppWords.hasOwnTranslation(language, key), isTrue);
+        expect(AppWords(language).text(key).trim(), isNotEmpty);
+      }
+    }
+  });
+
   test(
     'Darija keeps ary storage code and uses ar-MA for Material rendering',
     () {
@@ -268,6 +282,62 @@ void main() {
 
     expect(adapter.calls, 1);
     expect(await store.loadDrafts(), isEmpty);
+  });
+
+  test(
+    'offline queue survives restart and rejects financial actions',
+    () async {
+      final store = ExperienceStore();
+      final draft = OfflineDraft(
+        idempotencyKey: '00000000-0000-4000-8000-000000000003',
+        actionKind: 'grocery_item',
+        updatedAt: DateTime.utc(2026, 11, 2),
+        state: OfflineDraftState.localDraft,
+        householdId: 'household-a',
+        memberId: 'member-a',
+        payload: const {'label': 'Lait', 'quantity': 1},
+      );
+
+      await store.enqueueDraft(draft);
+      final restartedStore = ExperienceStore();
+      final persisted = await restartedStore.loadDrafts();
+      expect(persisted, hasLength(1));
+      expect(persisted.single.idempotencyKey, draft.idempotencyKey);
+      expect(persisted.single.state, OfflineDraftState.pending);
+
+      expect(
+        () => store.enqueueDraft(
+          OfflineDraft(
+            idempotencyKey: 'financial-key',
+            actionKind: 'financial_event',
+            updatedAt: DateTime.utc(2026, 11, 2),
+            state: OfflineDraftState.pending,
+          ),
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test('offline synchronization preserves explicit failure states', () async {
+    final store = ExperienceStore();
+    await store.saveDrafts([
+      OfflineDraft(
+        idempotencyKey: '00000000-0000-4000-8000-000000000004',
+        actionKind: 'task',
+        updatedAt: DateTime.utc(2026, 11, 2),
+        state: OfflineDraftState.pending,
+        householdId: 'household-a',
+        memberId: 'member-a',
+      ),
+    ]);
+    final coordinator = OfflineSyncCoordinator(store, {
+      'task': const _RejectedAdapter(),
+    });
+
+    final report = await coordinator.synchronize();
+    expect(report.synced, 0);
+    expect(report.remaining.single.state, OfflineDraftState.rejected);
   });
 
   testWidgets(
@@ -418,6 +488,15 @@ class _DelayedAdapter implements OfflineDraftAdapter {
     calls++;
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }
+}
+
+class _RejectedAdapter implements OfflineDraftAdapter {
+  const _RejectedAdapter();
+  @override
+  String get actionKind => 'task';
+  @override
+  Future<void> submit(OfflineDraft draft) =>
+      throw const OfflineSyncException(OfflineSyncFailure.rejected);
 }
 
 class _LocalizedHarness extends ConsumerWidget {

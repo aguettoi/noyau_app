@@ -82,6 +82,20 @@ class ExperienceStore {
     );
   }
 
+  Future<void> enqueueDraft(OfflineDraft draft) async {
+    if (classifyOfflineAction(draft.actionKind) !=
+        OfflineCapability.localDraft) {
+      throw StateError('Cette action exige une validation serveur.');
+    }
+    final drafts = await loadDrafts();
+    final next = <OfflineDraft>[
+      for (final existing in drafts)
+        if (existing.idempotencyKey != draft.idempotencyKey) existing,
+      draft.copyWith(state: OfflineDraftState.pending),
+    ];
+    await saveDrafts(next);
+  }
+
   /// Privacy boundary: local household/member state is removed on logout or
   /// revocation. Language remains a device preference.
   Future<void> purgePrivateState() async {

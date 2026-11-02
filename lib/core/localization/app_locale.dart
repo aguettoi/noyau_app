@@ -222,6 +222,12 @@ class AppWords {
       'shell.offline':
           'Hors ligne — aucune mutation non confirmée ne sera présentée comme réussie.',
       'shell.reconnecting': 'Reconnexion en cours…',
+      'offline.pending_count':
+          '{count} action(s) en attente de synchronisation',
+      'offline.task_queued':
+          'Tâche enregistrée en attente. Elle sera synchronisée au retour du réseau.',
+      'offline.grocery_queued':
+          'Article enregistré en attente. Il sera synchronisé au retour du réseau.',
       'shell.refresh.success': 'Données actualisées.',
       'shell.refresh.error':
           'Actualisation impossible. Vérifiez votre connexion puis réessayez.',
@@ -388,6 +394,11 @@ class AppWords {
       'shell.offline':
           'Offline — no unconfirmed change will be shown as successful.',
       'shell.reconnecting': 'Reconnecting…',
+      'offline.pending_count': '{count} action(s) waiting to sync',
+      'offline.task_queued':
+          'Task saved as pending. It will sync when the network returns.',
+      'offline.grocery_queued':
+          'Item saved as pending. It will sync when the network returns.',
       'shell.refresh.success': 'Data refreshed.',
       'shell.refresh.error':
           'Refresh failed. Check your connection and try again.',
@@ -550,6 +561,10 @@ class AppWords {
       'nav.more_spaces': 'مساحات أخرى',
       'shell.offline': 'غير متصل — لن يُعرض أي تغيير غير مؤكد على أنه نجح.',
       'shell.reconnecting': 'جارٍ إعادة الاتصال…',
+      'offline.pending_count': '{count} إجراء بانتظار المزامنة',
+      'offline.task_queued': 'حُفظت المهمة بانتظار المزامنة عند عودة الاتصال.',
+      'offline.grocery_queued':
+          'حُفظ العنصر بانتظار المزامنة عند عودة الاتصال.',
       'shell.refresh.success': 'تم تحديث البيانات.',
       'shell.refresh.error': 'تعذر التحديث. تحقق من اتصالك ثم حاول مجدداً.',
       'shell.refresh.in_progress': 'جارٍ التحديث',
@@ -702,6 +717,9 @@ class AppWords {
       'shell.offline':
           'ما كاينش الريزو — حتى تبديل ما تأكدش ما غاديش يبان ناجح.',
       'shell.reconnecting': 'كنعاودو نتاصلو…',
+      'offline.pending_count': '{count} خدمة كتسنى المزامنة',
+      'offline.task_queued': 'تسجلات المهمة وكتسنى المزامنة ملي يرجع الريزو.',
+      'offline.grocery_queued': 'تسجل الغرض وكيستنى المزامنة ملي يرجع الريزو.',
       'shell.refresh.success': 'تحدّثات المعطيات.',
       'shell.refresh.error': 'ما قدرناش نحدّثو. شوف الريزو وعاود جرّب.',
       'shell.refresh.in_progress': 'كنحدّثو دابا',

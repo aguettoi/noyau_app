@@ -134,6 +134,10 @@ Le closing est publiable mais reste **PARTIAL** : R5-06, R5-07, R5-08,
 R5-12 et NET-X1 restent B. Aucun fallback de traduction, PASS d'accessibilité
 ou synchronisation financière fictive n'est revendiqué.
 
+> Cette conclusion décrit le jalon du 27 octobre 2026. Elle est conservée comme
+> trace historique et remplacée, pour l'état courant, par la certification de
+> fermeture du 2 novembre 2026 ci-dessous.
+
 ## Décision V1 — langue automatique
 
 Sans préférence explicite, l'application utilisera la locale de l'appareil
@@ -179,3 +183,41 @@ vagues A2 suivantes.
 | Course domestique | oui | `grocery_item` | `DailyLifeActions.addGrocery` | UUID du brouillon transmis comme `id` | session + foyer + RLS | succès: purge; sinon `actionRequired` |
 | Note onboarding | local seulement | `onboarding_note` | préférence locale | clé stable | utilisateur local | reste locale |
 | FinancialEvent / GL / transfert / clôture | non | préparation uniquement | RPC canonique lors de l'action utilisateur | idempotence RPC existante | serveur complète | jamais synchronisé silencieusement |
+
+## Certification de fermeture L4 — 2 novembre 2026
+
+| ID | Fonction | Preuve code | Preuve tests | Statut | Manque L4 |
+|---|---|---|---|---|---|
+| R5-01 | Invitation pré-auth | landing et Auth/foyer canoniques | tests L4/Auth | A | Aucun; deep links réels restent P1 |
+| R5-02 | Onboarding réel | parcours guidé et raccordements shell | tests onboarding/retour | A | Aucun |
+| R5-03 | Skip/reprise persisté | `ExperienceStore`, états par module | tests de persistance | A | Aucun |
+| R5-04 | Aide recherchable | `help_center_page.dart` | filtre local et clavier | A | Aucun |
+| R5-06 | Arabe/RTL | catalogues L4.1 complets | garde-fous A1/A2 | A | Recette linguistique finale |
+| R5-07 | Darija | `ary` canonique, rendu `ar-MA` | complétude et RTL | A | Recette linguistique finale |
+| R5-08 | Anglais | catalogues L4.1 complets | garde-fous A1/A2 | A | Recette linguistique finale |
+| R5-09 | Landing Web | landing et URLs configurables | tests landing | A | Distribution réelle P1 |
+| R5-11 | Actions rapides | shell tactile et `Ctrl+K` | tests shell/navigation | A | Certification plateformes P1 |
+| R5-12 | Accessibilité fonctionnelle | focus ordonné, semantics, labels et cible tactile 48 px | `l4_accessibility_test.dart` | A | Recette lecteurs d'écran/appareils D1.2/P1 |
+| NET-X1 | Résilience réseau bornée | file persistante, adapters tâche/course, états UX et revalidation | `l4_experience_test.dart` | A | Lifecycle réseau réel multi-plateforme P1 |
+
+### Fermeture accessibilité
+
+Le shell impose un ordre de focus de lecture et conserve `Ctrl+K` sans rendre
+les commandes dépendantes du clavier. Les actions critiques gardent une voie
+tactile, les boutons icône structurants ont un libellé, le centre d'aide expose
+ses champs et articles aux semantics, et le Design System impose une cible
+minimale de 48 pixels logiques. Les tests couvrent clavier, semantics,
+agrandissement de texte et RTL. La recette physique avec lecteurs d'écran,
+claviers et appareils réels demeure une certification P1/D1.2.
+
+### Fermeture NET-X1
+
+Les formulaires tâche et course basculent explicitement vers la file locale
+uniquement hors ligne ou en reconnexion. L'utilisateur voit la confirmation
+« en attente » et un compteur accessible. La file survit au redémarrage,
+conserve une clé idempotente stable et ne purge un brouillon qu'après succès
+canonique; un doublon `23505` après réponse perdue vaut succès. Les signaux
+concurrents partagent un cycle. Un changement utilisateur/foyer ou un refus RLS
+produit `rejected`; une erreur non qualifiée produit `actionRequired`.
+FinancialEvent, GL, transferts, clôture et autres mutations financières restent
+`serverRequired` et sont refusés par l'API de file locale.

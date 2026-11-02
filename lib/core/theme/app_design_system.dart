@@ -67,9 +67,9 @@ abstract final class AppSpacing {
 }
 
 abstract final class AppControlSize {
-  static const minimumTouchTarget = 44.0;
-  static const buttonHeight = 46.0;
-  static const inputHeight = 46.0;
+  static const minimumTouchTarget = 48.0;
+  static const buttonHeight = 48.0;
+  static const inputHeight = 48.0;
   static const iconSmall = 18.0;
   static const icon = 24.0;
   static const iconLarge = 32.0;

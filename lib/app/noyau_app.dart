@@ -135,7 +135,10 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     final syncState = ref.watch(syncConnectionStateProvider);
     ref.listen(syncConnectionStateProvider, (previous, next) {
       if (next == SyncConnectionState.synchronized && previous != next) {
-        ref.read(offlineSyncCoordinatorProvider).synchronize();
+        ref
+            .read(offlineSyncCoordinatorProvider)
+            .synchronize()
+            .whenComplete(() => ref.invalidate(offlineDraftsProvider));
       }
     });
     const pages = [
@@ -367,75 +370,79 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         const SingleActivator(LogicalKeyboardKey.keyK, control: true):
             _showQuickActions,
       },
-      child: Focus(
-        autofocus: true,
-        child: FinanceShellNavigation(
-          selectDestination: (index) => setState(() => _selectedIndex = index),
-          child: Scaffold(
-            body: desktop
-                ? Row(
-                    children: [
-                      navigation!,
-                      const VerticalDivider(width: 1),
-                      Expanded(child: content),
-                    ],
-                  )
-                : content,
-            bottomNavigationBar: desktop
-                ? null
-                : compactNavigation
-                ? CompactFinanceNavigation(
-                    selectedIndex: _selectedIndex,
-                    onDestinationSelected: (index) =>
-                        setState(() => _selectedIndex = index),
-                  )
-                : NavigationBar(
-                    selectedIndex: _selectedIndex,
-                    onDestinationSelected: (index) =>
-                        setState(() => _selectedIndex = index),
-                    destinations: [
-                      NavigationDestination(
-                        icon: Icon(Icons.dashboard_outlined),
-                        selectedIcon: Icon(Icons.dashboard),
-                        label: words.text('nav.dashboard'),
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.account_balance_outlined),
-                        selectedIcon: Icon(Icons.account_balance),
-                        label: words.text('nav.accounts'),
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.dashboard_outlined),
-                        selectedIcon: Icon(Icons.dashboard),
-                        label: words.text('nav.foundation'),
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.account_balance_wallet_outlined),
-                        selectedIcon: Icon(Icons.account_balance_wallet),
-                        label: words.text('nav.envelopes'),
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.savings_outlined),
-                        selectedIcon: Icon(Icons.savings),
-                        label: words.text('nav.goals'),
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.shopping_cart_outlined),
-                        selectedIcon: Icon(Icons.shopping_cart),
-                        label: words.text('nav.shopping'),
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.low_priority_outlined),
-                        selectedIcon: Icon(Icons.low_priority),
-                        label: words.text('nav.priorities'),
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.upload_file_outlined),
-                        selectedIcon: Icon(Icons.upload_file),
-                        label: words.text('nav.import'),
-                      ),
-                    ],
-                  ),
+      child: FocusTraversalGroup(
+        policy: ReadingOrderTraversalPolicy(),
+        child: Focus(
+          autofocus: true,
+          child: FinanceShellNavigation(
+            selectDestination: (index) =>
+                setState(() => _selectedIndex = index),
+            child: Scaffold(
+              body: desktop
+                  ? Row(
+                      children: [
+                        navigation!,
+                        const VerticalDivider(width: 1),
+                        Expanded(child: content),
+                      ],
+                    )
+                  : content,
+              bottomNavigationBar: desktop
+                  ? null
+                  : compactNavigation
+                  ? CompactFinanceNavigation(
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: (index) =>
+                          setState(() => _selectedIndex = index),
+                    )
+                  : NavigationBar(
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: (index) =>
+                          setState(() => _selectedIndex = index),
+                      destinations: [
+                        NavigationDestination(
+                          icon: Icon(Icons.dashboard_outlined),
+                          selectedIcon: Icon(Icons.dashboard),
+                          label: words.text('nav.dashboard'),
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.account_balance_outlined),
+                          selectedIcon: Icon(Icons.account_balance),
+                          label: words.text('nav.accounts'),
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.dashboard_outlined),
+                          selectedIcon: Icon(Icons.dashboard),
+                          label: words.text('nav.foundation'),
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.account_balance_wallet_outlined),
+                          selectedIcon: Icon(Icons.account_balance_wallet),
+                          label: words.text('nav.envelopes'),
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.savings_outlined),
+                          selectedIcon: Icon(Icons.savings),
+                          label: words.text('nav.goals'),
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.shopping_cart_outlined),
+                          selectedIcon: Icon(Icons.shopping_cart),
+                          label: words.text('nav.shopping'),
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.low_priority_outlined),
+                          selectedIcon: Icon(Icons.low_priority),
+                          label: words.text('nav.priorities'),
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.upload_file_outlined),
+                          selectedIcon: Icon(Icons.upload_file),
+                          label: words.text('nav.import'),
+                        ),
+                      ],
+                    ),
+            ),
           ),
         ),
       ),

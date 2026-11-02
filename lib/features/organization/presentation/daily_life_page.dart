@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/localization/app_locale.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
+import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
+import '../../experience/application/experience_provider.dart';
+import '../../experience/domain/offline_draft.dart';
+import '../../portability/application/household_realtime_provider.dart';
 import '../application/daily_life_provider.dart';
 
 class DailyLifePage extends ConsumerWidget {
@@ -286,18 +291,63 @@ Future<void> _groceryDialog(BuildContext context, WidgetRef ref) async {
     ),
   );
   if (save == true && label.text.trim().isNotEmpty) {
-    await ref
-        .read(dailyLifeActionsProvider)
-        .addGrocery(
-          label.text,
-          assignee: assignee,
-          quantity: double.tryParse(quantity.text.replaceAll(',', '.')) ?? 1,
-          unit: unit.text,
+    final idempotencyKey = _offlineUuid();
+    final parsedQuantity =
+        double.tryParse(quantity.text.replaceAll(',', '.')) ?? 1;
+    final connection = ref.read(syncConnectionStateProvider);
+    if (connection == SyncConnectionState.offline ||
+        connection == SyncConnectionState.reconnecting) {
+      final household = await ref.read(activeHouseholdProvider.future);
+      final user = ref.read(currentUserIdProvider);
+      if (household.householdId == null || user == null) {
+        throw StateError('Session indisponible.');
+      }
+      await ref
+          .read(experienceStoreProvider)
+          .enqueueDraft(
+            OfflineDraft(
+              idempotencyKey: idempotencyKey,
+              actionKind: 'grocery_item',
+              updatedAt: DateTime.now().toUtc(),
+              state: OfflineDraftState.pending,
+              householdId: household.householdId,
+              memberId: user,
+              payload: {
+                'label': label.text.trim(),
+                'quantity': parsedQuantity,
+                'unit': unit.text.trim().isEmpty ? null : unit.text.trim(),
+                'assignee_user_id': assignee,
+              },
+            ),
+          );
+      ref.invalidate(offlineDraftsProvider);
+      if (context.mounted) {
+        final words = AppWords(ref.read(appLocaleProvider));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(words.text('offline.grocery_queued'))),
         );
+      }
+    } else {
+      await ref
+          .read(dailyLifeActionsProvider)
+          .addGrocery(
+            label.text,
+            idempotencyKey: idempotencyKey,
+            assignee: assignee,
+            quantity: parsedQuantity,
+            unit: unit.text,
+          );
+    }
   }
   label.dispose();
   quantity.dispose();
   unit.dispose();
+}
+
+String _offlineUuid() {
+  final random = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+  final padded = random.padLeft(32, '0');
+  return '${padded.substring(0, 8)}-${padded.substring(8, 12)}-4${padded.substring(13, 16)}-8${padded.substring(17, 20)}-${padded.substring(20, 32)}';
 }
 
 Future<void> _homeDialog(BuildContext context, WidgetRef ref) async {
