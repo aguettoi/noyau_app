@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/accounts_locale.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
@@ -59,9 +60,11 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
     );
     if (created == true && mounted) {
       ref.invalidate(remoteAccountsProvider);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Compte créé avec succès.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AccountsWords.of(context).text('accounts.created')),
+        ),
+      );
     }
   }
 
@@ -85,7 +88,9 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
     final balancesAsync = ref.watch(remoteAccountBalancesProvider);
     final membersAsync = ref.watch(remoteHouseholdMembersProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Comptes')),
+      appBar: AppBar(
+        title: Text(AccountsWords.of(context).text('accounts.title')),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _creating || !accountsAsync.hasValue
             ? null
@@ -97,14 +102,18 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.add),
-        label: const Text('Ajouter'),
+        label: Text(AccountsWords.of(context).text('accounts.add')),
       ),
       body: accountsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
           child: Padding(
             padding: AppSpacing.page,
-            child: Text('Impossible de lire les comptes distants : $error'),
+            child: Text(
+              AccountsWords.of(
+                context,
+              ).format('accounts.read_error', {'error': error}),
+            ),
           ),
         ),
         data: (items) {
@@ -155,16 +164,28 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     DesktopSection(
-                      title: 'Vos comptes',
+                      title: AccountsWords.of(context).text('accounts.yours'),
                       subtitle: ordered.isEmpty
-                          ? 'Ajoutez un compte ou importez vos comptes initiaux.'
-                          : '${ordered.length} compte${ordered.length > 1 ? 's' : ''} suivi${ordered.length > 1 ? 's' : ''}',
+                          ? AccountsWords.of(
+                              context,
+                            ).text('accounts.add_or_import')
+                          : AccountsWords.of(context).format(
+                              ordered.length == 1
+                                  ? 'accounts.tracked_one'
+                                  : 'accounts.tracked_many',
+                              {'count': ordered.length},
+                            ),
                       child: ordered.isEmpty
-                          ? const CompactListRow(
-                              title: 'Aucun compte distant',
-                              subtitle:
-                                  'La liste apparaîtra ici après création ou import.',
-                              leading: Icon(Icons.account_balance_outlined),
+                          ? CompactListRow(
+                              title: AccountsWords.of(
+                                context,
+                              ).text('accounts.empty'),
+                              subtitle: AccountsWords.of(
+                                context,
+                              ).text('accounts.empty_hint'),
+                              leading: const Icon(
+                                Icons.account_balance_outlined,
+                              ),
                             )
                           : LayoutBuilder(
                               builder: (context, constraints) {
@@ -247,12 +268,17 @@ class _AccountsHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Vue des comptes',
+                AccountsWords.of(context).text('accounts.overview'),
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: AppSpacing.xxs),
               Text(
-                '$accountCount compte${accountCount > 1 ? 's' : ''} relié${accountCount > 1 ? 's' : ''} à votre foyer.',
+                AccountsWords.of(context).format(
+                  accountCount == 1
+                      ? 'accounts.linked_one'
+                      : 'accounts.linked_many',
+                  {'count': accountCount},
+                ),
               ),
             ],
           ),
@@ -260,15 +286,18 @@ class _AccountsHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'Total visible',
+                AccountsWords.of(context).text('accounts.visible_total'),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               Text(
+                // i18n-dynamic-only: formatted amount and canonical currency
                 '${totalBalance.dirhams.toStringAsFixed(2)} MAD',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               if (hasHiddenBalances)
-                const Text('Certains soldes ne sont pas inclus.'),
+                Text(
+                  AccountsWords.of(context).text('accounts.partial_balances'),
+                ),
             ],
           ),
         ],
@@ -292,10 +321,10 @@ class _AccountRow extends StatelessWidget {
     leading: Icon(_accountIcon(account.type), color: AppColors.secondary),
     title: account.name,
     subtitle:
-        '${_accountTypeLabel(account.type)} • ${_holdersLabel(account, members)} • ${account.isArchived ? 'Archivé' : 'Actif'}',
+        '${_accountTypeLabel(context, account.type)} • ${_holdersLabel(context, account, members)} • ${AccountsWords.of(context).text(account.isArchived ? 'accounts.archived' : 'accounts.active')}',
     trailing: Text(
       balance == null
-          ? 'Solde masqué'
+          ? AccountsWords.of(context).text('accounts.hidden_balance')
           : '${balance!.dirhams.toStringAsFixed(2)} MAD',
       style: Theme.of(context).textTheme.labelLarge,
     ),
@@ -339,8 +368,11 @@ class _AccountDetailPage extends ConsumerWidget {
           Text(account.name, style: Theme.of(context).textTheme.headlineSmall),
           Text(
             visibleBalance == null
-                ? 'Solde masqué'
-                : 'Solde actuel : ${visibleBalance.dirhams.toStringAsFixed(2)} MAD',
+                ? AccountsWords.of(context).text('accounts.hidden_balance')
+                : AccountsWords.of(context).format('accounts.current_balance', {
+                    'amount':
+                        '${visibleBalance.dirhams.toStringAsFixed(2)} MAD',
+                  }),
           ),
           if (canReconcile &&
               visibleBalance != null &&
@@ -356,29 +388,38 @@ class _AccountDetailPage extends ConsumerWidget {
           ],
           if (history != null) ...[
             const SizedBox(height: AppSpacing.md),
-            Text('Opérations', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              AccountsWords.of(context).text('accounts.operations'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             ...history.when(
               loading: () => const [Center(child: CircularProgressIndicator())],
-              error: (_, _) => const [
-                Text('Impossible de charger l’historique du compte.'),
+              error: (_, _) => [
+                Text(AccountsWords.of(context).text('accounts.history_error')),
               ],
               data: (items) => items.isEmpty
-                  ? const [Text('Aucune opération pour ce compte.')]
+                  ? [
+                      Text(
+                        AccountsWords.of(context).text('accounts.no_operation'),
+                      ),
+                    ]
                   : items
                         .map(
                           (item) => ListTile(
                             title: Text(item.description),
                             subtitle: Text(
-                              '${_formatObservationDate(item.occurredAt)} • ${_accountHistoryLabel(item.type)}'
+                              // i18n-dynamic-only: localized labels plus user data
+                              '${_formatObservationDate(item.occurredAt)} • ${_accountHistoryLabel(context, item.type)}'
                               '${item.paymentMethodName == null ? '' : ' • ${item.paymentMethodName}'}'
                               '${item.envelopes.isEmpty ? '' : ' • ${item.envelopes.map((e) => e.name).join(', ')}'}'
                               '${item.isReversed
-                                  ? ' • Annulée'
+                                  ? ' • ${AccountsWords.of(context).text('accounts.history.reversed')}'
                                   : item.isReversal
-                                  ? ' • Contrepassation'
+                                  ? ' • ${AccountsWords.of(context).text('accounts.history.reversal')}'
                                   : ''}',
                             ),
                             trailing: Text(
+                              // i18n-dynamic-only: sign, amount and canonical currency
                               '${item.sourceAccountId == account.id ? '−' : '+'}${item.amount.dirhams.abs().toStringAsFixed(2)} MAD',
                             ),
                           ),
@@ -430,7 +471,11 @@ class _AccountDetailPage extends ConsumerWidget {
     );
     if (saved == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Constat de solde enregistré.')),
+        SnackBar(
+          content: Text(
+            AccountsWords.of(context).text('accounts.observation_saved'),
+          ),
+        ),
       );
     }
   }
@@ -474,11 +519,17 @@ class _AccountReconciliationCard extends StatelessWidget {
           children: [
             Text(
               account.type == FinancialAccountType.cash
-                  ? 'Inventaire de caisse'
-                  : 'Rapprochement bancaire',
+                  ? AccountsWords.of(context).text('accounts.cash_inventory')
+                  : AccountsWords.of(
+                      context,
+                    ).text('accounts.bank_reconciliation'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const Text('Le dernier constat ne peut pas être chargé.'),
+            Text(
+              AccountsWords.of(
+                context,
+              ).text('accounts.latest_observation_error'),
+            ),
             Align(
               alignment: Alignment.centerRight,
               child: Wrap(
@@ -486,11 +537,15 @@ class _AccountReconciliationCard extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: onHistory,
-                    child: const Text('Voir l’historique'),
+                    child: Text(
+                      AccountsWords.of(context).text('accounts.view_history'),
+                    ),
                   ),
                   OutlinedButton(
                     onPressed: onRecord,
-                    child: const Text('Constater un solde réel'),
+                    child: Text(
+                      AccountsWords.of(context).text('accounts.observe_actual'),
+                    ),
                   ),
                 ],
               ),
@@ -510,35 +565,62 @@ class _AccountReconciliationCard extends StatelessWidget {
               latest?.status == 'reconciled' ||
               difference?.minorUnits == 0;
           final title = account.type == FinancialAccountType.cash
-              ? 'Inventaire de caisse'
-              : 'Rapprochement bancaire';
+              ? AccountsWords.of(context).text('accounts.cash_inventory')
+              : AccountsWords.of(context).text('accounts.bank_reconciliation');
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: AppSpacing.xxs),
-              Text('Solde théorique GL : ${_frenchMoney(theoreticalBalance)}'),
+              Text(
+                AccountsWords.of(context).format(
+                  'accounts.theoretical_balance',
+                  {'amount': _frenchMoney(theoreticalBalance)},
+                ),
+              ),
               if (latest == null)
-                const Text('Aucun solde réel constaté pour le moment.')
+                Text(
+                  AccountsWords.of(context).text('accounts.no_actual_balance'),
+                )
               else ...[
                 Text(
-                  'Solde réel constaté : ${_frenchMoney(latest.actualBalance)}',
+                  AccountsWords.of(context).format(
+                    'accounts.observed_actual_balance',
+                    {'amount': _frenchMoney(latest.actualBalance)},
+                  ),
                 ),
                 if (latest.theoreticalBalanceSnapshot != null)
                   Text(
-                    'Théorique figé : ${_frenchMoney(latest.theoreticalBalanceSnapshot!)}',
+                    AccountsWords.of(context).format(
+                      'accounts.frozen_theoretical',
+                      {
+                        'amount': _frenchMoney(
+                          latest.theoreticalBalanceSnapshot!,
+                        ),
+                      },
+                    ),
                   ),
-                Text('Écart : ${_frenchMoney(difference!)}'),
+                Text(
+                  AccountsWords.of(context).format('accounts.difference', {
+                    'amount': _frenchMoney(difference!),
+                  }),
+                ),
                 Text(
                   reconciled == true
-                      ? 'État : Rapproché'
+                      ? AccountsWords.of(
+                          context,
+                        ).text('accounts.state.reconciled')
                       : latest.status == 'partially_resolved'
-                      ? 'État : Écart partiellement résolu'
+                      ? AccountsWords.of(context).text('accounts.state.partial')
                       : latest.status == 'explained_pending'
-                      ? 'État : Écart temporaire à suivre'
+                      ? AccountsWords.of(
+                          context,
+                        ).text('accounts.state.temporary')
                       : latest.status == 'legacy_unfrozen'
-                      ? 'État : Historique à reconfirmer'
-                      : 'État : Écart à expliquer',
+                      ? AccountsWords.of(context).text('accounts.state.legacy')
+                      : AccountsWords.of(
+                          context,
+                        ).text('accounts.state.unexplained'),
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: reconciled == true
@@ -546,17 +628,29 @@ class _AccountReconciliationCard extends StatelessWidget {
                         : Theme.of(context).colorScheme.error,
                   ),
                 ),
-                Text('Relevé : ${_formatObservationDate(latest.observedAt)}'),
-                Text('Effectué par : ${latest.actorName}'),
-                Text('Commentaire : ${latest.reason}'),
+                Text(
+                  AccountsWords.of(context).format('accounts.observed_at', {
+                    'date': _formatObservationDate(latest.observedAt),
+                  }),
+                ),
+                Text(
+                  AccountsWords.of(
+                    context,
+                  ).format('accounts.performed_by', {'name': latest.actorName}),
+                ),
+                Text(
+                  AccountsWords.of(
+                    context,
+                  ).format('accounts.comment', {'comment': latest.reason}),
+                ),
                 if (latest.status == 'legacy_unfrozen')
-                  const Text(
-                    'Constat historique — référence GL non figée. Créez un nouveau constat pour utiliser le nouveau processus de rapprochement.',
-                  ),
+                  Text(AccountsWords.of(context).text('accounts.legacy_hint')),
               ],
               const SizedBox(height: AppSpacing.sm),
-              const Text(
-                'Le compte financier indique où se trouve l’argent ; une enveloppe indique à quoi il est destiné. Aucun écart ne modifie le Grand Livre ni les enveloppes.',
+              Text(
+                AccountsWords.of(
+                  context,
+                ).text('accounts.account_envelope_distinction'),
               ),
               Align(
                 alignment: Alignment.centerRight,
@@ -566,7 +660,9 @@ class _AccountReconciliationCard extends StatelessWidget {
                     TextButton(
                       key: const Key('view-reconciliation-history-button'),
                       onPressed: onHistory,
-                      child: const Text('Voir l’historique'),
+                      child: Text(
+                        AccountsWords.of(context).text('accounts.view_history'),
+                      ),
                     ),
                     OutlinedButton.icon(
                       key: const Key(
@@ -576,8 +672,12 @@ class _AccountReconciliationCard extends StatelessWidget {
                       icon: const Icon(Icons.fact_check_outlined),
                       label: Text(
                         account.type == FinancialAccountType.cash
-                            ? 'Compter les espèces'
-                            : 'Constater un solde réel',
+                            ? AccountsWords.of(
+                                context,
+                              ).text('accounts.count_cash')
+                            : AccountsWords.of(
+                                context,
+                              ).text('accounts.observe_actual'),
                       ),
                     ),
                   ],
@@ -600,16 +700,18 @@ class _ReconciliationHistoryDialog extends ConsumerWidget {
     return AlertDialog(
       title: Text(
         account.type == FinancialAccountType.cash
-            ? 'Historique de caisse'
-            : 'Historique des rapprochements',
+            ? AccountsWords.of(context).text('accounts.cash_history')
+            : AccountsWords.of(context).text('accounts.reconciliation_history'),
       ),
       content: SizedBox(
         width: 620,
         child: history.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => const Text('Impossible de charger les constats.'),
+          error: (_, _) => Text(
+            AccountsWords.of(context).text('accounts.observations_error'),
+          ),
           data: (cases) => cases.isEmpty
-              ? const Text('Aucun constat.')
+              ? Text(AccountsWords.of(context).text('accounts.no_observation'))
               : ListView.separated(
                   shrinkWrap: true,
                   itemCount: cases.length,
@@ -624,7 +726,7 @@ class _ReconciliationHistoryDialog extends ConsumerWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Fermer'),
+          child: Text(AccountsWords.of(context).text('accounts.close')),
         ),
       ],
     );
@@ -643,18 +745,30 @@ class _ReconciliationCaseTile extends ConsumerWidget {
     return ListTile(
       title: Text(
         observation.theoreticalBalanceSnapshot == null
-            ? '${_formatObservationDate(observation.observedAt)} — Constat historique — référence GL non figée'
+            ? AccountsWords.of(context).format('accounts.legacy_case_title', {
+                'date': _formatObservationDate(observation.observedAt),
+              })
             : '${_formatObservationDate(observation.observedAt)} — ${item.status}',
       ),
       subtitle: Text(
-        'Réel ${_frenchMoney(observation.actualBalance)} • Écart restant ${remainder == null ? 'historique à reconfirmer' : _frenchMoney(remainder)}\n${observation.reason}',
+        AccountsWords.of(context).format('accounts.case_summary', {
+          'actual': _frenchMoney(observation.actualBalance),
+          'remaining': remainder == null
+              ? AccountsWords.of(context).text('accounts.legacy_reconfirm')
+              : _frenchMoney(remainder),
+          'reason': observation.reason,
+        }),
       ),
       isThreeLine: true,
       trailing: observation.theoreticalBalanceSnapshot == null
-          ? const Text('Nouveau constat requis')
+          ? Text(
+              AccountsWords.of(
+                context,
+              ).text('accounts.new_observation_required'),
+            )
           : TextButton(
               onPressed: () => _detail(context, ref),
-              child: const Text('Détail'),
+              child: Text(AccountsWords.of(context).text('accounts.details')),
             ),
     );
   }
@@ -703,7 +817,9 @@ class _ReconciliationDetailDialogState
     final remaining = i.remainingDifference ?? o.differenceSnapshot!;
     final hasTemporary = i.resolutions.any((item) => item.kind == 'temporary');
     return AlertDialog(
-      title: const Text('Détail du constat'),
+      title: Text(
+        AccountsWords.of(context).text('accounts.observation_details'),
+      ),
       content: SizedBox(
         width: 620,
         child: SingleChildScrollView(
@@ -711,22 +827,47 @@ class _ReconciliationDetailDialogState
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Solde réel : ${_frenchMoney(o.actualBalance)}'),
               Text(
-                'Théorique figé : ${_frenchMoney(o.theoreticalBalanceSnapshot!)}',
+                AccountsWords.of(context).format('accounts.actual_balance', {
+                  'amount': _frenchMoney(o.actualBalance),
+                }),
               ),
-              Text('Écart initial : ${_frenchMoney(o.differenceSnapshot!)}'),
               Text(
-                'Reliquat : ${_frenchMoney(i.remainingDifference ?? o.differenceSnapshot!)}',
+                AccountsWords.of(context).format(
+                  'accounts.frozen_theoretical',
+                  {'amount': _frenchMoney(o.theoreticalBalanceSnapshot!)},
+                ),
               ),
-              Text('Auteur : ${o.actorName}'),
-              Text('Motif du constat : ${o.reason}'),
+              Text(
+                AccountsWords.of(context).format(
+                  'accounts.initial_difference',
+                  {'amount': _frenchMoney(o.differenceSnapshot!)},
+                ),
+              ),
+              Text(
+                AccountsWords.of(context).format('accounts.remaining', {
+                  'amount': _frenchMoney(
+                    i.remainingDifference ?? o.differenceSnapshot!,
+                  ),
+                }),
+              ),
+              Text(
+                AccountsWords.of(
+                  context,
+                ).format('accounts.author', {'name': o.actorName}),
+              ),
+              Text(
+                AccountsWords.of(
+                  context,
+                ).format('accounts.observation_reason', {'reason': o.reason}),
+              ),
               const SizedBox(height: AppSpacing.sm),
               ...i.resolutions.map(
                 (r) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(_resolutionLabel(r.kind)),
+                  title: Text(_resolutionLabel(context, r.kind)),
                   subtitle: Text(
+                    // i18n-dynamic-only: user comment, actor and formatted date
                     '${r.comment}\n${r.actorName} • ${_formatObservationDate(r.createdAt)}',
                   ),
                   trailing:
@@ -735,7 +876,9 @@ class _ReconciliationDetailDialogState
                           onPressed: _saving
                               ? null
                               : () => _reverseRegularization(r),
-                          child: const Text('Contrepasser'),
+                          child: Text(
+                            AccountsWords.of(context).text('accounts.reverse'),
+                          ),
                         )
                       : r.effectiveAmount.minorUnits == 0
                       ? null
@@ -745,7 +888,11 @@ class _ReconciliationDetailDialogState
               const Divider(),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Différence temporaire'),
+                title: Text(
+                  AccountsWords.of(
+                    context,
+                  ).text('accounts.temporary_difference'),
+                ),
                 value: _temporary,
                 onChanged: _saving
                     ? null
@@ -754,9 +901,13 @@ class _ReconciliationDetailDialogState
               TextField(
                 controller: _comment,
                 maxLength: 280,
-                decoration: const InputDecoration(
-                  labelText: 'Explication documentaire',
-                  hintText: 'Décrivez le constat sans modifier les écritures.',
+                decoration: InputDecoration(
+                  labelText: AccountsWords.of(
+                    context,
+                  ).text('accounts.documentary_explanation'),
+                  hintText: AccountsWords.of(
+                    context,
+                  ).text('accounts.documentary_hint'),
                 ),
               ),
             ],
@@ -766,32 +917,48 @@ class _ReconciliationDetailDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Fermer'),
+          child: Text(AccountsWords.of(context).text('accounts.close')),
         ),
         if (remaining.minorUnits != 0)
           TextButton(
             onPressed: _saving ? null : _regularize,
-            child: const Text('Régulariser explicitement'),
+            child: Text(
+              AccountsWords.of(context).text('accounts.regularize_explicitly'),
+            ),
           ),
         if (remaining.minorUnits != 0)
           TextButton(
             onPressed: _saving ? null : _attachFinancialEvent,
-            child: const Text('Rattacher une opération existante'),
+            child: Text(
+              AccountsWords.of(
+                context,
+              ).text('accounts.link_existing_operation'),
+            ),
           ),
         if (remaining.minorUnits != 0)
           TextButton(
             onPressed: _saving ? null : _recordMissingOperation,
-            child: const Text('Enregistrer une opération manquante'),
+            child: Text(
+              AccountsWords.of(
+                context,
+              ).text('accounts.record_missing_operation'),
+            ),
           ),
         if (remaining.minorUnits != 0 && hasTemporary)
           TextButton(
             onPressed: _saving ? null : _attachFollowUp,
-            child: const Text('Rattacher un constat de suivi'),
+            child: Text(
+              AccountsWords.of(
+                context,
+              ).text('accounts.link_followup_observation'),
+            ),
           ),
         FilledButton(
           onPressed: _saving ? null : _save,
           child: Text(
-            _saving ? 'Enregistrement…' : 'Enregistrer l’explication',
+            AccountsWords.of(
+              context,
+            ).text(_saving ? 'accounts.saving' : 'accounts.save_explanation'),
           ),
         ),
       ],
@@ -841,30 +1008,43 @@ class _ReconciliationDetailDialogState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Régulariser l’écart'),
+        title: Text(
+          AccountsWords.of(context).text('accounts.regularize_difference'),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Montant : ${_frenchMoney(widget.item.remainingDifference ?? widget.item.observation.differenceSnapshot!)}',
+              AccountsWords.of(
+                context,
+              ).format('accounts.regularization_amount', {
+                'amount': _frenchMoney(
+                  widget.item.remainingDifference ??
+                      widget.item.observation.differenceSnapshot!,
+                ),
+              }),
             ),
-            const Text(
-              'Cette action crée un FinancialEvent canonique, jamais une mise à jour directe du solde.',
+            Text(
+              AccountsWords.of(context).text('accounts.regularization_warning'),
             ),
             TextField(
               controller: reason,
-              decoration: const InputDecoration(labelText: 'Motif détaillé'),
+              decoration: InputDecoration(
+                labelText: AccountsWords.of(
+                  context,
+                ).text('accounts.detailed_reason'),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: const Text('Annuler'),
+            child: Text(AccountsWords.of(context).text('accounts.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: const Text('Confirmer'),
+            child: Text(AccountsWords.of(context).text('accounts.confirm')),
           ),
         ],
       ),
@@ -909,19 +1089,25 @@ class _ReconciliationDetailDialogState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Contrepasser la régularisation'),
+        title: Text(
+          AccountsWords.of(context).text('accounts.reverse_regularization'),
+        ),
         content: TextField(
           controller: reason,
-          decoration: const InputDecoration(labelText: 'Motif obligatoire'),
+          decoration: InputDecoration(
+            labelText: AccountsWords.of(
+              context,
+            ).text('accounts.required_reason'),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: const Text('Annuler'),
+            child: Text(AccountsWords.of(context).text('accounts.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: const Text('Contrepasser'),
+            child: Text(AccountsWords.of(context).text('accounts.reverse')),
           ),
         ],
       ),
@@ -971,9 +1157,11 @@ class _ReconciliationDetailDialogState
     final destination = await showDialog<WidgetBuilder>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Enregistrer une opération manquante'),
-        content: const Text(
-          'Choisissez le flux financier canonique. Le rapprochement ne crée aucune écriture ; vous pourrez rattacher l’opération créée à votre retour.',
+        title: Text(
+          AccountsWords.of(context).text('accounts.record_missing_operation'),
+        ),
+        content: Text(
+          AccountsWords.of(context).text('accounts.canonical_flow_hint'),
         ),
         actions: [
           TextButton(
@@ -981,25 +1169,33 @@ class _ReconciliationDetailDialogState
               context,
               (_) => const TransactionsPage(returnAfterCreate: true),
             ),
-            child: const Text('Dépense, revenu ou virement'),
+            child: Text(
+              AccountsWords.of(
+                context,
+              ).text('accounts.expense_income_transfer'),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(
               context,
               (_) => const TransactionsPage(returnAfterCreate: true),
             ),
-            child: const Text('Dette'),
+            child: Text(AccountsWords.of(context).text('accounts.debt')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(
               context,
               (_) => const ReceivablesPage(returnAfterCreate: true),
             ),
-            child: const Text('Créance ou remboursement'),
+            child: Text(
+              AccountsWords.of(
+                context,
+              ).text('accounts.receivable_or_repayment'),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
+            child: Text(AccountsWords.of(context).text('accounts.cancel')),
           ),
         ],
       ),
@@ -1011,9 +1207,9 @@ class _ReconciliationDetailDialogState
     if (!mounted) return;
     ref.invalidate(accountTransactionHistoryProvider(widget.account.id));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text(
-          'Sélectionnez maintenant l’opération créée pour la rattacher au constat.',
+          AccountsWords.of(context).text('accounts.select_created_operation'),
         ),
       ),
     );
@@ -1030,16 +1226,21 @@ class _SelectAccountEventDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(accountTransactionHistoryProvider(account.id));
     return AlertDialog(
-      title: const Text('Rattacher une opération existante'),
+      title: Text(
+        AccountsWords.of(context).text('accounts.link_existing_operation'),
+      ),
       content: SizedBox(
         width: 560,
         child: items.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => const Text('Impossible de charger les opérations.'),
+          error: (_, _) =>
+              Text(AccountsWords.of(context).text('accounts.operations_error')),
           data: (list) =>
               list.where((item) => item.financialEventId != null).isEmpty
-              ? const Text(
-                  'Aucune opération canonique disponible pour ce compte.',
+              ? Text(
+                  AccountsWords.of(
+                    context,
+                  ).text('accounts.no_canonical_operation'),
                 )
               : ListView(
                   shrinkWrap: true,
@@ -1061,7 +1262,7 @@ class _SelectAccountEventDialog extends ConsumerWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
+          child: Text(AccountsWords.of(context).text('accounts.cancel')),
         ),
       ],
     );
@@ -1076,12 +1277,16 @@ class _SelectFollowUpDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(accountReconciliationHistoryProvider(account.id));
     return AlertDialog(
-      title: const Text('Rattacher un constat de suivi'),
+      title: Text(
+        AccountsWords.of(context).text('accounts.link_followup_observation'),
+      ),
       content: SizedBox(
         width: 560,
         child: history.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => const Text('Impossible de charger les constats.'),
+          error: (_, _) => Text(
+            AccountsWords.of(context).text('accounts.observations_error'),
+          ),
           data: (cases) {
             final compatible = cases
                 .where(
@@ -1094,8 +1299,10 @@ class _SelectFollowUpDialog extends ConsumerWidget {
                 )
                 .toList();
             return compatible.isEmpty
-                ? const Text(
-                    'Aucun constat ultérieur rapproché n’est disponible.',
+                ? Text(
+                    AccountsWords.of(
+                      context,
+                    ).text('accounts.no_later_observation'),
                   )
                 : ListView(
                     shrinkWrap: true,
@@ -1106,7 +1313,13 @@ class _SelectFollowUpDialog extends ConsumerWidget {
                             _formatObservationDate(item.observation.observedAt),
                           ),
                           subtitle: Text(
-                            'Solde réel ${_frenchMoney(item.observation.actualBalance)}',
+                            AccountsWords.of(
+                              context,
+                            ).format('accounts.actual_short', {
+                              'amount': _frenchMoney(
+                                item.observation.actualBalance,
+                              ),
+                            }),
                           ),
                           onTap: () =>
                               Navigator.pop(context, item.observation.id),
@@ -1119,20 +1332,28 @@ class _SelectFollowUpDialog extends ConsumerWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
+          child: Text(AccountsWords.of(context).text('accounts.cancel')),
         ),
       ],
     );
   }
 }
 
-String _resolutionLabel(String kind) => switch (kind) {
-  'documentary' => 'Explication documentaire',
-  'temporary' => 'Différence temporaire',
-  'financial_event' => 'Opération canonique rattachée',
-  'follow_up' => 'Constat de suivi',
-  'reversal' => 'Contrepassation',
-  _ => 'Résolution',
+String _resolutionLabel(BuildContext context, String kind) => switch (kind) {
+  'documentary' => AccountsWords.of(
+    context,
+  ).text('accounts.documentary_explanation'),
+  'temporary' => AccountsWords.of(
+    context,
+  ).text('accounts.resolution.temporary'),
+  'financial_event' => AccountsWords.of(
+    context,
+  ).text('accounts.resolution.event'),
+  'follow_up' => AccountsWords.of(
+    context,
+  ).text('accounts.link_followup_observation'),
+  'reversal' => AccountsWords.of(context).text('accounts.resolution.reversal'),
+  _ => AccountsWords.of(context).text('accounts.resolution.default'),
 };
 
 class _RecordAccountBalanceDialog extends StatefulWidget {
@@ -1257,9 +1478,11 @@ class _RecordAccountBalanceDialogState
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
-      widget.account.type == FinancialAccountType.cash
-          ? 'Compter les espèces'
-          : 'Constater un solde bancaire',
+      AccountsWords.of(context).text(
+        widget.account.type == FinancialAccountType.cash
+            ? 'accounts.count_cash'
+            : 'accounts.observe_bank',
+      ),
     ),
     content: SizedBox(
       width: 440,
@@ -1271,20 +1494,31 @@ class _RecordAccountBalanceDialogState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Solde théorique GL : ${_frenchMoney(widget.theoreticalBalance)}',
+                AccountsWords.of(context).format(
+                  'accounts.theoretical_balance',
+                  {'amount': _frenchMoney(widget.theoreticalBalance)},
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               if (widget.account.type == FinancialAccountType.cash) ...[
                 SegmentedButton<CashCountInputMode>(
                   key: const Key('cash-inventory-mode'),
-                  segments: const [
+                  segments: [
                     ButtonSegment(
                       value: CashCountInputMode.direct,
-                      label: Text('Montant direct'),
+                      label: Text(
+                        AccountsWords.of(
+                          context,
+                        ).text('accounts.direct_amount'),
+                      ),
                     ),
                     ButtonSegment(
                       value: CashCountInputMode.denominations,
-                      label: Text('Compter les coupures'),
+                      label: Text(
+                        AccountsWords.of(
+                          context,
+                        ).text('accounts.count_denominations'),
+                      ),
                     ),
                   ],
                   selected: {_inputMode},
@@ -1307,7 +1541,8 @@ class _RecordAccountBalanceDialogState
                       children: [
                         Expanded(
                           child: Text(
-                            '${item.kind == CashDenominationKind.banknote ? 'Billet' : 'Pièce'} ${item.label}',
+                            // i18n-dynamic-only: localized denomination plus dynamic label
+                            '${AccountsWords.of(context).text(item.kind == CashDenominationKind.banknote ? 'accounts.denomination.banknote' : 'accounts.denomination.coin')} ${item.label}',
                           ),
                         ),
                         SizedBox(
@@ -1316,8 +1551,10 @@ class _RecordAccountBalanceDialogState
                             key: Key('cash-denomination-${item.valueMinor}'),
                             controller: _quantities[item.valueMinor],
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Quantité',
+                            decoration: InputDecoration(
+                              labelText: AccountsWords.of(
+                                context,
+                              ).text('accounts.quantity'),
                             ),
                             validator: (value) {
                               if ((value ?? '').trim().isEmpty) return null;
@@ -1343,7 +1580,10 @@ class _RecordAccountBalanceDialogState
                     ),
                   ),
                 Text(
-                  'Total des coupures : ${_frenchMoney(_cashCountsTotal)}',
+                  AccountsWords.of(context).format(
+                    'accounts.denominations_total',
+                    {'amount': _frenchMoney(_cashCountsTotal)},
+                  ),
                   key: const Key('cash-denomination-total'),
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -1358,8 +1598,12 @@ class _RecordAccountBalanceDialogState
                 ),
                 decoration: InputDecoration(
                   labelText: widget.account.type == FinancialAccountType.cash
-                      ? 'Espèces comptées (MAD) *'
-                      : 'Solde bancaire réel (MAD) *',
+                      ? AccountsWords.of(
+                          context,
+                        ).text('accounts.cash_amount_required')
+                      : AccountsWords.of(
+                          context,
+                        ).text('accounts.bank_amount_required'),
                 ),
                 validator: (value) => _madToCents(value?.trim() ?? '') == null
                     ? 'Saisissez un montant MAD valide.'
@@ -1369,15 +1613,25 @@ class _RecordAccountBalanceDialogState
                   case final cents?) ...[
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Montant compté : ${_frenchMoney(Money.fromMinorUnits(cents))}',
+                  AccountsWords.of(context).format('accounts.counted_amount', {
+                    'amount': _frenchMoney(Money.fromMinorUnits(cents)),
+                  }),
                 ),
                 Text(
-                  'Écart : ${_frenchMoney(Money.fromMinorUnits(cents) - widget.theoreticalBalance)}',
+                  AccountsWords.of(context).format('accounts.difference', {
+                    'amount': _frenchMoney(
+                      Money.fromMinorUnits(cents) - widget.theoreticalBalance,
+                    ),
+                  }),
                 ),
                 Text(
                   cents == widget.theoreticalBalance.minorUnits
-                      ? 'Statut : Solde fiabilisé'
-                      : 'Statut : Écart à traiter',
+                      ? AccountsWords.of(
+                          context,
+                        ).text('accounts.status.reliable')
+                      : AccountsWords.of(
+                          context,
+                        ).text('accounts.status.to_process'),
                 ),
               ],
               const SizedBox(height: AppSpacing.sm),
@@ -1385,7 +1639,9 @@ class _RecordAccountBalanceDialogState
                 onPressed: _submitting ? null : _pickDateTime,
                 icon: const Icon(Icons.schedule_outlined),
                 label: Text(
-                  'Date et heure : ${_formatObservationDate(_observedAt)}',
+                  AccountsWords.of(context).format('accounts.date_time', {
+                    'date': _formatObservationDate(_observedAt),
+                  }),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -1403,14 +1659,22 @@ class _RecordAccountBalanceDialogState
                 validator: (value) {
                   final reason = value?.trim() ?? '';
                   if (_requiresReason && reason.isEmpty) {
-                    return 'Le commentaire est obligatoire lorsqu’un écart existe.';
+                    return AccountsWords.of(
+                      context,
+                    ).text('accounts.comment_required');
                   }
-                  if (reason.length > 280) return '280 caractères maximum.';
+                  if (reason.length > 280) {
+                    return AccountsWords.of(
+                      context,
+                    ).text('accounts.comment_max');
+                  }
                   return null;
                 },
               ),
-              const Text(
-                'Ce constat ne crée aucune correction comptable. Toute régularisation est une action distincte.',
+              Text(
+                AccountsWords.of(
+                  context,
+                ).text('accounts.observation_no_posting'),
               ),
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.sm),
@@ -1427,12 +1691,16 @@ class _RecordAccountBalanceDialogState
     actions: [
       TextButton(
         onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
+        child: Text(AccountsWords.of(context).text('accounts.cancel')),
       ),
       FilledButton(
         key: const Key('record-account-balance-observation-submit-button'),
         onPressed: _submitting ? null : _submit,
-        child: Text(_submitting ? 'Enregistrement…' : 'Enregistrer le constat'),
+        child: Text(
+          AccountsWords.of(
+            context,
+          ).text(_submitting ? 'accounts.saving' : 'accounts.save_observation'),
+        ),
       ),
     ],
   );
@@ -1477,21 +1745,38 @@ String _newCashInventoryIdempotencyKey() {
   return '${group(0, 4)}-${group(4, 6)}-${group(6, 8)}-${group(8, 10)}-${group(10, 16)}';
 }
 
-String _accountHistoryLabel(Object type) => switch (type.toString()) {
-  'LedgerTransactionType.expense' => 'Dépense',
-  'LedgerTransactionType.debtSettlement' => 'Paiement d’une dette',
-  'LedgerTransactionType.accountTransfer' => 'Virement entre comptes',
-  _ => 'Opération',
-};
+String _accountHistoryLabel(BuildContext context, Object type) =>
+    switch (type.toString()) {
+      'LedgerTransactionType.expense' => AccountsWords.of(
+        context,
+      ).text('accounts.history.expense'),
+      'LedgerTransactionType.debtSettlement' => AccountsWords.of(
+        context,
+      ).text('accounts.history.debt_payment'),
+      'LedgerTransactionType.accountTransfer' => AccountsWords.of(
+        context,
+      ).text('accounts.history.bank_transfer'),
+      _ => AccountsWords.of(context).text('accounts.history.operation'),
+    };
 
-String _accountTypeLabel(FinancialAccountType type) => switch (type) {
-  FinancialAccountType.bank => 'Banque',
-  FinancialAccountType.cash => 'Espèces',
-  FinancialAccountType.savings => 'Épargne',
-  FinancialAccountType.debt => 'Emprunt',
-};
+String _accountTypeLabel(BuildContext context, FinancialAccountType type) =>
+    switch (type) {
+      FinancialAccountType.bank => AccountsWords.of(
+        context,
+      ).text('accounts.type.bank'),
+      FinancialAccountType.cash => AccountsWords.of(
+        context,
+      ).text('accounts.type.cash'),
+      FinancialAccountType.savings => AccountsWords.of(
+        context,
+      ).text('accounts.type.savings'),
+      FinancialAccountType.debt => AccountsWords.of(
+        context,
+      ).text('accounts.type.loan'),
+    };
 
 String _holdersLabel(
+  BuildContext context,
   FinancialAccount account,
   List<HouseholdMember> householdMembers,
 ) {
@@ -1501,15 +1786,20 @@ String _holdersLabel(
   final holderNames = account.holders
       .map(
         (holder) =>
-            namesByUserId[holder.userId] ?? _fallbackHolderLabel(holder),
+            namesByUserId[holder.userId] ??
+            _fallbackHolderLabel(context, holder),
       )
       .toList(growable: false);
-  return holderNames.isEmpty ? 'Aucun titulaire lié' : holderNames.join(' & ');
+  return holderNames.isEmpty
+      ? AccountsWords.of(context).text('accounts.no_linked_holder')
+      : holderNames.join(' & ');
 }
 
-String _fallbackHolderLabel(AccountHolder holder) {
+String _fallbackHolderLabel(BuildContext context, AccountHolder holder) {
   final name = holder.displayName.trim();
-  return name.isEmpty || name == 'Membre du foyer' ? 'Membre du foyer' : name;
+  return name.isEmpty || name == 'Membre du foyer'
+      ? AccountsWords.of(context).text('accounts.household_member')
+      : name;
 }
 
 class _CreateAccountDialog extends StatefulWidget {
@@ -1568,12 +1858,20 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
     }
     if (_ownershipType == AccountOwnershipType.individual &&
         _holderUserIds.length != 1) {
-      setState(() => _error = 'Sélectionnez exactement un titulaire.');
+      setState(
+        () => _error = AccountsWords.of(
+          context,
+        ).text('accounts.holder.exactly_one'),
+      );
       return;
     }
     if (_ownershipType == AccountOwnershipType.shared &&
         _holderUserIds.length < 2) {
-      setState(() => _error = 'Sélectionnez au moins deux titulaires.');
+      setState(
+        () => _error = AccountsWords.of(
+          context,
+        ).text('accounts.holder.at_least_two'),
+      );
       return;
     }
     setState(() {
@@ -1596,7 +1894,11 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _error = 'Création impossible : $error');
+        setState(
+          () => _error = AccountsWords.of(
+            context,
+          ).format('accounts.creation_error', {'error': error}),
+        );
       }
     } finally {
       if (mounted) {
@@ -1607,7 +1909,7 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Ajouter un compte'),
+    title: Text(AccountsWords.of(context).text('accounts.add_title')),
     content: SizedBox(
       width: 420,
       child: Form(
@@ -1619,15 +1921,25 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
               TextFormField(
                 key: const Key('account-name-field'),
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nom *'),
+                decoration: InputDecoration(
+                  labelText: AccountsWords.of(
+                    context,
+                  ).text('accounts.name_required'),
+                ),
                 validator: (value) {
                   final name = value?.trim() ?? '';
-                  if (name.isEmpty) return 'Le nom est obligatoire.';
+                  if (name.isEmpty) {
+                    return AccountsWords.of(
+                      context,
+                    ).text('accounts.name_empty');
+                  }
                   if (widget.existingAccounts.any(
                     (account) =>
                         account.name.trim().toLowerCase() == name.toLowerCase(),
                   )) {
-                    return 'Un compte portant ce nom existe déjà dans le foyer.';
+                    return AccountsWords.of(
+                      context,
+                    ).text('accounts.duplicate_name');
                   }
                   return null;
                 },
@@ -1635,23 +1947,35 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<FinancialAccountType>(
                 key: const Key('account-type-field'),
-                decoration: const InputDecoration(labelText: 'Type *'),
-                items: const [
+                decoration: InputDecoration(
+                  labelText: AccountsWords.of(
+                    context,
+                  ).text('accounts.type_required'),
+                ),
+                items: [
                   DropdownMenuItem(
                     value: FinancialAccountType.bank,
-                    child: Text('Banque'),
+                    child: Text(
+                      AccountsWords.of(context).text('accounts.type.bank'),
+                    ),
                   ),
                   DropdownMenuItem(
                     value: FinancialAccountType.cash,
-                    child: Text('Espèces'),
+                    child: Text(
+                      AccountsWords.of(context).text('accounts.type.cash'),
+                    ),
                   ),
                   DropdownMenuItem(
                     value: FinancialAccountType.savings,
-                    child: Text('Épargne'),
+                    child: Text(
+                      AccountsWords.of(context).text('accounts.type.savings'),
+                    ),
                   ),
                   DropdownMenuItem(
                     value: FinancialAccountType.debt,
-                    child: Text('Emprunt'),
+                    child: Text(
+                      AccountsWords.of(context).text('accounts.type.loan'),
+                    ),
                   ),
                 ],
                 onChanged: _submitting
@@ -1662,19 +1986,35 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
               DropdownButtonFormField<AccountOwnershipType>(
                 key: const Key('account-ownership-field'),
                 initialValue: _ownershipType,
-                decoration: const InputDecoration(labelText: 'Titularité *'),
-                items: const [
+                decoration: InputDecoration(
+                  labelText: AccountsWords.of(
+                    context,
+                  ).text('accounts.ownership_required'),
+                ),
+                items: [
                   DropdownMenuItem(
                     value: AccountOwnershipType.household,
-                    child: Text('Compte commun'),
+                    child: Text(
+                      AccountsWords.of(
+                        context,
+                      ).text('accounts.ownership.household'),
+                    ),
                   ),
                   DropdownMenuItem(
                     value: AccountOwnershipType.individual,
-                    child: Text('Compte individuel'),
+                    child: Text(
+                      AccountsWords.of(
+                        context,
+                      ).text('accounts.ownership.individual'),
+                    ),
                   ),
                   DropdownMenuItem(
                     value: AccountOwnershipType.shared,
-                    child: Text('Compte partagé'),
+                    child: Text(
+                      AccountsWords.of(
+                        context,
+                      ).text('accounts.ownership.shared'),
+                    ),
                   ),
                 ],
                 onChanged: _submitting
@@ -1690,11 +2030,11 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
               ),
               const SizedBox(height: AppSpacing.sm),
               if (widget.membersLoading)
-                const Text('Chargement des membres du foyer...')
+                Text(AccountsWords.of(context).text('accounts.members_loading'))
               else if (widget.membersError)
-                const Text('Impossible de charger les membres du foyer.')
+                Text(AccountsWords.of(context).text('accounts.members_error'))
               else if (widget.members.isEmpty)
-                const Text('Aucun membre du foyer n’est disponible.')
+                Text(AccountsWords.of(context).text('accounts.members_empty'))
               else
                 ...widget.members.map(
                   (member) => CheckboxListTile(
@@ -1724,10 +2064,22 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
               DropdownButtonFormField<bool>(
                 key: const Key('account-status-field'),
                 initialValue: false,
-                decoration: const InputDecoration(labelText: 'Statut'),
-                items: const [
-                  DropdownMenuItem(value: false, child: Text('Actif')),
-                  DropdownMenuItem(value: true, child: Text('Archivé')),
+                decoration: InputDecoration(
+                  labelText: AccountsWords.of(context).text('accounts.status'),
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: false,
+                    child: Text(
+                      AccountsWords.of(context).text('accounts.active'),
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: true,
+                    child: Text(
+                      AccountsWords.of(context).text('accounts.archived'),
+                    ),
+                  ),
                 ],
                 onChanged: _submitting
                     ? null
@@ -1748,12 +2100,16 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
     actions: [
       TextButton(
         onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
+        child: Text(AccountsWords.of(context).text('accounts.cancel')),
       ),
       FilledButton(
         key: const Key('create-remote-account-button'),
         onPressed: _submitting ? null : _submit,
-        child: _submitting ? const Text('Création…') : const Text('Créer'),
+        child: Text(
+          AccountsWords.of(
+            context,
+          ).text(_submitting ? 'accounts.creating' : 'accounts.create'),
+        ),
       ),
     ],
   );

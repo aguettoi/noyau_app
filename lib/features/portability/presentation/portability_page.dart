@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/portability_locale.dart';
 import '../../envelopes/presentation/envelope_dashboard_page.dart';
 import '../../finance/presentation/accounts_page.dart';
 import '../../finance/presentation/imports_page.dart';
@@ -25,24 +26,27 @@ import '../domain/restitution_models.dart';
 class PortabilityPage extends StatelessWidget {
   const PortabilityPage({super.key});
   @override
-  Widget build(BuildContext context) => DefaultTabController(
-    length: 3,
-    child: Scaffold(
-      appBar: AppBar(
-        title: Text('Recherche et portabilité'),
-        bottom: TabBar(
-          tabs: [
-            Tab(text: 'Recherche'),
-            Tab(text: 'Exports'),
-            Tab(text: 'Imports'),
-          ],
+  Widget build(BuildContext context) {
+    final words = PortabilityWords.of(context);
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(words.text('title')),
+          bottom: TabBar(
+            tabs: [
+              Tab(text: words.text('search')),
+              Tab(text: words.text('exports')),
+              Tab(text: words.text('imports')),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [_SearchTab(), _ExportsTab(), _ImportsTab()],
         ),
       ),
-      body: const TabBarView(
-        children: [_SearchTab(), _ExportsTab(), _ImportsTab()],
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class _SearchTab extends ConsumerStatefulWidget {
@@ -101,7 +105,9 @@ class _SearchTabState extends ConsumerState<_SearchTab> {
       });
     } catch (_) {
       if (mounted) {
-        setState(() => error = 'Recherche momentanément indisponible.');
+        setState(
+          () => error = PortabilityWords.of(context).text('search_failed'),
+        );
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -109,52 +115,67 @@ class _SearchTabState extends ConsumerState<_SearchTab> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: TextField(
-          key: const Key('global-search-field'),
-          onChanged: changed,
-          decoration: const InputDecoration(
-            labelText: 'Rechercher dans le foyer',
-            prefixIcon: Icon(Icons.search),
+  Widget build(BuildContext context) {
+    final words = PortabilityWords.of(context);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: TextField(
+            key: const Key('global-search-field'),
+            onChanged: changed,
+            decoration: InputDecoration(
+              labelText: words.text('search_label'),
+              prefixIcon: const Icon(Icons.search),
+            ),
           ),
         ),
-      ),
-      if (loading) const LinearProgressIndicator(),
-      if (error != null)
-        Padding(padding: const EdgeInsets.all(16), child: Text(error!)),
-      Expanded(
-        child: query.trim().length < 2
-            ? const Center(child: Text('Saisissez au moins 2 caractères.'))
-            : results.isEmpty && !loading
-            ? const Center(child: Text('Aucun résultat.'))
-            : ListView.builder(
-                itemCount: results.length + 1,
-                itemBuilder: (_, index) {
-                  if (index == results.length) {
-                    return TextButton(
-                      onPressed: loading ? null : load,
-                      child: const Text('Afficher plus'),
+        if (loading) const LinearProgressIndicator(),
+        if (error != null)
+          Padding(padding: const EdgeInsets.all(16), child: Text(error!)),
+        Expanded(
+          child: query.trim().length < 2
+              ? Center(child: Text(words.text('min_chars')))
+              : results.isEmpty && !loading
+              ? Center(child: Text(words.text('no_result')))
+              : ListView.builder(
+                  itemCount: results.length + 1,
+                  itemBuilder: (_, index) {
+                    if (index == results.length) {
+                      return TextButton(
+                        onPressed: loading ? null : load,
+                        child: Text(words.text('show_more')),
+                      );
+                    }
+                    final item = results[index];
+                    return ListTile(
+                      leading: const Icon(Icons.manage_search),
+                      title: Text(item.title),
+                      subtitle: Text(
+                        words.format('result_summary', {
+                          'type': _searchType(words, item.type),
+                          'subtitle': item.subtitle,
+                        }),
+                      ),
+                      trailing: item.amount == null
+                          ? null
+                          : Text(
+                              words.format('amount', {
+                                'amount': item.amount!.toStringAsFixed(2),
+                              }),
+                            ),
+                      onTap: () => _openResult(context, item),
                     );
-                  }
-                  final item = results[index];
-                  return ListTile(
-                    leading: const Icon(Icons.manage_search),
-                    title: Text(item.title),
-                    subtitle: Text('${item.type.name} • ${item.subtitle}'),
-                    trailing: item.amount == null
-                        ? null
-                        : Text('${item.amount!.toStringAsFixed(2)} MAD'),
-                    onTap: () => _openResult(context, item),
-                  );
-                },
-              ),
-      ),
-    ],
-  );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
 }
+
+String _searchType(PortabilityWords words, SearchResultType type) =>
+    words.text('search_type.${type.name}');
 
 void _openResult(BuildContext context, GlobalSearchResult result) {
   final page = switch (result.type) {
@@ -184,19 +205,24 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
   ReportPeriodicity periodicity = ReportPeriodicity.monthly;
   DateTime anchor = DateTime.now();
   Future<void> run(Future<PortableFile> Function() build) async {
+    final words = PortabilityWords.of(context);
     setState(() => busy = true);
     try {
       final saved = await savePortableFile(await build());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(saved ? 'Export prêt.' : 'Export annulé.')),
+          SnackBar(
+            content: Text(
+              words.text(saved ? 'export_ready' : 'export_cancelled'),
+            ),
+          ),
         );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("L'export n'a pas pu être généré.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(words.text('export_failed'))));
       }
     } finally {
       if (mounted) setState(() => busy = false);
@@ -205,6 +231,7 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final words = PortabilityWords.of(context);
     final service = ref.read(householdExportServiceProvider);
     final restitution = ref.read(restitutionExportServiceProvider);
     final period = RestitutionPeriod.forDate(anchor, periodicity);
@@ -212,47 +239,41 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        const Text(
-          'Les exports sont générés localement et ne sont téléversés vers aucun service tiers.',
-        ),
+        Text(words.text('local_notice')),
         if (busy) const LinearProgressIndicator(),
         ListTile(
-          title: const Text('Transactions CSV'),
+          title: Text(words.text('transactions_csv')),
           trailing: const Icon(Icons.download),
           onTap: busy ? null : () => run(service.transactionsCsv),
         ),
         ListTile(
-          title: const Text('Transactions XLSX'),
+          title: Text(words.text('transactions_xlsx')),
           trailing: const Icon(Icons.table_rows),
           onTap: busy ? null : () => run(service.transactionsXlsx),
         ),
         ListTile(
-          title: const Text('Données du foyer XLSX'),
+          title: Text(words.text('household_xlsx')),
           trailing: const Icon(Icons.table_view),
           onTap: busy ? null : () => run(service.householdXlsx),
         ),
         ListTile(
-          title: const Text('Synthèse foyer PDF'),
+          title: Text(words.text('summary_pdf')),
           trailing: const Icon(Icons.picture_as_pdf),
           onTap: busy ? null : () => run(service.summaryPdf),
         ),
         ListTile(
-          title: const Text('Export complet ZIP'),
-          subtitle: const Text(
-            'JSON lisible, transactions CSV et métadonnées des justificatifs privés',
-          ),
+          title: Text(words.text('archive_zip')),
+          subtitle: Text(words.text('archive_detail')),
           trailing: const Icon(Icons.archive),
           onTap: busy ? null : () => run(service.householdArchive),
         ),
         const Divider(),
         Text(
-          'Restitutions métier',
+          words.text('business_reports'),
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Périmètre autorisé de la session : les comptes privés non partagés et les soldes masqués sont exclus côté serveur.',
-        ),
+        Text(words.text('authorized_scope')),
         const SizedBox(height: 12),
         Wrap(
           spacing: 12,
@@ -262,22 +283,22 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
             DropdownButton<ReportPeriodicity>(
               key: const Key('restitution-periodicity'),
               value: periodicity,
-              items: const [
+              items: [
                 DropdownMenuItem(
                   value: ReportPeriodicity.monthly,
-                  child: Text('Mensuel'),
+                  child: Text(words.text('monthly')),
                 ),
                 DropdownMenuItem(
                   value: ReportPeriodicity.quarterly,
-                  child: Text('Trimestriel'),
+                  child: Text(words.text('quarterly')),
                 ),
                 DropdownMenuItem(
                   value: ReportPeriodicity.semiannual,
-                  child: Text('Semestriel'),
+                  child: Text(words.text('semiannual')),
                 ),
                 DropdownMenuItem(
                   value: ReportPeriodicity.annual,
-                  child: Text('Annuel'),
+                  child: Text(words.text('annual')),
                 ),
               ],
               onChanged: busy
@@ -306,8 +327,8 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
         ),
         ListTile(
           key: const Key('export-structured-xlsx'),
-          title: const Text('XLSX structuré — 4 feuilles'),
-          subtitle: const Text('Enveloppes, journal, cash, dettes et créances'),
+          title: Text(words.text('structured_xlsx')),
+          subtitle: Text(words.text('structured_detail')),
           trailing: const Icon(Icons.grid_on),
           onTap: busy
               ? null
@@ -315,42 +336,40 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
         ),
         ListTile(
           key: const Key('export-period-pdf'),
-          title: const Text('Rapport PDF'),
-          subtitle: Text('Restitution ${period.label} avec statut et limites'),
+          title: Text(words.text('pdf_report')),
+          subtitle: Text(words.format('pdf_detail', {'period': period.label})),
           trailing: const Icon(Icons.picture_as_pdf),
           onTap: busy ? null : () => run(() => restitution.periodPdf(period)),
         ),
         ListTile(
           key: const Key('export-period-pptx'),
-          title: const Text('Présentation PowerPoint'),
-          subtitle: const Text(
-            'Synthèse prête à présenter, sans dépendance à un tableur',
-          ),
+          title: Text(words.text('pptx')),
+          subtitle: Text(words.text('pptx_detail')),
           trailing: const Icon(Icons.slideshow),
           onTap: busy ? null : () => run(() => restitution.periodPptx(period)),
         ),
         ListTile(
           key: const Key('export-fiscal-housing'),
-          title: const Text('Fiscalité logement XLSX'),
-          subtitle: const Text(
-            'Hypothèses et avantages estimés/réels, document non déclaratif',
-          ),
+          title: Text(words.text('housing_tax')),
+          subtitle: Text(words.text('housing_tax_detail')),
           trailing: const Icon(Icons.home_work_outlined),
           onTap: busy
               ? null
               : () => run(() => restitution.fiscalHousingXlsx(period)),
         ),
         if (wealth != null && wealth.financings.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text('Tableaux d’amortissement'),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(words.text('amortization')),
           ),
           for (final financing in wealth.financings)
             ListTile(
               key: Key('export-amortization-${financing.id}'),
               title: Text(financing.label),
               subtitle: Text(
-                'Structure ${financing.structure.name} • échéancier canonique',
+                words.format('amortization_detail', {
+                  'structure': financing.structure.name,
+                }),
               ),
               trailing: const Icon(Icons.table_chart_outlined),
               onTap: busy
@@ -366,39 +385,47 @@ class _ExportsTabState extends ConsumerState<_ExportsTab> {
 class _ImportsTab extends ConsumerWidget {
   const _ImportsTab();
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(importHistoryProvider)
-      .when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(
-          child: Text("Impossible de charger l'historique des imports."),
-        ),
-        data: (items) => ListView(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          children: [
-            const Text(
-              'Un import non appliqué peut être abandonné. Après matérialisation, toute correction reste append-only et passe par les reversals canoniques.',
-            ),
-            const SizedBox(height: 12),
-            if (items.isEmpty)
-              const ListTile(title: Text('Aucun import enregistré.')),
-            for (final item in items)
-              ListTile(
-                title: Text(item.fileName),
-                subtitle: Text(
-                  '${DateFormat.yMMMd('fr').format(item.createdAt)} • ${item.detectedRecords} ligne(s) • acteur ${item.actorId}${item.error == null ? '' : ' • ${item.error}'}',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = PortabilityWords.of(context);
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return ref
+        .watch(importHistoryProvider)
+        .when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => Center(child: Text(words.text('imports_failed'))),
+          data: (items) => ListView(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            children: [
+              Text(words.text('imports_notice')),
+              const SizedBox(height: 12),
+              if (items.isEmpty) ListTile(title: Text(words.text('no_import'))),
+              for (final item in items)
+                ListTile(
+                  title: Text(item.fileName),
+                  subtitle: Text(
+                    words.format('import_detail', {
+                      'date': DateFormat.yMMMd(locale).format(item.createdAt),
+                      'count': item.detectedRecords,
+                      'actor': item.actorId,
+                      'error': item.error == null
+                          ? ''
+                          : words.format('import_error', {
+                              'error': item.error!,
+                            }),
+                    }),
+                  ),
+                  trailing: Chip(label: Text(item.status)),
                 ),
-                trailing: Chip(label: Text(item.status)),
+              const Divider(),
+              ListTile(
+                title: Text(words.text('open_import')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const ImportsPage()),
+                ),
               ),
-            const Divider(),
-            ListTile(
-              title: const Text('Ouvrir l’assistant Import'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const ImportsPage()),
-              ),
-            ),
-          ],
-        ),
-      );
+            ],
+          ),
+        );
+  }
 }

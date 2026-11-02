@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/cutover_opening_import.dart';
@@ -81,7 +82,16 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: Scaffold(body: ImportPreviewPage())),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: Scaffold(body: ImportPreviewPage()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -91,10 +101,13 @@ void main() {
       await tester.tap(selector);
       await tester.pumpAndSettle();
 
-      expect(find.text('Sandbox — OPÉRATIONNEL'), findsOneWidget);
-      expect(find.text('CUTOVER-B1-E2E — TECHNIQUE'), findsOneWidget);
+      expect(find.text('Sandbox — ENVIRONNEMENT OPÉRATIONNEL'), findsOneWidget);
+      expect(
+        find.text('CUTOVER-B1-E2E — ENVIRONNEMENT TECHNIQUE'),
+        findsOneWidget,
+      );
 
-      await tester.tap(find.text('CUTOVER-B1-E2E — TECHNIQUE'));
+      await tester.tap(find.text('CUTOVER-B1-E2E — ENVIRONNEMENT TECHNIQUE'));
       await tester.pumpAndSettle();
       expect(find.text('ENVIRONNEMENT TECHNIQUE'), findsOneWidget);
 

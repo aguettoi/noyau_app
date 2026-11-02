@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/money/money.dart';
+import '../../../core/localization/monthly_close_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../envelopes/presentation/envelope_recommendations_page.dart';
@@ -22,24 +23,25 @@ class MonthlyClosePage extends ConsumerWidget {
   const MonthlyClosePage({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final w = MonthlyCloseWords.of(context);
     final value = ref.watch(monthlyCloseProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Fin de mois')),
+      appBar: AppBar(title: Text(w.text('title'))),
       body: SafeArea(
         child: value.when(
-          loading: () => const FpLoadingState(label: 'Analyse du mois…'),
-          error: (_, _) => const FpErrorState(
-            message: 'La préparation de clôture ne peut pas être chargée.',
-          ),
+          loading: () => FpLoadingState(label: w.text('analyzing')),
+          error: (_, _) => FpErrorState(message: w.text('load_error')),
           data: (snapshot) => LayoutBuilder(
             builder: (context, box) => ListView(
               key: const Key('monthly-close-page'),
               padding: AppLayout.pagePaddingFor(box.maxWidth),
               children: [
                 FpPageHeader(
-                  title: 'Clôture mensuelle',
-                  subtitle:
-                      'Checklist explicable • ${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year}',
+                  title: w.text('monthly_close'),
+                  subtitle: w.format('checklist', {
+                    'month':
+                        '${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year}',
+                  }),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _Health(snapshot),
@@ -73,6 +75,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
   final MonthlyCloseSnapshot snapshot;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final w = MonthlyCloseWords.of(context);
     final matrix = ref.watch(envelopeAccountMatrixProvider);
     final targets = ref.watch(monthlyCloseTargetsProvider);
     final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
@@ -84,14 +87,14 @@ class _CurrentTargetPanel extends ConsumerWidget {
         ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];
     String accountName(String id) =>
         accounts.where((e) => e.id == id).map((e) => e.name).firstOrNull ??
-        'Compte';
+        w.text('account');
     String envelopeName(String id) =>
         envelopes.where((e) => e.id == id).map((e) => e.name).firstOrNull ??
-        'Enveloppe';
+        w.text('envelope');
     dynamic account(String id) => accounts.where((e) => e.id == id).first;
     String actor(String accountId) {
       final value = account(accountId);
-      if (value.holders.isEmpty) return 'FOYER';
+      if (value.holders.isEmpty) return w.text('household');
       return value.holders
           .map(
             (holder) =>
@@ -99,7 +102,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
                     .where((member) => member.id == holder.userId)
                     .map((member) => member.displayName.toUpperCase())
                     .firstOrNull ??
-                'MEMBRE DU FOYER',
+                w.text('household_member'),
           )
           .join(' & ');
     }
@@ -109,13 +112,13 @@ class _CurrentTargetPanel extends ConsumerWidget {
       final to = account(transfer.toAccountId);
       if (from.type == FinancialAccountType.cash &&
           to.type != FinancialAccountType.cash) {
-        return 'Dépôt espèces';
+        return w.text('cash_deposit');
       }
       if (from.type != FinancialAccountType.cash &&
           to.type == FinancialAccountType.cash) {
-        return 'Retrait / alimentation espèces';
+        return w.text('cash_withdrawal');
       }
-      return 'Virement';
+      return w.text('transfer');
     }
 
     return FpCard(
@@ -123,15 +126,13 @@ class _CurrentTargetPanel extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Actuel → cible',
+            w.text('current_target'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.xs),
           matrix.when(
             loading: () => const LinearProgressIndicator(),
-            error: (_, _) => const SecondaryInfoText(
-              'La position compte × enveloppe ne peut pas être chargée.',
-            ),
+            error: (_, _) => SecondaryInfoText(w.text('matrix_error')),
             data: (value) {
               final configured =
                   targets.valueOrNull ?? const <MonthlyEnvelopeAccountTarget>[];
@@ -139,23 +140,22 @@ class _CurrentTargetPanel extends ConsumerWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Positions physiques partiellement connues',
+                    Text(
+                      w.text('partial_positions'),
                       key: Key('matrix-unreliable'),
                     ),
                     Text(
-                      'Écart comptes : ${value.accountGap.dirhams.toStringAsFixed(2)} MAD • écart enveloppes : ${value.envelopeGap.dirhams.toStringAsFixed(2)} MAD',
+                      w.format('gaps', {
+                        'accounts': value.accountGap.dirhams.toStringAsFixed(2),
+                        'envelopes': value.envelopeGap.dirhams.toStringAsFixed(
+                          2,
+                        ),
+                      }),
                     ),
-                    const SecondaryInfoText(
-                      'FINANCIEL PILOTE utilise immédiatement les positions certaines. Les autres restent « À déterminer » et ne bloquent pas l’usage normal.',
-                    ),
-                    const SecondaryInfoText(
-                      'Une réallocation physique demandera uniquement les localisations indispensables avant de pouvoir créer un transfert.',
-                    ),
+                    SecondaryInfoText(w.text('known_positions')),
+                    SecondaryInfoText(w.text('required_locations')),
                     if (snapshot.blockers > 0)
-                      const SecondaryInfoText(
-                        'Initialisation indisponible : fiabilisez d’abord les soldes, rapprochements et espèces.',
-                      ),
+                      SecondaryInfoText(w.text('initialization_unavailable')),
                     const SizedBox(height: AppSpacing.sm),
                     if (snapshot.owner)
                       Align(
@@ -175,7 +175,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
                                   accountBalances,
                                 ),
                           icon: const Icon(Icons.fact_check_outlined),
-                          label: const Text('Préparer une réallocation'),
+                          label: Text(w.text('prepare_reallocation')),
                         ),
                       ),
                   ],
@@ -230,9 +230,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SecondaryInfoText(
-                    'Position actuelle réconciliée avec les comptes et les enveloppes.',
-                  ),
+                  SecondaryInfoText(w.text('reconciled_position')),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
@@ -244,7 +242,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
                         envelopeName,
                       ),
                       icon: const Icon(Icons.history),
-                      label: const Text('Traçabilité du point de départ'),
+                      label: Text(w.text('opening_trace')),
                     ),
                   ),
                   for (final row in rows)
@@ -252,22 +250,26 @@ class _CurrentTargetPanel extends ConsumerWidget {
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       title: Text(
+                        // i18n-dynamic-only
                         '${envelopeName(row.envelopeId)} • ${accountName(row.accountId)}',
                       ),
-                      subtitle: const Text('ACTUEL  |  CIBLE  |  ÉCART'),
+                      subtitle: Text(w.text('current_target_gap')),
                       trailing: Text(
+                        // i18n-dynamic-only
                         '${row.current.dirhams.toStringAsFixed(2)} | ${row.target.dirhams.toStringAsFixed(2)} | ${row.delta.dirhams.toStringAsFixed(2)}',
                       ),
                     ),
                   const Divider(),
                   Text(
-                    '${simulation.physicalTransfers.length} action(s) physique(s)',
+                    w.format('physical_actions', {
+                      'count': simulation.physicalTransfers.length,
+                    }),
                     key: const Key('reallocation-count'),
                   ),
                   if (memberSummary.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Synthèse par membre',
+                      w.text('member_summary'),
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     for (final summary in memberSummary)
@@ -279,7 +281,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
                         contentPadding: EdgeInsets.zero,
                         title: Text(
                           summary.memberId == null
-                              ? 'Foyer / compte partagé'
+                              ? w.text('shared_account')
                               : members
                                         .where(
                                           (member) =>
@@ -287,29 +289,42 @@ class _CurrentTargetPanel extends ConsumerWidget {
                                         )
                                         .map((member) => member.displayName)
                                         .firstOrNull ??
-                                    'Membre du foyer',
+                                    w.text('member'),
                         ),
                         subtitle: Text(
-                          'À virer ${summary.toTransfer.dirhams.toStringAsFixed(2)} • '
-                          'à recevoir ${summary.toReceive.dirhams.toStringAsFixed(2)} • '
-                          'retrait espèces ${summary.cashToWithdraw.dirhams.toStringAsFixed(2)} • '
-                          'dépôt espèces ${summary.cashToDeposit.dirhams.toStringAsFixed(2)} MAD',
+                          w.format('member_amounts', {
+                            'transfer': summary.toTransfer.dirhams
+                                .toStringAsFixed(2),
+                            'receive': summary.toReceive.dirhams
+                                .toStringAsFixed(2),
+                            'withdraw': summary.cashToWithdraw.dirhams
+                                .toStringAsFixed(2),
+                            'deposit': summary.cashToDeposit.dirhams
+                                .toStringAsFixed(2),
+                          }),
                         ),
-                        trailing: Text('${summary.actionCount} action(s)'),
+                        trailing: Text(
+                          w.format('actions', {'count': summary.actionCount}),
+                        ),
                       ),
                   ],
                   Text(
-                    'Besoins bruts : ${simulation.grossAmount.dirhams.toStringAsFixed(2)} MAD • à déplacer après netting : ${simulation.netAmount.dirhams.toStringAsFixed(2)} MAD',
+                    w.format('gross_needs', {
+                      'gross': simulation.grossAmount.dirhams.toStringAsFixed(
+                        2,
+                      ),
+                      'net': simulation.netAmount.dirhams.toStringAsFixed(2),
+                    }),
                   ),
                   Text(
-                    '${simulation.avoidedPhysicalMoves} mouvement(s) physique(s) évité(s)',
+                    w.format('avoided_moves', {
+                      'count': simulation.avoidedPhysicalMoves,
+                    }),
                     key: const Key('avoided-physical-moves'),
                   ),
                   if (simulation.physicalTransfers.isEmpty &&
                       simulation.analyticalMoves.isNotEmpty)
-                    const SecondaryInfoText(
-                      'Les écarts se compensent intégralement : aucun mouvement physique, mais la ventilation analytique sera mise à jour.',
-                    ),
+                    SecondaryInfoText(w.text('fully_offset')),
                   for (final transfer in simulation.physicalTransfers)
                     ExpansionTile(
                       key: Key(
@@ -325,18 +340,21 @@ class _CurrentTargetPanel extends ConsumerWidget {
                             : Icons.swap_horiz,
                       ),
                       title: Text(
+                        // i18n-dynamic-only
                         '${actor(transfer.fromAccountId)} — ${actionLabel(transfer)}',
                       ),
                       subtitle: Text(
+                        // i18n-dynamic-only
                         '${accountName(transfer.fromAccountId)} → ${accountName(transfer.toAccountId)}',
                       ),
                       trailing: Text(
+                        // i18n-dynamic-only
                         '${transfer.amount.dirhams.toStringAsFixed(2)} MAD',
                       ),
                       children: [
-                        const Align(
+                        Align(
                           alignment: Alignment.centerLeft,
-                          child: Text('Composition analytique'),
+                          child: Text(w.text('analytical_composition')),
                         ),
                         for (final detail in transfer.justifications)
                           ListTile(
@@ -344,9 +362,11 @@ class _CurrentTargetPanel extends ConsumerWidget {
                             contentPadding: const EdgeInsets.only(left: 16),
                             title: Text(envelopeName(detail.envelopeId)),
                             subtitle: Text(
+                              // i18n-dynamic-only
                               '${accountName(detail.fromAccountId)} → ${accountName(detail.toAccountId)}',
                             ),
                             trailing: Text(
+                              // i18n-dynamic-only
                               '${detail.amount.dirhams.toStringAsFixed(2)} MAD',
                             ),
                           ),
@@ -363,7 +383,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
                           ? null
                           : () => _confirm(context, ref, value, simulation),
                       icon: const Icon(Icons.check_circle_outline),
-                      label: const Text('Prévisualiser et confirmer'),
+                      label: Text(w.text('preview_confirm')),
                     ),
                   ),
                 ],
@@ -381,24 +401,29 @@ class _CurrentTargetPanel extends ConsumerWidget {
     EnvelopeAccountMatrix matrix,
     GlobalTransferSimulation simulation,
   ) async {
+    final w = MonthlyCloseWords.of(context);
     var economicDate = DateTime.now();
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Confirmer la régularisation ?'),
+          title: Text(w.text('confirm_regularization')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${simulation.physicalTransfers.length} mouvement(s) physique(s) canonique(s) et ${simulation.analyticalMoves.length} justification(s) analytique(s). Aucun mouvement d’enveloppe ne sera créé.',
+                w.format('regularization_summary', {
+                  'physical': simulation.physicalTransfers.length,
+                  'analytical': simulation.analyticalMoves.length,
+                }),
               ),
               const SizedBox(height: AppSpacing.sm),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Date économique'),
+                title: Text(w.text('economic_date')),
                 subtitle: Text(
+                  // i18n-dynamic-only
                   '${economicDate.day.toString().padLeft(2, '0')}/${economicDate.month.toString().padLeft(2, '0')}/${economicDate.year}',
                 ),
                 trailing: const Icon(Icons.calendar_month),
@@ -417,12 +442,12 @@ class _CurrentTargetPanel extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Annuler'),
+              child: Text(w.text('cancel')),
             ),
             FilledButton(
               key: const Key('execute-reallocation'),
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Confirmer'),
+              child: Text(w.text('confirm')),
             ),
           ],
         ),
@@ -438,19 +463,15 @@ class _CurrentTargetPanel extends ConsumerWidget {
       );
       ref.invalidate(envelopeAccountMatrixProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Régularisation enregistrée.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('regularization_saved'))));
       }
     } on Exception {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'La proposition a changé ou ne peut pas être exécutée.',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('proposal_changed'))));
       }
     }
   }
@@ -461,26 +482,37 @@ class _CurrentTargetPanel extends ConsumerWidget {
     String Function(String) accountName,
     String Function(String) envelopeName,
   ) async {
+    final w = MonthlyCloseWords.of(context);
     final history = await ref.read(openingPositionHistoryProvider.future);
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Traçabilité du point de départ'),
+        title: Text(w.text('opening_trace')),
         content: SizedBox(
           width: 680,
           child: history.isEmpty
-              ? const Text('Aucun point de départ enregistré.')
+              ? Text(w.text('no_opening'))
               : ListView(
                   shrinkWrap: true,
                   children: [
                     for (final entry in history)
                       ListTile(
                         title: Text(
+                          // i18n-dynamic-only
                           '${envelopeName(entry.position.envelopeId)} • ${accountName(entry.position.accountId)} • ${entry.position.amount.dirhams.toStringAsFixed(2)} MAD',
                         ),
                         subtitle: Text(
-                          '${_provenanceLabel(entry.position.provenance)}\n${entry.createdAt.toLocal()} • acteur ${entry.actorId}\nbatch ${entry.batchId} • ${entry.note}',
+                          w.format('opening_detail', {
+                            'provenance': _provenanceLabel(
+                              entry.position.provenance,
+                              w,
+                            ),
+                            'date': entry.createdAt.toLocal(),
+                            'actor': entry.actorId,
+                            'batch': entry.batchId,
+                            'note': entry.note,
+                          }),
                         ),
                       ),
                   ],
@@ -489,19 +521,22 @@ class _CurrentTargetPanel extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Fermer'),
+            child: Text(w.text('close')),
           ),
         ],
       ),
     );
   }
 
-  String _provenanceLabel(PositionProvenance value) => switch (value) {
-    PositionProvenance.sourceProof => 'Prouvé par la source',
-    PositionProvenance.humanConfirmation => 'Confirmation métier',
-    PositionProvenance.openingInventoryArbitration => 'Arbitrage d’inventaire',
-    PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
-  };
+  String _provenanceLabel(PositionProvenance value, MonthlyCloseWords w) =>
+      switch (value) {
+        PositionProvenance.sourceProof => w.text('source_proof'),
+        PositionProvenance.humanConfirmation => w.text('business_confirmation'),
+        PositionProvenance.openingInventoryArbitration => w.text(
+          'inventory_arbitration',
+        ),
+        PositionProvenance.balancingDeduction => w.text('balancing_deduction'),
+      };
 
   Future<void> _initialize(
     BuildContext context,
@@ -510,6 +545,7 @@ class _CurrentTargetPanel extends ConsumerWidget {
     List<dynamic> envelopes,
     Map<String, Money> accountBalances,
   ) async {
+    final w = MonthlyCloseWords.of(context);
     InitialPositionPreview preview;
     try {
       preview = await ref.read(initialPositionPreviewProvider.future);
@@ -578,21 +614,15 @@ class _CurrentTargetPanel extends ConsumerWidget {
       );
       ref.invalidate(envelopeAccountMatrixProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Point de départ vérifié et enregistré.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('opening_saved'))));
       }
     } on Exception {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Les montants doivent réconcilier exactement tous les comptes et toutes les enveloppes.',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('reconcile_error'))));
       }
     }
   }
@@ -634,6 +664,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   var _allowPop = false;
   var _draftDirty = false;
   var _unknownsDirty = false;
+  var _localizedDefaultsApplied = false;
   final _splitEnvelopes = <String>{};
   late final Set<String> _unknownEnvelopeIds;
   Timer? _draftSaveTimer;
@@ -668,7 +699,14 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     }
     _updatingDeductions = false;
     _applyUniqueDeductions();
-    note.text = 'Initialisation guidée du point de départ';
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_localizedDefaultsApplied) return;
+    _localizedDefaultsApplied = true;
+    note.text = MonthlyCloseWords.of(context).text('guided_note');
   }
 
   void _changed() {
@@ -738,157 +776,179 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => Dialog.fullscreen(
-    child: PopScope<Object?>(
-      canPop: _allowPop,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (!didPop) await _closeDraft();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Localisations utiles à cette opération'),
-          leading: IconButton(
-            onPressed: _closeDraft,
-            icon: const Icon(Icons.close),
-          ),
-          actions: [
-            FilledButton(
-              key: const Key('save-matrix-snapshot'),
-              onPressed: _balanced ? () => _save(context) : null,
-              child: const Text('Vérifier et enregistrer'),
+  Widget build(BuildContext context) {
+    final w = MonthlyCloseWords.of(context);
+    return Dialog.fullscreen(
+      child: PopScope<Object?>(
+        canPop: _allowPop,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (!didPop) await _closeDraft();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(w.text('useful_locations')),
+            leading: IconButton(
+              onPressed: _closeDraft,
+              icon: const Icon(Icons.close),
             ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
-        ),
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, box) => ListView(
-              padding: AppLayout.pagePaddingFor(box.maxWidth),
-              children: [
-                const Text(
-                  'Cette étape est facultative pour l’usage normal. Elle devient nécessaire uniquement si vous souhaitez exécuter une réallocation physique exigeant de connaître les comptes porteurs actuels.',
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                _simpleSummary(),
-                const SizedBox(height: AppSpacing.sm),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    key: const Key('toggle-advanced-matrix'),
-                    onPressed: () =>
-                        setState(() => _advancedMode = !_advancedMode),
-                    icon: Icon(
-                      _advancedMode
-                          ? Icons.expand_less
-                          : Icons.table_view_outlined,
-                    ),
-                    label: Text(
-                      _advancedMode
-                          ? 'Masquer l’outil avancé'
-                          : 'Afficher la ventilation détaillée (avancé)',
-                    ),
-                  ),
-                ),
-                if (!_advancedMode) ...[
+            actions: [
+              FilledButton(
+                key: const Key('save-matrix-snapshot'),
+                onPressed: _balanced ? () => _save(context) : null,
+                child: Text(w.text('verify_save')),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+          ),
+          body: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, box) => ListView(
+                padding: AppLayout.pagePaddingFor(box.maxWidth),
+                children: [
+                  Text(w.text('optional_step')),
+                  const SizedBox(height: AppSpacing.sm),
+                  _simpleSummary(),
+                  const SizedBox(height: AppSpacing.sm),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
-                      key: const Key('continue-without-inventory'),
-                      onPressed: _deferAllAndClose,
-                      icon: const Icon(Icons.arrow_forward),
-                      label: const Text('Continuer sans inventaire'),
+                      key: const Key('toggle-advanced-matrix'),
+                      onPressed: () =>
+                          setState(() => _advancedMode = !_advancedMode),
+                      icon: Icon(
+                        _advancedMode
+                            ? Icons.expand_less
+                            : Icons.table_view_outlined,
+                      ),
+                      label: Text(
+                        _advancedMode
+                            ? w.text('hide_advanced')
+                            : w.text('show_advanced'),
+                      ),
                     ),
                   ),
-                  _simpleArbitrations(),
-                ],
-                if (_advancedMode) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  _summary(),
-                  const SizedBox(height: AppSpacing.sm),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.tonalIcon(
-                      key: const Key('propose-inventory-ventilation'),
-                      onPressed: () => _previewInventoryVentilation(context),
-                      icon: const Icon(Icons.auto_fix_high_outlined),
-                      label: const Text('Proposer une ventilation'),
+                  if (!_advancedMode) ...[
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        key: const Key('continue-without-inventory'),
+                        onPressed: _deferAllAndClose,
+                        icon: const Icon(Icons.arrow_forward),
+                        label: Text(w.text('continue_without')),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(
-                        value: false,
-                        icon: Icon(Icons.account_balance_wallet_outlined),
-                        label: Text('Par enveloppe'),
+                    _simpleArbitrations(),
+                  ],
+                  if (_advancedMode) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _summary(),
+                    const SizedBox(height: AppSpacing.sm),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.tonalIcon(
+                        key: const Key('propose-inventory-ventilation'),
+                        onPressed: () => _previewInventoryVentilation(context),
+                        icon: const Icon(Icons.auto_fix_high_outlined),
+                        label: Text(w.text('propose_allocation')),
                       ),
-                      ButtonSegment(
-                        value: true,
-                        icon: Icon(Icons.account_balance_outlined),
-                        label: Text('Par compte'),
-                      ),
-                    ],
-                    selected: {_groupByAccount},
-                    onSelectionChanged: (value) {
-                      final groupByAccount = value.single;
-                      setState(() => _groupByAccount = groupByAccount);
-                      if (!groupByAccount) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_matrixHorizontal.hasClients) {
-                            _matrixHorizontal.jumpTo(0);
-                          }
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  if (_groupByAccount)
-                    _accountComposition()
-                  else if (box.maxWidth >= 760)
-                    _desktopMatrix()
-                  else
-                    _mobileMatrix(),
-                ],
-                const SizedBox(height: AppSpacing.sm),
-                if (_advancedMode)
-                  Wrap(
-                    spacing: AppSpacing.md,
-                    runSpacing: AppSpacing.xs,
-                    children: [
-                      for (final a in widget.accounts)
-                        Text(
-                          '${a.name}: réparti ${_money(_accountTotal(a.id as String))} / solde ${_money(widget.accountBalances[a.id as String]?.minorUnits ?? 0)} / écart ${_money(_accountTotal(a.id as String) - (widget.accountBalances[a.id as String]?.minorUnits ?? 0))}',
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    SegmentedButton<bool>(
+                      segments: [
+                        ButtonSegment(
+                          value: false,
+                          icon: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                          ),
+                          label: Text(w.text('by_envelope')),
                         ),
-                    ],
-                  ),
-                const SizedBox(height: AppSpacing.md),
-                if (_advancedMode)
-                  TextField(
-                    key: const Key('matrix-inventory-note'),
-                    controller: note,
-                    decoration: const InputDecoration(
-                      labelText: 'Note d’inventaire obligatoire',
+                        ButtonSegment(
+                          value: true,
+                          icon: const Icon(Icons.account_balance_outlined),
+                          label: Text(w.text('by_account')),
+                        ),
+                      ],
+                      selected: {_groupByAccount},
+                      onSelectionChanged: (value) {
+                        final groupByAccount = value.single;
+                        setState(() => _groupByAccount = groupByAccount);
+                        if (!groupByAccount) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (_matrixHorizontal.hasClients) {
+                              _matrixHorizontal.jumpTo(0);
+                            }
+                          });
+                        }
+                      },
                     ),
-                  ),
-                if (!_balanced && _advancedMode)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.sm),
-                    child: Text(
-                      'Validation indisponible : corrigez les écarts de lignes et de colonnes.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                    const SizedBox(height: AppSpacing.sm),
+                    if (_groupByAccount)
+                      _accountComposition()
+                    else if (box.maxWidth >= 760)
+                      _desktopMatrix()
+                    else
+                      _mobileMatrix(),
+                  ],
+                  const SizedBox(height: AppSpacing.sm),
+                  if (_advancedMode)
+                    Wrap(
+                      spacing: AppSpacing.md,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        for (final a in widget.accounts)
+                          Text(
+                            w.format('account_distribution', {
+                              'name': a.name,
+                              'allocated': _money(
+                                _accountTotal(a.id as String),
+                              ),
+                              'balance': _money(
+                                widget
+                                        .accountBalances[a.id as String]
+                                        ?.minorUnits ??
+                                    0,
+                              ),
+                              'gap': _money(
+                                _accountTotal(a.id as String) -
+                                    (widget
+                                            .accountBalances[a.id as String]
+                                            ?.minorUnits ??
+                                        0),
+                              ),
+                            }),
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (_advancedMode)
+                    TextField(
+                      key: const Key('matrix-inventory-note'),
+                      controller: note,
+                      decoration: InputDecoration(
+                        labelText: w.text('inventory_note'),
                       ),
                     ),
-                  ),
-              ],
+                  if (!_balanced && _advancedMode)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.sm),
+                      child: Text(
+                        w.text('validation_gaps'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _simpleSummary() {
+    final w = MonthlyCloseWords.of(context);
     final total = widget.envelopes.fold<int>(
       0,
       (sum, envelope) => sum + (envelope.balance as Money).minorUnits,
@@ -902,30 +962,25 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         children: [
           Text(
             remaining == 0
-                ? 'Votre point de départ est prêt'
-                : 'Localisations disponibles',
+                ? w.text('starting_ready')
+                : w.text('locations_available'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.xs),
           LinearProgressIndicator(value: total == 0 ? 1 : located / total),
           const SizedBox(height: AppSpacing.xs),
-          Text('Montant total à localiser : ${_money(total)}'),
-          Text('Déjà retrouvé : ${_money(located)}'),
-          Text('À déterminer : ${_money(remaining)}'),
+          Text(w.format('total_to_locate', {'amount': _money(total)})),
+          Text(w.format('already_located', {'amount': _money(located)})),
+          Text(w.format('to_determine', {'amount': _money(remaining)})),
           if (questions > 0)
-            Text(
-              '$questions localisation${questions > 1 ? 's' : ''} indispensable${questions > 1 ? 's' : ''} uniquement pour cette réallocation',
-            ),
-          if (remaining > 0)
-            const SecondaryInfoText(
-              'Certaines positions pourront être précisées plus tard si nécessaire. Aucun compte recommandé n’est assimilé à une position actuelle.',
-            ),
+            Text(w.format('required_locations_count', {'count': questions})),
+          if (remaining > 0) SecondaryInfoText(w.text('later_positions')),
           if (remaining == 0) ...[
             const Divider(),
-            Text('Comptes : ${_money(total)}'),
-            Text('Enveloppes : ${_money(total)}'),
-            Text('Montant entièrement localisé : ${_money(total)}'),
-            const Text('Aucun écart'),
+            Text(w.format('accounts_total', {'amount': _money(total)})),
+            Text(w.format('envelopes_total', {'amount': _money(total)})),
+            Text(w.format('fully_located', {'amount': _money(total)})),
+            Text(w.text('no_gap')),
           ],
         ],
       ),
@@ -933,18 +988,15 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   }
 
   Widget _simpleArbitrations() {
+    final w = MonthlyCloseWords.of(context);
     final arbitrations = _assistantArbitrations();
     if (arbitrations.isEmpty) {
-      return const SecondaryInfoText(
-        'Nous avons retrouvé tout ce qui peut l’être avec certitude. Vous pouvez continuer ou contrôler la ventilation détaillée.',
-      );
+      return SecondaryInfoText(w.text('all_certain'));
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SecondaryInfoText(
-          'Informations nécessaires uniquement pour terminer cette réallocation :',
-        ),
+        SecondaryInfoText(w.text('required_information')),
         for (final item in arbitrations)
           Card(
             key: Key('assistant-arbitration-${item.envelopeId}'),
@@ -954,12 +1006,13 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${item.envelopeName} — ${_money(item.amount)} restent à localiser',
+                    w.format('remaining_location', {
+                      'name': item.envelopeName,
+                      'amount': _money(item.amount),
+                    }),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const Text(
-                    'Sur quel compte se trouve actuellement ce montant ?',
-                  ),
+                  Text(w.text('which_account')),
                   const SizedBox(height: AppSpacing.xs),
                   Wrap(
                     spacing: AppSpacing.xs,
@@ -982,13 +1035,13 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                           onPressed: () => setState(
                             () => _splitEnvelopes.add(item.envelopeId),
                           ),
-                          child: const Text('Réparti entre les deux'),
+                          child: Text(w.text('split_both')),
                         ),
                       OutlinedButton.icon(
                         key: Key('assistant-unknown-${item.envelopeId}'),
                         onPressed: () => _deferEnvelope(item.envelopeId),
                         icon: const Icon(Icons.schedule_outlined),
-                        label: const Text('Je ne sais pas / plus tard'),
+                        label: Text(w.text('unknown_later')),
                       ),
                     ],
                   ),
@@ -999,7 +1052,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                   if (_hasEditableAmount(item) &&
                       _editableAmount(item) != item.amount)
                     Text(
-                      'La somme doit être exactement ${_money(item.amount)}.',
+                      w.format('exact_sum', {'amount': _money(item.amount)}),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -1120,9 +1173,10 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           .where((account) => account.id == id)
           .map((account) => account.name as String)
           .firstOrNull ??
-      'Compte';
+      MonthlyCloseWords.of(context).text('account');
 
   Widget _summary() {
+    final w = MonthlyCloseWords.of(context);
     final relevant = widget.envelopes
         .where((e) => (e.balance as Money).minorUnits != 0)
         .toList();
@@ -1143,13 +1197,20 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
         runSpacing: AppSpacing.xs,
         children: [
           Text(
-            '$completed / ${relevant.length} enveloppes inventoriées',
+            w.format('inventoried', {
+              'completed': completed,
+              'total': relevant.length,
+            }),
             key: const Key('matrix-progress'),
           ),
-          Text('Total affecté : ${_money(allocated)}'),
-          Text('Total restant : ${_money(envelopeTotal - allocated)}'),
+          Text(w.format('allocated_total', {'amount': _money(allocated)})),
           Text(
-            _balanced ? 'État : équilibré' : 'État : non équilibré',
+            w.format('remaining_total', {
+              'amount': _money(envelopeTotal - allocated),
+            }),
+          ),
+          Text(
+            _balanced ? w.text('balanced') : w.text('unbalanced'),
             key: const Key('matrix-balance-state'),
           ),
         ],
@@ -1191,10 +1252,10 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
             ...scenarioAccounts.where((id) => id != recommended),
           ],
           reason: kind == 'single_account'
-              ? 'Compte structurel habituel'
+              ? MonthlyCloseWords.of(context).text('usual_account')
               : kind == 'scenario_split'
-              ? 'Répartition multi-comptes du scénario applicable'
-              : 'Comptes admissibles selon le bénéficiaire',
+              ? MonthlyCloseWords.of(context).text('scenario_accounts')
+              : MonthlyCloseWords.of(context).text('beneficiary_accounts'),
         ),
       );
     }
@@ -1284,59 +1345,67 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   }
 
   Future<void> _previewInventoryVentilation(BuildContext context) async {
+    final w = MonthlyCloseWords.of(context);
     final proposal = _inventoryVentilationProposal();
     String accountName(String id) =>
         widget.accounts
             .where((account) => account.id == id)
             .map((account) => account.name as String)
             .firstOrNull ??
-        'Compte';
+        w.text('account');
     String envelopeName(String id) =>
         widget.envelopes
             .where((envelope) => envelope.id == id)
             .map((envelope) => envelope.name as String)
             .firstOrNull ??
-        'Enveloppe';
+        w.text('envelope');
     final apply = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Proposition de ventilation d’inventaire'),
+        title: Text(w.text('allocation_proposal')),
         content: SizedBox(
           width: 720,
           child: ListView(
             shrinkWrap: true,
             children: [
               Text(
-                'Avant : ${_money(proposal.initialResidual.minorUnits)} restant à expliquer.',
+                w.format('before_residual', {
+                  'amount': _money(proposal.initialResidual.minorUnits),
+                }),
                 key: const Key('ventilation-before'),
               ),
               Text(
                 proposal.balanced
-                    ? 'Après proposition : comptes et enveloppes équilibrés.'
-                    : 'Après proposition : ${_money(proposal.remainingEnvelopeAmount.minorUnits)} non résolu.',
+                    ? w.text('after_balanced')
+                    : w.format('after_residual', {
+                        'amount': _money(
+                          proposal.remainingEnvelopeAmount.minorUnits,
+                        ),
+                      }),
                 key: const Key('ventilation-after'),
               ),
               const SizedBox(height: AppSpacing.sm),
               if (proposal.candidates.isEmpty)
-                const SecondaryInfoText(
-                  'Aucune proposition sûre ne peut être construite avec les règles disponibles.',
-                ),
+                SecondaryInfoText(w.text('no_safe_proposal')),
               for (final candidate in proposal.candidates)
                 ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(
+                    // i18n-dynamic-only
                     '${envelopeName(candidate.position.envelopeId)} • ${accountName(candidate.position.accountId)}',
                   ),
                   subtitle: Text(
-                    '${candidate.reason}\nArbitrage d’inventaire proposé',
+                    w.format('proposed_arbitration', {
+                      'reason': candidate.reason,
+                    }),
                   ),
                   trailing: Text(_money(candidate.position.amount.minorUnits)),
                 ),
               if (proposal.unresolvedResiduals.isNotEmpty) ...[
                 const Divider(),
                 Text(
-                  'Montants restant à expliquer',
+                  w.text('unexplained'),
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: AppSpacing.xs),
@@ -1349,21 +1418,39 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${envelopeName(residual.envelopeId)} — ${_money(residual.amount.minorUnits)} non résolus',
+                            w.format('unresolved', {
+                              'name': envelopeName(residual.envelopeId),
+                              'amount': _money(residual.amount.minorUnits),
+                            }),
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
                             residual.admissibleAccountIds.isEmpty
-                                ? 'Comptes admissibles : aucun'
-                                : 'Comptes admissibles : ${residual.admissibleAccountIds.map(accountName).join(' / ')}',
+                                ? w.text('no_admissible')
+                                : w.format('admissible', {
+                                    'accounts': residual.admissibleAccountIds
+                                        .map(accountName)
+                                        .join(' / '),
+                                  }),
                           ),
                           if (residual.admissibleAccountIds.isNotEmpty)
                             Text(
-                              'Capacités restantes : ${residual.admissibleAccountIds.map((id) => '${accountName(id)} ${_money(residual.remainingAccountCapacities[id]!.minorUnits)}').join(' • ')}',
+                              w.format('capacities', {
+                                'capacities': residual.admissibleAccountIds
+                                    .map(
+                                      (id) =>
+                                          '${accountName(id)} ${_money(residual.remainingAccountCapacities[id]!.minorUnits)}',
+                                    )
+                                    .join(' • '),
+                              }),
                             ),
-                          Text('Pourquoi : ${residual.reason}'),
-                          Text('Action attendue : ${residual.expectedAction}'),
+                          Text(w.format('why', {'reason': residual.reason})),
+                          Text(
+                            w.format('expected_action', {
+                              'action': residual.expectedAction,
+                            }),
+                          ),
                         ],
                       ),
                     ),
@@ -1376,14 +1463,14 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
           TextButton(
             key: const Key('cancel-inventory-ventilation'),
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
+            child: Text(w.text('cancel')),
           ),
           FilledButton(
             key: const Key('apply-inventory-ventilation'),
             onPressed: proposal.candidates.isEmpty
                 ? null
                 : () => Navigator.pop(dialogContext, true),
-            child: const Text('Appliquer la proposition au brouillon'),
+            child: Text(w.text('apply_draft')),
           ),
         ],
       ),
@@ -1407,13 +1494,16 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
   }
 
   Widget _desktopMatrix() {
+    final w = MonthlyCloseWords.of(context);
     final envelopeWidth = _desktopColumnWidth(
       <String>[
-        'Enveloppe',
+        w.text('envelope'),
         for (final envelope in widget.envelopes) envelope.name as String,
         for (final envelope in widget.envelopes)
           if (envelope.recommendedAccountId != null)
-            'Compte structurel recommandé : ${_recommendedAccountName(envelope) ?? ''}',
+            w.format('recommended_account', {
+              'account': _recommendedAccountName(envelope) ?? '',
+            }),
       ],
       min: 280,
       max: 380,
@@ -1421,8 +1511,8 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     final accountWidth = _desktopColumnWidth(
       <String>[
         for (final account in widget.accounts) account.name as String,
-        'Arbitrage d’inventaire',
-        'Confirmation métier',
+        w.text('inventory_arbitration'),
+        w.text('business_confirmation'),
       ],
       min: 190,
       max: 230,
@@ -1449,12 +1539,12 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       color: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: Row(
         children: [
-          cell(const Text('Enveloppe'), envelopeWidth),
+          cell(Text(w.text('envelope')), envelopeWidth),
           for (final account in widget.accounts)
             cell(Text(account.name as String), accountWidth),
-          cell(const Text('Affecté'), totalWidth),
-          cell(const Text('Solde enveloppe'), totalWidth),
-          cell(const Text('Écart'), totalWidth),
+          cell(Text(w.text('allocated')), totalWidth),
+          cell(Text(w.text('envelope_balance')), totalWidth),
+          cell(Text(w.text('gap')), totalWidth),
         ],
       ),
     );
@@ -1509,7 +1599,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                               for (final account in widget.accounts)
                                 cell(
                                   (envelope.balance as Money).minorUnits == 0
-                                      ? const Text('—')
+                                      ? const Text('—') // i18n-dynamic-only
                                       : _amountCell(
                                           _row(
                                             account.id as String,
@@ -1578,46 +1668,55 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     return (widest + AppSpacing.md * 2).clamp(min, max).toDouble();
   }
 
-  Widget _mobileMatrix() => Column(
-    children: [
-      for (final e in widget.envelopes)
-        Card(
-          child: Padding(
-            padding: AppSpacing.card,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _envelopeHeading(e),
-                if ((e.balance as Money).minorUnits == 0)
-                  const SecondaryInfoText(
-                    'Solde nul : aucune saisie nécessaire.',
-                  )
-                else
-                  for (final a in widget.accounts)
-                    Row(
-                      children: [
-                        Expanded(child: Text(a.name as String)),
-                        SizedBox(
-                          width: 130,
-                          child: _amountCell(
-                            _row(a.id as String, e.id as String),
-                            e.name as String,
-                            a.name as String,
+  Widget _mobileMatrix() {
+    final w = MonthlyCloseWords.of(context);
+    return Column(
+      children: [
+        for (final e in widget.envelopes)
+          Card(
+            child: Padding(
+              padding: AppSpacing.card,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _envelopeHeading(e),
+                  if ((e.balance as Money).minorUnits == 0)
+                    SecondaryInfoText(w.text('zero_balance'))
+                  else
+                    for (final a in widget.accounts)
+                      Row(
+                        children: [
+                          Expanded(child: Text(a.name as String)),
+                          SizedBox(
+                            width: 130,
+                            child: _amountCell(
+                              _row(a.id as String, e.id as String),
+                              e.name as String,
+                              a.name as String,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                Text(
-                  'Réparti ${_money(_envelopeTotal(e.id as String))} / solde ${_money((e.balance as Money).minorUnits)} • écart ${_money(_envelopeTotal(e.id as String) - (e.balance as Money).minorUnits)}',
-                ),
-              ],
+                        ],
+                      ),
+                  Text(
+                    w.format('distribution', {
+                      'allocated': _money(_envelopeTotal(e.id as String)),
+                      'balance': _money((e.balance as Money).minorUnits),
+                      'gap': _money(
+                        _envelopeTotal(e.id as String) -
+                            (e.balance as Money).minorUnits,
+                      ),
+                    }),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-    ],
-  );
+      ],
+    );
+  }
 
   Widget _envelopeHeading(dynamic envelope) {
+    final w = MonthlyCloseWords.of(context);
     final recommendedId = envelope.recommendedAccountId as String?;
     final recommended = _recommendedAccountName(envelope);
     return Column(
@@ -1634,7 +1733,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                'Compte structurel recommandé : $recommended',
+                w.format('recommended_account', {'account': recommended}),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               TextButton(
@@ -1642,7 +1741,7 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
                 onPressed: (envelope.balance as Money).minorUnits == 0
                     ? null
                     : () => _useRecommendedAccount(envelope, recommendedId!),
-                child: const Text('Utiliser ce compte'),
+                child: Text(w.text('use_account')),
               ),
             ],
           ),
@@ -1670,121 +1769,155 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     _scheduleDraftSave();
   }
 
-  Widget _accountComposition() => Column(
-    children: [
-      for (final account in widget.accounts)
-        Card(
-          key: Key('matrix-account-${account.id}'),
-          child: Padding(
-            padding: AppSpacing.card,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  account.name as String,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                for (final envelope in widget.envelopes)
-                  if (_cents(
-                        _row(account.id as String, envelope.id as String),
-                      ) !=
-                      0)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(envelope.name as String),
-                      trailing: Text(
-                        _money(
-                          _cents(
-                            _row(account.id as String, envelope.id as String),
+  Widget _accountComposition() {
+    final w = MonthlyCloseWords.of(context);
+    return Column(
+      children: [
+        for (final account in widget.accounts)
+          Card(
+            key: Key('matrix-account-${account.id}'),
+            child: Padding(
+              padding: AppSpacing.card,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    account.name as String,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  for (final envelope in widget.envelopes)
+                    if (_cents(
+                          _row(account.id as String, envelope.id as String),
+                        ) !=
+                        0)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(envelope.name as String),
+                        trailing: Text(
+                          _money(
+                            _cents(
+                              _row(account.id as String, envelope.id as String),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                const Divider(),
-                Text(
-                  'Expliqué ${_money(_accountTotal(account.id as String))} / solde ${_money(widget.accountBalances[account.id as String]?.minorUnits ?? 0)} / écart ${_money(_accountTotal(account.id as String) - (widget.accountBalances[account.id as String]?.minorUnits ?? 0))}',
-                ),
-              ],
+                  const Divider(),
+                  Text(
+                    w.format('explained', {
+                      'explained': _money(_accountTotal(account.id as String)),
+                      'balance': _money(
+                        widget
+                                .accountBalances[account.id as String]
+                                ?.minorUnits ??
+                            0,
+                      ),
+                      'gap': _money(
+                        _accountTotal(account.id as String) -
+                            (widget
+                                    .accountBalances[account.id as String]
+                                    ?.minorUnits ??
+                                0),
+                      ),
+                    }),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-    ],
-  );
+      ],
+    );
+  }
 
   Widget _amountCell(
     _PositionDraft row,
     String envelopeName,
     String accountName,
-  ) => Semantics(
-    label: '$envelopeName, $accountName, montant en MAD',
-    textField: true,
-    child: Tooltip(
-      message: '$envelopeName • $accountName',
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            key: Key('matrix-${row.envelopeId}-${row.accountId}'),
-            controller: row.amount,
-            readOnly: row.locked,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: accountName,
-              suffixText: 'MAD',
-              isDense: true,
-            ),
-            onChanged: (_) {
-              if (_updatingDeductions || row.locked) return;
-              row.userEdited = true;
-              _scheduleDraftSave();
-            },
-          ),
-          if (row.locked && _cents(row) > 0)
-            Text(
-              _positionProvenanceLabel(row.provenance),
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-          if (!row.locked && _cents(row) > 0)
-            DropdownButtonHideUnderline(
-              child: DropdownButton<PositionProvenance>(
-                key: Key('provenance-${row.envelopeId}-${row.accountId}'),
-                isDense: true,
-                isExpanded: true,
-                value: row.provenance,
-                items: const [
-                  DropdownMenuItem(
-                    value: PositionProvenance.openingInventoryArbitration,
-                    child: Text('Arbitrage d’inventaire'),
-                  ),
-                  DropdownMenuItem(
-                    value: PositionProvenance.humanConfirmation,
-                    child: Text('Confirmation métier'),
-                  ),
-                ],
-                onChanged: (value) => setState(() {
-                  row.provenance =
-                      value ?? PositionProvenance.openingInventoryArbitration;
-                  row.provenanceReference =
-                      row.provenance == PositionProvenance.humanConfirmation
-                      ? 'Confirmation explicite lors de l’inventaire'
-                      : 'Arbitrage explicite lors de l’inventaire';
-                  row.userEdited = true;
-                  _scheduleDraftSave();
-                }),
+  ) {
+    final w = MonthlyCloseWords.of(context);
+    return Semantics(
+      label: w.format('amount_semantics', {
+        'envelope': envelopeName,
+        'account': accountName,
+      }),
+      textField: true,
+      child: Tooltip(
+        message: '$envelopeName • $accountName', // i18n-dynamic-only
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              key: Key('matrix-${row.envelopeId}-${row.accountId}'),
+              controller: row.amount,
+              readOnly: row.locked,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
+              decoration: InputDecoration(
+                labelText: accountName,
+                suffixText: 'MAD',
+                isDense: true,
+              ),
+              onChanged: (_) {
+                if (_updatingDeductions || row.locked) return;
+                row.userEdited = true;
+                _scheduleDraftSave();
+              },
             ),
-        ],
+            if (row.locked && _cents(row) > 0)
+              Text(
+                _positionProvenanceLabel(row.provenance),
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            if (!row.locked && _cents(row) > 0)
+              DropdownButtonHideUnderline(
+                child: DropdownButton<PositionProvenance>(
+                  key: Key('provenance-${row.envelopeId}-${row.accountId}'),
+                  isDense: true,
+                  isExpanded: true,
+                  value: row.provenance,
+                  items: [
+                    DropdownMenuItem(
+                      value: PositionProvenance.openingInventoryArbitration,
+                      child: Text(w.text('inventory_arbitration')),
+                    ),
+                    DropdownMenuItem(
+                      value: PositionProvenance.humanConfirmation,
+                      child: Text(w.text('business_confirmation')),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    row.provenance =
+                        value ?? PositionProvenance.openingInventoryArbitration;
+                    row.provenanceReference =
+                        row.provenance == PositionProvenance.humanConfirmation
+                        ? 'Confirmation explicite lors de l’inventaire'
+                        : 'Arbitrage explicite lors de l’inventaire';
+                    row.userEdited = true;
+                    _scheduleDraftSave();
+                  }),
+                ),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   String _positionProvenanceLabel(PositionProvenance value) => switch (value) {
-    PositionProvenance.sourceProof => 'Prouvé par la source',
-    PositionProvenance.humanConfirmation => 'Confirmation métier',
-    PositionProvenance.balancingDeduction => 'Déduit par équilibrage',
-    PositionProvenance.openingInventoryArbitration => 'Arbitrage d’inventaire',
+    PositionProvenance.sourceProof => MonthlyCloseWords.of(
+      context,
+    ).text('source_proof'),
+    PositionProvenance.humanConfirmation => MonthlyCloseWords.of(
+      context,
+    ).text('business_confirmation'),
+    PositionProvenance.balancingDeduction => MonthlyCloseWords.of(
+      context,
+    ).text('balancing_deduction'),
+    PositionProvenance.openingInventoryArbitration => MonthlyCloseWords.of(
+      context,
+    ).text('inventory_arbitration'),
   };
 
   void _scheduleDraftSave() {
@@ -1819,9 +1952,9 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Le brouillon n’a pas pu être synchronisé. Réessayez avant de fermer.',
+              MonthlyCloseWords.of(context).text('draft_sync_error'),
             ),
           ),
         );
@@ -1862,22 +1995,21 @@ class _PositionSnapshotDialogState extends State<_PositionSnapshotDialog> {
       );
   Future<void> _save(BuildContext context) async {
     if (!_balanced) return;
+    final w = MonthlyCloseWords.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Confirmer l’inventaire initial ?'),
-        content: const Text(
-          'Cette déclaration analytique sera historisée. Elle ne modifiera aucun compte, aucune enveloppe et ne créera aucune opération financière.',
-        ),
+        title: Text(w.text('confirm_initial')),
+        content: Text(w.text('initial_notice')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Continuer la vérification'),
+            child: Text(w.text('continue_review')),
           ),
           FilledButton(
             key: const Key('confirm-matrix-snapshot'),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Confirmer définitivement'),
+            child: Text(w.text('confirm_final')),
           ),
         ],
       ),
@@ -1937,6 +2069,7 @@ class _Kpis extends StatelessWidget {
   final ReliabilityKpis? kpis;
   @override
   Widget build(BuildContext context) {
+    final w = MonthlyCloseWords.of(context);
     final value = kpis;
     if (value == null) return const SizedBox.shrink();
     String percent(int count) => '${(value.ratio(count) * 100).round()} %';
@@ -1945,7 +2078,7 @@ class _Kpis extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Fiabilité des saisies',
+            w.text('entry_reliability'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -1953,16 +2086,29 @@ class _Kpis extends StatelessWidget {
             spacing: AppSpacing.md,
             runSpacing: AppSpacing.xs,
             children: [
-              Text('J+0 ${percent(value.sameDay)}'),
-              Text('J+1 ${percent(value.withinOneDay)}'),
-              Text('J+3 ${percent(value.withinThreeDays)}'),
-              Text('${value.late} saisie(s) tardive(s)'),
+              Text(
+                w.format('delay_percent', {
+                  'delay': 0,
+                  'percent': percent(value.sameDay),
+                }),
+              ),
+              Text(
+                w.format('delay_percent', {
+                  'delay': 1,
+                  'percent': percent(value.withinOneDay),
+                }),
+              ),
+              Text(
+                w.format('delay_percent', {
+                  'delay': 3,
+                  'percent': percent(value.withinThreeDays),
+                }),
+              ),
+              Text(w.format('late_entries', {'count': value.late})),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          const SecondaryInfoText(
-            'Attribution : FOYER / NON ATTRIBUÉ lorsque la responsabilité ne peut pas être démontrée.',
-          ),
+          SecondaryInfoText(w.text('attribution_note')),
         ],
       ),
     );
@@ -1973,106 +2119,119 @@ class _Health extends StatelessWidget {
   const _Health(this.snapshot);
   final MonthlyCloseSnapshot snapshot;
   @override
-  Widget build(BuildContext context) => FpCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Santé du mois',
-                style: Theme.of(context).textTheme.titleLarge,
+  Widget build(BuildContext context) {
+    final w = MonthlyCloseWords.of(context);
+    return FpCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  w.text('month_health'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
-            ),
-            Text(
-              '${snapshot.healthPercent} %',
-              key: const Key('month-health-percent'),
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        LinearProgressIndicator(value: snapshot.healthPercent / 100),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          snapshot.ready
-              ? 'Prêt sous réserve des avertissements'
-              : '${snapshot.blockers} condition(s) bloquante(s) à traiter',
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.xxs,
-          children: [
-            for (final entry in snapshot.healthBreakdown.entries)
               Text(
-                '${_healthLabel(entry.key)} : ${entry.value} %',
-                style: Theme.of(context).textTheme.bodySmall,
+                // i18n-dynamic-only
+                '${snapshot.healthPercent} %',
+                key: const Key('month-health-percent'),
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
-          ],
-        ),
-        const SecondaryInfoText(
-          'Le score décrit la qualité du mois. Le statut Prêt à clôturer dépend séparément des conditions bloquantes.',
-        ),
-        Text(
-          '${snapshot.warnings} avertissement(s)',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    ),
-  );
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          LinearProgressIndicator(value: snapshot.healthPercent / 100),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            snapshot.ready
+                ? w.text('ready_warnings')
+                : w.format('blocking_conditions', {'count': snapshot.blockers}),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.xxs,
+            children: [
+              for (final entry in snapshot.healthBreakdown.entries)
+                Text(
+                  w.format('health_metric', {
+                    'label': _healthLabel(entry.key, w),
+                    'value': entry.value,
+                  }),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
+          ),
+          SecondaryInfoText(w.text('health_note')),
+          Text(
+            w.format('warnings_count', {'count': snapshot.warnings}),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-String _healthLabel(String key) => switch (key) {
-  'entries' => 'Saisies',
-  'receipts' => 'Justificatifs',
-  'reconciliations' => 'Rapprochements',
-  'cash' => 'Espèces',
-  'differences' => 'Écarts',
-  'compensations' => 'Compensations',
-  _ => 'Régularisation',
+String _healthLabel(String key, MonthlyCloseWords w) => switch (key) {
+  'entries' => w.text('entries'),
+  'receipts' => w.text('receipts'),
+  'reconciliations' => w.text('reconciliations'),
+  'cash' => w.text('cash'),
+  'differences' => w.text('differences'),
+  'compensations' => w.text('compensations'),
+  _ => w.text('regularization'),
 };
 
 class _Workflow extends ConsumerWidget {
   const _Workflow(this.snapshot);
   final MonthlyCloseSnapshot snapshot;
-  static const labels = [
-    'Saisies',
-    'Justificatifs',
-    'Rapprochements',
-    'Inventaire espèces',
-    'Traitement des écarts',
-    'Compensations',
-    'Régularisations',
-    'Virements / retraits',
-    'Contrôle final',
-    'Clôture',
-  ];
   @override
-  Widget build(BuildContext context, WidgetRef ref) => FpCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Parcours guidé', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.xs),
-        for (var i = 0; i < labels.length; i++)
-          ListTile(
-            key: Key('workflow-step-${i + 1}'),
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(child: Text('${i + 1}')),
-            title: Text(labels[i]),
-            subtitle: Text(_stepState(i)),
-            trailing: i < 6 ? const Icon(Icons.chevron_right) : null,
-            onTap: i < 6 ? () => _open(context, ref, i) : null,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final w = MonthlyCloseWords.of(context);
+    final labels = [
+      'entries',
+      'receipts',
+      'reconciliations',
+      'cash_inventory',
+      'difference_processing',
+      'compensations',
+      'regularizations',
+      'transfers_withdrawals',
+      'final_control',
+      'closing',
+    ];
+    return FpCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            w.text('guided_path'),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-      ],
-    ),
-  );
+          const SizedBox(height: AppSpacing.xs),
+          for (var i = 0; i < labels.length; i++)
+            ListTile(
+              key: Key('workflow-step-${i + 1}'),
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                child: Text('${i + 1}'), // i18n-dynamic-only
+              ), // i18n-dynamic-only
+              title: Text(w.text(labels[i])),
+              subtitle: Text(_stepState(i, w)),
+              trailing: i < 6 ? const Icon(Icons.chevron_right) : null,
+              onTap: i < 6 ? () => _open(context, ref, i) : null,
+            ),
+        ],
+      ),
+    );
+  }
 
-  String _stepState(int index) {
+  String _stepState(int index, MonthlyCloseWords w) {
     if (index >= 6 && snapshot.blockers > 0) {
-      return 'BLOQUÉ — fiabilisez d’abord les soldes et écarts.';
+      return w.text('blocked_first');
     }
     final codes = switch (index) {
       1 => const {'receipts'},
@@ -2083,11 +2242,13 @@ class _Workflow extends ConsumerWidget {
       _ => const <String>{},
     };
     if (codes.isEmpty) {
-      return index == 9 && snapshot.ready ? 'TERMINÉ' : 'EN COURS';
+      return index == 9 && snapshot.ready
+          ? w.text('completed')
+          : w.text('in_progress');
     }
     return snapshot.issues.any((issue) => codes.contains(issue.code))
-        ? 'À FAIRE'
-        : 'TERMINÉ';
+        ? w.text('todo')
+        : w.text('completed');
   }
 
   Future<void> _open(BuildContext context, WidgetRef ref, int index) async {
@@ -2131,19 +2292,20 @@ class _Todo extends ConsumerWidget {
   final MonthlyCloseSnapshot snapshot;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final w = MonthlyCloseWords.of(context);
     final active = snapshot.issues.where((issue) => issue.count > 0);
     return FpCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'À faire financier',
+            w.text('financial_todo'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           if (active.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: AppSpacing.xs),
-              child: SecondaryInfoText('Aucune anomalie actionnable détectée.'),
+              child: SecondaryInfoText(w.text('no_actionable')),
             ),
           for (final issue in active)
             ListTile(
@@ -2159,7 +2321,10 @@ class _Todo extends ConsumerWidget {
               ),
               title: Text(issue.label),
               subtitle: Text(
-                '${issue.count} élément(s) • ${issue.destination}',
+                w.format('issue_count', {
+                  'count': issue.count,
+                  'destination': issue.destination,
+                }),
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _openDestination(context, ref, issue),
@@ -2189,8 +2354,10 @@ class _Todo extends ConsumerWidget {
     };
     if (page == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cette destination n’est plus disponible.'),
+        SnackBar(
+          content: Text(
+            MonthlyCloseWords.of(context).text('destination_unavailable'),
+          ),
         ),
       );
       return;
@@ -2210,6 +2377,7 @@ class _TargetConfiguration extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final w = MonthlyCloseWords.of(context);
     final targets = ref.watch(monthlyCloseTargetsProvider);
     final automatic = ref.watch(automaticTargetPreviewProvider);
     final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
@@ -2220,13 +2388,13 @@ class _TargetConfiguration extends ConsumerWidget {
             .where((account) => account.id == id)
             .map((account) => account.name)
             .firstOrNull ??
-        'Compte indisponible';
+        w.text('account_unavailable');
     String envelopeName(String id) =>
         envelopes
             .where((envelope) => envelope.id == id)
             .map((envelope) => envelope.name)
             .firstOrNull ??
-        'Enveloppe indisponible';
+        w.text('envelope_unavailable');
     return FpCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2235,7 +2403,7 @@ class _TargetConfiguration extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Cibles compte × enveloppe',
+                  w.text('targets_title'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -2248,34 +2416,41 @@ class _TargetConfiguration extends ConsumerWidget {
                     ? null
                     : () => _edit(context, ref, accounts, envelopes),
                 icon: const Icon(Icons.add),
-                label: const Text('Dérogation'),
+                label: Text(w.text('override')),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
           automatic.when(
             loading: () => const LinearProgressIndicator(),
-            error: (_, _) => const SecondaryInfoText(
-              'La cible automatique ne peut pas être calculée.',
-            ),
+            error: (_, _) => SecondaryInfoText(w.text('automatic_error')),
             data: (preview) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SecondaryInfoText(
                   preview.scenarioName == null
-                      ? 'Source : recommandations structurelles des enveloppes. Aucun scénario/budget applicable pour ${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year}.'
-                      : 'Source : Budget ${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year} — Scénario ${preview.scenarioName}.',
+                      ? w.format('structural_source', {
+                          'month':
+                              '${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year}',
+                        })
+                      : w.format('budget_source', {
+                          'month':
+                              '${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year}',
+                          'scenario': preview.scenarioName!,
+                        }),
                 ),
                 if (preview.scenarioName == null)
                   TextButton.icon(
                     key: const Key('configure-budget-scenario'),
                     onPressed: () => _openBudget(context, ref),
                     icon: const Icon(Icons.event_note_outlined),
-                    label: const Text('Configurer le budget applicable'),
+                    label: Text(w.text('configure_budget')),
                   ),
                 if (preview.missingMappings.isNotEmpty) ...[
                   Text(
-                    'Paramétrage minimal manquant : ${preview.missingMappings.join(', ')}.',
+                    w.format('missing_setup', {
+                      'items': preview.missingMappings.join(', '),
+                    }),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -2284,7 +2459,7 @@ class _TargetConfiguration extends ConsumerWidget {
                     key: const Key('configure-envelope-targets'),
                     onPressed: () => _openEnvelopeConfiguration(context, ref),
                     icon: const Icon(Icons.tune),
-                    label: const Text('Configurer les enveloppes'),
+                    label: Text(w.text('configure_envelopes')),
                   ),
                 ],
                 if (snapshot.owner)
@@ -2296,7 +2471,7 @@ class _TargetConfiguration extends ConsumerWidget {
                           ? null
                           : () => _refreshAutomatic(context, ref),
                       icon: const Icon(Icons.auto_fix_high),
-                      label: const Text('Actualiser la cible calculée'),
+                      label: Text(w.text('refresh_target')),
                     ),
                   ),
               ],
@@ -2304,18 +2479,16 @@ class _TargetConfiguration extends ConsumerWidget {
           ),
           targets.when(
             loading: () => const LinearProgressIndicator(),
-            error: (_, _) => const Padding(
+            error: (_, _) => Padding(
               padding: EdgeInsets.only(top: AppSpacing.sm),
-              child: Text('Impossible de charger les cibles mensuelles.'),
+              child: Text(w.text('targets_load_error')),
             ),
             data: (items) => items.isEmpty
-                ? const ListTile(
+                ? ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.account_tree_outlined),
-                    title: Text('Aucune cible configurée'),
-                    subtitle: Text(
-                      'Actualisez la cible calculée ou ajoutez une dérogation motivée.',
-                    ),
+                    title: Text(w.text('no_target')),
+                    subtitle: Text(w.text('target_help')),
                   )
                 : Column(
                     children: [
@@ -2330,10 +2503,12 @@ class _TargetConfiguration extends ConsumerWidget {
                           ),
                           title: Text(envelopeName(item.envelopeId)),
                           subtitle: Text(
+                            // i18n-dynamic-only
                             '${accountName(item.accountId)}${item.sourceLabel == null ? '' : '\n${item.sourceLabel}'}',
                           ),
                           isThreeLine: item.sourceLabel != null,
                           trailing: Text(
+                            // i18n-dynamic-only
                             '${item.amount.dirhams.toStringAsFixed(2)} MAD',
                           ),
                           onTap:
@@ -2352,9 +2527,7 @@ class _TargetConfiguration extends ConsumerWidget {
                   ),
           ),
           const Divider(),
-          const SecondaryInfoText(
-            'La proposition de régularisation reste une simulation tant que vous ne confirmez pas un transfert canonique.',
-          ),
+          SecondaryInfoText(w.text('simulation_note')),
         ],
       ),
     );
@@ -2387,6 +2560,7 @@ class _TargetConfiguration extends ConsumerWidget {
     List<dynamic> envelopes, {
     MonthlyEnvelopeAccountTarget? existing,
   }) async {
+    final w = MonthlyCloseWords.of(context);
     var envelopeId = existing?.envelopeId ?? envelopes.first.id as String;
     var accountId = existing?.accountId ?? accounts.first.id as String;
     final amount = TextEditingController(
@@ -2397,7 +2571,7 @@ class _TargetConfiguration extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Cible mensuelle'),
+          title: Text(w.text('monthly_target')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2405,7 +2579,7 @@ class _TargetConfiguration extends ConsumerWidget {
                 DropdownButtonFormField<String>(
                   key: const Key('target-envelope'),
                   initialValue: envelopeId,
-                  decoration: const InputDecoration(labelText: 'Enveloppe'),
+                  decoration: InputDecoration(labelText: w.text('envelope')),
                   items: [
                     for (final envelope in envelopes)
                       DropdownMenuItem<String>(
@@ -2419,7 +2593,9 @@ class _TargetConfiguration extends ConsumerWidget {
                 DropdownButtonFormField<String>(
                   key: const Key('target-account'),
                   initialValue: accountId,
-                  decoration: const InputDecoration(labelText: 'Compte cible'),
+                  decoration: InputDecoration(
+                    labelText: w.text('target_account'),
+                  ),
                   items: [
                     for (final account in accounts)
                       DropdownMenuItem<String>(
@@ -2436,16 +2612,16 @@ class _TargetConfiguration extends ConsumerWidget {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Montant cible (MAD)',
+                  decoration: InputDecoration(
+                    labelText: w.text('target_amount'),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
                   key: const Key('target-override-reason'),
                   controller: reason,
-                  decoration: const InputDecoration(
-                    labelText: 'Motif de la dérogation *',
+                  decoration: InputDecoration(
+                    labelText: w.text('override_reason'),
                   ),
                 ),
               ],
@@ -2454,7 +2630,7 @@ class _TargetConfiguration extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Annuler'),
+              child: Text(w.text('cancel')),
             ),
             FilledButton(
               key: const Key('save-monthly-target'),
@@ -2469,7 +2645,7 @@ class _TargetConfiguration extends ConsumerWidget {
                 }
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Enregistrer'),
+              child: Text(w.text('save')),
             ),
           ],
         ),
@@ -2488,39 +2664,34 @@ class _TargetConfiguration extends ConsumerWidget {
       );
       ref.invalidate(monthlyCloseTargetsProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cible mensuelle enregistrée.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('target_saved'))));
       }
     } on Exception {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('La cible n’a pas pu être enregistrée.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('target_save_error'))));
       }
     }
   }
 
   Future<void> _refreshAutomatic(BuildContext context, WidgetRef ref) async {
+    final w = MonthlyCloseWords.of(context);
     try {
       await ref.read(refreshAutomaticTargetsProvider)(snapshot.month);
       ref.invalidate(monthlyCloseTargetsProvider);
       ref.invalidate(automaticTargetPreviewProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cibles automatiques actualisées.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('targets_refreshed'))));
       }
     } on Exception {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Les cibles automatiques n’ont pas pu être actualisées.',
-            ),
-          ),
+          SnackBar(content: Text(w.text('targets_refresh_error'))),
         );
       }
     }
@@ -2532,22 +2703,23 @@ class _CloseAction extends ConsumerWidget {
   final MonthlyCloseSnapshot snapshot;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final w = MonthlyCloseWords.of(context);
     final busy = ref.watch(monthlyCloseMutationBusyProvider);
     return FpCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Contrôle final',
+            w.text('final_control'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             snapshot.blockers > 0
-                ? 'Clôture impossible tant que les conditions bloquantes subsistent.'
+                ? w.text('close_blocked')
                 : snapshot.warnings > 0
-                ? 'Clôture possible par un OWNER avec motif de dérogation.'
-                : 'Tous les contrôles obligatoires sont satisfaits.',
+                ? w.text('close_override')
+                : w.text('all_controls'),
           ),
           const SizedBox(height: AppSpacing.sm),
           if (snapshot.status == MonthlyCloseStatus.closed)
@@ -2562,7 +2734,7 @@ class _CloseAction extends ConsumerWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.lock_open_outlined),
-              label: const Text('Réouvrir le mois'),
+              label: Text(w.text('reopen_month')),
             )
           else
             FilledButton.icon(
@@ -2571,7 +2743,7 @@ class _CloseAction extends ConsumerWidget {
                   ? null
                   : () => _confirm(context, ref),
               icon: const Icon(Icons.lock_outline),
-              label: const Text('Clôturer le mois'),
+              label: Text(w.text('close_month')),
             ),
         ],
       ),
@@ -2579,34 +2751,35 @@ class _CloseAction extends ConsumerWidget {
   }
 
   Future<void> _reopen(BuildContext context, WidgetRef ref) async {
+    final w = MonthlyCloseWords.of(context);
     final reason = TextEditingController();
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Réouvrir le mois ?'),
+        title: Text(w.text('reopen_question')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'La clôture reste dans l’historique. Les contrôles seront recalculés et une nouvelle clôture sera nécessaire.',
-            ),
+            Text(w.text('reopen_notice')),
             const SizedBox(height: AppSpacing.sm),
             TextField(
               key: const Key('reopen-reason'),
               controller: reason,
-              decoration: const InputDecoration(labelText: 'Motif obligatoire'),
+              decoration: InputDecoration(
+                labelText: w.text('mandatory_reason'),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            child: Text(w.text('cancel')),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.pop(context, reason.text.trim().isNotEmpty),
-            child: const Text('Confirmer la réouverture'),
+            child: Text(w.text('confirm_reopen')),
           ),
         ],
       ),
@@ -2620,15 +2793,15 @@ class _CloseAction extends ConsumerWidget {
       );
       ref.invalidate(monthlyCloseProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Le mois a été réouvert.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('month_reopened'))));
       }
     } on Exception {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('La réouverture a échoué.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(w.text('reopen_failed'))));
       }
     } finally {
       ref.read(monthlyCloseMutationBusyProvider.notifier).state = false;
@@ -2636,36 +2809,35 @@ class _CloseAction extends ConsumerWidget {
   }
 
   Future<void> _confirm(BuildContext context, WidgetRef ref) async {
+    final w = MonthlyCloseWords.of(context);
     final reason = TextEditingController();
     final override = snapshot.warnings > 0;
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          override ? 'Dérogation de clôture' : 'Confirmer la clôture',
+          override ? w.text('closing_override') : w.text('confirm_closing'),
         ),
         content: override
             ? TextField(
                 key: const Key('close-override-reason'),
                 controller: reason,
-                decoration: const InputDecoration(
-                  labelText: 'Motif obligatoire',
+                decoration: InputDecoration(
+                  labelText: w.text('mandatory_reason'),
                 ),
               )
-            : const Text(
-                'La clôture sera historisée et une réouverture exigera un motif.',
-              ),
+            : Text(w.text('close_notice')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            child: Text(w.text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(
               context,
               !override || reason.text.trim().isNotEmpty,
             ),
-            child: const Text('Confirmer'),
+            child: Text(w.text('confirm')),
           ),
         ],
       ),
@@ -2686,21 +2858,28 @@ class _History extends StatelessWidget {
   const _History(this.entries);
   final List<MonthlyCloseAuditEntry> entries;
   @override
-  Widget build(BuildContext context) => FpCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Historique', style: Theme.of(context).textTheme.titleMedium),
-        for (final entry in entries)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.history),
-            title: Text(entry.kind),
-            subtitle: Text(
-              '${entry.actor} • ${entry.at.toLocal()}${entry.reason == null ? '' : '\n${entry.reason}'}',
-            ),
+  Widget build(BuildContext context) {
+    final w = MonthlyCloseWords.of(context);
+    return FpCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            w.text('history'),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-      ],
-    ),
-  );
+          for (final entry in entries)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.history),
+              title: Text(entry.kind),
+              subtitle: Text(
+                // i18n-dynamic-only
+                '${entry.actor} • ${entry.at.toLocal()}${entry.reason == null ? '' : '\n${entry.reason}'}',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

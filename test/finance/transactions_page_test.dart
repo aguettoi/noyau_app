@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
@@ -96,7 +97,12 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -179,7 +185,12 @@ void main() {
             ],
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -217,7 +228,12 @@ void main() {
             (ref) async => [envelope(id: 'food', name: 'Courses')],
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -259,7 +275,12 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -333,6 +354,9 @@ void main() {
             ),
           ],
           child: MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
             home: Builder(
               builder: (context) => Scaffold(
                 body: TextButton(
@@ -414,7 +438,12 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -486,7 +515,12 @@ void main() {
             ],
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -530,7 +564,12 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -587,7 +626,12 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -652,7 +696,12 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -712,7 +761,12 @@ void main() {
             (ref) async => [envelope(id: 'food', name: 'Courses')],
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -774,7 +828,12 @@ void main() {
               ],
             ),
           ],
-          child: const MaterialApp(home: TransactionsPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: TransactionsPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -837,7 +896,12 @@ void main() {
             ],
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -866,7 +930,12 @@ void main() {
             ],
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -893,7 +962,12 @@ void main() {
             (ref) async => [envelope(id: 'food', name: 'Courses')],
           ),
         ],
-        child: const MaterialApp(home: TransactionsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: TransactionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -931,7 +1005,12 @@ void main() {
           ),
           remoteAccountsProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: DebtsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: DebtsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -1018,7 +1097,12 @@ void main() {
             ),
             remoteAccountsProvider.overrideWith((ref) async => const []),
           ],
-          child: const MaterialApp(home: DebtsPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: DebtsPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1148,7 +1232,12 @@ void main() {
                 (ref) async => const <RemoteEnvelopeBalance>[],
               ),
             ],
-            child: const MaterialApp(home: ReceivablesPage()),
+            child: const MaterialApp(
+              locale: Locale('fr'),
+              supportedLocales: [Locale('fr')],
+              localizationsDelegates: GlobalMaterialLocalizations.delegates,
+              home: ReceivablesPage(),
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -1235,7 +1324,12 @@ void main() {
           ),
           remoteAccountsProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: DebtsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: DebtsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -1330,7 +1424,12 @@ void main() {
             (ref) async => const <RemoteEnvelopeBalance>[],
           ),
         ],
-        child: const MaterialApp(home: ReceivablesPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: ReceivablesPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -1398,7 +1497,12 @@ void main() {
               (ref) async => [account(id: 'testoj', name: 'TESTOJ')],
             ),
           ],
-          child: const MaterialApp(home: DebtsPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: DebtsPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1442,7 +1546,12 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: ReceivablesPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: ReceivablesPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1549,7 +1658,12 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: ReceivablesPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: ReceivablesPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -1628,7 +1742,12 @@ void main() {
             (ref) async => const <RecoveryExpenseSource>[],
           ),
         ],
-        child: const MaterialApp(home: ReceivablesPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: ReceivablesPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -1690,7 +1809,12 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: ReceivablesPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: ReceivablesPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1785,7 +1909,12 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: ReceivablesPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: ReceivablesPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1847,7 +1976,12 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: DebtsPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: DebtsPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1905,7 +2039,12 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: ReceivablesPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: ReceivablesPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();

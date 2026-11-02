@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/localization/budget_contribution_locale.dart';
 
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
@@ -7,6 +8,10 @@ import '../../finance/domain/household_member.dart';
 import '../application/budget_contribution_calculator.dart';
 import '../application/providers/remote_budget_provider.dart';
 import '../domain/budget_intelligence.dart';
+
+String _ct(BuildContext c, String k) => BudgetContributionWords.of(c).text(k);
+String _cf(BuildContext c, String k, Map<String, Object> v) =>
+    BudgetContributionWords.of(c).format(k, v);
 
 /// A five-step, non-financial configuration flow for household contributions.
 class BudgetContributionWizardPage extends ConsumerStatefulWidget {
@@ -108,7 +113,7 @@ class _BudgetContributionWizardPageState
       return true;
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Impossible d’enregistrer les revenus.');
+        setState(() => _error = _ct(context, 'contribution.save_error'));
       }
       return false;
     } finally {
@@ -131,11 +136,20 @@ class _BudgetContributionWizardPageState
   }
 
   String _fundingLabel(BudgetFundingMode value) => switch (value) {
-    BudgetFundingMode.personalMember => 'Personnel',
-    BudgetFundingMode.sharedAuto => 'Commun — répartition automatique',
-    BudgetFundingMode.sharedCustom => 'Commun — répartition personnalisée',
-    BudgetFundingMode.fixedByMember => 'Montant fixe par membre',
-    BudgetFundingMode.exceptionalIncome => 'Revenu exceptionnel',
+    BudgetFundingMode.personalMember => _ct(context, 'contribution.personal'),
+    BudgetFundingMode.sharedAuto => _ct(context, 'contribution.shared_auto'),
+    BudgetFundingMode.sharedCustom => _ct(
+      context,
+      'contribution.shared_custom',
+    ),
+    BudgetFundingMode.fixedByMember => _ct(
+      context,
+      'contribution.fixed_member',
+    ),
+    BudgetFundingMode.exceptionalIncome => _ct(
+      context,
+      'contribution.exceptional',
+    ),
   };
 
   @override
@@ -149,17 +163,18 @@ class _BudgetContributionWizardPageState
     );
     final envelopesAsync = ref.watch(remoteEnvelopeBalancesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Contributions du foyer')),
+      appBar: AppBar(title: Text(_ct(context, 'contribution.title'))),
       body: membersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(child: Text('Membres indisponibles.')),
+        error: (_, _) =>
+            Center(child: Text(_ct(context, 'contribution.members_error'))),
         data: (members) => incomesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(
             child: Text(
               budgetContributionLoadMessage(
                 error,
-                productionFallback: 'Revenus indisponibles.',
+                productionFallback: _ct(context, 'contribution.incomes_error'),
               ),
             ),
           ),
@@ -201,20 +216,27 @@ class _BudgetContributionWizardPageState
                   children: [
                     FilledButton(
                       onPressed: details.onStepContinue,
-                      child: Text(_step == 4 ? 'Terminer' : 'Continuer'),
+                      child: Text(
+                        _ct(
+                          context,
+                          _step == 4
+                              ? 'contribution.finish'
+                              : 'contribution.continue',
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     if (_step > 0)
                       TextButton(
                         onPressed: details.onStepCancel,
-                        child: const Text('Précédent'),
+                        child: Text(_ct(context, 'contribution.previous')),
                       ),
                   ],
                 ),
               ),
               steps: [
                 Step(
-                  title: const Text('Revenus'),
+                  title: Text(_ct(context, 'contribution.incomes')),
                   isActive: _step >= 0,
                   content: _IncomeStep(
                     members: members,
@@ -228,11 +250,12 @@ class _BudgetContributionWizardPageState
                   ),
                 ),
                 Step(
-                  title: const Text('Charges personnelles'),
+                  title: Text(_ct(context, 'contribution.personal_charges')),
                   isActive: _step >= 1,
                   content: rulesAsync.when(
                     loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text('Règles indisponibles.'),
+                    error: (_, _) =>
+                        Text(_ct(context, 'contribution.rules_error')),
                     data: (items) => _PersonalChargesStep(
                       rules: items,
                       names: names,
@@ -242,7 +265,7 @@ class _BudgetContributionWizardPageState
                   ),
                 ),
                 Step(
-                  title: const Text('Répartition commune'),
+                  title: Text(_ct(context, 'contribution.shared_distribution')),
                   isActive: _step >= 2,
                   content: _ContributionCapacityStep(
                     capacities: capacities,
@@ -251,7 +274,7 @@ class _BudgetContributionWizardPageState
                   ),
                 ),
                 Step(
-                  title: const Text('Simulation'),
+                  title: Text(_ct(context, 'contribution.simulation')),
                   isActive: _step >= 3,
                   content: _SharedChargesStep(
                     rules: rules,
@@ -263,7 +286,7 @@ class _BudgetContributionWizardPageState
                   ),
                 ),
                 Step(
-                  title: const Text('Synthèse'),
+                  title: Text(_ct(context, 'contribution.summary')),
                   isActive: _step >= 4,
                   content: _HouseholdSummaryStep(
                     incomes: _incomes(members),
@@ -303,9 +326,7 @@ class _IncomeStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      const Text(
-        'Les primes ne sont jamais considérées comme un salaire récurrent.',
-      ),
+      Text(_ct(context, 'contribution.bonus_hint')),
       ...members.map(
         (member) => Card(
           child: Padding(
@@ -323,8 +344,8 @@ class _IncomeStep extends StatelessWidget {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Salaire récurrent (MAD)',
+                  decoration: InputDecoration(
+                    labelText: _ct(context, 'contribution.salary'),
                   ),
                 ),
                 TextField(
@@ -333,8 +354,8 @@ class _IncomeStep extends StatelessWidget {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Autres revenus récurrents (MAD)',
+                  decoration: InputDecoration(
+                    labelText: _ct(context, 'contribution.other_income'),
                   ),
                 ),
                 TextField(
@@ -343,8 +364,8 @@ class _IncomeStep extends StatelessWidget {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Revenu exceptionnel (MAD)',
+                  decoration: InputDecoration(
+                    labelText: _ct(context, 'contribution.exceptional_income'),
                   ),
                 ),
                 DropdownButtonFormField<ExceptionalIncomeTreatment>(
@@ -352,22 +373,25 @@ class _IncomeStep extends StatelessWidget {
                   initialValue:
                       treatments[member.id] ??
                       ExceptionalIncomeTreatment.excluded,
-                  decoration: const InputDecoration(
-                    labelText: 'Traitement du revenu exceptionnel',
+                  decoration: InputDecoration(
+                    labelText: _ct(
+                      context,
+                      'contribution.exceptional_treatment',
+                    ),
                   ),
-                  items: const [
+                  items: [
                     DropdownMenuItem<ExceptionalIncomeTreatment>(
                       value:
                           ExceptionalIncomeTreatment.includedInSharedCapacity,
-                      child: Text('Inclure dans la capacité commune'),
+                      child: Text(_ct(context, 'contribution.include_shared')),
                     ),
                     DropdownMenuItem<ExceptionalIncomeTreatment>(
                       value: ExceptionalIncomeTreatment.excluded,
-                      child: Text('Exclure de l’allocation mensuelle'),
+                      child: Text(_ct(context, 'contribution.exclude_monthly')),
                     ),
                     DropdownMenuItem<ExceptionalIncomeTreatment>(
                       value: ExceptionalIncomeTreatment.directAllocation,
-                      child: Text('Affecter directement à une enveloppe'),
+                      child: Text(_ct(context, 'contribution.direct_envelope')),
                     ),
                   ],
                   onChanged: (value) {
@@ -405,15 +429,23 @@ class _PersonalChargesStep extends StatelessWidget {
         .where((rule) => rule.fundingMode == BudgetFundingMode.personalMember)
         .toList();
     if (personal.isEmpty) {
-      return const Text('Aucune charge personnelle configurée.');
+      return Text(_ct(context, 'contribution.no_personal'));
     }
     return Column(
       children: personal
           .map(
             (rule) => ListTile(
-              title: Text(envelopeNames[rule.envelopeId] ?? 'Enveloppe'),
+              title: Text(
+                envelopeNames[rule.envelopeId] ??
+                    _ct(context, 'contribution.envelope'),
+              ),
               subtitle: Text(
-                '${fundingLabel(rule.fundingMode)} — ${names[rule.fundingMemberUserId] ?? 'Membre à choisir'}',
+                _cf(context, 'contribution.funding_member', {
+                  'mode': fundingLabel(rule.fundingMode),
+                  'member':
+                      names[rule.fundingMemberUserId] ??
+                      _ct(context, 'contribution.member_choose'),
+                }),
               ),
             ),
           )
@@ -439,9 +471,28 @@ class _ContributionCapacityStep extends StatelessWidget {
           .map(
             (member) => Card(
               child: ListTile(
-                title: Text(names[member.memberUserId] ?? 'Membre du foyer'),
+                title: Text(
+                  names[member.memberUserId] ??
+                      _ct(context, 'contribution.household_member'),
+                ),
                 subtitle: Text(
-                  'Revenus retenus : ${money(member.eligibleIncomeCents)}\nCharges directes : ${money(member.directChargesCents)}\nCapacité contributive : ${money(member.contributionCapacityCents)}${member.rawCapacityCents < 0 ? '\nDéficit personnel : ${money(-member.rawCapacityCents)}' : ''}${showDistributionKey ? '\nClé automatique : ${(member.autoShare * 100).toStringAsFixed(2)} %' : ''}',
+                  _cf(context, 'contribution.capacity', {
+                    'income': money(member.eligibleIncomeCents),
+                    'charges': money(member.directChargesCents),
+                    'capacity': money(member.contributionCapacityCents),
+                    'deficit': member.rawCapacityCents < 0
+                        ? _cf(context, 'contribution.deficit', {
+                            'value': money(-member.rawCapacityCents),
+                          })
+                        : '',
+                    'share': showDistributionKey
+                        ? _cf(context, 'contribution.auto_share', {
+                            'value': (member.autoShare * 100).toStringAsFixed(
+                              2,
+                            ),
+                          })
+                        : '',
+                  }),
                 ),
               ),
             ),
@@ -471,16 +522,35 @@ class _SharedChargesStep extends StatelessWidget {
     final shared = rules
         .where((rule) => rule.fundingMode != BudgetFundingMode.personalMember)
         .toList();
-    if (shared.isEmpty) return const Text('Aucune charge commune configurée.');
+    if (shared.isEmpty) return Text(_ct(context, 'contribution.no_shared'));
     return Column(
       children: shared.map((rule) {
         final total = rule.amountCents ?? 0;
         final contributions = _previewContributions(rule, total, capacities);
         return Card(
           child: ListTile(
-            title: Text(envelopeNames[rule.envelopeId] ?? 'Enveloppe'),
+            title: Text(
+              envelopeNames[rule.envelopeId] ??
+                  _ct(context, 'contribution.envelope'),
+            ),
             subtitle: Text(
-              'Budget : ${money(total)}\nMode : ${fundingLabel(rule.fundingMode)}${rule.fundingSourcePreference == null ? '' : '\nPaiement habituel configuré'}\n${contributions.entries.map((entry) => '${names[entry.key] ?? 'Membre du foyer'} : ${money(entry.value)}').join('\n')}',
+              _cf(context, 'contribution.shared_rule', {
+                'budget': money(total),
+                'mode': fundingLabel(rule.fundingMode),
+                'payment': rule.fundingSourcePreference == null
+                    ? ''
+                    : _ct(context, 'contribution.usual_payment'),
+                'members': contributions.entries
+                    .map(
+                      (entry) => _cf(context, 'contribution.member_amount', {
+                        'member':
+                            names[entry.key] ??
+                            _ct(context, 'contribution.household_member'),
+                        'amount': money(entry.value),
+                      }),
+                    )
+                    .join('\n'),
+              }),
             ),
           ),
         );
@@ -564,32 +634,57 @@ class _HouseholdSummaryStep extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Synthèse par membre',
+          _ct(context, 'contribution.by_member'),
           style: Theme.of(context).textTheme.titleMedium,
         ),
         ...capacities.map(
           (item) => ListTile(
-            title: Text(names[item.memberUserId] ?? 'Membre du foyer'),
+            title: Text(
+              names[item.memberUserId] ??
+                  _ct(context, 'contribution.household_member'),
+            ),
             subtitle: Text(
-              'Revenus retenus : ${money(item.eligibleIncomeCents)}\nCharges personnelles : ${money(item.directChargesCents)}\nCapacité finale : ${money(item.rawCapacityCents)}',
+              _cf(context, 'contribution.member_summary', {
+                'income': money(item.eligibleIncomeCents),
+                'charges': money(item.directChargesCents),
+                'capacity': money(item.rawCapacityCents),
+              }),
             ),
           ),
         ),
         const Divider(),
         Text(
-          'Synthèse du foyer',
+          _ct(context, 'contribution.household_summary'),
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        Text('Revenus récurrents : ${money(recurring)}'),
-        Text('Revenus exceptionnels inclus : ${money(exceptional)}'),
-        Text('Total ressources retenues : ${money(resources)}'),
-        Text('Charges personnelles : ${money(direct)}'),
-        Text('Charges communes : ${money(shared)}'),
-        Text('Reste non affecté : ${money(resources - direct - shared)}'),
-        const SizedBox(height: 12),
-        const Text(
-          'La simulation globale, sans écriture financière, est disponible depuis la page Budget.',
+        Text(
+          _cf(context, 'contribution.recurring_total', {
+            'value': money(recurring),
+          }),
         ),
+        Text(
+          _cf(context, 'contribution.exceptional_total', {
+            'value': money(exceptional),
+          }),
+        ),
+        Text(
+          _cf(context, 'contribution.resources_total', {
+            'value': money(resources),
+          }),
+        ),
+        Text(
+          _cf(context, 'contribution.personal_total', {'value': money(direct)}),
+        ),
+        Text(
+          _cf(context, 'contribution.shared_total', {'value': money(shared)}),
+        ),
+        Text(
+          _cf(context, 'contribution.remaining', {
+            'value': money(resources - direct - shared),
+          }),
+        ),
+        const SizedBox(height: 12),
+        Text(_ct(context, 'contribution.no_write_hint')),
       ],
     );
   }

@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/budget_intelligence/application/providers/remote_budget_provider.dart';
 import 'package:noyau_app/features/budget_intelligence/domain/budget_intelligence.dart';
 import 'package:noyau_app/features/budget_intelligence/presentation/budget_runs_page.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
+
+Widget _frApp({required Widget home}) => MaterialApp(
+  locale: const Locale('fr'),
+  supportedLocales: const [Locale('fr'), Locale('en'), Locale('ar')],
+  localizationsDelegates: GlobalMaterialLocalizations.delegates,
+  home: home,
+);
 
 void main() {
   final accounts = [
@@ -46,7 +54,7 @@ void main() {
     'funding confirmation stays disabled until every allocation is balanced',
     (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        _frApp(
           home: BudgetFundingDistributionDialog(
             lines: lines,
             accounts: accounts,
@@ -101,7 +109,7 @@ void main() {
     'le menu des comptes affiche le type et le solde complet en MAD',
     (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        _frApp(
           home: BudgetFundingDistributionDialog(
             lines: lines,
             accounts: [
@@ -135,7 +143,7 @@ void main() {
       const envelopeId = '22222222-2222-2222-2222-222222222222';
       const runLineId = '33333333-3333-3333-3333-333333333333';
       await tester.pumpWidget(
-        MaterialApp(
+        _frApp(
           home: BudgetFundingConfirmationDialog(
             funding: const [
               BudgetRunFunding(
@@ -182,7 +190,7 @@ void main() {
     'le total demandé par compte bloque une répartition insuffisante',
     (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        _frApp(
           home: BudgetFundingDistributionDialog(
             lines: const [
               RemoteBudgetRunLine(

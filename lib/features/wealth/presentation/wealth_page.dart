@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
+import '../../../core/localization/wealth_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../finance/application/providers/remote_debts_provider.dart';
 import '../../finance/presentation/transactions_page.dart';
@@ -18,52 +19,55 @@ class WealthPage extends ConsumerWidget {
   const WealthPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
-    appBar: AppBar(title: const Text('Patrimoine & financements')),
-    body: ref
-        .watch(wealthDataProvider)
-        .when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) =>
-              Center(child: Text('Chargement impossible : $error')),
-          data: (data) => DefaultTabController(
-            length: 6,
-            child: Column(
-              children: [
-                const TabBar(
-                  tabs: [
-                    Tab(text: 'Patrimoine'),
-                    Tab(text: 'Investissements'),
-                    Tab(text: 'Financements'),
-                    Tab(text: 'Logement'),
-                    Tab(text: 'Véhicules'),
-                    Tab(text: 'Historique & échéances'),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _WealthOverview(data, ref),
-                      _Investments(data, ref),
-                      _Financings(data),
-                      HomePanel(wealth: data),
-                      VehiclePanel(wealth: data),
-                      _HistoryReportingHub(data),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final w = WealthWords.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(w.text('title'))),
+      body: ref
+          .watch(wealthDataProvider)
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => Center(child: Text(w.text('load_error'))),
+            data: (data) => DefaultTabController(
+              length: 6,
+              child: Column(
+                children: [
+                  TabBar(
+                    tabs: [
+                      Tab(text: w.text('wealth')),
+                      Tab(text: w.text('investments')),
+                      Tab(text: w.text('financings')),
+                      Tab(text: w.text('home')),
+                      Tab(text: w.text('vehicles')),
+                      Tab(text: w.text('history_dues')),
                     ],
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _WealthOverview(data, ref),
+                        _Investments(data, ref),
+                        _Financings(data),
+                        HomePanel(wealth: data),
+                        VehiclePanel(wealth: data),
+                        _HistoryReportingHub(data),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: () => _showCreateMenu(context, ref),
-      icon: const Icon(Icons.add),
-      label: const Text('Ajouter'),
-    ),
-  );
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCreateMenu(context, ref),
+        icon: const Icon(Icons.add),
+        label: Text(w.text('add')),
+      ),
+    );
+  }
 
   Future<void> _showCreateMenu(BuildContext context, WidgetRef ref) async {
+    final w = WealthWords.of(context);
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (_) => SafeArea(
@@ -71,17 +75,17 @@ class WealthPage extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text('Actif patrimonial'),
+              title: Text(w.text('asset')),
               leading: const Icon(Icons.home_work_outlined),
               onTap: () => Navigator.pop(context, 'asset'),
             ),
             ListTile(
-              title: const Text('Investissement'),
+              title: Text(w.text('investment')),
               leading: const Icon(Icons.trending_up),
               onTap: () => Navigator.pop(context, 'investment'),
             ),
             ListTile(
-              title: const Text('Financement lié à une dette'),
+              title: Text(w.text('financing_debt')),
               leading: const Icon(Icons.request_quote_outlined),
               onTap: () => Navigator.pop(context, 'financing'),
             ),
@@ -104,6 +108,7 @@ class WealthPage extends ConsumerWidget {
   }
 
   Future<void> _createAsset(BuildContext context, WidgetRef ref) async {
+    final w = WealthWords.of(context);
     final label = TextEditingController();
     final value = TextEditingController();
     var type = 'other';
@@ -111,32 +116,38 @@ class WealthPage extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Nouvel actif'),
+          title: Text(w.text('new_asset')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: label,
-                decoration: const InputDecoration(labelText: 'Libellé'),
+                decoration: InputDecoration(labelText: w.text('label')),
               ),
               DropdownButtonFormField<String>(
                 initialValue: type,
-                items: const [
+                items: [
                   DropdownMenuItem(
                     value: 'real_estate',
-                    child: Text('Immobilier'),
+                    child: Text(w.text('real_estate')),
                   ),
-                  DropdownMenuItem(value: 'vehicle', child: Text('Véhicule')),
-                  DropdownMenuItem(value: 'other', child: Text('Autre')),
+                  DropdownMenuItem(
+                    value: 'vehicle',
+                    child: Text(w.text('vehicle')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'other',
+                    child: Text(w.text('other')),
+                  ),
                 ],
                 onChanged: (v) => setState(() => type = v!),
-                decoration: const InputDecoration(labelText: 'Type'),
+                decoration: InputDecoration(labelText: w.text('type')),
               ),
               TextField(
                 controller: value,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Valeur d’acquisition (MAD)',
+                decoration: InputDecoration(
+                  labelText: w.text('acquisition_value'),
                 ),
               ),
             ],
@@ -144,11 +155,11 @@ class WealthPage extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Annuler'),
+              child: Text(w.text('cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Créer'),
+              child: Text(w.text('create')),
             ),
           ],
         ),
@@ -165,23 +176,24 @@ class WealthPage extends ConsumerWidget {
   }
 
   Future<void> _createInvestment(BuildContext context, WidgetRef ref) async {
+    final w = WealthWords.of(context);
     final label = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Nouvel investissement'),
+        title: Text(w.text('new_investment')),
         content: TextField(
           controller: label,
-          decoration: const InputDecoration(labelText: 'Libellé'),
+          decoration: InputDecoration(labelText: w.text('label')),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
+            child: Text(w.text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Créer'),
+            child: Text(w.text('create')),
           ),
         ],
       ),
@@ -194,14 +206,13 @@ class WealthPage extends ConsumerWidget {
   }
 
   Future<void> _createFinancing(BuildContext context, WidgetRef ref) async {
+    final w = WealthWords.of(context);
     final debts = await ref.read(remoteDebtBalancesProvider.future);
     if (!context.mounted) return;
     if (debts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Créez d’abord la dette canonique correspondante.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(w.text('create_debt_first'))));
       return;
     }
     final label = TextEditingController();
@@ -213,14 +224,14 @@ class WealthPage extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Nouveau financement'),
+          title: Text(w.text('new_financing')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: label,
-                  decoration: const InputDecoration(labelText: 'Libellé'),
+                  decoration: InputDecoration(labelText: w.text('label')),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: debtId,
@@ -233,41 +244,42 @@ class WealthPage extends ConsumerWidget {
                       )
                       .toList(),
                   onChanged: (v) => setState(() => debtId = v!),
-                  decoration: const InputDecoration(
-                    labelText: 'Dette canonique',
+                  decoration: InputDecoration(
+                    labelText: w.text('canonical_debt'),
                   ),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: structure,
-                  items: const [
+                  items: [
                     DropdownMenuItem(
                       value: 'interest_loan',
-                      child: Text('Prêt à intérêt'),
+                      child: Text(w.text('interest_loan')),
                     ),
                     DropdownMenuItem(
                       value: 'murabaha',
-                      child: Text('Murabaha / participatif'),
+                      child: Text(w.text('murabaha')),
                     ),
                     DropdownMenuItem(
                       value: 'fixed_cost',
-                      child: Text('Coût fixe'),
+                      child: Text(w.text('fixed_cost')),
                     ),
-                    DropdownMenuItem(value: 'other', child: Text('Autre')),
+                    DropdownMenuItem(
+                      value: 'other',
+                      child: Text(w.text('other')),
+                    ),
                   ],
                   onChanged: (v) => setState(() => structure = v!),
-                  decoration: const InputDecoration(labelText: 'Structure'),
+                  decoration: InputDecoration(labelText: w.text('structure')),
                 ),
                 TextField(
                   controller: principal,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Capital initial',
-                  ),
+                  decoration: InputDecoration(labelText: w.text('principal')),
                 ),
                 TextField(
                   controller: duration,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Durée (mois)'),
+                  decoration: InputDecoration(labelText: w.text('duration')),
                 ),
               ],
             ),
@@ -275,11 +287,11 @@ class WealthPage extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Annuler'),
+              child: Text(w.text('cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Créer'),
+              child: Text(w.text('create')),
             ),
           ],
         ),
@@ -307,6 +319,7 @@ class _HistoryAndDues extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = WealthWords.of(context);
     final now = DateTime.now();
     final annual = compareAnnualWealth(data.history, now.year);
     return ListView(
@@ -314,17 +327,24 @@ class _HistoryAndDues extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
         Text(
-          'Évolution patrimoniale',
+          w.text('wealth_evolution'),
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: AppSpacing.sm),
         Card(
           child: ListTile(
-            title: Text('Bilan ${now.year - 1} / ${now.year}'),
+            title: Text(
+              w.format('annual', {
+                'previous': now.year - 1,
+                'current': now.year,
+              }),
+            ),
             subtitle: Text(
               annual.change == null
-                  ? 'Comparaison complète indisponible : aucune valeur nette historique ne sera inventée.'
-                  : 'Variation expliquée par les points datés : ${_money(annual.change!)}',
+                  ? w.text('annual_unavailable')
+                  : w.format('annual_change', {
+                      'amount': _money(annual.change!),
+                    }),
             ),
           ),
         ),
@@ -344,14 +364,12 @@ class _HistoryAndDues extends StatelessWidget {
                     );
                     if (context.mounted && saved) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Historique patrimonial exporté.'),
-                        ),
+                        SnackBar(content: Text(w.text('history_exported'))),
                       );
                     }
                   },
             icon: const Icon(Icons.download_outlined),
-            label: const Text('Exporter l’historique prouvé (CSV)'),
+            label: Text(w.text('export_history')),
           ),
         ),
         ...data.history.reversed.map(
@@ -360,7 +378,9 @@ class _HistoryAndDues extends StatelessWidget {
               title: Text(point.date.toIso8601String().split('T').first),
               subtitle: Text(point.explanations.join('\n')),
               trailing: Text(
-                point.netWorth == null ? 'Partiel' : _money(point.netWorth!),
+                point.netWorth == null
+                    ? w.text('partial')
+                    : _money(point.netWorth!),
                 key: Key('wealth-history-${point.date.toIso8601String()}'),
               ),
             ),
@@ -368,14 +388,12 @@ class _HistoryAndDues extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Échéancier consolidé',
+          w.text('consolidated_dues'),
           style: Theme.of(context).textTheme.titleLarge,
         ),
-        const Text(
-          'Obligations, financements et opérations attendues sont composés sans transformer une projection en paiement réel.',
-        ),
+        Text(w.text('dues_explanation')),
         if (data.consolidatedDues.isEmpty)
-          const ListTile(title: Text('Aucune échéance connue'))
+          ListTile(title: Text(w.text('no_due')))
         else
           ...data.consolidatedDues.map(
             (due) => ListTile(
@@ -386,7 +404,11 @@ class _HistoryAndDues extends StatelessWidget {
               }),
               title: Text(due.label),
               subtitle: Text(
-                '${due.date.toIso8601String().split('T').first} · ${due.state.name} · source ${due.kind.name}',
+                w.format('due_detail', {
+                  'date': due.date.toIso8601String().split('T').first,
+                  'state': due.state.name,
+                  'kind': due.kind.name,
+                }),
               ),
               trailing: Text(_money(due.amount)),
             ),
@@ -401,24 +423,27 @@ class _HistoryReportingHub extends StatelessWidget {
   final WealthData data;
 
   @override
-  Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
-    child: Column(
-      children: [
-        const TabBar(
-          tabs: [
-            Tab(text: 'Vue historique'),
-            Tab(text: 'Rapport & timeline'),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            children: [_HistoryAndDues(data), const BusinessReportingPanel()],
+  Widget build(BuildContext context) {
+    final w = WealthWords.of(context);
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          TabBar(
+            tabs: [
+              Tab(text: w.text('history_view')),
+              Tab(text: w.text('report_timeline')),
+            ],
           ),
-        ),
-      ],
-    ),
-  );
+          Expanded(
+            child: TabBarView(
+              children: [_HistoryAndDues(data), const BusinessReportingPanel()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _WealthOverview extends StatelessWidget {
@@ -426,62 +451,75 @@ class _WealthOverview extends StatelessWidget {
   final WealthData data;
   final WidgetRef ref;
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(AppSpacing.md),
-    children: [
-      Text('Valeur nette', style: Theme.of(context).textTheme.headlineSmall),
-      Text(
-        _money(data.snapshot.netWorth),
-        style: Theme.of(context).textTheme.displaySmall,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      ResponsiveGrid(
-        minItemWidth: 220,
-        children: [
-          _metric(
-            'Liquidités',
-            data.snapshot.liquidity,
-            Icons.account_balance_wallet_outlined,
-          ),
-          _metric(
-            'Investissements',
-            data.snapshot.investments,
-            Icons.trending_up,
-          ),
-          _metric(
-            'Actifs suivis',
-            data.snapshot.assets,
-            Icons.home_work_outlined,
-          ),
-          _metric(
-            'Passifs',
-            data.snapshot.liabilities,
-            Icons.request_quote_outlined,
-          ),
-        ],
-      ),
-      const SizedBox(height: AppSpacing.md),
-      Text('Actifs valorisés', style: Theme.of(context).textTheme.titleLarge),
-      if (data.assets.isEmpty)
-        const ListTile(
-          title: Text('Aucun actif suivi'),
-          subtitle: Text(
-            'Les comptes restent alimentés automatiquement par le Grand Ledger.',
-          ),
-        )
-      else
-        ...data.assets.map(
-          (a) => ListTile(
-            title: Text(a.label),
-            subtitle: Text(
-              '${a.type.name} · valeur au ${a.valuationDate?.toIso8601String().split('T').first ?? 'non datée'}',
-            ),
-            trailing: Text(_money(a.currentValue)),
-            onTap: () => _newValuation(context, a),
-          ),
+  Widget build(BuildContext context) {
+    final w = WealthWords.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      children: [
+        Text(
+          w.text('net_worth'),
+          style: Theme.of(context).textTheme.headlineSmall,
         ),
-    ],
-  );
+        Text(
+          _money(data.snapshot.netWorth),
+          style: Theme.of(context).textTheme.displaySmall,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        ResponsiveGrid(
+          minItemWidth: 220,
+          children: [
+            _metric(
+              w.text('liquidity'),
+              data.snapshot.liquidity,
+              Icons.account_balance_wallet_outlined,
+            ),
+            _metric(
+              w.text('investments'),
+              data.snapshot.investments,
+              Icons.trending_up,
+            ),
+            _metric(
+              w.text('tracked_assets'),
+              data.snapshot.assets,
+              Icons.home_work_outlined,
+            ),
+            _metric(
+              w.text('liabilities'),
+              data.snapshot.liabilities,
+              Icons.request_quote_outlined,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          w.text('valued_assets'),
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        if (data.assets.isEmpty)
+          ListTile(
+            title: Text(w.text('no_asset')),
+            subtitle: Text(w.text('ledger_accounts')),
+          )
+        else
+          ...data.assets.map(
+            (a) => ListTile(
+              title: Text(a.label),
+              subtitle: Text(
+                w.format('asset_detail', {
+                  'type': a.type.name,
+                  'date':
+                      a.valuationDate?.toIso8601String().split('T').first ??
+                      w.text('undated'),
+                }),
+              ),
+              trailing: Text(_money(a.currentValue)),
+              onTap: () => _newValuation(context, a),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _metric(String title, Money value, IconData icon) => Card(
     child: ListTile(
       leading: Icon(icon),
@@ -496,7 +534,7 @@ class _WealthOverview extends StatelessWidget {
   Future<void> _newValuation(BuildContext context, WealthAsset asset) async {
     final value = await _askAmount(
       context,
-      'Nouvelle valorisation — ${asset.label}',
+      WealthWords.of(context).format('new_valuation', {'label': asset.label}),
     );
     if (value == null) return;
     await ref
@@ -510,61 +548,66 @@ class _Investments extends StatelessWidget {
   final WealthData data;
   final WidgetRef ref;
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(AppSpacing.md),
-    children: [
-      const Card(
-        child: ListTile(
-          leading: Icon(Icons.info_outline),
-          title: Text('Réel et projeté restent séparés'),
-          subtitle: Text(
-            'Un versement, retrait ou gain réel doit être lié à un FinancialEvent canonique. Une simulation ne crée aucune écriture.',
+  Widget build(BuildContext context) {
+    final w = WealthWords.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      children: [
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(w.text('real_projected')),
+            subtitle: Text(w.text('real_projected_detail')),
           ),
         ),
-      ),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: OutlinedButton.icon(
-          onPressed: () => _simulate(context),
-          icon: const Icon(Icons.calculate_outlined),
-          label: const Text('Simuler un investissement'),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => _simulate(context),
+            icon: const Icon(Icons.calculate_outlined),
+            label: Text(w.text('simulate_investment')),
+          ),
         ),
-      ),
-      if (data.investments.isEmpty)
-        const ListTile(title: Text('Aucun investissement suivi'))
-      else
-        ...data.investments.map(
-          (i) => Card(
-            child: ExpansionTile(
-              title: Text(i.label),
-              subtitle: Text(
-                'Capital net ${_money(i.netCapital)} · gain net ${_money(i.netGain)}${i.backingAccountId == null ? '' : ' · valeur portée par le compte lié'}',
+        if (data.investments.isEmpty)
+          ListTile(title: Text(w.text('no_investment')))
+        else
+          ...data.investments.map(
+            (i) => Card(
+              child: ExpansionTile(
+                title: Text(i.label),
+                subtitle: Text(
+                  w.format('investment_summary', {
+                    'capital': _money(i.netCapital),
+                    'gain': _money(i.netGain),
+                    'account': i.backingAccountId == null
+                        ? ''
+                        : w.text('linked_account'),
+                  }),
+                ),
+                trailing: Text(_money(i.currentValue)),
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.price_change_outlined),
+                    title: Text(w.text('add_valuation')),
+                    subtitle: Text(w.text('valuation_history')),
+                    onTap: () => _value(context, i),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.link),
+                    title: Text(w.text('link_real')),
+                    subtitle: Text(w.text('link_real_detail')),
+                    onTap: () => _linkOperation(context, i),
+                  ),
+                ],
               ),
-              trailing: Text(_money(i.currentValue)),
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.price_change_outlined),
-                  title: const Text('Ajouter une valorisation'),
-                  subtitle: const Text(
-                    'Historique non financier et append-only.',
-                  ),
-                  onTap: () => _value(context, i),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.link),
-                  title: const Text('Lier une opération réelle'),
-                  subtitle: const Text(
-                    'Le FinancialEvent doit déjà avoir été créé par le flux canonique.',
-                  ),
-                  onTap: () => _linkOperation(context, i),
-                ),
-              ],
             ),
           ),
-        ),
-    ],
-  );
+      ],
+    );
+  }
+
   Future<void> _simulate(BuildContext context) async {
+    final w = WealthWords.of(context);
     final result = projectInvestment(
       const InvestmentProjectionInput(
         initialCapital: Money.fromMinorUnits(100000),
@@ -577,14 +620,19 @@ class _Investments extends StatelessWidget {
     await showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Projection illustrative'),
+        title: Text(w.text('illustrative_projection')),
         content: Text(
-          'Capital versé ${_money(result.capitalPaid)}\nGain brut ${_money(result.grossGain)}\nRetenue ${_money(result.tax)}\nValeur projetée ${_money(result.projectedValue)}\n\nProjection uniquement.',
+          w.format('projection_detail', {
+            'capital': _money(result.capitalPaid),
+            'gain': _money(result.grossGain),
+            'tax': _money(result.tax),
+            'value': _money(result.projectedValue),
+          }),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text('Fermer'),
+            child: Text(w.text('close')),
           ),
         ],
       ),
@@ -597,7 +645,9 @@ class _Investments extends StatelessWidget {
   ) async {
     final value = await _askAmount(
       context,
-      'Valeur actuelle — ${investment.label}',
+      WealthWords.of(
+        context,
+      ).format('current_value', {'label': investment.label}),
     );
     if (value == null) return;
     await ref
@@ -609,14 +659,11 @@ class _Investments extends StatelessWidget {
     BuildContext context,
     InvestmentPosition investment,
   ) async {
+    final w = WealthWords.of(context);
     if (data.eventCandidates.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Aucun FinancialEvent canonique disponible à rattacher.',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(w.text('no_event'))));
       return;
     }
     var eventId = data.eventCandidates.first.id;
@@ -627,7 +674,7 @@ class _Investments extends StatelessWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Rattacher une opération canonique'),
+          title: Text(w.text('link_event')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -646,45 +693,45 @@ class _Investments extends StatelessWidget {
                       )
                       .toList(),
                   onChanged: (v) => setState(() => eventId = v!),
-                  decoration: const InputDecoration(
-                    labelText: 'FinancialEvent',
+                  decoration: InputDecoration(
+                    labelText: w.text('financial_event'),
                   ),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: type,
-                  items: const [
+                  items: [
                     DropdownMenuItem(
                       value: 'contribution',
-                      child: Text('Versement'),
+                      child: Text(w.text('contribution')),
                     ),
                     DropdownMenuItem(
                       value: 'withdrawal',
-                      child: Text('Retrait'),
+                      child: Text(w.text('withdrawal')),
                     ),
                     DropdownMenuItem(
                       value: 'distribution',
-                      child: Text('Distribution / gain reçu'),
+                      child: Text(w.text('distribution')),
                     ),
                     DropdownMenuItem(
                       value: 'tax_withholding',
-                      child: Text('Retenue / taxe'),
+                      child: Text(w.text('withholding')),
                     ),
                   ],
                   onChanged: (v) => setState(() => type = v!),
-                  decoration: const InputDecoration(labelText: 'Nature'),
+                  decoration: InputDecoration(labelText: w.text('nature')),
                 ),
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Montant brut (MAD)',
+                  decoration: InputDecoration(
+                    labelText: w.text('gross_amount'),
                   ),
                 ),
                 TextField(
                   controller: tax,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Retenue incluse (MAD)',
+                  decoration: InputDecoration(
+                    labelText: w.text('included_tax'),
                   ),
                 ),
               ],
@@ -693,11 +740,11 @@ class _Investments extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Annuler'),
+              child: Text(w.text('cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Rattacher'),
+              child: Text(w.text('link')),
             ),
           ],
         ),
@@ -728,90 +775,105 @@ class _Financings extends StatelessWidget {
   const _Financings(this.data);
   final WealthData data;
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(AppSpacing.md),
-    children: [
-      Card(
-        child: ListTile(
-          leading: const Icon(Icons.shield_outlined),
-          title: const Text('Capacité financière canonique'),
-          subtitle: Text(
-            data.availability.isComplete
-                ? 'Liquidité réelle disponible : ${_money(data.availability.realLiquidity)}. Toute décision “puis-je rembourser ?” réutilise FinancialAvailability.'
-                : 'Liquidité visible : ${_money(data.availability.realLiquidity)}. Total partiel : les soldes privés sont exclus et toute décision exige la capacité serveur bornée.',
-          ),
-        ),
-      ),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: OutlinedButton.icon(
-          key: const Key('open-financing-comparison'),
-          onPressed: () => showDialog<void>(
-            context: context,
-            builder: (_) =>
-                FinancingComparisonDialog(availability: data.availability),
-          ),
-          icon: const Icon(Icons.compare_arrows),
-          label: const Text('Comparer des simulations'),
-        ),
-      ),
-      if (data.financings.isEmpty)
-        const ListTile(
-          title: Text('Aucun financement configuré'),
-          subtitle: Text(
-            'Un financement réel doit être lié à une obligation existante.',
-          ),
-        )
-      else
-        ...data.financings.map(
-          (f) => Card(
-            child: ExpansionTile(
-              title: Text(f.label),
-              subtitle: Text(
-                'Restant canonique ${_money(f.remainingLiability)} · ${f.structure.name}',
-              ),
-              children: [
-                ...buildFinancingSchedule(f)
-                    .take(12)
-                    .map(
-                      (line) => ListTile(
-                        dense: true,
-                        title: Text(
-                          'Échéance ${line.number} · ${line.date.toIso8601String().split('T').first}',
-                        ),
-                        subtitle: Text(
-                          'Capital ${_money(line.principal)} · coût/marge ${_money(line.cost)}',
-                        ),
-                        trailing: Text(_money(line.payment)),
-                      ),
-                    ),
-                ListTile(
-                  title: const Text('Remboursement anticipé'),
-                  subtitle: const Text(
-                    'Simulation uniquement : réduction de durée ou d’échéance, selon le contrat.',
-                  ),
-                  trailing: const Icon(Icons.calculate_outlined),
-                  onTap: () => _early(context, f),
-                ),
-                ListTile(
-                  title: const Text('Paiement réel'),
-                  subtitle: const Text(
-                    'À enregistrer via le règlement canonique de l’obligation — jamais depuis l’échéancier projeté.',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const TransactionsPage(),
-                    ),
-                  ),
-                ),
-              ],
+  Widget build(BuildContext context) {
+    final w = WealthWords.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      children: [
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: Text(w.text('canonical_capacity')),
+            subtitle: Text(
+              data.availability.isComplete
+                  ? w.format('capacity_complete', {
+                      'amount': _money(data.availability.realLiquidity),
+                    })
+                  : w.format('capacity_partial', {
+                      'amount': _money(data.availability.realLiquidity),
+                    }),
             ),
           ),
         ),
-    ],
-  );
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            key: const Key('open-financing-comparison'),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) =>
+                  FinancingComparisonDialog(availability: data.availability),
+            ),
+            icon: const Icon(Icons.compare_arrows),
+            label: Text(w.text('compare')),
+          ),
+        ),
+        if (data.financings.isEmpty)
+          ListTile(
+            title: Text(w.text('no_financing')),
+            subtitle: Text(w.text('financing_detail')),
+          )
+        else
+          ...data.financings.map(
+            (f) => Card(
+              child: ExpansionTile(
+                title: Text(f.label),
+                subtitle: Text(
+                  w.format('remaining', {
+                    'amount': _money(f.remainingLiability),
+                    'structure': f.structure.name,
+                  }),
+                ),
+                children: [
+                  ...buildFinancingSchedule(f)
+                      .take(12)
+                      .map(
+                        (line) => ListTile(
+                          dense: true,
+                          title: Text(
+                            w.format('installment', {
+                              'number': line.number,
+                              'date': line.date
+                                  .toIso8601String()
+                                  .split('T')
+                                  .first,
+                            }),
+                          ),
+                          subtitle: Text(
+                            w.format('principal_cost', {
+                              'principal': _money(line.principal),
+                              'cost': _money(line.cost),
+                            }),
+                          ),
+                          trailing: Text(_money(line.payment)),
+                        ),
+                      ),
+                  ListTile(
+                    title: Text(w.text('early')),
+                    subtitle: Text(w.text('early_detail')),
+                    trailing: const Icon(Icons.calculate_outlined),
+                    onTap: () => _early(context, f),
+                  ),
+                  ListTile(
+                    title: Text(w.text('real_payment')),
+                    subtitle: Text(w.text('real_payment_detail')),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const TransactionsPage(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Future<void> _early(BuildContext context, FinancingProfile f) async {
+    final w = WealthWords.of(context);
     if (f.remainingLiability.minorUnits <= 0) return;
     final amount = Money.fromMinorUnits(
       (f.remainingLiability.minorUnits / 10).round(),
@@ -829,14 +891,20 @@ class _Financings extends StatelessWidget {
     await showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Simulation remboursement anticipé'),
+        title: Text(w.text('early_title')),
         content: Text(
-          'Montant simulé : ${_money(amount)}\n\nRéduire la durée : ${duration.remainingMonths} mois restants, économie estimée ${_money(duration.estimatedCostSaving)}.\n\nRéduire l’échéance : nouvelle échéance ${_money(payment.newPayment)}, économie estimée ${_money(payment.estimatedCostSaving)}.\n\nAucune écriture financière.',
+          w.format('early_result', {
+            'amount': _money(amount),
+            'months': duration.remainingMonths,
+            'savingDuration': _money(duration.estimatedCostSaving),
+            'payment': _money(payment.newPayment),
+            'savingPayment': _money(payment.estimatedCostSaving),
+          }),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text('Fermer'),
+            child: Text(w.text('close')),
           ),
         ],
       ),
@@ -847,6 +915,7 @@ class _Financings extends StatelessWidget {
 String _money(Money value) => '${value.dirhams.toStringAsFixed(2)} MAD';
 
 Future<Money?> _askAmount(BuildContext context, String title) async {
+  final w = WealthWords.of(context);
   final controller = TextEditingController();
   final accepted = await showDialog<bool>(
     context: context,
@@ -856,16 +925,16 @@ Future<Money?> _askAmount(BuildContext context, String title) async {
         controller: controller,
         autofocus: true,
         keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: 'Montant (MAD)'),
+        decoration: InputDecoration(labelText: w.text('amount')),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext, false),
-          child: const Text('Annuler'),
+          child: Text(w.text('cancel')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext, true),
-          child: const Text('Enregistrer'),
+          child: Text(w.text('save')),
         ),
       ],
     ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/budget_locale.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/budget_reporting.dart';
 import '../application/monthly_quality_analysis.dart';
@@ -10,6 +11,11 @@ import '../application/providers/remote_budget_provider.dart';
 import 'budget_runs_page.dart';
 import 'budget_monthly_preparation_page.dart';
 import 'budget_scenarios_page.dart';
+
+String _bt(BuildContext context, String key) =>
+    BudgetWords.of(context).text(key);
+String _bf(BuildContext context, String key, Map<String, Object> values) =>
+    BudgetWords.of(context).format(key, values);
 
 class BudgetPage extends ConsumerStatefulWidget {
   const BudgetPage({super.key});
@@ -28,25 +34,25 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
     final compact = AppLayout.isCompact(MediaQuery.sizeOf(context).width);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budget'),
+        title: Text(_bt(context, 'budget.title')),
         actions: compact
             ? [
                 PopupMenuButton<_BudgetDestination>(
-                  tooltip: 'Navigation Budget',
+                  tooltip: _bt(context, 'budget.navigation'),
                   onSelected: (destination) =>
                       _openDestination(context, destination),
-                  itemBuilder: (_) => const [
+                  itemBuilder: (_) => [
                     PopupMenuItem(
                       value: _BudgetDestination.month,
-                      child: Text('Préparer mon mois'),
+                      child: Text(_bt(context, 'budget.prepare_month')),
                     ),
                     PopupMenuItem(
                       value: _BudgetDestination.scenarios,
-                      child: Text('Scénarios'),
+                      child: Text(_bt(context, 'budget.scenarios')),
                     ),
                     PopupMenuItem(
                       value: _BudgetDestination.history,
-                      child: Text('Historique'),
+                      child: Text(_bt(context, 'budget.history')),
                     ),
                   ],
                 ),
@@ -55,29 +61,27 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
                 TextButton(
                   onPressed: () =>
                       _openDestination(context, _BudgetDestination.month),
-                  child: const Text('Préparer mon mois'),
+                  child: Text(_bt(context, 'budget.prepare_month')),
                 ),
                 TextButton(
                   onPressed: () =>
                       _openDestination(context, _BudgetDestination.scenarios),
-                  child: const Text('Scénarios'),
+                  child: Text(_bt(context, 'budget.scenarios')),
                 ),
                 TextButton(
                   onPressed: () =>
                       _openDestination(context, _BudgetDestination.history),
-                  child: const Text('Historique'),
+                  child: Text(_bt(context, 'budget.history')),
                 ),
               ],
       ),
       body: periods.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) =>
-            const Center(child: Text('Périodes budgétaires indisponibles.')),
+            Center(child: Text(_bt(context, 'budget.periods_error'))),
         data: (allPeriods) {
           if (allPeriods.isEmpty) {
-            return const Center(
-              child: Text('Aucune période budgétaire disponible.'),
-            );
+            return Center(child: Text(_bt(context, 'budget.no_period')));
           }
           final selectedId =
               ref.watch(selectedBudgetPeriodIdProvider) ?? allPeriods.first.id;
@@ -199,14 +203,14 @@ class _BudgetHero extends StatelessWidget {
         spacing: AppSpacing.lg,
         runSpacing: AppSpacing.sm,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 310,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Pilotage du budget'),
-                SizedBox(height: AppSpacing.xxs),
-                Text('Suivez le prévu, le réel et les écarts de la période.'),
+                Text(_bt(context, 'budget.steering')),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(_bt(context, 'budget.steering_hint')),
               ],
             ),
           ),
@@ -215,7 +219,9 @@ class _BudgetHero extends StatelessWidget {
             child: DropdownButtonFormField<String>(
               key: const Key('budget-period-selector'),
               initialValue: periodId,
-              decoration: const InputDecoration(labelText: 'Période'),
+              decoration: InputDecoration(
+                labelText: _bt(context, 'budget.period'),
+              ),
               items: periods
                   .map(
                     (item) => DropdownMenuItem(
@@ -228,10 +234,19 @@ class _BudgetHero extends StatelessWidget {
             ),
           ),
           SegmentedButton<BudgetHorizon>(
-            segments: const [
-              ButtonSegment(value: BudgetHorizon.monthly, label: Text('Mois')),
-              ButtonSegment(value: BudgetHorizon.ytd, label: Text('YTD')),
-              ButtonSegment(value: BudgetHorizon.ltd, label: Text('LTD')),
+            segments: [
+              ButtonSegment(
+                value: BudgetHorizon.monthly,
+                label: Text(_bt(context, 'budget.month')),
+              ),
+              ButtonSegment(
+                value: BudgetHorizon.ytd,
+                label: Text(_bt(context, 'budget.ytd')),
+              ),
+              ButtonSegment(
+                value: BudgetHorizon.ltd,
+                label: Text(_bt(context, 'budget.ltd')),
+              ),
             ],
             selected: {horizon},
             onSelectionChanged: (value) => onHorizonChanged(value.single),
@@ -260,13 +275,11 @@ class _BudgetPreparationCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Préparation budgétaire',
+            _bt(context, 'budget.preparation'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'Choisissez un scénario, ajustez le mois puis enregistrez un snapshot immuable.',
-          ),
+          Text(_bt(context, 'budget.preparation_hint')),
           const SizedBox(height: AppSpacing.md),
           Align(
             alignment: Alignment.centerLeft,
@@ -274,7 +287,7 @@ class _BudgetPreparationCard extends StatelessWidget {
               key: const Key('open-monthly-preparation'),
               onPressed: onOpen,
               icon: const Icon(Icons.arrow_forward_outlined),
-              label: const Text('Préparer mon mois'),
+              label: Text(_bt(context, 'budget.prepare_month')),
             ),
           ),
         ],
@@ -291,10 +304,10 @@ class _ReportingList extends StatelessWidget {
   @override
   Widget build(BuildContext context) => report.when(
     loading: () => const LinearProgressIndicator(),
-    error: (_, _) => const Text('Reporting indisponible.'),
+    error: (_, _) => Text(_bt(context, 'budget.reporting_error')),
     data: (rows) => envelopes.when(
       loading: () => const LinearProgressIndicator(),
-      error: (_, _) => const Text('Enveloppes indisponibles.'),
+      error: (_, _) => Text(_bt(context, 'budget.envelopes_error')),
       data: (items) {
         final names = {for (final item in items) item.id: item.name};
         return Card(
@@ -304,16 +317,18 @@ class _ReportingList extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Répartition des enveloppes',
+                  _bt(context, 'budget.envelope_distribution'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 if (rows.isEmpty)
-                  const Text('Aucun flux pour cette période.')
+                  Text(_bt(context, 'budget.no_flow'))
                 else
                   ...rows.map(
                     (row) => _BudgetReportRow(
-                      name: names[row.envelopeId] ?? 'Enveloppe',
+                      name:
+                          names[row.envelopeId] ??
+                          _bt(context, 'budget.envelope'),
                       row: row,
                     ),
                   ),
@@ -336,19 +351,23 @@ class _MonthlyQualityPanel extends StatelessWidget {
       padding: AppSpacing.card,
       child: quality.when(
         loading: () => const LinearProgressIndicator(),
-        error: (_, _) => const Text('Qualité mensuelle indisponible.'),
+        error: (_, _) => Text(_bt(context, 'budget.quality_error')),
         data: (value) => Column(
           key: const Key('monthly-quality-panel'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Qualité mensuelle et décisions',
+              _bt(context, 'budget.quality_title'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Prévu ${_mad(value.plannedCents)} • Réalisé ${_mad(value.actualCents)} • '
-              'Attendu ${_mad(value.expectedCents)} • Restant ${_mad(value.remainingCents)}',
+              _bf(context, 'budget.quality_totals', {
+                'planned': _mad(value.plannedCents),
+                'actual': _mad(value.actualCents),
+                'expected': _mad(value.expectedCents),
+                'remaining': _mad(value.remainingCents),
+              }),
               key: const Key('monthly-quality-totals'),
             ),
             const SizedBox(height: AppSpacing.xs),
@@ -356,10 +375,26 @@ class _MonthlyQualityPanel extends StatelessWidget {
               spacing: AppSpacing.md,
               runSpacing: AppSpacing.xs,
               children: [
-                Text('Rapprochements ouverts : ${value.reconciliations.open}'),
-                Text('Justificatifs manquants : ${value.receipts.missing}'),
-                Text('Attendus non résolus : ${value.unresolvedOccurrences}'),
-                Text('Non attribués : ${value.responsibilities.unassigned}'),
+                Text(
+                  _bf(context, 'budget.open_reconciliations', {
+                    'count': value.reconciliations.open,
+                  }),
+                ),
+                Text(
+                  _bf(context, 'budget.missing_receipts', {
+                    'count': value.receipts.missing,
+                  }),
+                ),
+                Text(
+                  _bf(context, 'budget.unresolved_expected', {
+                    'count': value.unresolvedOccurrences,
+                  }),
+                ),
+                Text(
+                  _bf(context, 'budget.unassigned', {
+                    'count': value.responsibilities.unassigned,
+                  }),
+                ),
               ],
             ),
             if (value.explanations.isNotEmpty) ...[
@@ -371,31 +406,45 @@ class _MonthlyQualityPanel extends StatelessWidget {
                   leading: const Icon(Icons.info_outline),
                   title: Text(item.rule),
                   subtitle: Text(
-                    '${item.reason}\nSource : ${item.source} • Période : ${item.period}'
-                    '${item.action == null ? '' : '\nAction : ${item.action}'}',
+                    _bf(context, 'budget.explanation', {
+                      'reason': item.reason,
+                      'source': item.source,
+                      'period': item.period,
+                      'action': item.action == null
+                          ? ''
+                          : _bf(context, 'budget.action', {
+                              'action': item.action!,
+                            }),
+                    }),
                   ),
                 ),
             ],
             if (value.options.isNotEmpty) ...[
               const Divider(),
               Text(
-                'Options à arbitrer',
+                _bt(context, 'budget.options'),
                 style: Theme.of(context).textTheme.titleSmall,
               ),
-              const Text(
-                'Ces options sont des simulations. Aucune écriture financière n’est créée sans confirmation dans le module canonique concerné.',
-              ),
+              Text(_bt(context, 'budget.simulation_hint')),
               for (final option in value.options)
                 ListTile(
                   key: Key('monthly-decision-${option.kind.name}'),
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.balance_outlined),
-                  title: Text('${option.title} — ${_mad(option.amountCents)}'),
+                  title: Text(
+                    _bf(context, 'budget.option_title', {
+                      'title': option.title,
+                      'amount': _mad(option.amountCents),
+                    }),
+                  ),
                   subtitle: Text(
-                    '${option.consequence}\n${option.explanation.reason}',
+                    _bf(context, 'budget.option_detail', {
+                      'consequence': option.consequence,
+                      'reason': option.explanation.reason,
+                    }),
                   ),
                   trailing: option.requiresConfirmation
-                      ? const Chip(label: Text('À confirmer'))
+                      ? Chip(label: Text(_bt(context, 'budget.to_confirm')))
                       : null,
                 ),
             ],
@@ -427,7 +476,10 @@ class _BudgetReportRow extends StatelessWidget {
               Text(name, style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: AppSpacing.xxs),
               Text(
-                'Prévu ${_mad(row.plannedCents)} • Réel ${_mad(row.actualCents)}',
+                _bf(context, 'budget.row', {
+                  'planned': _mad(row.plannedCents),
+                  'actual': _mad(row.actualCents),
+                }),
               ),
             ],
           ),

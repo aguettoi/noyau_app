@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../../core/localization/imports_locale.dart';
+import '../../../core/localization/app_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/envelope_business_import.dart';
 import '../../envelopes/application/envelope_csv_business_validator.dart';
@@ -115,6 +117,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final words = ImportsWords.of(context);
     final template = byType(_selectedType);
     final activeHouseholdAsync = ref.watch(activeHouseholdProvider);
     final activeHousehold =
@@ -153,7 +156,9 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
         padding: AppSpacing.page,
         children: [
           Text(
-            'Import des ${template.label.toLowerCase()}',
+            words.format('import_title', {
+              'type': _templateTitleLabel(words, template.type),
+            }),
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -165,20 +170,20 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
               ),
             ),
             icon: const Icon(Icons.table_view_outlined),
-            label: const Text('Importer un classeur Excel / Google Sheets'),
+            label: Text(words.text('open_wizard')),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const Text('Parcours'),
+          Text(words.text('journey')),
           DropdownButtonFormField<AccountsImportMode>(
             initialValue: _mode,
-            items: const [
+            items: [
               DropdownMenuItem(
                 value: AccountsImportMode.initialImport,
-                child: Text('Import initial'),
+                child: Text(words.text('initial')),
               ),
               DropdownMenuItem(
                 value: AccountsImportMode.accountFunding,
-                child: Text('Alimentation de comptes'),
+                child: Text(words.text('transactions')),
               ),
             ],
             onChanged: _downloading || _analyzing
@@ -193,14 +198,14 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
                   },
           ),
           const SizedBox(height: AppSpacing.sm),
-          const Text('Type d’import'),
+          Text(words.text('import_type')),
           DropdownButtonFormField<ImportTemplateType>(
             initialValue: _selectedType,
             items: csvImportTemplates
                 .map(
                   (item) => DropdownMenuItem(
                     value: item.type,
-                    child: Text(item.label),
+                    child: Text(_templateLabel(words, item.type)),
                   ),
                 )
                 .toList(),
@@ -210,17 +215,15 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
           ),
           const SizedBox(height: AppSpacing.sm),
           ..._templateHelp(template),
-          Text('Fichier : ${template.fileName}'),
+          Text(words.format('file', {'file': template.fileName})),
           SelectableText(template.header),
           if (_selectedType == ImportTemplateType.expenses)
-            const Text(
-              'Le compte de paiement peut rester vide pour un historique non rapproché.',
-            ),
+            Text(words.text('unreconciled')),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _downloading ? null : () => _downloadTemplate(template),
             icon: const Icon(Icons.download_outlined),
-            label: const Text('Télécharger le template'),
+            label: Text(words.text('download_template')),
           ),
           if (_downloading) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -234,13 +237,15 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
           OutlinedButton.icon(
             onPressed: _downloading ? null : _selectCsv,
             icon: const Icon(Icons.upload_file_outlined),
-            label: const Text('Sélectionner un fichier CSV'),
+            label: Text(words.text('select_csv')),
           ),
           if (_selectedFilePath != null)
             Text(
-              'Fichier sélectionné : ${_selectedFilePath!.split(RegExp(r'[\\/]')).last}',
+              words.format('selected_file', {
+                'file': _selectedFilePath!.split(RegExp(r'[\\/]')).last,
+              }),
             ),
-          if (_selectedCsvText != null) const Text('Fichier lu avec succès.'),
+          if (_selectedCsvText != null) Text(words.text('read_success')),
           ..._validationMessages(),
           if (isAccountsImport) ...[
             ..._accountsPreview(),
@@ -253,24 +258,24 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             Text(_selectionMessage!),
           const SizedBox(height: AppSpacing.sm),
           if (_analyzing)
-            const Padding(
-              padding: EdgeInsets.only(top: AppSpacing.sm),
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
               child: Row(
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     height: 18,
                     width: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  SizedBox(width: AppSpacing.xs),
-                  Text('Analyse en cours...'),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(words.text('analyzing')),
                 ],
               ),
             ),
           const SizedBox(height: 12),
           OutlinedButton(
             onPressed: _downloading ? null : _reset,
-            child: const Text('Réinitialiser'),
+            child: Text(words.text('reset')),
           ),
         ],
       ),
@@ -284,7 +289,11 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${template.fileName} a été téléchargé avec succès'),
+          content: Text(
+            ImportsWords.of(
+              context,
+            ).format('download_success', {'file': template.fileName}),
+          ),
         ),
       );
     } catch (_) {
@@ -292,7 +301,9 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Téléchargement de ${template.fileName} impossible. Réessayez.',
+            ImportsWords.of(
+              context,
+            ).format('download_error', {'file': template.fileName}),
           ),
         ),
       );
@@ -319,13 +330,17 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
         _accountsImportMessage = null;
         _openingBalanceChoice = OpeningBalanceConflictChoice.ignoreFileBalance;
         _clearEnvelopeImportPreparation();
-        _selectionMessage = 'Sélection annulée.';
+        _selectionMessage = ImportsWords.of(
+          context,
+        ).text('selection_cancelled');
       });
       return;
     }
     final path = selection.files.single.path;
     if (path == null || !path.toLowerCase().endsWith('.csv')) {
-      setState(() => _selectionMessage = 'Choisissez un fichier CSV valide.');
+      setState(
+        () => _selectionMessage = ImportsWords.of(context).text('invalid_csv'),
+      );
       return;
     }
     setState(() {
@@ -384,14 +399,14 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
         if (!mounted) return;
         setState(() {
           _analyzing = false;
-          _selectionMessage = 'Erreur de validation : $error';
+          _selectionMessage = ImportsWords.of(context).text('validation_error');
         });
       }
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _analyzing = false;
-        _selectionMessage = 'Erreur de lecture : $error';
+        _selectionMessage = ImportsWords.of(context).text('read_error');
       });
     }
   }
@@ -402,35 +417,27 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
   );
 
   List<Widget> _templateHelp(CsvImportTemplateDefinition template) {
+    final words = ImportsWords.of(context);
     if (template.type == ImportTemplateType.envelopes) {
-      return const [
-        Text('Import initial des enveloppes.'),
-        Text(
-          'Cet import crée le référentiel des enveloppes du foyer et enregistre '
-          'chaque solde initial comme mouvement d’ouverture immuable.',
-        ),
-        Text('Séparateur : point-virgule'),
-        Text('Encodage : UTF-8'),
-        Text('Colonnes : nom, solde_initial, statut, notes.'),
+      return [
+        Text(words.text('envelope_initial')),
+        Text(words.text('envelope_intro')),
+        Text(words.text('separator')),
+        Text(words.text('encoding')),
+        Text(words.text('envelope_columns')),
       ];
     }
 
-    return const [
-      Text('Import initial des comptes.'),
-      Text(
-        'Crée les comptes absents et définit leur solde d’ouverture. '
-        'Les comptes déjà existants sont détectés avant l’import.',
-      ),
-      Text('Séparateur : point-virgule'),
-      Text('Encodage : UTF-8'),
-      Text('Dates acceptées : JJ/MM/AAAA ou AAAA-MM-JJ'),
-      Text('Montants saisis en MAD : 1000, 1000,50 ou 1000.50.'),
-      Text('Les montants sont convertis automatiquement en centimes.'),
-      Text('external_id : facultatif.'),
-      Text(
-        'Types acceptés : banque, espèces, épargne, emprunt ; '
-        'ou bank, cash, savings, loan.',
-      ),
+    return [
+      Text(words.text('account_initial')),
+      Text(words.text('account_intro')),
+      Text(words.text('separator')),
+      Text(words.text('encoding')),
+      Text(words.text('accepted_dates')),
+      Text(words.text('accepted_amounts')),
+      Text(words.text('minor_units')),
+      Text(words.text('external_optional')),
+      Text(words.text('accepted_types')),
     ];
   }
 
@@ -460,23 +467,24 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
   }
 
   List<Widget> _envelopeImportSection() {
+    final words = ImportsWords.of(context);
     final envelopes = _validatedEnvelopes;
     if (envelopes == null) {
       return const [];
     }
     return [
       const Divider(),
-      const Text("Import des enveloppes"),
-      Text('${envelopes.length} enveloppes détectées'),
-      const Text(
-        'Les soldes initiaux deviennent des mouvements d’ouverture immuables.',
-      ),
+      Text(words.text('envelope_import')),
+      Text(words.format('detected_envelopes', {'count': envelopes.length})),
+      Text(words.text('opening_immutable')),
       if (_envelopeImportResult != null)
         Text(
-          '${_envelopeImportResult!.created} créées • '
-          '${_envelopeImportResult!.initializedExisting} initialisées • '
-          '${_envelopeImportResult!.existing} déjà existantes • '
-          '${_envelopeImportResult!.ignored} ignorées.',
+          words.format('envelope_result', {
+            'created': _envelopeImportResult!.created,
+            'initialized': _envelopeImportResult!.initializedExisting,
+            'existing': _envelopeImportResult!.existing,
+            'ignored': _envelopeImportResult!.ignored,
+          }),
         ),
       if (_envelopeImportError != null) Text(_envelopeImportError!),
       FilledButton(
@@ -489,16 +497,17 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             : _confirmEnvelopeImport,
         child: Text(
           !_legacyCsvMaterializationEnabled
-              ? 'Matérialisation CSV legacy désactivée'
+              ? words.text('legacy_disabled')
               : _importingEnvelopes
-              ? 'Import des enveloppes en cours...'
-              : 'Importer les enveloppes',
+              ? words.text('importing_envelopes')
+              : words.text('import_envelopes'),
         ),
       ),
     ];
   }
 
   Future<void> _confirmEnvelopeImport() async {
+    final words = ImportsWords.of(context);
     final envelopes = _validatedEnvelopes;
     if (envelopes == null || envelopes.isEmpty || _importingEnvelopes) {
       return;
@@ -506,19 +515,18 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Importer les enveloppes'),
+        title: Text(words.text('import_envelopes')),
         content: Text(
-          '${envelopes.length} enveloppes détectées. Les soldes initiaux '
-          'seront enregistrés dans le journal des enveloppes.',
+          words.format('confirm_envelopes', {'count': envelopes.length}),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Annuler'),
+            child: Text(words.text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Importer les enveloppes'),
+            child: Text(words.text('import_envelopes')),
           ),
         ],
       ),
@@ -554,10 +562,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       if (!mounted) {
         return;
       }
-      setState(
-        () => _envelopeImportError =
-            'L’import des enveloppes a échoué. Réessayez.',
-      );
+      setState(() => _envelopeImportError = words.text('envelope_failed'));
     } finally {
       if (mounted) {
         setState(() => _importingEnvelopes = false);
@@ -636,82 +641,83 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       return const [];
     }
     if (accountsAsync.isLoading) {
-      return const [
+      return [
         Padding(
-          padding: EdgeInsets.only(top: AppSpacing.sm),
-          child: Text('Chargement des comptes existants...'),
+          padding: const EdgeInsets.only(top: AppSpacing.sm),
+          child: Text(ImportsWords.of(context).text('loading_accounts')),
         ),
       ];
     }
     if (accountsAsync.hasError) {
       return [
-        const Text('Impossible de lire les comptes existants.'),
+        Text(ImportsWords.of(context).text('accounts_error')),
         OutlinedButton(
           onPressed: () => ref.invalidate(remoteAccountsProvider),
-          child: const Text('Réessayer'),
+          child: Text(ImportsWords.of(context).text('retry')),
         ),
       ];
     }
     if (membersAsync?.isLoading == true) {
-      return const [Text('Chargement des titulaires du foyer...')];
+      return [Text(ImportsWords.of(context).text('loading_members'))];
     }
     if (membersAsync?.hasError == true) {
-      return const [Text('Impossible de lire les titulaires du foyer.')];
+      return [Text(ImportsWords.of(context).text('members_error'))];
     }
     return const [];
   }
 
-  Widget _buildFundingUnavailablePage(BuildContext context) => SafeArea(
-    child: ListView(
-      padding: AppSpacing.page,
-      children: [
-        Text(
-          'Import des comptes',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        const Text('Parcours'),
-        DropdownButtonFormField<AccountsImportMode>(
-          initialValue: _mode,
-          items: const [
-            DropdownMenuItem(
-              value: AccountsImportMode.initialImport,
-              child: Text('Import initial'),
-            ),
-            DropdownMenuItem(
-              value: AccountsImportMode.accountFunding,
-              child: Text('Alimentation de comptes'),
-            ),
-          ],
-          onChanged: (value) {
-            if (value != null && value != _mode) {
-              setState(() {
-                _mode = value;
-                _clearImportPreparation();
-              });
-            }
-          },
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        const Text(
-          'Ajoutez des mouvements à des comptes existants sans modifier leur '
-          'solde d’ouverture.',
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Import de mouvements indisponible'),
-            subtitle: Text(
-              'L’import de mouvements sera disponible dans une prochaine étape.',
+  Widget _buildFundingUnavailablePage(BuildContext context) {
+    final words = ImportsWords.of(context);
+    return SafeArea(
+      child: ListView(
+        padding: AppSpacing.page,
+        children: [
+          Text(
+            words.format('import_title', {
+              'type': _templateTitleLabel(words, ImportTemplateType.accounts),
+            }),
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(words.text('journey')),
+          DropdownButtonFormField<AccountsImportMode>(
+            initialValue: _mode,
+            items: [
+              DropdownMenuItem(
+                value: AccountsImportMode.initialImport,
+                child: Text(words.text('initial')),
+              ),
+              DropdownMenuItem(
+                value: AccountsImportMode.accountFunding,
+                child: Text(words.text('transactions')),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null && value != _mode) {
+                setState(() {
+                  _mode = value;
+                  _clearImportPreparation();
+                });
+              }
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(words.text('transaction_intro')),
+          const SizedBox(height: AppSpacing.sm),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: Text(words.text('transactions_unavailable')),
+              subtitle: Text(words.text('transactions_future')),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 
   List<Widget> _validationMessages() {
+    final words = ImportsWords.of(context);
     final result = _validationResult;
     if (result == null) {
       return const [];
@@ -719,7 +725,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
     switch (result.stage) {
       case CsvImportValidationStage.parsingFailed:
         return [
-          const Text('Erreur de parsing :'),
+          Text(words.text('parsing_errors')),
           ...result.errors.map(
             (error) => Text(
               error.startsWith('Erreur de parsing :')
@@ -730,24 +736,26 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
         ];
       case CsvImportValidationStage.structureInvalid:
         return [
-          const Text('Erreurs de structure :'),
+          Text(words.text('structure_errors')),
           ...result.errors.map(Text.new),
         ];
       case CsvImportValidationStage.businessInvalid:
-        return [const Text('Erreurs métier :'), ...result.errors.map(Text.new)];
+        return [
+          Text(words.text('business_errors')),
+          ...result.errors.map(Text.new),
+        ];
       case CsvImportValidationStage.unsupportedTemplate:
         return [
-          const Text('Validation métier indisponible.'),
+          Text(words.text('validation_unavailable')),
           ...result.errors.map(Text.new),
         ];
       case CsvImportValidationStage.valid:
-        return result.isValid
-            ? const [Text('Données métier valides.')]
-            : const [];
+        return result.isValid ? [Text(words.text('valid_data'))] : const [];
     }
   }
 
   List<Widget> _accountsPreview() {
+    final words = ImportsWords.of(context);
     final result = _validationResult;
     final businessResult = result?.accountsBusinessResult;
     final parsedRows = result?.parsedRows;
@@ -765,8 +773,10 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
     };
     return [
       const Divider(),
-      const Text("Aperçu de l'import"),
-      Text('Nombre de comptes : ${businessResult.rows.length}'),
+      Text(words.text('preview')),
+      Text(
+        words.format('account_count', {'count': businessResult.rows.length}),
+      ),
       const Divider(),
       ...businessResult.rows.map((rowResult) {
         final sourceIndex = rowResult.lineNumber - 1;
@@ -828,18 +838,19 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
     ActiveHouseholdState? activeHousehold,
     AsyncValue<List<FinancialAccount>>? remoteAccountsAsync,
   ) {
+    final words = ImportsWords.of(context);
     final plan = _importPlan;
     if (plan == null) {
       return [
         if (_accountsImportMessage != null) Text(_accountsImportMessage!),
-        const FilledButton(
-          key: Key('accounts-import-button'),
+        FilledButton(
+          key: const Key('accounts-import-button'),
           onPressed: null,
-          child: Text('Importer'),
+          child: Text(words.text('import')),
         ),
       ];
     }
-    final householdMessage = _activeHouseholdMessage(activeHousehold);
+    final householdMessage = _activeHouseholdMessage(activeHousehold, words);
     final remoteAccountsReady =
         widget.buildAccountsImportPlan != null ||
         remoteAccountsAsync?.hasValue == true;
@@ -852,14 +863,14 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
         _importExecutionId != null;
     return [
       const Divider(),
-      const Text("Plan d'import"),
-      Text('Comptes à créer : ${plan.createCount}'),
-      Text('Comptes déjà existants : ${plan.alreadyExistsCount}'),
-      Text('Total : ${plan.decisions.length}'),
+      Text(words.text('plan')),
+      Text(words.format('create_count', {'count': plan.createCount})),
+      Text(words.format('existing_count', {'count': plan.alreadyExistsCount})),
+      Text(words.format('total', {'count': plan.decisions.length})),
       Text(
         plan.hasConflicts
-            ? 'Des comptes existent déjà.'
-            : 'Aucun conflit détecté.',
+            ? words.text('existing_notice')
+            : words.text('no_conflict'),
       ),
       const Divider(),
       Column(
@@ -876,8 +887,8 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
                     Text(decision.account.type.name.toUpperCase()),
                     Text(
                       decision.action == AccountImportAction.create
-                          ? 'À créer'
-                          : 'Existe déjà',
+                          ? words.text('to_create')
+                          : words.text('already_exists'),
                     ),
                   ],
                 ),
@@ -885,16 +896,13 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             )
             .toList(),
       ),
-      if (plan.alreadyExistsCount > 0)
-        const Text(
-          'Les soldes existants ne peuvent plus être remplacés par ce parcours legacy.',
-        ),
+      if (plan.alreadyExistsCount > 0) Text(words.text('existing_protected')),
       if (householdMessage != null) Text(householdMessage),
       if (_accountsImportState == AccountsImportUiState.importing) ...[
         const SizedBox(height: 12),
-        const Row(
+        Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 20,
               height: 20,
               child: CircularProgressIndicator(
@@ -902,8 +910,8 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
                 strokeWidth: 2,
               ),
             ),
-            SizedBox(width: 8),
-            Text('Import des comptes en cours...'),
+            const SizedBox(width: 8),
+            Text(words.text('importing_accounts')),
           ],
         ),
       ],
@@ -915,28 +923,29 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             : null,
         child: Text(
           !_legacyCsvMaterializationEnabled
-              ? 'Matérialisation CSV legacy désactivée'
+              ? words.text('legacy_disabled')
               : _accountsImportState == AccountsImportUiState.importing
-              ? 'Import en cours...'
-              : 'Importer',
+              ? words.text('importing_accounts')
+              : words.text('import'),
         ),
       ),
     ];
   }
 
-  String? _activeHouseholdMessage(ActiveHouseholdState? household) {
+  String? _activeHouseholdMessage(
+    ActiveHouseholdState? household,
+    ImportsWords words,
+  ) {
     if (household == null) {
-      return 'Chargement du foyer actif...';
+      return words.text('loading_household');
     }
     return switch (household.status) {
-      ActiveHouseholdStatus.noAuthenticatedUser =>
-        'Connectez-vous pour importer des comptes.',
-      ActiveHouseholdStatus.noHousehold =>
-        'Aucun foyer n’est disponible pour cet import.',
-      ActiveHouseholdStatus.multipleHouseholds =>
-        'Sélectionnez un foyer avant d’importer.',
-      ActiveHouseholdStatus.error =>
-        'Le foyer actif est indisponible pour le moment.',
+      ActiveHouseholdStatus.noAuthenticatedUser => words.text('sign_in'),
+      ActiveHouseholdStatus.noHousehold => words.text('no_household'),
+      ActiveHouseholdStatus.multipleHouseholds => words.text(
+        'select_household',
+      ),
+      ActiveHouseholdStatus.error => words.text('household_unavailable'),
       ActiveHouseholdStatus.singleHousehold => null,
     };
   }
@@ -944,6 +953,7 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
   Future<void> _executeAccountsImport(
     ActiveHouseholdState activeHousehold,
   ) async {
+    final words = ImportsWords.of(context);
     final plan = _importPlan;
     final importExecutionId = _importExecutionId;
     if (plan == null ||
@@ -980,13 +990,13 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
           _importPlan = null;
           _plannedAgainstRemoteAccounts = null;
           _importExecutionId = null;
-          _accountsImportMessage = _successMessage(result);
+          _accountsImportMessage = _successMessage(result, words);
         });
       } else {
         setState(() {
           _accountsImportState = AccountsImportUiState.failure;
           _accountsImportMessage = result.errors.isEmpty
-              ? 'L’import des comptes a échoué. Réessayez.'
+              ? words.text('accounts_failed')
               : result.errors.first;
         });
       }
@@ -996,17 +1006,32 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
       }
       setState(() {
         _accountsImportState = AccountsImportUiState.failure;
-        _accountsImportMessage = 'L’import des comptes a échoué. Réessayez.';
+        _accountsImportMessage = words.text('accounts_failed');
       });
     }
   }
 
-  static String _successMessage(AccountsImportExecutionResult result) =>
-      'Import terminé dans Supabase : ${result.createdCount} compte(s) créé(s), '
-      '${result.keptExistingCount} existant(s) conservé(s), '
-      '${result.replacedOpeningBalanceCount} solde(s) remplacé(s), '
-      '${result.skippedMissingOpeningBalanceCount} solde(s) non renseigné(s). '
-      'La liste locale des comptes n’est pas encore synchronisée.';
+  static String _successMessage(
+    AccountsImportExecutionResult result,
+    ImportsWords words,
+  ) => words.format('success', {
+    'created': result.createdCount,
+    'kept': result.keptExistingCount,
+    'replaced': result.replacedOpeningBalanceCount,
+    'missing': result.skippedMissingOpeningBalanceCount,
+  });
+
+  static String _templateLabel(ImportsWords words, ImportTemplateType type) =>
+      words.text('type_${type.name}');
+
+  static String _templateTitleLabel(
+    ImportsWords words,
+    ImportTemplateType type,
+  ) {
+    final label = _templateLabel(words, type);
+    if (words.language != AppLanguage.french || label.isEmpty) return label;
+    return '${label[0].toLowerCase()}${label.substring(1)}';
+  }
 }
 
 String _generateImportExecutionId() {

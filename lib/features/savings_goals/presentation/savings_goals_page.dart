@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/money/money.dart';
+import '../../../core/localization/savings_goals_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../financial_availability/application/providers/financial_availability_provider.dart';
@@ -18,6 +19,7 @@ class SavingsGoalsPage extends ConsumerWidget {
     WidgetRef ref, {
     SavingsGoalProgress? current,
   }) async {
+    final w = SavingsGoalsWords.of(context);
     final envelopes = await ref.read(remoteEnvelopeHistoryProvider.future);
     final goals = await ref.read(savingsGoalsProvider.future);
     if (!context.mounted) return;
@@ -59,9 +61,7 @@ class SavingsGoalsPage extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              current == null
-                  ? 'Objectif créé. Sa progression suivra l’enveloppe dédiée.'
-                  : 'Objectif mis à jour.',
+              current == null ? w.text('created') : w.text('updated'),
             ),
           ),
         );
@@ -73,6 +73,7 @@ class SavingsGoalsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final w = SavingsGoalsWords.of(context);
     final goals = ref.watch(savingsGoalsProvider);
     final availability = ref.watch(financialAvailabilityProvider).valueOrNull;
     return SafeArea(
@@ -81,7 +82,7 @@ class SavingsGoalsPage extends ConsumerWidget {
         error: (error, _) => Center(
           child: Padding(
             padding: AppSpacing.page,
-            child: Text('Impossible de lire les objectifs : $error'),
+            child: Text(w.format('read_error', {'error': error})),
           ),
         ),
         data: (items) => DesktopPageContainer(
@@ -93,17 +94,15 @@ class SavingsGoalsPage extends ConsumerWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    'Épargne & objectifs',
+                    w.text('title'),
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const SecondaryInfoText(
-                    'Les objectifs observent le solde réel de leur enveloppe dédiée.',
-                  ),
+                  SecondaryInfoText(w.text('intro')),
                   FilledButton.icon(
                     key: const Key('create-savings-goal'),
                     onPressed: () => _openEditor(context, ref),
                     icon: const Icon(Icons.add),
-                    label: const Text('Nouvel objectif'),
+                    label: Text(w.text('new_goal')),
                   ),
                 ],
               ),
@@ -146,6 +145,7 @@ class SavingsGoalDetailPage extends ConsumerWidget {
     SavingsGoalProgress item,
     SavingsGoalStatus status,
   ) async {
+    final w = SavingsGoalsWords.of(context);
     final mustExplain =
         status == SavingsGoalStatus.completed ||
         status == SavingsGoalStatus.cancelled;
@@ -154,14 +154,14 @@ class SavingsGoalDetailPage extends ConsumerWidget {
             context: context,
             builder: (_) => _ReasonDialog(
               title: status == SavingsGoalStatus.completed
-                  ? 'Clôturer l’objectif'
-                  : 'Annuler l’objectif',
+                  ? w.text('close_goal')
+                  : w.text('cancel_goal'),
               label: status == SavingsGoalStatus.completed
-                  ? 'Motif de clôture (facultatif)'
-                  : 'Motif d’annulation (facultatif)',
+                  ? w.text('close_reason_optional')
+                  : w.text('cancel_reason_optional'),
               confirmLabel: status == SavingsGoalStatus.completed
-                  ? 'Clôturer'
-                  : 'Annuler l’objectif',
+                  ? w.text('complete')
+                  : w.text('cancel_goal'),
             ),
           )
         : '';
@@ -174,7 +174,11 @@ class SavingsGoalDetailPage extends ConsumerWidget {
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Statut « ${status.label} » enregistré.')),
+          SnackBar(
+            content: Text(
+              w.format('status_saved', {'status': _statusLabel(w, status)}),
+            ),
+          ),
         );
       }
     } on Object catch (error) {
@@ -184,18 +188,19 @@ class SavingsGoalDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final w = SavingsGoalsWords.of(context);
     final goals = ref.watch(savingsGoalsProvider);
     final availability = ref.watch(financialAvailabilityProvider).valueOrNull;
     return Scaffold(
-      appBar: AppBar(title: const Text('Détail de l’objectif')),
+      appBar: AppBar(title: Text(w.text('detail'))),
       body: goals.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) =>
-            Center(child: Text('Impossible de lire l’objectif : $error')),
+            Center(child: Text(w.format('goal_read_error', {'error': error}))),
         data: (items) {
           final matches = items.where((item) => item.goal.id == goalId);
           if (matches.isEmpty) {
-            return const Center(child: Text('Objectif introuvable.'));
+            return Center(child: Text(w.text('not_found')));
           }
           final item = matches.single;
           final history = ref.watch(savingsGoalHistoryProvider(goalId));
@@ -208,15 +213,14 @@ class SavingsGoalDetailPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 DesktopSection(
-                  title: 'Informations',
-                  subtitle:
-                      'Aucune écriture financière n’est créée par cet objectif.',
+                  title: w.text('information'),
+                  subtitle: w.text('no_financial_entry'),
                   action: item.goal.status.isClosed
                       ? null
                       : FilledButton.tonalIcon(
                           onPressed: () => _openEdit(context, ref, item),
                           icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Modifier'),
+                          label: Text(w.text('edit')),
                         ),
                   child: _GoalDetails(
                     item: item,
@@ -226,7 +230,7 @@ class SavingsGoalDetailPage extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
                 if (!item.goal.status.isClosed)
                   DesktopSection(
-                    title: 'Actions',
+                    title: w.text('actions'),
                     child: Wrap(
                       spacing: AppSpacing.sm,
                       runSpacing: AppSpacing.sm,
@@ -243,8 +247,8 @@ class SavingsGoalDetailPage extends ConsumerWidget {
                             icon: const Icon(Icons.play_arrow_outlined),
                             label: Text(
                               item.goal.status == SavingsGoalStatus.paused
-                                  ? 'Reprendre'
-                                  : 'Activer',
+                                  ? w.text('resume')
+                                  : w.text('activate'),
                             ),
                           ),
                         if (item.goal.status == SavingsGoalStatus.active)
@@ -256,7 +260,7 @@ class SavingsGoalDetailPage extends ConsumerWidget {
                               SavingsGoalStatus.paused,
                             ),
                             icon: const Icon(Icons.pause_outlined),
-                            label: const Text('Suspendre'),
+                            label: Text(w.text('pause')),
                           ),
                         OutlinedButton.icon(
                           onPressed: () => _changeStatus(
@@ -266,7 +270,7 @@ class SavingsGoalDetailPage extends ConsumerWidget {
                             SavingsGoalStatus.completed,
                           ),
                           icon: const Icon(Icons.task_alt_outlined),
-                          label: const Text('Clôturer'),
+                          label: Text(w.text('complete')),
                         ),
                         TextButton.icon(
                           onPressed: () => _changeStatus(
@@ -276,35 +280,38 @@ class SavingsGoalDetailPage extends ConsumerWidget {
                             SavingsGoalStatus.cancelled,
                           ),
                           icon: const Icon(Icons.cancel_outlined),
-                          label: const Text('Annuler'),
+                          label: Text(w.text('cancel')),
                         ),
                       ],
                     ),
                   ),
                 const SizedBox(height: AppSpacing.md),
                 DesktopSection(
-                  title: 'Historique métier',
-                  subtitle:
-                      'Les mouvements financiers restent dans l’historique canonique de l’enveloppe.',
+                  title: w.text('business_history'),
+                  subtitle: w.text('history_notice'),
                   child: history.when(
                     loading: () => const Padding(
                       padding: EdgeInsets.all(AppSpacing.md),
                       child: CircularProgressIndicator(),
                     ),
                     error: (error, _) =>
-                        Text('Historique indisponible : $error'),
+                        Text(w.format('history_error', {'error': error})),
                     data: (entries) => entries.isEmpty
-                        ? const Text('Aucun changement métier enregistré.')
+                        ? Text(w.text('history_empty'))
                         : Column(
                             children: [
                               for (final entry in entries)
                                 CompactListRow(
-                                  title: _historyActionLabel(entry.action),
+                                  title: _historyActionLabel(w, entry.action),
                                   subtitle: [
-                                    _dateTime(entry.createdAt),
-                                    'Effectué par : ${entry.actorName}',
+                                    _dateTime(context, entry.createdAt),
+                                    w.format('performed_by', {
+                                      'actor': entry.actorName,
+                                    }),
                                     if (entry.reason != null)
-                                      'Motif : ${entry.reason}',
+                                      w.format('reason', {
+                                        'reason': entry.reason!,
+                                      }),
                                   ].join('\n'),
                                   leading: const Icon(Icons.history_outlined),
                                 ),
@@ -353,9 +360,11 @@ class SavingsGoalDetailPage extends ConsumerWidget {
     try {
       await ref.read(updateSavingsGoalProvider)(current.goal.id, result.draft);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Objectif mis à jour.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(SavingsGoalsWords.of(context).text('updated')),
+          ),
+        );
       }
     } on Object catch (error) {
       if (context.mounted) _showError(context, error);
@@ -371,71 +380,109 @@ class _GoalCard extends StatelessWidget {
   final GoalFundingProjection? projection;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: AppRadius.card,
-      child: Padding(
-        padding: AppSpacing.card,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item.goal.name,
-                    style: Theme.of(context).textTheme.titleLarge,
+  Widget build(BuildContext context) {
+    final w = SavingsGoalsWords.of(context);
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.card,
+        child: Padding(
+          padding: AppSpacing.card,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.goal.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  _StatusBadge(status: item.goal.status),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                w.format('type_envelope', {
+                  'type': _typeLabel(w, item.goal.type),
+                  'envelope': item.envelopeName,
+                }),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                w.format('accumulated', {
+                  'amount': _money(context, item.accumulated),
+                }),
+              ),
+              Text(
+                w.format('target', {
+                  'amount': _money(context, item.goal.targetAmount),
+                }),
+              ),
+              Text(
+                w.format('remaining', {
+                  'amount': _money(context, item.remaining),
+                }),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              LinearProgressIndicator(value: item.progressForIndicator),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                NumberFormat.percentPattern(
+                  Localizations.localeOf(context).toLanguageTag(),
+                ).format(item.progressRatio),
+              ),
+              if (item.isFinancialTargetReached) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  w.text('target_reached'),
+                  style: const TextStyle(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                _StatusBadge(status: item.goal.status),
               ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text('${item.goal.type.label} · ${item.envelopeName}'),
-            const SizedBox(height: AppSpacing.md),
-            Text('Accumulé : ${_money(item.accumulated)}'),
-            Text('Cible : ${_money(item.goal.targetAmount)}'),
-            Text('Reste : ${_money(item.remaining)}'),
-            const SizedBox(height: AppSpacing.xs),
-            LinearProgressIndicator(value: item.progressForIndicator),
-            const SizedBox(height: AppSpacing.xs),
-            Text('${(item.progressRatio * 100).toStringAsFixed(1)} %'),
-            if (item.isFinancialTargetReached) ...[
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Cible financière atteinte',
-                style: TextStyle(
-                  color: AppColors.success,
-                  fontWeight: FontWeight.w700,
+              if (item.goal.targetDate != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  w.format('due', {
+                    'date': _date(context, item.goal.targetDate!),
+                  }),
                 ),
-              ),
-            ],
-            if (item.goal.targetDate != null) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text('Échéance : ${_date(item.goal.targetDate!)}'),
-            ],
-            Text(
-              'Financement sécurisé : ${_money(projection?.securedFunding ?? item.accumulated)}',
-            ),
-            Text(
-              'Reste à financer : ${_money(projection?.remaining ?? item.remaining)}',
-            ),
-            if (projection?.completionDate case final date?)
-              Text('Finançable vers : ${_date(date)}')
-            else if (projection?.reason case final reason?)
-              Text(reason),
-            if (projection != null)
+              ],
               Text(
-                projection!.reliability == ProjectionReliability.estimated
-                    ? 'Projection estimée selon le plan PRIOS actif.'
-                    : 'Projection non calculable avec les données disponibles.',
+                w.format('secured', {
+                  'amount': _money(
+                    context,
+                    projection?.securedFunding ?? item.accumulated,
+                  ),
+                }),
               ),
-          ],
+              Text(
+                w.format('remaining_funding', {
+                  'amount': _money(
+                    context,
+                    projection?.remaining ?? item.remaining,
+                  ),
+                }),
+              ),
+              if (projection?.completionDate case final date?)
+                Text(w.format('fundable_on', {'date': _date(context, date)}))
+              else if (projection?.reason case final reason?)
+                Text(reason),
+              if (projection != null)
+                Text(
+                  projection!.reliability == ProjectionReliability.estimated
+                      ? w.text('estimated_projection')
+                      : w.text('unavailable_projection'),
+                ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _GoalSummary extends StatelessWidget {
@@ -445,48 +492,63 @@ class _GoalSummary extends StatelessWidget {
   final GoalFundingProjection? projection;
 
   @override
-  Widget build(BuildContext context) => DesktopSection(
-    title: item.goal.name,
-    subtitle: '${item.goal.type.label} · Enveloppe liée : ${item.envelopeName}',
-    action: _StatusBadge(status: item.goal.status),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${_money(item.accumulated)} sur ${_money(item.goal.targetAmount)}',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        LinearProgressIndicator(value: item.progressForIndicator),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          '${(item.progressRatio * 100).toStringAsFixed(1)} % · Reste : ${_money(item.remaining)}',
-        ),
-        if (projection != null) ...[
+  Widget build(BuildContext context) {
+    final w = SavingsGoalsWords.of(context);
+    return DesktopSection(
+      title: item.goal.name,
+      subtitle: w.format('linked_envelope', {
+        'type': _typeLabel(w, item.goal.type),
+        'envelope': item.envelopeName,
+      }),
+      action: _StatusBadge(status: item.goal.status),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            w.format('progress', {
+              'current': _money(context, item.accumulated),
+              'target': _money(context, item.goal.targetAmount),
+            }),
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          LinearProgressIndicator(value: item.progressForIndicator),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Financement sécurisé : ${_money(projection!.securedFunding)} · Reste à financer : ${_money(projection!.remaining)}',
+            w.format('progress_remaining', {
+              'percent': (item.progressRatio * 100).toStringAsFixed(1),
+              'remaining': _money(context, item.remaining),
+            }),
           ),
-          if (projection!.reason != null) Text(projection!.reason!),
-          Text(
-            projection!.reliability == ProjectionReliability.estimated
-                ? 'Projection estimée selon le plan PRIOS actif.'
-                : 'Projection non calculable avec les données disponibles.',
-          ),
-        ],
-        if (item.isFinancialTargetReached) ...[
-          const SizedBox(height: AppSpacing.sm),
-          const Text(
-            'Cible financière atteinte. La clôture reste une décision explicite.',
-            style: TextStyle(
-              color: AppColors.success,
-              fontWeight: FontWeight.w700,
+          if (projection != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              w.format('funding_summary', {
+                'secured': _money(context, projection!.securedFunding),
+                'remaining': _money(context, projection!.remaining),
+              }),
             ),
-          ),
+            if (projection!.reason != null) Text(projection!.reason!),
+            Text(
+              projection!.reliability == ProjectionReliability.estimated
+                  ? 'Projection estimée selon le plan PRIOS actif.'
+                  : 'Projection non calculable avec les données disponibles.',
+            ),
+          ],
+          if (item.isFinancialTargetReached) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              w.text('reached_explicit'),
+              style: const TextStyle(
+                color: AppColors.success,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class _GoalDetails extends StatelessWidget {
@@ -497,6 +559,7 @@ class _GoalDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = SavingsGoalsWords.of(context);
     final now = DateTime.now();
     final projected = projection?.completionDate;
     final pace = item.requiredMonthlyPace(now);
@@ -504,33 +567,35 @@ class _GoalDetails extends StatelessWidget {
       spacing: AppSpacing.xl,
       runSpacing: AppSpacing.md,
       children: [
-        _DetailValue(label: 'Priorité', value: '${item.goal.priority}'),
+        _DetailValue(label: w.text('priority'), value: '${item.goal.priority}'),
         _DetailValue(
-          label: 'Cible mensuelle',
+          label: w.text('monthly_target'),
           value: item.goal.monthlyTarget == null
-              ? 'Non renseignée'
-              : _money(item.goal.monthlyTarget!),
+              ? w.text('not_provided')
+              : _money(context, item.goal.monthlyTarget!),
         ),
         _DetailValue(
-          label: 'Échéance',
+          label: w.text('due').split(':').first,
           value: item.goal.targetDate == null
-              ? 'Non renseignée'
-              : _date(item.goal.targetDate!),
+              ? w.text('not_provided')
+              : _date(context, item.goal.targetDate!),
         ),
         _DetailValue(
-          label: 'Date prévisionnelle',
+          label: w.text('forecast_date'),
           value: projected == null
-              ? (projection?.reason ??
-                    'Projection indisponible — aucune capacité mensuelle fiable n’est connue.')
-              : _date(projected),
+              ? (projection?.reason ?? w.text('projection_missing'))
+              : _date(context, projected),
         ),
         if (pace != null)
-          _DetailValue(label: 'Rythme requis', value: '${_money(pace)} / mois'),
+          _DetailValue(
+            label: w.text('required_pace'),
+            value: w.format('per_month', {'amount': _money(context, pace)}),
+          ),
         if (item.goal.notes != null)
-          _DetailValue(label: 'Notes', value: item.goal.notes!),
+          _DetailValue(label: w.text('notes'), value: item.goal.notes!),
         if (item.goal.closureReason != null)
           _DetailValue(
-            label: 'Motif de clôture',
+            label: w.text('closure_reason'),
             value: item.goal.closureReason!,
           ),
       ],
@@ -582,7 +647,7 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: AppRadius.small,
       ),
       child: Text(
-        status.label,
+        _statusLabel(SavingsGoalsWords.of(context), status),
         style: TextStyle(color: color, fontWeight: FontWeight.w700),
       ),
     );
@@ -595,19 +660,19 @@ class _EmptyGoals extends StatelessWidget {
   final VoidCallback onCreate;
 
   @override
-  Widget build(BuildContext context) => DesktopSection(
-    title: 'Aucun objectif pour le moment',
-    subtitle:
-        'Créez un objectif et reliez-le à une enveloppe dédiée. Aucun solde ne sera créé ou déplacé.',
-    action: FilledButton.icon(
-      onPressed: onCreate,
-      icon: const Icon(Icons.add),
-      label: const Text('Créer un objectif'),
-    ),
-    child: const Text(
-      'La progression affichée suivra automatiquement le solde canonique de l’enveloppe choisie.',
-    ),
-  );
+  Widget build(BuildContext context) {
+    final w = SavingsGoalsWords.of(context);
+    return DesktopSection(
+      title: w.text('empty_title'),
+      subtitle: w.text('empty_subtitle'),
+      action: FilledButton.icon(
+        onPressed: onCreate,
+        icon: const Icon(Icons.add),
+        label: Text(w.text('create_goal')),
+      ),
+      child: Text(w.text('empty_body')),
+    );
+  }
 }
 
 class _GoalEditorResult {
@@ -648,7 +713,7 @@ class _GoalEditorDialogState extends State<_GoalEditorDialog> {
       text: goal == null ? '' : _number(goal.targetAmount),
     );
     _targetDate = TextEditingController(
-      text: goal?.targetDate == null ? '' : _date(goal!.targetDate!),
+      text: goal?.targetDate == null ? '' : _inputDate(goal!.targetDate!),
     );
     _monthly = TextEditingController(
       text: goal?.monthlyTarget == null ? '' : _number(goal!.monthlyTarget!),
@@ -674,6 +739,7 @@ class _GoalEditorDialogState extends State<_GoalEditorDialog> {
   }
 
   void _submit() {
+    final w = SavingsGoalsWords.of(context);
     final target = _parseMoney(_target.text);
     final monthly = _monthly.text.trim().isEmpty
         ? null
@@ -687,10 +753,7 @@ class _GoalEditorDialogState extends State<_GoalEditorDialog> {
         (date == null && _targetDate.text.trim().isNotEmpty) ||
         priority == null ||
         _envelopeId == null) {
-      setState(
-        () => _error =
-            'Vérifiez le montant, la date (JJ/MM/AAAA), la priorité et l’enveloppe.',
-      );
+      setState(() => _error = w.text('form_error'));
       return;
     }
     final draft = SavingsGoalDraft(
@@ -705,7 +768,7 @@ class _GoalEditorDialogState extends State<_GoalEditorDialog> {
     );
     final error = draft.validate();
     if (error != null) {
-      setState(() => _error = error);
+      setState(() => _error = w.text('form_error'));
       return;
     }
     Navigator.of(
@@ -714,123 +777,128 @@ class _GoalEditorDialogState extends State<_GoalEditorDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(
-      widget.current == null ? 'Nouvel objectif' : 'Modifier l’objectif',
-    ),
-    content: SizedBox(
-      width: 560,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextFormField(
-              controller: _name,
-              decoration: const InputDecoration(
-                labelText: 'Nom de l’objectif *',
+  Widget build(BuildContext context) {
+    final w = SavingsGoalsWords.of(context);
+    return AlertDialog(
+      title: Text(
+        widget.current == null ? w.text('new_goal') : w.text('edit_goal'),
+      ),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _name,
+                decoration: InputDecoration(labelText: w.text('goal_name')),
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            DropdownButtonFormField<SavingsGoalType>(
-              initialValue: _type,
-              decoration: const InputDecoration(labelText: 'Type *'),
-              items: [
-                for (final type in SavingsGoalType.values)
-                  DropdownMenuItem(value: type, child: Text(type.label)),
-              ],
-              onChanged: (value) => setState(() => _type = value!),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextFormField(
-              controller: _target,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Montant cible (MAD) *',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            DropdownButtonFormField<String>(
-              initialValue: _envelopeId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Enveloppe dédiée *',
-              ),
-              hint: const Text('Choisir une enveloppe ordinaire active'),
-              items: [
-                for (final envelope in widget.envelopes)
-                  DropdownMenuItem(
-                    value: envelope.id,
-                    child: Text(envelope.name, overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-              onChanged: (value) => setState(() => _envelopeId = value),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextFormField(
-              controller: _monthly,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Cible mensuelle (MAD)',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextFormField(
-              controller: _targetDate,
-              decoration: const InputDecoration(
-                labelText: 'Échéance (JJ/MM/AAAA)',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextFormField(
-              controller: _priority,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Priorité'),
-            ),
-            if (widget.current == null) ...[
               const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<SavingsGoalStatus>(
-                initialValue: _status,
-                decoration: const InputDecoration(labelText: 'Statut initial'),
-                items: const [
-                  DropdownMenuItem(
-                    value: SavingsGoalStatus.planned,
-                    child: Text('Prévu'),
-                  ),
-                  DropdownMenuItem(
-                    value: SavingsGoalStatus.active,
-                    child: Text('Actif'),
-                  ),
+              DropdownButtonFormField<SavingsGoalType>(
+                initialValue: _type,
+                decoration: InputDecoration(labelText: w.text('type')),
+                items: [
+                  for (final type in SavingsGoalType.values)
+                    DropdownMenuItem(
+                      value: type,
+                      child: Text(_typeLabel(w, type)),
+                    ),
                 ],
-                onChanged: (value) => setState(() => _status = value!),
+                onChanged: (value) => setState(() => _type = value!),
               ),
-            ],
-            const SizedBox(height: AppSpacing.sm),
-            TextFormField(
-              controller: _notes,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Notes'),
-            ),
-            if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),
-              Text(_error!, style: const TextStyle(color: AppColors.danger)),
+              TextFormField(
+                controller: _target,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(labelText: w.text('target_amount')),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<String>(
+                initialValue: _envelopeId,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: w.text('dedicated_envelope'),
+                ),
+                hint: Text(w.text('choose_envelope')),
+                items: [
+                  for (final envelope in widget.envelopes)
+                    DropdownMenuItem(
+                      value: envelope.id,
+                      child: Text(
+                        envelope.name,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (value) => setState(() => _envelopeId = value),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                controller: _monthly,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: w.text('monthly_amount'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                controller: _targetDate,
+                decoration: InputDecoration(labelText: w.text('due_format')),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                controller: _priority,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: w.text('priority')),
+              ),
+              if (widget.current == null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<SavingsGoalStatus>(
+                  initialValue: _status,
+                  decoration: InputDecoration(
+                    labelText: w.text('initial_status'),
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: SavingsGoalStatus.planned,
+                      child: Text(w.text('planned')),
+                    ),
+                    DropdownMenuItem(
+                      value: SavingsGoalStatus.active,
+                      child: Text(w.text('active')),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _status = value!),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                controller: _notes,
+                maxLines: 3,
+                decoration: InputDecoration(labelText: w.text('notes')),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(_error!, style: const TextStyle(color: AppColors.danger)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
-      ),
-      FilledButton(onPressed: _submit, child: const Text('Enregistrer')),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(w.text('cancel')),
+        ),
+        FilledButton(onPressed: _submit, child: Text(w.text('save'))),
+      ],
+    );
+  }
 }
 
 class _ReasonDialog extends StatefulWidget {
@@ -869,7 +937,7 @@ class _ReasonDialogState extends State<_ReasonDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Retour'),
+        child: Text(SavingsGoalsWords.of(context).text('back')),
       ),
       FilledButton(
         onPressed: () => Navigator.of(context).pop(_controller.text),
@@ -901,33 +969,54 @@ DateTime? _parseDate(String input) {
 String _number(Money money) =>
     money.dirhams.toStringAsFixed(2).replaceAll('.', ',');
 
-String _money(Money money) => NumberFormat.currency(
-  locale: 'fr_FR',
+String _money(BuildContext context, Money money) => NumberFormat.currency(
+  locale: Localizations.localeOf(context).toLanguageTag(),
   symbol: 'MAD',
   decimalDigits: 2,
 ).format(money.dirhams);
 
-String _date(DateTime value) =>
+String _date(BuildContext context, DateTime value) => DateFormat.yMd(
+  Localizations.localeOf(context).toLanguageTag(),
+).format(value);
+
+String _inputDate(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
 
-String _dateTime(DateTime value) {
+String _dateTime(BuildContext context, DateTime value) {
   final local = value.toLocal();
-  return '${_date(local)} • ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  return '${_date(context, local)} • ${DateFormat.Hm(Localizations.localeOf(context).toLanguageTag()).format(local)}';
 }
 
-String _historyActionLabel(String action) => switch (action) {
-  'created' => 'Objectif créé',
-  'updated' => 'Objectif modifié',
-  'activated' => 'Objectif activé',
-  'paused' => 'Objectif suspendu',
-  'resumed' => 'Objectif repris',
-  'completed' => 'Objectif clôturé',
-  'cancelled' => 'Objectif annulé',
-  _ => 'Mise à jour de l’objectif',
+String _historyActionLabel(SavingsGoalsWords w, String action) =>
+    switch (action) {
+      'created' => w.text('history_created'),
+      'updated' => w.text('history_updated'),
+      'activated' => w.text('history_activated'),
+      'paused' => w.text('history_paused'),
+      'resumed' => w.text('history_resumed'),
+      'completed' => w.text('history_completed'),
+      'cancelled' => w.text('history_cancelled'),
+      _ => w.text('history_other'),
+    };
+
+String _statusLabel(SavingsGoalsWords w, SavingsGoalStatus status) =>
+    w.text('status_${status.name}');
+
+String _typeLabel(SavingsGoalsWords w, SavingsGoalType type) => switch (type) {
+  SavingsGoalType.car => w.text('car'),
+  SavingsGoalType.travel => w.text('travel'),
+  SavingsGoalType.majorPurchase => w.text('major_purchase'),
+  SavingsGoalType.homeDownPayment => w.text('home_down_payment'),
+  SavingsGoalType.custom => w.text('custom'),
+  SavingsGoalType.emergencyFund => w.text('emergency'),
 };
 
 void _showError(BuildContext context, Object error) {
-  ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text('Action impossible : $error')));
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        SavingsGoalsWords.of(context).format('action_error', {'error': error}),
+      ),
+    ),
+  );
 }

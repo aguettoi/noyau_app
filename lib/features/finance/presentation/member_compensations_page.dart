@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/member_compensations_locale.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/providers/member_compensations_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
@@ -13,6 +14,7 @@ class MemberCompensationsPage extends ConsumerWidget {
   final String? initialCompensationId;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final words = MemberCompensationWords.of(context);
     final data = ref.watch(memberCompensationsProvider);
     final accounts =
         ref.watch(remoteAccountsProvider).valueOrNull ??
@@ -21,13 +23,11 @@ class MemberCompensationsPage extends ConsumerWidget {
         ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ??
         const <RemoteEnvelopeBalance>[];
     return Scaffold(
-      appBar: AppBar(title: const Text('Compensations internes')),
+      appBar: AppBar(title: Text(words.text('title'))),
       body: SafeArea(
         child: data.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(
-            child: Text('Impossible de charger les compensations : $e'),
-          ),
+          error: (_, _) => Center(child: Text(words.text('load_error'))),
           data: (items) {
             final ordered = initialCompensationId == null
                 ? [...items]
@@ -37,17 +37,15 @@ class MemberCompensationsPage extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.all(AppSpacing.md),
               children: [
-                const Text(
-                  'Une compensation suit un financement entre membres. Elle ne crée ni dépense, ni revenu, ni consommation d’enveloppe.',
-                ),
+                Text(words.text('notice')),
                 const SizedBox(height: AppSpacing.md),
                 if (!ordered.any(
                   (e) => e.status == 'to_pay' || e.status == 'transfer_sent',
                 ))
-                  const Card(
+                  Card(
                     child: Padding(
-                      padding: EdgeInsets.all(AppSpacing.lg),
-                      child: Text('Aucune compensation en attente.'),
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Text(words.text('empty')),
                     ),
                   ),
                 for (final item in ordered.where(
@@ -56,12 +54,20 @@ class MemberCompensationsPage extends ConsumerWidget {
                   Card(
                     child: ListTile(
                       title: Text(
-                        '${item.debtor} doit verser à ${item.creditor}',
+                        words.format('transfer_due', {
+                          'debtor': item.debtor,
+                          'creditor': item.creditor,
+                        }),
                       ),
                       subtitle: Text(
-                        '${item.reason}\nRestant : ${item.remaining.toStringAsFixed(2)} MAD',
+                        words.format('remaining_reason', {
+                          'reason': item.reason,
+                          'amount': '${item.remaining.toStringAsFixed(2)} MAD',
+                        }),
                       ),
-                      trailing: Chip(label: Text(_label(item.status))),
+                      trailing: Chip(
+                        label: Text(words.text('status.${item.status}')),
+                      ),
                       onTap: () =>
                           _detail(context, ref, item, accounts, envelopes),
                     ),
@@ -71,7 +77,7 @@ class MemberCompensationsPage extends ConsumerWidget {
                 )) ...[
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Historique',
+                    words.text('history'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   for (final item in ordered.where(
@@ -79,9 +85,16 @@ class MemberCompensationsPage extends ConsumerWidget {
                   ))
                     Card(
                       child: ListTile(
-                        title: Text('${item.debtor} → ${item.creditor}'),
+                        title: Text(
+                          words.format('parties', {
+                            'debtor': item.debtor,
+                            'creditor': item.creditor,
+                          }),
+                        ),
                         subtitle: Text(item.reason),
-                        trailing: Chip(label: Text(_label(item.status))),
+                        trailing: Chip(
+                          label: Text(words.text('status.${item.status}')),
+                        ),
                         onTap: () =>
                             _detail(context, ref, item, accounts, envelopes),
                       ),
@@ -95,14 +108,6 @@ class MemberCompensationsPage extends ConsumerWidget {
     );
   }
 
-  static String _label(String s) => switch (s) {
-    'to_pay' => 'À verser',
-    'transfer_sent' => 'En attente de réception',
-    'settled' => 'Soldée',
-    'abandoned' => 'Abandonnée',
-    _ => s,
-  };
-
   Future<void> _detail(
     BuildContext context,
     WidgetRef ref,
@@ -111,53 +116,68 @@ class MemberCompensationsPage extends ConsumerWidget {
     List<RemoteEnvelopeBalance> envelopes,
   ) => showDialog<void>(
     context: context,
-    builder: (c) => AlertDialog(
-      title: Text('${item.debtor} → ${item.creditor}'),
-      content: Text(
-        'Montant initial : ${item.initial.toStringAsFixed(2)} MAD\nRestant : ${item.remaining.toStringAsFixed(2)} MAD\nEn attente de réception : ${item.pendingReceipt.toStringAsFixed(2)} MAD\n${item.reason}',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(c),
-          child: const Text('Fermer'),
+    builder: (c) {
+      final words = MemberCompensationWords.of(c);
+      return AlertDialog(
+        title: Text(
+          words.format('parties', {
+            'debtor': item.debtor,
+            'creditor': item.creditor,
+          }),
         ),
-        if (item.remaining > 0)
+        content: Text(
+          words.format('detail', {
+            'initial': '${item.initial.toStringAsFixed(2)} MAD',
+            'remaining': '${item.remaining.toStringAsFixed(2)} MAD',
+            'pending': '${item.pendingReceipt.toStringAsFixed(2)} MAD',
+            'reason': item.reason,
+          }),
+        ),
+        actions: [
           TextButton(
-            key: const Key('canonical-compensation-transfer'),
-            onPressed: () => _canonicalTransfer(c, ref, item, accounts),
-            child: const Text('Effectuer le virement'),
+            onPressed: () => Navigator.pop(c),
+            child: Text(words.text('close')),
           ),
-        if (item.remaining > 0)
-          TextButton(
-            onPressed: () => _amountAction(
-              c,
-              ref,
-              item,
-              'transfer_declared',
-              'Virement déclaré hors application',
-              max: item.remaining,
+          if (item.remaining > 0)
+            TextButton(
+              key: const Key('canonical-compensation-transfer'),
+              onPressed: () => _canonicalTransfer(c, ref, item, accounts),
+              child: Text(words.text('make_transfer')),
             ),
-            child: const Text('Déclarer effectué hors application'),
-          ),
-        if (item.pendingReceipt > 0)
-          FilledButton(
-            onPressed: () => _amountAction(
-              c,
-              ref,
-              item,
-              'receipt_confirmed',
-              'Réception confirmée',
-              max: item.pendingReceipt,
+          if (item.remaining > 0)
+            TextButton(
+              onPressed: () => _amountAction(
+                c,
+                ref,
+                item,
+                'transfer_declared',
+                words.text('external_title'),
+                'Virement déclaré hors application',
+                max: item.remaining,
+              ),
+              child: Text(words.text('declare_external')),
             ),
-            child: const Text('Confirmer réception'),
-          ),
-        if (item.remaining > 0)
-          TextButton(
-            onPressed: () => _abandon(c, ref, item, envelopes),
-            child: const Text('Abandonner la compensation'),
-          ),
-      ],
-    ),
+          if (item.pendingReceipt > 0)
+            FilledButton(
+              onPressed: () => _amountAction(
+                c,
+                ref,
+                item,
+                'receipt_confirmed',
+                words.text('receipt_title'),
+                'Réception confirmée',
+                max: item.pendingReceipt,
+              ),
+              child: Text(words.text('confirm_receipt')),
+            ),
+          if (item.remaining > 0)
+            TextButton(
+              onPressed: () => _abandon(c, ref, item, envelopes),
+              child: Text(words.text('abandon')),
+            ),
+        ],
+      );
+    },
   );
 
   Future<void> _canonicalTransfer(
@@ -191,30 +211,33 @@ class MemberCompensationsPage extends ConsumerWidget {
     WidgetRef ref,
     MemberCompensation item,
     String kind,
-    String reason, {
+    String title,
+    String canonicalReason, {
     required double max,
   }) async {
     final ctl = TextEditingController(text: max.toStringAsFixed(2));
     final value = await showDialog<double>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(reason),
+        title: Text(title),
         content: TextField(
           controller: ctl,
-          decoration: const InputDecoration(labelText: 'Montant (MAD)'),
+          decoration: InputDecoration(
+            labelText: MemberCompensationWords.of(c).text('amount'),
+          ),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text('Annuler'),
+            child: Text(MemberCompensationWords.of(c).text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(
               c,
               double.tryParse(ctl.text.replaceAll(',', '.')),
             ),
-            child: const Text('Confirmer'),
+            child: Text(MemberCompensationWords.of(c).text('confirm')),
           ),
         ],
       ),
@@ -225,7 +248,7 @@ class MemberCompensationsPage extends ConsumerWidget {
       compensationId: item.id,
       kind: kind,
       amount: value,
-      reason: reason,
+      reason: canonicalReason,
       allocations: const [],
     );
     if (context.mounted) Navigator.pop(context);
@@ -241,19 +264,21 @@ class MemberCompensationsPage extends ConsumerWidget {
     final r = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Abandonner la compensation'),
+        title: Text(MemberCompensationWords.of(c).text('abandon')),
         content: TextField(
           controller: reason,
-          decoration: const InputDecoration(labelText: 'Motif obligatoire'),
+          decoration: InputDecoration(
+            labelText: MemberCompensationWords.of(c).text('required_reason'),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text('Annuler'),
+            child: Text(MemberCompensationWords.of(c).text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, reason.text.trim()),
-            child: const Text('Continuer'),
+            child: Text(MemberCompensationWords.of(c).text('continue')),
           ),
         ],
       ),
@@ -305,10 +330,7 @@ class _CompensationTransferDialogState
     amount = TextEditingController(
       text: widget.item.remaining.toStringAsFixed(2),
     );
-    description = TextEditingController(
-      text:
-          'Règlement compensation ${widget.item.debtor} → ${widget.item.creditor}',
-    );
+    description = TextEditingController();
   }
 
   @override
@@ -320,17 +342,26 @@ class _CompensationTransferDialogState
 
   @override
   Widget build(BuildContext context) {
+    final words = MemberCompensationWords.of(context);
+    if (description.text.isEmpty) {
+      description.text = words.format('default_description', {
+        'debtor': widget.item.debtor,
+        'creditor': widget.item.creditor,
+      });
+    }
     final available = widget.accounts
         .where((a) => !a.isArchived && !a.isSystem)
         .toList();
     return AlertDialog(
-      title: const Text('Effectuer le virement'),
+      title: Text(words.text('make_transfer')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           DropdownButtonFormField<String>(
             initialValue: source,
-            decoration: const InputDecoration(labelText: 'Compte source'),
+            decoration: InputDecoration(
+              labelText: words.text('source_account'),
+            ),
             items: available
                 .map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))
                 .toList(),
@@ -338,7 +369,9 @@ class _CompensationTransferDialogState
           ),
           DropdownButtonFormField<String>(
             initialValue: destination,
-            decoration: const InputDecoration(labelText: 'Compte destination'),
+            decoration: InputDecoration(
+              labelText: words.text('destination_account'),
+            ),
             items: available
                 .map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))
                 .toList(),
@@ -346,18 +379,18 @@ class _CompensationTransferDialogState
           ),
           TextField(
             controller: amount,
-            decoration: const InputDecoration(labelText: 'Montant (MAD)'),
+            decoration: InputDecoration(labelText: words.text('amount')),
           ),
           TextField(
             controller: description,
-            decoration: const InputDecoration(labelText: 'Description'),
+            decoration: InputDecoration(labelText: words.text('description')),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
+          child: Text(words.text('cancel')),
         ),
         FilledButton(
           onPressed: () {
@@ -377,7 +410,7 @@ class _CompensationTransferDialogState
               ));
             }
           },
-          child: const Text('Enregistrer le virement'),
+          child: Text(words.text('save_transfer')),
         ),
       ],
     );

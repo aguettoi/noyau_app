@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/money/money.dart';
+import '../../../core/localization/transactions_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/providers/remote_account_balances_provider.dart';
@@ -78,8 +79,10 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
       ref.invalidate(remoteEnvelopeMovementsProvider);
       ref.invalidate(remoteDebtBalancesProvider);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Transaction validée dans le Grand Livre.'),
+        SnackBar(
+          content: Text(
+            TransactionsWords.of(context).text('transactions.created_success'),
+          ),
         ),
       );
       if (widget.returnAfterCreate) {
@@ -197,19 +200,23 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     final canOpen = accounts.hasValue && envelopes.hasValue && !_creating;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transactions'),
+        title: Text(TransactionsWords.of(context).text('transactions.title')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(
               context,
             ).push(MaterialPageRoute<void>(builder: (_) => const DebtsPage())),
-            child: const Text('Dettes'),
+            child: Text(
+              TransactionsWords.of(context).text('transactions.debts'),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const ReceivablesPage()),
             ),
-            child: const Text('Créances'),
+            child: Text(
+              TransactionsWords.of(context).text('transactions.receivables'),
+            ),
           ),
         ],
       ),
@@ -229,14 +236,18 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.add),
-        label: const Text('Ajouter'),
+        label: Text(TransactionsWords.of(context).text('transactions.add')),
       ),
       body: transactions.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
           child: Padding(
             padding: AppSpacing.page,
-            child: Text('Impossible de lire le Grand Livre : $error'),
+            child: Text(
+              TransactionsWords.of(
+                context,
+              ).format('transactions.load_error', {'error': error}),
+            ),
           ),
         ),
         data: (items) => _TransactionList(
@@ -305,15 +316,20 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
     return ListView(
       padding: AppSpacing.page,
       children: [
-        Text('Grand Livre', style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          TransactionsWords.of(context).text('transactions.ledger'),
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: AppSpacing.xs),
-        const Text('Historique validé et immuable des opérations financières.'),
+        Text(TransactionsWords.of(context).text('transactions.ledger_hint')),
         const SizedBox(height: AppSpacing.sm),
         TextField(
           key: const Key('transaction-search-field'),
           controller: _query,
           decoration: InputDecoration(
-            labelText: 'Rechercher',
+            labelText: TransactionsWords.of(
+              context,
+            ).text('transactions.search'),
             suffixIcon: IconButton(
               onPressed: () => setState(() {
                 _filtering = true;
@@ -329,7 +345,7 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
           runSpacing: 8,
           children: [
             _filterDropdown(
-              'Compte',
+              TransactionsWords.of(context).text('transactions.filter.account'),
               _accountId,
               [
                 for (final a in accounts)
@@ -342,7 +358,9 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
               }),
             ),
             _filterDropdown(
-              'Enveloppe',
+              TransactionsWords.of(
+                context,
+              ).text('transactions.filter.envelope'),
               _envelopeId,
               [
                 for (final e in envelopes)
@@ -355,7 +373,7 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
               }),
             ),
             _filterDropdown(
-              'Moyen',
+              TransactionsWords.of(context).text('transactions.filter.method'),
               _methodId,
               [
                 for (final m in methods)
@@ -368,18 +386,40 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
               }),
             ),
             _filterDropdown(
-              'Type',
+              TransactionsWords.of(context).text('transactions.filter.type'),
               _eventType,
-              const [
-                DropdownMenuItem(value: 'cash_expense', child: Text('Dépense')),
-                DropdownMenuItem(value: 'cash_income', child: Text('Revenu')),
+              [
+                DropdownMenuItem(
+                  value: 'cash_expense',
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.type.expense'),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'cash_income',
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.type.income'),
+                  ),
+                ),
                 DropdownMenuItem(
                   value: 'account_transfer',
-                  child: Text('Virement compte'),
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.type.account_transfer'),
+                  ),
                 ),
                 DropdownMenuItem(
                   value: 'envelope_transfer',
-                  child: Text('Transfert enveloppe'),
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.type.envelope_transfer'),
+                  ),
                 ),
               ],
               (v) => setState(() {
@@ -389,14 +429,32 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
               }),
             ),
             _filterDropdown(
-              'Statut',
+              TransactionsWords.of(context).text('transactions.filter.status'),
               _reversalState,
-              const [
-                DropdownMenuItem(value: 'active', child: Text('Actives')),
-                DropdownMenuItem(value: 'reversed', child: Text('Annulées')),
+              [
+                DropdownMenuItem(
+                  value: 'active',
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.status.active'),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'reversed',
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.status.reversed'),
+                  ),
+                ),
                 DropdownMenuItem(
                   value: 'reversal',
-                  child: Text('Contrepassations'),
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.status.reversals'),
+                  ),
                 ),
               ],
               (v) => setState(() {
@@ -421,7 +479,11 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
                 }
               },
               icon: const Icon(Icons.date_range),
-              label: Text(_from == null ? 'Du' : _formatDate(_from!)),
+              label: Text(
+                _from == null
+                    ? TransactionsWords.of(context).text('transactions.from')
+                    : _formatDate(_from!),
+              ),
             ),
             OutlinedButton.icon(
               onPressed: () async {
@@ -439,7 +501,11 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
                 }
               },
               icon: const Icon(Icons.event),
-              label: Text(_to == null ? 'Au' : _formatDate(_to!)),
+              label: Text(
+                _to == null
+                    ? TransactionsWords.of(context).text('transactions.to')
+                    : _formatDate(_to!),
+              ),
             ),
             TextButton(
               onPressed: () => setState(() {
@@ -454,22 +520,36 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
                 _page = 0;
                 _filtering = false;
               }),
-              child: const Text('Effacer les filtres'),
+              child: Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.clear_filters'),
+              ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
         ...filtered.when(
-          loading: () => [const Center(child: CircularProgressIndicator())],
-          error: (e, _) => [Text('Recherche impossible : $e')],
+          loading: () => [Center(child: CircularProgressIndicator())],
+          error: (e, _) => [
+            Text(
+              TransactionsWords.of(
+                context,
+              ).format('transactions.search_error', {'error': e}),
+            ),
+          ],
           data: (items) => [
             if (items.isEmpty)
-              const Card(
+              Card(
                 child: ListTile(
                   leading: Icon(Icons.receipt_long_outlined),
-                  title: Text('Aucune transaction'),
+                  title: Text(
+                    TransactionsWords.of(context).text('transactions.empty'),
+                  ),
                   subtitle: Text(
-                    'Ajoutez votre première opération financière.',
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.empty_hint'),
                   ),
                 ),
               ),
@@ -484,8 +564,9 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
                     ),
                     leading: Icon(_iconFor(item.type)),
                     title: Text(item.description),
-                    subtitle: Text(_historySubtitle(item)),
+                    subtitle: Text(_historySubtitle(context, item)),
                     trailing: Text(
+                      // i18n-dynamic-only
                       '${item.amount.dirhams.toStringAsFixed(2)} MAD',
                     ),
                   ),
@@ -500,13 +581,19 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
                     onPressed: _page == 0
                         ? null
                         : () => setState(() => _page--),
-                    child: const Text('Précédent'),
+                    child: Text(
+                      TransactionsWords.of(
+                        context,
+                      ).text('transactions.previous'),
+                    ),
                   ),
                   TextButton(
                     onPressed: items.length < 50
                         ? null
                         : () => setState(() => _page++),
-                    child: const Text('Suivant'),
+                    child: Text(
+                      TransactionsWords.of(context).text('transactions.next'),
+                    ),
                   ),
                 ],
               ),
@@ -528,7 +615,12 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
       isExpanded: true,
       decoration: InputDecoration(labelText: label),
       items: [
-        const DropdownMenuItem(value: null, child: Text('Tous')),
+        DropdownMenuItem(
+          value: null,
+          child: Text(
+            TransactionsWords.of(context).text('transactions.filter.all'),
+          ),
+        ),
         ...items,
       ],
       onChanged: changed,
@@ -731,16 +823,26 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
       return;
     }
     if (_amountCents <= 0) {
-      setState(() => _error = 'Saisissez un montant positif valide en MAD.');
+      setState(
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.positive_amount_error'),
+      );
       return;
     }
     if (_isExpense && _splitExpense && _remainingCents != 0) {
-      setState(() => _error = 'Le total ventilé doit égaler le montant.');
+      setState(
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.split_total_error'),
+      );
       return;
     }
     if (_isIncome && _splitCents > _amountCents) {
       setState(
-        () => _error = 'Le total affecté ne peut pas dépasser le revenu.',
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.income_allocation_error'),
       );
       return;
     }
@@ -779,7 +881,9 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
         );
         if (mounted && eventId != null) Navigator.of(context).pop(eventId);
       } catch (error) {
-        if (mounted) setState(() => _error = _financialErrorMessage(error));
+        if (mounted) {
+          setState(() => _error = _financialErrorMessage(context, error));
+        }
       } finally {
         if (mounted) setState(() => _submitting = false);
       }
@@ -815,7 +919,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _error = _financialErrorMessage(error));
+        setState(() => _error = _financialErrorMessage(context, error));
       }
     } finally {
       if (mounted) {
@@ -826,7 +930,9 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Ajouter une transaction'),
+    title: Text(
+      TransactionsWords.of(context).text('transactions.create_title'),
+    ),
     content: SizedBox(
       width: 480,
       child: Form(
@@ -837,15 +943,23 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (widget.forceExpense)
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Type : Dépense'),
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.expense_type'),
+                  ),
                 )
               else
                 DropdownButtonFormField<LedgerTransactionType>(
                   key: const Key('transaction-type-field'),
                   initialValue: _type,
-                  decoration: const InputDecoration(labelText: 'Type *'),
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.type_required'),
+                  ),
                   items:
                       const [
                             LedgerTransactionType.expense,
@@ -855,7 +969,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                           .map(
                             (type) => DropdownMenuItem(
                               value: type,
-                              child: Text(_labelFor(type)),
+                              child: Text(_labelFor(context, type)),
                             ),
                           )
                           .toList(growable: false),
@@ -865,9 +979,15 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
               TextFormField(
                 key: const Key('transaction-description-field'),
                 controller: _description,
-                decoration: const InputDecoration(labelText: 'Libellé *'),
+                decoration: InputDecoration(
+                  labelText: TransactionsWords.of(
+                    context,
+                  ).text('transactions.label_required'),
+                ),
                 validator: (value) => (value?.trim().isEmpty ?? true)
-                    ? 'Le libellé est obligatoire.'
+                    ? TransactionsWords.of(
+                        context,
+                      ).text('transactions.label_empty')
                     : null,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -878,9 +998,15 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(labelText: 'Montant (MAD) *'),
+                decoration: InputDecoration(
+                  labelText: TransactionsWords.of(
+                    context,
+                  ).text('transactions.amount_required'),
+                ),
                 validator: (value) => (_madToCents(value ?? '') ?? 0) <= 0
-                    ? 'Saisissez un montant positif valide.'
+                    ? TransactionsWords.of(
+                        context,
+                      ).text('transactions.amount_invalid')
                     : null,
               ),
               if (_needsSource) ...[
@@ -888,8 +1014,12 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 _AccountSelector(
                   key: const Key('transaction-source-account-field'),
                   label: _type == LedgerTransactionType.transfer
-                      ? 'Compte source *'
-                      : 'Compte concerné *',
+                      ? TransactionsWords.of(
+                          context,
+                        ).text('transactions.source_account_required')
+                      : TransactionsWords.of(
+                          context,
+                        ).text('transactions.account_required'),
                   accounts: widget.accounts,
                   value: _sourceAccountId,
                   onChanged: _submitting
@@ -914,13 +1044,19 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                   key: const Key('transaction-payment-method-field'),
                   initialValue: _actualPaymentMethodId,
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Moyen de paiement réellement utilisé',
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.payment_method_used'),
                   ),
                   items: [
-                    const DropdownMenuItem<String?>(
+                    DropdownMenuItem<String?>(
                       value: null,
-                      child: Text('Non renseigné'),
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.unset'),
+                      ),
                     ),
                     ..._availablePaymentMethods.map(
                       (method) => DropdownMenuItem<String?>(
@@ -944,7 +1080,9 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                   key: const Key('transaction-destination-account-field'),
                   label: _type == LedgerTransactionType.transfer
                       ? 'Compte destination *'
-                      : 'Compte encaissé *',
+                      : TransactionsWords.of(
+                          context,
+                        ).text('transactions.receiving_account_required'),
                   accounts: widget.accounts,
                   value: _destinationAccountId,
                   onChanged: _submitting
@@ -956,15 +1094,27 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 const SizedBox(height: AppSpacing.sm),
                 DropdownButtonFormField<BalanceDirection>(
                   initialValue: _direction,
-                  decoration: const InputDecoration(labelText: 'Sens *'),
-                  items: const [
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.direction_required'),
+                  ),
+                  items: [
                     DropdownMenuItem(
                       value: BalanceDirection.increase,
-                      child: Text('Augmenter le solde'),
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.increase_balance'),
+                      ),
                     ),
                     DropdownMenuItem(
                       value: BalanceDirection.decrease,
-                      child: Text('Diminuer le solde'),
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.decrease_balance'),
+                      ),
                     ),
                   ],
                   onChanged: _submitting
@@ -974,11 +1124,13 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
               ],
               if (_isIncome) ...[
                 const SizedBox(height: AppSpacing.md),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Répartition du revenu',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.income_split'),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
@@ -998,23 +1150,33 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                     key: const Key('add-income-envelope-row'),
                     onPressed: _submitting ? null : _addSplitRow,
                     icon: const Icon(Icons.add),
-                    label: const Text('Ajouter une enveloppe'),
+                    label: Text(
+                      TransactionsWords.of(
+                        context,
+                      ).text('transactions.add_envelope'),
+                    ),
                   ),
                 ),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Revenu : ${_formatCents(_amountCents)} MAD • '
-                    'Affecté : ${_formatCents(_splitCents)} MAD • '
-                    'Reste à répartir : ${_formatCents(_remainingCents)} MAD',
+                    TransactionsWords.of(
+                      context,
+                    ).format('transactions.income_summary', {
+                      'income': _formatCents(_amountCents),
+                      'allocated': _formatCents(_splitCents),
+                      'remaining': _formatCents(_remainingCents),
+                    }),
                   ),
                 ),
                 if (_remainingCents > 0)
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      '${_formatCents(_remainingCents)} MAD seront automatiquement '
-                      'affectés à « À répartir ».',
+                      TransactionsWords.of(context).format(
+                        'transactions.auto_unallocated',
+                        {'amount': _formatCents(_remainingCents)},
+                      ),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -1022,7 +1184,9 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Le total affecté ne peut pas dépasser le revenu.',
+                      TransactionsWords.of(
+                        context,
+                      ).text('transactions.income_allocation_error'),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -1034,15 +1198,27 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 DropdownButtonFormField<bool>(
                   key: const Key('expense-payment-mode-field'),
                   initialValue: _expenseIsDebt,
-                  decoration: const InputDecoration(labelText: 'Paiement *'),
-                  items: const [
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.payment_required'),
+                  ),
+                  items: [
                     DropdownMenuItem(
                       value: false,
-                      child: Text('Payée maintenant'),
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.paid_now'),
+                      ),
                     ),
                     DropdownMenuItem(
                       value: true,
-                      child: Text('À payer plus tard / Dette'),
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.pay_later_debt'),
+                      ),
                     ),
                   ],
                   onChanged: _submitting
@@ -1055,13 +1231,21 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                   TextFormField(
                     key: const Key('debt-creditor-field'),
                     controller: _creditor,
-                    decoration: const InputDecoration(labelText: 'Créancier'),
+                    decoration: InputDecoration(
+                      labelText: TransactionsWords.of(
+                        context,
+                      ).text('transactions.creditor'),
+                    ),
                   ),
                 ],
                 SwitchListTile(
                   key: const Key('transaction-split-switch'),
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Ventiler sur plusieurs enveloppes'),
+                  title: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.split_envelopes'),
+                  ),
                   value: _splitExpense,
                   onChanged: _submitting
                       ? null
@@ -1076,7 +1260,9 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 if (!_splitExpense)
                   _EnvelopeSelector(
                     key: const Key('transaction-envelope-field'),
-                    label: 'Enveloppe *',
+                    label: TransactionsWords.of(
+                      context,
+                    ).text('transactions.envelope_required'),
                     envelopes: widget.envelopes,
                     value: _singleEnvelopeId,
                     onChanged: _submitting ? null : _selectEnvelope,
@@ -1099,13 +1285,22 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                       key: const Key('add-envelope-split-row'),
                       onPressed: _submitting ? null : _addSplitRow,
                       icon: const Icon(Icons.add),
-                      label: const Text('Ajouter une enveloppe'),
+                      label: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.add_envelope'),
+                      ),
                     ),
                   ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Total ventilé : ${_formatCents(_splitCents)} MAD • Reste à affecter : ${_formatCents(_remainingCents)} MAD',
+                      TransactionsWords.of(
+                        context,
+                      ).format('transactions.split_summary', {
+                        'allocated': _formatCents(_splitCents),
+                        'remaining': _formatCents(_remainingCents),
+                      }),
                     ),
                   ),
                 ],
@@ -1115,6 +1310,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       _recommendationMessage(
+                        context: context,
                         envelope: _selectedEnvelope!,
                         actualAccountId: _sourceAccountId,
                         actualPaymentMethodId: _actualPaymentMethodId,
@@ -1129,13 +1325,21 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 key: const Key('transaction-notes-field'),
                 controller: _notes,
                 maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Notes'),
+                decoration: InputDecoration(
+                  labelText: TransactionsWords.of(
+                    context,
+                  ).text('transactions.notes'),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               ListTile(
                 key: const Key('transaction-economic-date-field'),
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Date économique *'),
+                title: Text(
+                  TransactionsWords.of(
+                    context,
+                  ).text('transactions.economic_date_required'),
+                ),
                 subtitle: Text(_formatDate(_economicDate)),
                 trailing: const Icon(Icons.calendar_today_outlined),
                 onTap: _submitting ? null : _pickEconomicDate,
@@ -1155,7 +1359,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
     actions: [
       TextButton(
         onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
+        child: Text(TransactionsWords.of(context).text('transactions.cancel')),
       ),
       FilledButton(
         key: const Key('create-transaction-button'),
@@ -1167,7 +1371,11 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 (_isIncome && _splitCents > _amountCents)
             ? null
             : _submit,
-        child: Text(_submitting ? 'Validation…' : 'Valider'),
+        child: Text(
+          TransactionsWords.of(context).text(
+            _submitting ? 'transactions.validating' : 'transactions.validate',
+          ),
+        ),
       ),
     ],
   );
@@ -1204,7 +1412,9 @@ class _SplitAllocationInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final envelopeField = _EnvelopeSelector(
-      label: 'Enveloppe *',
+      label: TransactionsWords.of(
+        context,
+      ).text('transactions.envelope_required'),
       envelopes: envelopes
           .where(
             (envelope) =>
@@ -1223,7 +1433,11 @@ class _SplitAllocationInput extends StatelessWidget {
       controller: row.amount,
       onChanged: (_) => onChanged(),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: const InputDecoration(labelText: 'MAD *'),
+      decoration: InputDecoration(
+        labelText: TransactionsWords.of(
+          context,
+        ).text('transactions.mad_required'),
+      ),
     );
     final removeButton = IconButton(
       onPressed: onRemove,
@@ -1233,7 +1447,9 @@ class _SplitAllocationInput extends StatelessWidget {
       ),
       padding: EdgeInsets.zero,
       icon: const Icon(Icons.remove_circle_outline),
-      tooltip: 'Supprimer cette enveloppe',
+      tooltip: TransactionsWords.of(
+        context,
+      ).text('transactions.remove_envelope'),
     );
 
     return LayoutBuilder(
@@ -1335,25 +1551,58 @@ class _EnvelopeSelector extends StatelessWidget {
   );
 }
 
-String _labelFor(LedgerTransactionType type) => switch (type) {
-  LedgerTransactionType.expense => 'Dépense',
-  LedgerTransactionType.income => 'Revenu',
-  LedgerTransactionType.transfer => 'Virement interne',
-  LedgerTransactionType.adjustment => 'Ajustement',
-  LedgerTransactionType.openingBalance => 'Solde d’ouverture',
-  LedgerTransactionType.correction => 'Correction',
-  LedgerTransactionType.debtExpense => 'Dépense à payer',
-  LedgerTransactionType.incomeReceivable => 'Revenu à encaisser',
-  LedgerTransactionType.recovery => 'Remboursement à recevoir',
-  LedgerTransactionType.recoveryReceivable => 'Remboursement à recevoir',
-  LedgerTransactionType.debtSettlement => 'Paiement d’une dette',
-  LedgerTransactionType.receivableSettlement => 'Encaissement d’une créance',
-  LedgerTransactionType.recoverySettlement => 'Remboursement encaissé',
-  LedgerTransactionType.allocation => 'Alimentation d’enveloppe',
-  LedgerTransactionType.accountTransfer => 'Virement entre comptes',
-  LedgerTransactionType.envelopeTransfer => 'Transfert entre enveloppes',
-  LedgerTransactionType.unknown => 'Opération',
-};
+String _labelFor(BuildContext context, LedgerTransactionType type) =>
+    switch (type) {
+      LedgerTransactionType.expense => TransactionsWords.of(
+        context,
+      ).text('transactions.type.expense'),
+      LedgerTransactionType.income => TransactionsWords.of(
+        context,
+      ).text('transactions.type.income'),
+      LedgerTransactionType.transfer => TransactionsWords.of(
+        context,
+      ).text('transactions.type.transfer'),
+      LedgerTransactionType.adjustment => TransactionsWords.of(
+        context,
+      ).text('transactions.type.adjustment'),
+      LedgerTransactionType.openingBalance => TransactionsWords.of(
+        context,
+      ).text('transactions.type.opening'),
+      LedgerTransactionType.correction => TransactionsWords.of(
+        context,
+      ).text('transactions.type.correction'),
+      LedgerTransactionType.debtExpense => TransactionsWords.of(
+        context,
+      ).text('transactions.type.debt_expense'),
+      LedgerTransactionType.incomeReceivable => TransactionsWords.of(
+        context,
+      ).text('transactions.type.income_receivable'),
+      LedgerTransactionType.recovery ||
+      LedgerTransactionType.recoveryReceivable => TransactionsWords.of(
+        context,
+      ).text('transactions.type.recovery'),
+      LedgerTransactionType.debtSettlement => TransactionsWords.of(
+        context,
+      ).text('transactions.type.debt_settlement'),
+      LedgerTransactionType.receivableSettlement => TransactionsWords.of(
+        context,
+      ).text('transactions.type.receivable_settlement'),
+      LedgerTransactionType.recoverySettlement => TransactionsWords.of(
+        context,
+      ).text('transactions.type.recovery_settlement'),
+      LedgerTransactionType.allocation => TransactionsWords.of(
+        context,
+      ).text('transactions.type.allocation'),
+      LedgerTransactionType.accountTransfer => TransactionsWords.of(
+        context,
+      ).text('transactions.type.account_transfer'),
+      LedgerTransactionType.envelopeTransfer => TransactionsWords.of(
+        context,
+      ).text('transactions.type.envelope_transfer'),
+      LedgerTransactionType.unknown => TransactionsWords.of(
+        context,
+      ).text('transactions.type.unknown'),
+    };
 IconData _iconFor(LedgerTransactionType type) => switch (type) {
   LedgerTransactionType.expense => Icons.south_east,
   LedgerTransactionType.income => Icons.north_east,
@@ -1374,6 +1623,9 @@ IconData _iconFor(LedgerTransactionType type) => switch (type) {
   LedgerTransactionType.envelopeTransfer => Icons.swap_horiz,
   LedgerTransactionType.unknown => Icons.receipt_outlined,
 };
+String _formatLocalizedDate(BuildContext context, DateTime date) =>
+    MaterialLocalizations.of(context).formatCompactDate(date);
+
 String _formatDate(DateTime date) =>
     '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 
@@ -1385,6 +1637,7 @@ DateTime _economicDateAtNoon(DateTime value) =>
     DateTime(value.year, value.month, value.day, 12);
 
 String _recommendationMessage({
+  required BuildContext context,
   required RemoteEnvelopeBalance envelope,
   required String? actualAccountId,
   required String? actualPaymentMethodId,
@@ -1396,22 +1649,30 @@ String _recommendationMessage({
       envelope.recommendedPaymentMethodId != null &&
       envelope.recommendedPaymentMethodId != actualPaymentMethodId;
   if (!accountDifferent && !methodDifferent) {
-    return 'Le paiement correspond à la recommandation de cette enveloppe.';
+    return TransactionsWords.of(
+      context,
+    ).text('transactions.recommendation.payment_match');
   }
   if (accountDifferent && methodDifferent) {
-    return 'Le compte et le moyen utilisés diffèrent de la recommandation de cette enveloppe.';
+    return TransactionsWords.of(
+      context,
+    ).text('transactions.recommendation.account_method_mismatch');
   }
   return accountDifferent
-      ? 'Le paiement utilise un compte différent de celui recommandé pour cette enveloppe.'
-      : 'Le paiement utilise un moyen différent de celui recommandé pour cette enveloppe.';
+      ? TransactionsWords.of(
+          context,
+        ).text('transactions.recommendation.account_mismatch')
+      : TransactionsWords.of(
+          context,
+        ).text('transactions.recommendation.method_mismatch');
 }
 
-String _historySubtitle(TransactionHistoryItem item) {
+String _historySubtitle(BuildContext context, TransactionHistoryItem item) {
   final needsRegularization =
       (item.type == LedgerTransactionType.expense ||
           item.type == LedgerTransactionType.income) &&
       !item.hasEnvelopeMovement;
-  return '${_labelFor(item.type)} • ${_formatDate(item.occurredAt)}${needsRegularization ? ' • À régulariser' : ''}';
+  return '${_labelFor(context, item.type)} • ${_formatLocalizedDate(context, item.occurredAt)}${needsRegularization ? ' • ${TransactionsWords.of(context).text('transactions.needs_regularization')}' : ''}';
 }
 
 int? _madToCents(String value) {
@@ -1460,9 +1721,11 @@ class _TransactionDetailDialogState
         actualOwners.single == recommendedOwners.single) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Même membre économique : aucune compensation nécessaire.',
+              TransactionsWords.of(
+                context,
+              ).text('transactions.compensation.same_member'),
             ),
           ),
         );
@@ -1480,18 +1743,26 @@ class _TransactionDetailDialogState
           text: item.amount.dirhams.toStringAsFixed(2),
         );
         final reason = TextEditingController(
-          text: 'Charge payée par un autre membre',
+          text: TransactionsWords.of(
+            context,
+          ).text('transactions.compensation.default_reason'),
         );
         return StatefulBuilder(
           builder: (c, setLocal) => AlertDialog(
-            title: const Text('Créer une compensation'),
+            title: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.create_compensation'),
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: debtor,
-                  decoration: const InputDecoration(
-                    labelText: 'Qui doit verser ?',
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.compensation.debtor'),
                   ),
                   items: members
                       .map(
@@ -1505,8 +1776,10 @@ class _TransactionDetailDialogState
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: creditor,
-                  decoration: const InputDecoration(
-                    labelText: 'Qui doit recevoir ?',
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.compensation.creditor'),
                   ),
                   items: members
                       .map(
@@ -1520,18 +1793,28 @@ class _TransactionDetailDialogState
                 ),
                 TextField(
                   controller: amount,
-                  decoration: const InputDecoration(labelText: 'Montant (MAD)'),
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.amount_mad'),
+                  ),
                 ),
                 TextField(
                   controller: reason,
-                  decoration: const InputDecoration(labelText: 'Motif'),
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.reason'),
+                  ),
                 ),
               ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(c),
-                child: const Text('Annuler'),
+                child: Text(
+                  TransactionsWords.of(context).text('transactions.cancel'),
+                ),
               ),
               FilledButton(
                 onPressed: () {
@@ -1552,7 +1835,11 @@ class _TransactionDetailDialogState
                     ));
                   }
                 },
-                child: const Text('Créer la compensation'),
+                child: Text(
+                  TransactionsWords.of(
+                    context,
+                  ).text('transactions.create_compensation'),
+                ),
               ),
             ],
           ),
@@ -1607,9 +1894,15 @@ class _TransactionDetailDialogState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Annulation impossible : $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              TransactionsWords.of(
+                context,
+              ).format('transactions.reversal_error', {'error': e}),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -1635,8 +1928,12 @@ class _TransactionDetailDialogState
     if (mime == null || f.size > 10485760) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Format refusé ou fichier supérieur à 10 Mo.'),
+          SnackBar(
+            content: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.attachment_format_error'),
+            ),
           ),
         );
       }
@@ -1657,9 +1954,15 @@ class _TransactionDetailDialogState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Ajout impossible : $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              TransactionsWords.of(
+                context,
+              ).format('transactions.attachment_add_error', {'error': e}),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -1704,7 +2007,7 @@ class _TransactionDetailDialogState
           e['actual_payment_method_matches'] == false,
     );
     return AlertDialog(
-      title: const Text('Détail de l’opération'),
+      title: Text(TransactionsWords.of(context).text('transactions.detail')),
       content: SizedBox(
         width: 560,
         child: SingleChildScrollView(
@@ -1717,20 +2020,61 @@ class _TransactionDetailDialogState
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppSpacing.sm),
-              Text('Type : ${_labelFor(item.type)}'),
-              Text('Date : ${_formatDate(item.occurredAt)}'),
-              Text('Montant : ${item.amount.dirhams.toStringAsFixed(2)} MAD'),
               Text(
-                'Compte : ${item.sourceAccountName ?? item.destinationAccountName ?? 'Non renseigné'}',
+                TransactionsWords.of(context).format(
+                  'transactions.detail.type',
+                  {'value': _labelFor(context, item.type)},
+                ),
               ),
               Text(
-                'Moyen : ${item.paymentMethodName ?? 'Moyen non renseigné'}',
+                TransactionsWords.of(context).format(
+                  'transactions.detail.date',
+                  {'value': _formatLocalizedDate(context, item.occurredAt)},
+                ),
+              ),
+              Text(
+                TransactionsWords.of(context).format(
+                  'transactions.detail.amount',
+                  {'value': '${item.amount.dirhams.toStringAsFixed(2)} MAD'},
+                ),
+              ),
+              Text(
+                TransactionsWords.of(
+                  context,
+                ).format('transactions.detail.account', {
+                  'value':
+                      item.sourceAccountName ??
+                      item.destinationAccountName ??
+                      TransactionsWords.of(
+                        context,
+                      ).text('transactions.not_provided'),
+                }),
+              ),
+              Text(
+                TransactionsWords.of(
+                  context,
+                ).format('transactions.detail.method', {
+                  'value':
+                      item.paymentMethodName ??
+                      TransactionsWords.of(
+                        context,
+                      ).text('transactions.method_not_provided'),
+                }),
               ),
               if (item.envelopes.isNotEmpty)
                 Text(
-                  'Enveloppe(s) : ${item.envelopes.map((e) => e.name).join(', ')}',
+                  TransactionsWords.of(context).format(
+                    'transactions.detail.envelopes',
+                    {'value': item.envelopes.map((e) => e.name).join(', ')},
+                  ),
                 ),
-              if (item.actorId != null) Text('Acteur : ${item.actorId}'),
+              if (item.actorId != null)
+                Text(
+                  TransactionsWords.of(context).format(
+                    'transactions.detail.performed_by',
+                    {'value': item.actorId!},
+                  ),
+                ),
               if (item.recommendationSnapshot.isNotEmpty)
                 Text(
                   item.recommendationSnapshot.every(
@@ -1738,29 +2082,57 @@ class _TransactionDetailDialogState
                             e['actual_account_matches'] == true &&
                             e['actual_payment_method_matches'] == true,
                       )
-                      ? 'Recommandation : conforme'
-                      : 'Recommandation : différente du réel',
+                      ? TransactionsWords.of(
+                          context,
+                        ).text('transactions.recommendation.match')
+                      : TransactionsWords.of(
+                          context,
+                        ).text('transactions.recommendation.mismatch'),
                 ),
               Text(
-                'Statut : ${item.isReversed
-                    ? 'Annulée'
-                    : item.isReversal
-                    ? 'Contrepassation'
-                    : 'Comptabilisée'}',
+                TransactionsWords.of(
+                  context,
+                ).format('transactions.detail.status', {
+                  'value': item.isReversed
+                      ? TransactionsWords.of(
+                          context,
+                        ).text('transactions.state.reversed')
+                      : item.isReversal
+                      ? TransactionsWords.of(
+                          context,
+                        ).text('transactions.state.reversal')
+                      : TransactionsWords.of(
+                          context,
+                        ).text('transactions.state.posted'),
+                }),
               ),
               if (item.reversalReason != null)
-                Text('Motif : ${item.reversalReason}'),
+                Text(
+                  TransactionsWords.of(context).format(
+                    'transactions.detail.reason',
+                    {'value': item.reversalReason!},
+                  ),
+                ),
               Text(
                 item.hasEnvelopeMovement
-                    ? 'Ventilation d’enveloppe enregistrée.'
-                    : 'Historique sans mouvement d’enveloppe.',
+                    ? TransactionsWords.of(
+                        context,
+                      ).text('transactions.envelope_recorded')
+                    : TransactionsWords.of(
+                        context,
+                      ).text('transactions.no_envelope_movement'),
               ),
               const Divider(),
               Text(
-                'Justificatifs',
+                TransactionsWords.of(context).text('transactions.attachments'),
                 style: Theme.of(context).textTheme.titleSmall,
               ),
-              if (item.attachments.isEmpty) const Text('Aucun justificatif.'),
+              if (item.attachments.isEmpty)
+                Text(
+                  TransactionsWords.of(
+                    context,
+                  ).text('transactions.no_attachment'),
+                ),
               for (final a in item.attachments)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -1771,7 +2143,12 @@ class _TransactionDetailDialogState
                   ),
                   title: Text(a.filename),
                   subtitle: Text(
-                    '${(a.fileSize / 1024).toStringAsFixed(1)} Ko • ${_formatDate(a.uploadedAt)}',
+                    TransactionsWords.of(
+                      context,
+                    ).format('transactions.attachment_meta', {
+                      'size': (a.fileSize / 1024).toStringAsFixed(1),
+                      'date': _formatLocalizedDate(context, a.uploadedAt),
+                    }),
                   ),
                   onTap: () async {
                     final u = await ref
@@ -1809,7 +2186,11 @@ class _TransactionDetailDialogState
               );
             },
             icon: const Icon(Icons.open_in_new),
-            label: const Text('Voir la compensation'),
+            label: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.view_compensation'),
+            ),
           )
         else if (item.type == LedgerTransactionType.expense &&
             item.financialEventId != null &&
@@ -1820,13 +2201,19 @@ class _TransactionDetailDialogState
             key: const Key('create-compensation-from-expense'),
             onPressed: _busy ? null : _createCompensation,
             icon: const Icon(Icons.swap_horiz),
-            label: const Text('Créer une compensation'),
+            label: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.create_compensation'),
+            ),
           ),
         if (item.financialEventId != null)
           TextButton.icon(
             onPressed: _busy ? null : _upload,
             icon: const Icon(Icons.attach_file),
-            label: const Text('Ajouter un justificatif'),
+            label: Text(
+              TransactionsWords.of(context).text('transactions.add_attachment'),
+            ),
           ),
         if (item.financialEventId != null &&
             !item.isReversed &&
@@ -1841,11 +2228,15 @@ class _TransactionDetailDialogState
             key: const Key('reverse-daily-operation-button'),
             onPressed: _busy ? null : _reverse,
             icon: const Icon(Icons.undo),
-            label: const Text('Annuler l’opération'),
+            label: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.cancel_operation'),
+            ),
           ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Fermer'),
+          child: Text(TransactionsWords.of(context).text('transactions.close')),
         ),
       ],
     );
@@ -1869,32 +2260,68 @@ class _DailyReversalDialogState extends State<_DailyReversalDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Annuler l’opération'),
+    title: Text(
+      TransactionsWords.of(context).text('transactions.cancel_operation'),
+    ),
     content: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         DropdownButtonFormField<String>(
           initialValue: _code,
-          decoration: const InputDecoration(labelText: 'Motif'),
-          items: const [
+          decoration: InputDecoration(
+            labelText: TransactionsWords.of(
+              context,
+            ).text('transactions.reason'),
+          ),
+          items: [
             DropdownMenuItem(
               value: 'wrong_amount',
-              child: Text('Erreur de montant'),
+              child: Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.reason.wrong_amount'),
+              ),
             ),
             DropdownMenuItem(
               value: 'wrong_account',
-              child: Text('Mauvais compte'),
+              child: Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.reason.wrong_account'),
+              ),
             ),
             DropdownMenuItem(
               value: 'wrong_envelope',
-              child: Text('Mauvaise enveloppe'),
+              child: Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.reason.wrong_envelope'),
+              ),
             ),
-            DropdownMenuItem(value: 'duplicate', child: Text('Doublon')),
+            DropdownMenuItem(
+              value: 'duplicate',
+              child: Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.reason.duplicate'),
+              ),
+            ),
             DropdownMenuItem(
               value: 'cancelled',
-              child: Text('Opération annulée'),
+              child: Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.reason.cancelled'),
+              ),
             ),
-            DropdownMenuItem(value: 'other', child: Text('Autre')),
+            DropdownMenuItem(
+              value: 'other',
+              child: Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.reason.other'),
+              ),
+            ),
           ],
           onChanged: (v) => setState(() => _code = v!),
         ),
@@ -1903,21 +2330,27 @@ class _DailyReversalDialogState extends State<_DailyReversalDialog> {
           controller: _reason,
           onChanged: (_) => setState(() {}),
           maxLength: 500,
-          decoration: const InputDecoration(labelText: 'Explication *'),
+          decoration: InputDecoration(
+            labelText: TransactionsWords.of(
+              context,
+            ).text('transactions.reversal.explanation_required'),
+          ),
         ),
       ],
     ),
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Retour'),
+        child: Text(TransactionsWords.of(context).text('transactions.back')),
       ),
       FilledButton(
         key: const Key('daily-reversal-submit-button'),
         onPressed: _reason.text.trim().isEmpty
             ? null
             : () => Navigator.pop(context, (_code, _reason.text.trim())),
-        child: const Text('Confirmer l’annulation'),
+        child: Text(
+          TransactionsWords.of(context).text('transactions.reversal.confirm'),
+        ),
       ),
     ],
   );
@@ -1949,19 +2382,34 @@ class DebtsPage extends ConsumerWidget {
     final debts = ref.watch(remoteDebtBalancesProvider);
     final accounts = ref.watch(remoteAccountsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Dettes')),
+      appBar: AppBar(
+        title: Text(TransactionsWords.of(context).text('transactions.debts')),
+      ),
       body: debts.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(
-          child: Text('Impossible de charger les dettes pour le moment.'),
+        loading: () => Center(child: CircularProgressIndicator()),
+        error: (_, _) => Center(
+          child: Text(
+            TransactionsWords.of(context).text('transactions.debts_load_error'),
+          ),
         ),
         data: (items) => ListView(
           padding: AppSpacing.page,
           children: [
-            Text('Dettes', style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              TransactionsWords.of(context).text('transactions.debts'),
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: AppSpacing.sm),
             if (items.isEmpty)
-              const Card(child: ListTile(title: Text('Aucune dette ouverte'))),
+              Card(
+                child: ListTile(
+                  title: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.no_open_debt'),
+                  ),
+                ),
+              ),
             ...items.map(
               (debt) => Card(
                 child: ListTile(
@@ -1974,7 +2422,12 @@ class DebtsPage extends ConsumerWidget {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         spacing: AppSpacing.sm,
                         children: [
-                          Text(debt.creditorName ?? 'Créancier non renseigné'),
+                          Text(
+                            debt.creditorName ??
+                                TransactionsWords.of(
+                                  context,
+                                ).text('transactions.creditor_unknown'),
+                          ),
                           _StatusBadge(
                             label: _displayObligationStatus(
                               settled: debt.settledAmount,
@@ -1990,19 +2443,27 @@ class DebtsPage extends ConsumerWidget {
                         runSpacing: AppSpacing.xs,
                         children: [
                           _AmountIndicator(
-                            label: 'Initial',
+                            label: TransactionsWords.of(
+                              context,
+                            ).text('transactions.amount.initial'),
                             amount: debt.initialAmount,
                           ),
                           _AmountIndicator(
-                            label: 'Réglé',
+                            label: TransactionsWords.of(
+                              context,
+                            ).text('transactions.amount.settled'),
                             amount: debt.settledAmount,
                           ),
                           _AmountIndicator(
-                            label: 'Abandonné',
+                            label: TransactionsWords.of(
+                              context,
+                            ).text('transactions.amount.written_off'),
                             amount: debt.writtenOffAmount,
                           ),
                           _AmountIndicator(
-                            label: 'Restant',
+                            label: TransactionsWords.of(
+                              context,
+                            ).text('transactions.amount.remaining'),
                             amount: debt.remainingAmount,
                             prominent: true,
                           ),
@@ -2013,7 +2474,11 @@ class DebtsPage extends ConsumerWidget {
                         child: TextButton.icon(
                           onPressed: () => _openDebtHistory(context, ref, debt),
                           icon: const Icon(Icons.history_outlined),
-                          label: const Text('Historique'),
+                          label: Text(
+                            TransactionsWords.of(
+                              context,
+                            ).text('transactions.history'),
+                          ),
                         ),
                       ),
                     ],
@@ -2029,8 +2494,10 @@ class DebtsPage extends ConsumerWidget {
                                 child: OutlinedButton(
                                   onPressed: () =>
                                       _openDebtWriteoff(context, ref, debt),
-                                  child: const Text(
-                                    'Abandonner',
+                                  child: Text(
+                                    TransactionsWords.of(
+                                      context,
+                                    ).text('transactions.write_off'),
                                     softWrap: false,
                                     overflow: TextOverflow.visible,
                                   ),
@@ -2047,7 +2514,12 @@ class DebtsPage extends ConsumerWidget {
                                           accounts.requireValue,
                                         )
                                       : null,
-                                  child: const Text('Régler', softWrap: false),
+                                  child: Text(
+                                    TransactionsWords.of(
+                                      context,
+                                    ).text('transactions.settle'),
+                                    softWrap: false,
+                                  ),
                                 ),
                               ),
                             ],
@@ -2079,7 +2551,11 @@ class DebtsPage extends ConsumerWidget {
       ref.invalidate(remoteAccountsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Règlement de dette enregistré.')),
+          SnackBar(
+            content: Text(
+              TransactionsWords.of(context).text('transactions.debt_paid'),
+            ),
+          ),
         );
       }
     }
@@ -2105,7 +2581,13 @@ class DebtsPage extends ConsumerWidget {
       ref.invalidate(remoteTransactionsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Abandon de dette enregistré.')),
+          SnackBar(
+            content: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.debt_written_off'),
+            ),
+          ),
         );
       }
     }
@@ -2154,9 +2636,15 @@ class ReceivablesPage extends ConsumerWidget {
       ref.invalidate(remoteTransactionsProvider);
       ref.invalidate(eligibleRecoverySourcesProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Créance enregistrée.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.receivable_created'),
+            ),
+          ),
+        );
         if (returnAfterCreate) {
           Navigator.of(context).pop(true);
         }
@@ -2188,7 +2676,13 @@ class ReceivablesPage extends ConsumerWidget {
       ref.invalidate(remoteEnvelopeHistoryProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Encaissement de créance enregistré.')),
+          SnackBar(
+            content: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.receivable_collected'),
+            ),
+          ),
         );
       }
     }
@@ -2200,19 +2694,38 @@ class ReceivablesPage extends ConsumerWidget {
     final accounts = ref.watch(remoteAccountsProvider);
     final envelopes = ref.watch(remoteEnvelopeBalancesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Créances')),
+      appBar: AppBar(
+        title: Text(
+          TransactionsWords.of(context).text('transactions.receivables'),
+        ),
+      ),
       body: receivables.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(
-          child: Text('Impossible de charger les créances pour le moment.'),
+        loading: () => Center(child: CircularProgressIndicator()),
+        error: (_, _) => Center(
+          child: Text(
+            TransactionsWords.of(
+              context,
+            ).text('transactions.receivables_load_error'),
+          ),
         ),
         data: (items) => ListView(
           padding: AppSpacing.page,
           children: [
-            Text('Créances', style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              TransactionsWords.of(context).text('transactions.receivables'),
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: AppSpacing.sm),
             if (items.isEmpty)
-              const Card(child: ListTile(title: Text('Aucune créance'))),
+              Card(
+                child: ListTile(
+                  title: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.no_receivable'),
+                  ),
+                ),
+              ),
             ...items.map(
               (item) => Card(
                 child: ListTile(
@@ -2226,7 +2739,8 @@ class ReceivablesPage extends ConsumerWidget {
                         spacing: AppSpacing.sm,
                         children: [
                           Text(
-                            '${item.displayKind} · ${item.counterpartyName ?? 'Contrepartie non renseignée'}',
+                            // i18n-dynamic-only
+                            '${item.displayKind} · ${item.counterpartyName ?? TransactionsWords.of(context).text('transactions.counterparty_unknown')}',
                           ),
                           _StatusBadge(
                             label: _displayObligationStatus(
@@ -2244,19 +2758,27 @@ class ReceivablesPage extends ConsumerWidget {
                         runSpacing: AppSpacing.xs,
                         children: [
                           _AmountIndicator(
-                            label: 'Initial',
+                            label: TransactionsWords.of(
+                              context,
+                            ).text('transactions.amount.initial'),
                             amount: item.initialAmount,
                           ),
                           _AmountIndicator(
-                            label: 'Encaissé',
+                            label: TransactionsWords.of(
+                              context,
+                            ).text('transactions.amount.collected'),
                             amount: item.settledAmount,
                           ),
                           _AmountIndicator(
-                            label: 'Abandonné',
+                            label: TransactionsWords.of(
+                              context,
+                            ).text('transactions.amount.written_off'),
                             amount: item.writtenOffAmount,
                           ),
                           _AmountIndicator(
-                            label: 'Restant',
+                            label: TransactionsWords.of(
+                              context,
+                            ).text('transactions.amount.remaining'),
                             amount: item.remainingAmount,
                             prominent: true,
                           ),
@@ -2267,7 +2789,11 @@ class ReceivablesPage extends ConsumerWidget {
                         child: TextButton.icon(
                           onPressed: () => _openHistory(context, ref, item),
                           icon: const Icon(Icons.history_outlined),
-                          label: const Text('Historique'),
+                          label: Text(
+                            TransactionsWords.of(
+                              context,
+                            ).text('transactions.history'),
+                          ),
                         ),
                       ),
                     ],
@@ -2284,8 +2810,10 @@ class ReceivablesPage extends ConsumerWidget {
                                 child: OutlinedButton(
                                   onPressed: () =>
                                       _openWriteoff(context, ref, item),
-                                  child: const Text(
-                                    'Abandonner',
+                                  child: Text(
+                                    TransactionsWords.of(
+                                      context,
+                                    ).text('transactions.write_off'),
                                     softWrap: false,
                                     overflow: TextOverflow.visible,
                                   ),
@@ -2307,8 +2835,10 @@ class ReceivablesPage extends ConsumerWidget {
                                         .toList(growable: false),
                                     envelopes.valueOrNull ?? const [],
                                   ),
-                                  child: const Text(
-                                    'Encaisser',
+                                  child: Text(
+                                    TransactionsWords.of(
+                                      context,
+                                    ).text('transactions.collect'),
                                     softWrap: false,
                                   ),
                                 ),
@@ -2326,7 +2856,9 @@ class ReceivablesPage extends ConsumerWidget {
         key: const Key('new-receivable-button'),
         onPressed: () => _openNewReceivable(context, ref),
         icon: const Icon(Icons.add),
-        label: const Text('Nouvelle créance'),
+        label: Text(
+          TransactionsWords.of(context).text('transactions.create_receivable'),
+        ),
       ),
     );
   }
@@ -2354,7 +2886,13 @@ class ReceivablesPage extends ConsumerWidget {
       ref.invalidate(eligibleRecoverySourcesProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Abandon de créance enregistré.')),
+          SnackBar(
+            content: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.receivable_written_off'),
+            ),
+          ),
         );
       }
     }
@@ -2392,20 +2930,22 @@ String _displayObligationStatus({
 }) {
   final hasSettled = settled.minorUnits > 0;
   final hasWrittenOff = writtenOff.minorUnits > 0;
-  final settlementLabel = isReceivable ? 'encaissée' : 'réglée';
+  final settlementKey = isReceivable
+      ? 'transactions.status.collected_feminine'
+      : 'transactions.status.settled_feminine';
 
   if (remaining.minorUnits <= 0) {
-    if (hasSettled && hasWrittenOff) return 'Clôturée — mixte';
-    if (hasSettled) return 'Soldée';
-    if (hasWrittenOff) return 'Abandonnée';
+    if (hasSettled && hasWrittenOff) return 'transactions.status.mixed_closed';
+    if (hasSettled) return 'transactions.status.settled';
+    if (hasWrittenOff) return 'transactions.status.written_off';
   }
 
   if (hasSettled && hasWrittenOff) {
-    return 'Partiellement $settlementLabel et abandonnée';
+    return 'transactions.status.partially_mixed|$settlementKey';
   }
-  if (hasWrittenOff) return 'Partiellement abandonnée';
-  if (hasSettled) return 'Partiellement $settlementLabel';
-  return 'Ouverte';
+  if (hasWrittenOff) return 'transactions.status.partially_written_off';
+  if (hasSettled) return 'transactions.status.partially_settled|$settlementKey';
+  return 'transactions.status.open';
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -2415,10 +2955,16 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final parts = label.split('|');
+    final labelText = parts.length == 1
+        ? TransactionsWords.of(context).text(parts.first)
+        : TransactionsWords.of(context).format(parts.first, {
+            'settlement': TransactionsWords.of(context).text(parts.last),
+          });
     final complete =
-        label == 'Soldée' ||
-        label == 'Abandonnée' ||
-        label == 'Clôturée — mixte';
+        parts.first == 'transactions.status.settled' ||
+        parts.first == 'transactions.status.written_off' ||
+        parts.first == 'transactions.status.mixed_closed';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -2427,7 +2973,7 @@ class _StatusBadge extends StatelessWidget {
             : colors.secondaryContainer,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(label, style: Theme.of(context).textTheme.labelSmall),
+      child: Text(labelText, style: Theme.of(context).textTheme.labelSmall),
     );
   }
 }
@@ -2449,6 +2995,7 @@ class _AmountIndicator extends StatelessWidget {
     children: [
       Text(label, style: Theme.of(context).textTheme.labelSmall),
       Text(
+        // i18n-dynamic-only
         '${_formatCents(amount.minorUnits)} MAD',
         style: prominent
             ? Theme.of(
@@ -2467,7 +3014,9 @@ class _ReceivableCreationChoiceDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Nouvelle créance'),
+    title: Text(
+      TransactionsWords.of(context).text('transactions.new_receivable'),
+    ),
     content: SizedBox(
       width: 460,
       child: Column(
@@ -2476,9 +3025,15 @@ class _ReceivableCreationChoiceDialog extends StatelessWidget {
           ListTile(
             key: const Key('income-receivable-choice'),
             leading: const Icon(Icons.schedule_outlined),
-            title: const Text('Revenu à encaisser'),
-            subtitle: const Text(
-              'Un revenu déjà acquis mais qui sera encaissé plus tard.',
+            title: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.type.income_receivable'),
+            ),
+            subtitle: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.income_receivable_hint'),
             ),
             onTap: () =>
                 Navigator.of(context).pop(_ReceivableCreationKind.income),
@@ -2487,9 +3042,15 @@ class _ReceivableCreationChoiceDialog extends StatelessWidget {
           ListTile(
             key: const Key('recovery-receivable-choice'),
             leading: const Icon(Icons.replay_outlined),
-            title: const Text('Remboursement à récupérer'),
-            subtitle: const Text(
-              'Une dépense déjà payée qui doit vous être remboursée.',
+            title: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.repayment_to_recover'),
+            ),
+            subtitle: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.recovery_receivable_hint'),
             ),
             onTap: () =>
                 Navigator.of(context).pop(_ReceivableCreationKind.recovery),
@@ -2500,7 +3061,7 @@ class _ReceivableCreationChoiceDialog extends StatelessWidget {
     actions: [
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
+        child: Text(TransactionsWords.of(context).text('transactions.cancel')),
       ),
     ],
   );
@@ -2547,8 +3108,10 @@ abstract class _ReceivableDialogState<T extends ConsumerStatefulWidget>
     icon: const Icon(Icons.calendar_today_outlined, size: 18),
     label: Text(
       dueAt == null
-          ? 'Échéance (optionnelle)'
-          : 'Échéance : ${_formatDate(dueAt!)}',
+          ? TransactionsWords.of(context).text('transactions.due_optional')
+          : TransactionsWords.of(
+              context,
+            ).format('transactions.due_value', {'value': _formatDate(dueAt!)}),
     ),
   );
 
@@ -2558,29 +3121,35 @@ abstract class _ReceivableDialogState<T extends ConsumerStatefulWidget>
       TextFormField(
         key: const Key('receivable-description-field'),
         controller: description,
-        decoration: fieldDecoration('Libellé *'),
+        decoration: fieldDecoration(
+          TransactionsWords.of(context).text('transactions.label_required'),
+        ),
         validator: (value) => value?.trim().isEmpty ?? true
-            ? 'Le libellé est obligatoire.'
+            ? TransactionsWords.of(context).text('transactions.label_empty')
             : null,
       ),
       const SizedBox(height: AppSpacing.sm),
       TextFormField(
         key: const Key('receivable-amount-field'),
         controller: amount,
-        decoration: fieldDecoration('Montant (MAD) *'),
+        decoration: fieldDecoration(
+          TransactionsWords.of(context).text('transactions.amount_required'),
+        ),
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         onChanged: onAmountChanged,
         validator: (value) => (_madToCents(value ?? '') ?? 0) <= 0
-            ? 'Saisissez un montant positif.'
+            ? TransactionsWords.of(context).text('transactions.amount_invalid')
             : null,
       ),
       const SizedBox(height: AppSpacing.sm),
       TextFormField(
         key: const Key('receivable-debtor-field'),
         controller: debtor,
-        decoration: fieldDecoration('Débiteur *'),
+        decoration: fieldDecoration(
+          TransactionsWords.of(context).text('transactions.debtor_required'),
+        ),
         validator: (value) => value?.trim().isEmpty ?? true
-            ? 'Le débiteur est obligatoire.'
+            ? TransactionsWords.of(context).text('transactions.debtor_missing')
             : null,
       ),
       const SizedBox(height: AppSpacing.sm),
@@ -2589,7 +3158,9 @@ abstract class _ReceivableDialogState<T extends ConsumerStatefulWidget>
       TextFormField(
         key: const Key('receivable-notes-field'),
         controller: notes,
-        decoration: fieldDecoration('Notes'),
+        decoration: fieldDecoration(
+          TransactionsWords.of(context).text('transactions.notes'),
+        ),
         maxLines: 2,
       ),
     ],
@@ -2627,12 +3198,17 @@ class _IncomeReceivableDialogState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => _ReceivableConfirmationDialog(
-        title: 'Créer une créance',
-        type: 'Revenu à encaisser',
+        title: TransactionsWords.of(
+          context,
+        ).text('transactions.create_receivable_confirmation'),
+        type: TransactionsWords.of(
+          context,
+        ).text('transactions.income_to_collect'),
         debtor: debtor.text.trim(),
         amount: Money.fromMinorUnits(cents),
-        detail:
-            'Aucun encaissement n’est effectué maintenant. Le revenu est reconnu et la créance sera encaissée ultérieurement.',
+        detail: TransactionsWords.of(
+          context,
+        ).text('transactions.income_receivable_confirmation'),
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -2655,7 +3231,9 @@ class _IncomeReceivableDialogState
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (exception) {
-      if (mounted) setState(() => error = _financialErrorMessage(exception));
+      if (mounted) {
+        setState(() => error = _financialErrorMessage(context, exception));
+      }
     } finally {
       if (mounted) setState(() => submitting = false);
     }
@@ -2663,7 +3241,9 @@ class _IncomeReceivableDialogState
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Revenu à encaisser'),
+    title: Text(
+      TransactionsWords.of(context).text('transactions.type.income_receivable'),
+    ),
     content: SizedBox(
       width: 500,
       child: SingleChildScrollView(
@@ -2673,8 +3253,10 @@ class _IncomeReceivableDialogState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Créez le revenu acquis sans créditer de compte maintenant.',
+              Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.income_receivable_form_hint'),
               ),
               const SizedBox(height: AppSpacing.md),
               standardFields(),
@@ -2687,12 +3269,18 @@ class _IncomeReceivableDialogState
     actions: [
       TextButton(
         onPressed: submitting ? null : () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
+        child: Text(TransactionsWords.of(context).text('transactions.cancel')),
       ),
       FilledButton(
         key: const Key('create-income-receivable-button'),
         onPressed: submitting ? null : _submit,
-        child: Text(submitting ? 'Création…' : 'Créer la créance'),
+        child: Text(
+          submitting
+              ? TransactionsWords.of(context).text('transactions.creating')
+              : TransactionsWords.of(
+                  context,
+                ).text('transactions.create_receivable'),
+        ),
       ),
     ],
   );
@@ -2724,28 +3312,38 @@ class _RecoveryReceivableDialogState
     if (submitting || !formKey.currentState!.validate()) return;
     final cents = parsedAmount;
     if (source == null) {
-      setState(() => error = 'Choisissez une dépense source.');
+      setState(
+        () => error = TransactionsWords.of(
+          context,
+        ).text('transactions.recovery.choose_source'),
+      );
       return;
     }
     if (cents == null ||
         cents <= 0 ||
         cents > source!.maximumAmount.minorUnits) {
       setState(
-        () => error =
-            'Le montant dépasse le maximum récupérable pour cette dépense.',
+        () => error = TransactionsWords.of(
+          context,
+        ).text('transactions.recovery.maximum_error'),
       );
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => _ReceivableConfirmationDialog(
-        title: 'Créer un remboursement à récupérer',
-        type: 'Remboursement à récupérer',
+        title: TransactionsWords.of(
+          context,
+        ).text('transactions.recovery.create_title'),
+        type: TransactionsWords.of(
+          context,
+        ).text('transactions.repayment_to_recover'),
         debtor: debtor.text.trim(),
         amount: Money.fromMinorUnits(cents),
         sourceDescription: source!.description,
-        detail:
-            'Aucun revenu supplémentaire n’est reconnu et aucun compte n’est crédité maintenant.',
+        detail: TransactionsWords.of(
+          context,
+        ).text('transactions.recovery.confirmation'),
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -2771,7 +3369,9 @@ class _RecoveryReceivableDialogState
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (exception) {
-      if (mounted) setState(() => error = _financialErrorMessage(exception));
+      if (mounted) {
+        setState(() => error = _financialErrorMessage(context, exception));
+      }
     } finally {
       if (mounted) setState(() => submitting = false);
     }
@@ -2781,7 +3381,9 @@ class _RecoveryReceivableDialogState
   Widget build(BuildContext context) {
     final sources = ref.watch(eligibleRecoverySourcesProvider);
     return AlertDialog(
-      title: const Text('Remboursement à récupérer'),
+      title: Text(
+        TransactionsWords.of(context).text('transactions.type.recovery'),
+      ),
       content: SizedBox(
         width: 500,
         child: SingleChildScrollView(
@@ -2796,20 +3398,28 @@ class _RecoveryReceivableDialogState
                     padding: EdgeInsets.all(AppSpacing.sm),
                     child: Center(child: CircularProgressIndicator()),
                   ),
-                  error: (_, _) => const Text(
-                    'Impossible de charger les dépenses éligibles.',
+                  error: (_, _) => Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.eligible_expenses_error'),
                   ),
                   data: (items) =>
                       DropdownButtonFormField<RecoveryExpenseSource>(
                         key: const Key('recovery-source-field'),
                         isExpanded: true,
                         initialValue: source,
-                        decoration: fieldDecoration('Dépense à rembourser *'),
+                        decoration: fieldDecoration(
+                          TransactionsWords.of(
+                            context,
+                          ).text('transactions.expense_to_refund_required'),
+                        ),
                         items: items
                             .map(
                               (item) => DropdownMenuItem(
                                 value: item,
-                                child: Text(_recoverySourceLabel(item)),
+                                child: Text(
+                                  _recoverySourceLabel(context, item),
+                                ),
                               ),
                             )
                             .toList(growable: false),
@@ -2817,22 +3427,33 @@ class _RecoveryReceivableDialogState
                             ? null
                             : (value) => setState(() => source = value),
                         validator: (value) => value == null
-                            ? 'Choisissez une dépense source.'
+                            ? TransactionsWords.of(
+                                context,
+                              ).text('transactions.recovery.choose_source')
                             : null,
                       ),
                 ),
                 if (source != null) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Montant dépense source : ${_formatFrenchMoney(source!.sourceAmount)}',
+                    TransactionsWords.of(context).format(
+                      'transactions.recovery.source_amount',
+                      {'value': _formatFrenchMoney(source!.sourceAmount)},
+                    ),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   Text(
-                    'Déjà engagé : ${_formatFrenchMoney(source!.committedAmount)}',
+                    TransactionsWords.of(context).format(
+                      'transactions.recovery.committed_amount',
+                      {'value': _formatFrenchMoney(source!.committedAmount)},
+                    ),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   Text(
-                    'Maximum récupérable : ${_formatFrenchMoney(source!.maximumAmount)}',
+                    TransactionsWords.of(context).format(
+                      'transactions.recovery.maximum_amount',
+                      {'value': _formatFrenchMoney(source!.maximumAmount)},
+                    ),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -2842,7 +3463,9 @@ class _RecoveryReceivableDialogState
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.sm),
                     child: Text(
-                      'Le montant dépasse le maximum récupérable pour cette dépense.',
+                      TransactionsWords.of(
+                        context,
+                      ).text('transactions.recovery.maximum_error'),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -2857,12 +3480,20 @@ class _RecoveryReceivableDialogState
       actions: [
         TextButton(
           onPressed: submitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
+          child: Text(
+            TransactionsWords.of(context).text('transactions.cancel'),
+          ),
         ),
         FilledButton(
           key: const Key('create-recovery-receivable-button'),
           onPressed: submitting || _amountExceedsMaximum ? null : _submit,
-          child: Text(submitting ? 'Création…' : 'Créer la créance'),
+          child: Text(
+            submitting
+                ? TransactionsWords.of(context).text('transactions.creating')
+                : TransactionsWords.of(
+                    context,
+                  ).text('transactions.create_receivable'),
+          ),
         ),
       ],
     );
@@ -2895,15 +3526,32 @@ class _ReceivableConfirmationDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Type : $type'),
+          Text(
+            TransactionsWords.of(
+              context,
+            ).format('transactions.detail.type', {'value': type}),
+          ),
           if (sourceDescription != null) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text('Dépense source : $sourceDescription'),
+            Text(
+              TransactionsWords.of(context).format(
+                'transactions.detail.source_expense',
+                {'value': sourceDescription!},
+              ),
+            ),
           ],
           const SizedBox(height: AppSpacing.xs),
-          Text('Débiteur : $debtor'),
+          Text(
+            TransactionsWords.of(
+              context,
+            ).format('transactions.detail.debtor', {'value': debtor}),
+          ),
           const SizedBox(height: AppSpacing.xs),
-          Text('Montant : ${_formatFrenchMoney(amount)}'),
+          Text(
+            TransactionsWords.of(context).format('transactions.detail.amount', {
+              'value': _formatFrenchMoney(amount),
+            }),
+          ),
           const SizedBox(height: AppSpacing.md),
           Text(detail),
         ],
@@ -2912,11 +3560,13 @@ class _ReceivableConfirmationDialog extends StatelessWidget {
     actions: [
       TextButton(
         onPressed: () => Navigator.of(context).pop(false),
-        child: const Text('Annuler'),
+        child: Text(TransactionsWords.of(context).text('transactions.cancel')),
       ),
       FilledButton(
         onPressed: () => Navigator.of(context).pop(true),
-        child: const Text('Créer la créance'),
+        child: Text(
+          TransactionsWords.of(context).text('transactions.create_receivable'),
+        ),
       ),
     ],
   );
@@ -2941,12 +3591,16 @@ class _SettlementHistoryDialog extends ConsumerWidget {
       obligationSettlementHistoryProvider(obligationId),
     );
     return AlertDialog(
-      title: const Text('Historique'),
+      title: Text(TransactionsWords.of(context).text('transactions.history')),
       content: SizedBox(
         width: 620,
         child: history.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => const Text('Impossible de charger l’historique.'),
+          loading: () => Center(child: CircularProgressIndicator()),
+          error: (_, _) => Text(
+            TransactionsWords.of(
+              context,
+            ).text('transactions.history_load_error'),
+          ),
           data: (historyItems) => SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2966,14 +3620,24 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                           ),
                           Text(
                             kind == _SettlementHistoryKind.debt
-                                ? 'Création de la dette'
+                                ? TransactionsWords.of(
+                                    context,
+                                  ).text('transactions.detail.created_debt')
                                 : kind == _SettlementHistoryKind.recovery
-                                ? 'Création du remboursement à récupérer'
-                                : 'Création de la créance',
+                                ? TransactionsWords.of(
+                                    context,
+                                  ).text('transactions.detail.created_recovery')
+                                : TransactionsWords.of(context).text(
+                                    'transactions.detail.created_receivable',
+                                  ),
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           Text(
-                            'Effectué${kind == _SettlementHistoryKind.debt ? '' : 'e'} par : ${historyItems.creation!.actor.displayName}',
+                            TransactionsWords.of(
+                              context,
+                            ).format('transactions.detail.created_by', {
+                              'value': historyItems.creation!.actor.displayName,
+                            }),
                           ),
                         ],
                       ),
@@ -2983,8 +3647,10 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                 ],
                 if (historyItems.settlements.isEmpty &&
                     historyItems.writeoffs.isEmpty)
-                  const Text(
-                    'Aucun règlement, encaissement ou abandon enregistré.',
+                  Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.detail.no_settlement'),
                   ),
                 for (final item in historyItems.settlements) ...[
                   Card(
@@ -2995,25 +3661,50 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                         children: [
                           Text(_formatDateTime(item.recordedAt)),
                           Text(
-                            '${kind == _SettlementHistoryKind.debt ? 'Règlement' : 'Encaissement'} : ${_formatFrenchMoney(item.grossAmount)}',
+                            TransactionsWords.of(context).format(
+                              kind == _SettlementHistoryKind.debt
+                                  ? 'transactions.detail.settlement'
+                                  : 'transactions.detail.collection',
+                              {'value': _formatFrenchMoney(item.grossAmount)},
+                            ),
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           if (item.accountName != null)
-                            Text('Compte : ${item.accountName}'),
-                          Text('Effectué par : ${item.actor.displayName}'),
+                            Text(
+                              TransactionsWords.of(context).format(
+                                'transactions.detail.account',
+                                {'value': item.accountName!},
+                              ),
+                            ),
+                          Text(
+                            TransactionsWords.of(context).format(
+                              'transactions.detail.performed_by',
+                              {'value': item.actor.displayName},
+                            ),
+                          ),
                           if (item.envelopeMovements.isNotEmpty)
                             for (final movement in item.envelopeMovements)
                               Text(
+                                // i18n-dynamic-only
                                 '${movement.envelopeName} +${_formatFrenchMoney(movement.amount)}',
                               ),
                           Text(
-                            'Déjà annulé : ${_formatFrenchMoney(item.reversedAmount)} • Net : ${_formatFrenchMoney(item.netAmount)}',
+                            TransactionsWords.of(
+                              context,
+                            ).format('transactions.reversal.already_net', {
+                              'reversed': _formatFrenchMoney(
+                                item.reversedAmount,
+                              ),
+                              'net': _formatFrenchMoney(item.netAmount),
+                            }),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           if (kind == _SettlementHistoryKind.recovery &&
                               item.reversibleAmount.minorUnits > 0)
                             Text(
-                              'La contrepassation peut rendre l’enveloppe source négative si ses fonds ont déjà été consommés.',
+                              TransactionsWords.of(context).text(
+                                'transactions.reversal.recovery_negative_warning',
+                              ),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           if (item.reversibleAmount.minorUnits > 0)
@@ -3027,7 +3718,11 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                                     item,
                                     isFull: false,
                                   ),
-                                  child: const Text('Corriger'),
+                                  child: Text(
+                                    TransactionsWords.of(
+                                      context,
+                                    ).text('transactions.correct'),
+                                  ),
                                 ),
                                 FilledButton(
                                   onPressed: () => _openReversal(
@@ -3036,7 +3731,11 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                                     item,
                                     isFull: true,
                                   ),
-                                  child: const Text('Annuler'),
+                                  child: Text(
+                                    TransactionsWords.of(
+                                      context,
+                                    ).text('transactions.cancel'),
+                                  ),
                                 ),
                               ],
                             ),
@@ -3054,29 +3753,54 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              kind == _SettlementHistoryKind.debt
-                                  ? 'Correction du règlement'
-                                  : 'Correction de l’encaissement',
+                              TransactionsWords.of(context).text(
+                                kind == _SettlementHistoryKind.debt
+                                    ? 'transactions.detail.corrected_settlement'
+                                    : 'transactions.detail.corrected_collection',
+                              ),
                               style: Theme.of(context).textTheme.titleSmall,
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Text(_formatDateTime(reversal.recordedAt)),
                             Text(
-                              'Montant annulé : ${_formatFrenchMoney(reversal.amount)}',
+                              TransactionsWords.of(context).format(
+                                'transactions.reversal.amount',
+                                {'value': _formatFrenchMoney(reversal.amount)},
+                              ),
                             ),
                             Text(
-                              'Effectuée par : ${reversal.actor.displayName}',
+                              TransactionsWords.of(context).format(
+                                'transactions.detail.corrected_by',
+                                {'value': reversal.actor.displayName},
+                              ),
                             ),
                             for (final movement in reversal.envelopeMovements)
                               Text(
+                                // i18n-dynamic-only
                                 '${movement.envelopeName} -${_formatFrenchMoney(movement.amount)}',
                               ),
-                            Text('Motif : ${reversal.reason}'),
+                            Text(
+                              TransactionsWords.of(context).format(
+                                'transactions.detail.reason',
+                                {'value': reversal.reason},
+                              ),
+                            ),
                             if (reversal.notes != null &&
                                 reversal.notes!.trim().isNotEmpty)
-                              Text('Notes : ${reversal.notes}'),
+                              Text(
+                                TransactionsWords.of(context).format(
+                                  'transactions.detail.notes',
+                                  {'value': reversal.notes!},
+                                ),
+                              ),
                             Text(
-                              'Net après correction : ${_formatFrenchMoney(reversal.netAmountAfter)}',
+                              TransactionsWords.of(
+                                context,
+                              ).format('transactions.reversal.net_after', {
+                                'value': _formatFrenchMoney(
+                                  reversal.netAmountAfter,
+                                ),
+                              }),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
@@ -3096,20 +3820,50 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                         children: [
                           Text(_formatDateTime(writeoff.recordedAt)),
                           Text(
-                            'Abandon',
+                            TransactionsWords.of(
+                              context,
+                            ).text('transactions.detail.writeoff'),
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           Text(
-                            'Montant abandonné : ${_formatFrenchMoney(writeoff.amount)}',
+                            TransactionsWords.of(context).format(
+                              'transactions.detail.written_off_amount',
+                              {'value': _formatFrenchMoney(writeoff.amount)},
+                            ),
                           ),
-                          Text('Effectué par : ${writeoff.actor.displayName}'),
-                          Text('Motif : ${writeoff.reason}'),
+                          Text(
+                            TransactionsWords.of(context).format(
+                              'transactions.detail.performed_by',
+                              {'value': writeoff.actor.displayName},
+                            ),
+                          ),
+                          Text(
+                            TransactionsWords.of(context).format(
+                              'transactions.detail.reason',
+                              {'value': writeoff.reason},
+                            ),
+                          ),
                           if (writeoff.notes != null &&
                               writeoff.notes!.trim().isNotEmpty)
-                            Text('Notes : ${writeoff.notes}'),
+                            Text(
+                              TransactionsWords.of(context).format(
+                                'transactions.detail.notes',
+                                {'value': writeoff.notes!},
+                              ),
+                            ),
                           if (writeoff.reversals.isNotEmpty)
                             Text(
-                              'Déjà annulé : ${_formatFrenchMoney(writeoff.reversedAmount)} • Encore annulable : ${_formatFrenchMoney(writeoff.reversibleAmount)}',
+                              TransactionsWords.of(context).format(
+                                'transactions.reversal.writeoff_balances',
+                                {
+                                  'reversed': _formatFrenchMoney(
+                                    writeoff.reversedAmount,
+                                  ),
+                                  'reversible': _formatFrenchMoney(
+                                    writeoff.reversibleAmount,
+                                  ),
+                                },
+                              ),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           if (writeoff.reversibleAmount.minorUnits > 0)
@@ -3124,7 +3878,11 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                                   ref,
                                   writeoff,
                                 ),
-                                child: const Text('Annuler l’abandon'),
+                                child: Text(
+                                  TransactionsWords.of(
+                                    context,
+                                  ).text('transactions.cancel_writeoff'),
+                                ),
                               ),
                             ),
                         ],
@@ -3141,21 +3899,39 @@ class _SettlementHistoryDialog extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Annulation de l’abandon',
+                              TransactionsWords.of(context).text(
+                                'transactions.reversal.writeoff_history_title',
+                              ),
                               style: Theme.of(context).textTheme.titleSmall,
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Text(_formatDateTime(reversal.recordedAt)),
                             Text(
-                              'Montant annulé : ${_formatFrenchMoney(reversal.amount)}',
+                              TransactionsWords.of(context).format(
+                                'transactions.reversal.amount',
+                                {'value': _formatFrenchMoney(reversal.amount)},
+                              ),
                             ),
                             Text(
-                              'Effectuée par : ${reversal.actor.displayName}',
+                              TransactionsWords.of(context).format(
+                                'transactions.detail.corrected_by',
+                                {'value': reversal.actor.displayName},
+                              ),
                             ),
-                            Text('Motif : ${reversal.reason}'),
+                            Text(
+                              TransactionsWords.of(context).format(
+                                'transactions.detail.reason',
+                                {'value': reversal.reason},
+                              ),
+                            ),
                             if (reversal.notes != null &&
                                 reversal.notes!.trim().isNotEmpty)
-                              Text('Notes : ${reversal.notes}'),
+                              Text(
+                                TransactionsWords.of(context).format(
+                                  'transactions.detail.notes',
+                                  {'value': reversal.notes!},
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -3171,7 +3947,7 @@ class _SettlementHistoryDialog extends ConsumerWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Fermer'),
+          child: Text(TransactionsWords.of(context).text('transactions.close')),
         ),
       ],
     );
@@ -3284,7 +4060,11 @@ class _SettlementReversalDialogState
     if (_amountCents <= 0 ||
         _amountCents > widget.item.reversibleAmount.minorUnits ||
         _reason.text.trim().isEmpty) {
-      setState(() => _error = 'Saisissez un montant réversible et un motif.');
+      setState(
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.reversal.input_error'),
+      );
       return;
     }
     final allocations = <FinancialEventAllocation>[];
@@ -3311,8 +4091,9 @@ class _SettlementReversalDialogState
       );
       if (total != _amountCents) {
         setState(
-          () => _error =
-              'La ventilation d’enveloppes doit être exactement égale au montant annulé.',
+          () => _error = TransactionsWords.of(
+            context,
+          ).text('transactions.reversal.allocation_exact_error'),
         );
         return;
       }
@@ -3357,7 +4138,9 @@ class _SettlementReversalDialogState
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
-      if (mounted) setState(() => _error = _financialErrorMessage(error));
+      if (mounted) {
+        setState(() => _error = _financialErrorMessage(context, error));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -3366,7 +4149,11 @@ class _SettlementReversalDialogState
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
-      widget.isFull ? 'Annuler le règlement' : 'Corriger le règlement',
+      TransactionsWords.of(context).text(
+        widget.isFull
+            ? 'transactions.reversal.cancel_settlement'
+            : 'transactions.reversal.correct_settlement',
+      ),
     ),
     content: SizedBox(
       width: 520,
@@ -3376,14 +4163,19 @@ class _SettlementReversalDialogState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Encore réversible : ${_formatFrenchMoney(widget.item.reversibleAmount)}',
+              TransactionsWords.of(context).format(
+                'transactions.reversal.reversible',
+                {'value': _formatFrenchMoney(widget.item.reversibleAmount)},
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             TextFormField(
               controller: _amount,
               enabled: !_submitting && !widget.isFull,
-              decoration: const InputDecoration(
-                labelText: 'Montant à annuler (MAD) *',
+              decoration: InputDecoration(
+                labelText: TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.amount_required'),
               ),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
@@ -3393,11 +4185,19 @@ class _SettlementReversalDialogState
             TextFormField(
               controller: _reason,
               enabled: !_submitting,
-              decoration: const InputDecoration(labelText: 'Motif *'),
+              decoration: InputDecoration(
+                labelText: TransactionsWords.of(
+                  context,
+                ).text('transactions.reason_required'),
+              ),
             ),
             if (widget.kind == _SettlementHistoryKind.income) ...[
               const SizedBox(height: AppSpacing.md),
-              const Text('Ventilation exacte à contrepasser'),
+              Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.exact_allocation'),
+              ),
               for (
                 var index = 0;
                 index < widget.item.envelopeMovements.length;
@@ -3411,8 +4211,12 @@ class _SettlementReversalDialogState
                     decoration: InputDecoration(
                       labelText:
                           '${widget.item.envelopeMovements[index].envelopeName} (MAD)',
-                      helperText:
-                          'Maximum : ${_formatFrenchMoney(widget.item.envelopeMovements[index].amount)}',
+                      helperText: TransactionsWords.of(context)
+                          .format('transactions.maximum', {
+                            'value': _formatFrenchMoney(
+                              widget.item.envelopeMovements[index].amount,
+                            ),
+                          }),
                     ),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
@@ -3422,18 +4226,26 @@ class _SettlementReversalDialogState
             ],
             if (widget.kind == _SettlementHistoryKind.recovery) ...[
               const SizedBox(height: AppSpacing.sm),
-              const Text(
-                'L’enveloppe source sera contrepassée du même montant.',
+              Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.recovery_envelope'),
               ),
-              const Text(
-                'Son solde peut devenir négatif si les fonds ont déjà été consommés.',
+              Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.negative_balance'),
               ),
             ],
             const SizedBox(height: AppSpacing.sm),
             TextFormField(
               controller: _notes,
               enabled: !_submitting,
-              decoration: const InputDecoration(labelText: 'Notes'),
+              decoration: InputDecoration(
+                labelText: TransactionsWords.of(
+                  context,
+                ).text('transactions.notes'),
+              ),
               maxLines: 2,
             ),
             if (_error != null) ...[
@@ -3450,7 +4262,7 @@ class _SettlementReversalDialogState
     actions: [
       TextButton(
         onPressed: _submitting ? null : () => Navigator.pop(context),
-        child: const Text('Annuler'),
+        child: Text(TransactionsWords.of(context).text('transactions.cancel')),
       ),
       FilledButton(
         onPressed: _submitting ? null : _submit,
@@ -3506,13 +4318,18 @@ class _WriteoffReversalDialogState
     if (amount.minorUnits <= 0 ||
         amount.minorUnits > widget.writeoff.reversibleAmount.minorUnits) {
       setState(
-        () => _error =
-            'Le montant doit être positif et ne pas dépasser le reliquat annulable.',
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.reversal.writeoff_limit_error'),
       );
       return;
     }
     if (_reason.text.trim().isEmpty) {
-      setState(() => _error = 'Le motif est obligatoire.');
+      setState(
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.reason_missing'),
+      );
       return;
     }
     setState(() {
@@ -3554,7 +4371,9 @@ class _WriteoffReversalDialogState
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
-      if (mounted) setState(() => _error = _financialErrorMessage(error));
+      if (mounted) {
+        setState(() => _error = _financialErrorMessage(context, error));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -3562,7 +4381,9 @@ class _WriteoffReversalDialogState
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Annuler l’abandon'),
+    title: Text(
+      TransactionsWords.of(context).text('transactions.cancel_writeoff'),
+    ),
     content: SizedBox(
       width: 500,
       child: SingleChildScrollView(
@@ -3571,14 +4392,23 @@ class _WriteoffReversalDialogState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Abandon concerné : ${_formatFrenchMoney(widget.writeoff.amount)}',
+              TransactionsWords.of(context).format(
+                'transactions.reversal.writeoff_affected',
+                {'value': _formatFrenchMoney(widget.writeoff.amount)},
+              ),
               style: Theme.of(context).textTheme.titleSmall,
             ),
             Text(
-              'Déjà annulé : ${_formatFrenchMoney(widget.writeoff.reversedAmount)}',
+              TransactionsWords.of(context).format(
+                'transactions.reversal.already',
+                {'value': _formatFrenchMoney(widget.writeoff.reversedAmount)},
+              ),
             ),
             Text(
-              'Encore annulable : ${_formatFrenchMoney(widget.writeoff.reversibleAmount)}',
+              TransactionsWords.of(context).format(
+                'transactions.reversal.still_possible',
+                {'value': _formatFrenchMoney(widget.writeoff.reversibleAmount)},
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             TextFormField(
@@ -3589,8 +4419,10 @@ class _WriteoffReversalDialogState
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Montant à annuler (MAD) *',
+              decoration: InputDecoration(
+                labelText: TransactionsWords.of(
+                  context,
+                ).text('transactions.reversal.amount_required'),
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -3598,14 +4430,22 @@ class _WriteoffReversalDialogState
               key: const Key('writeoff-reversal-reason-field'),
               controller: _reason,
               enabled: !_submitting,
-              decoration: const InputDecoration(labelText: 'Motif *'),
+              decoration: InputDecoration(
+                labelText: TransactionsWords.of(
+                  context,
+                ).text('transactions.reason_required'),
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             TextFormField(
               key: const Key('writeoff-reversal-notes-field'),
               controller: _notes,
               enabled: !_submitting,
-              decoration: const InputDecoration(labelText: 'Notes'),
+              decoration: InputDecoration(
+                labelText: TransactionsWords.of(
+                  context,
+                ).text('transactions.notes'),
+              ),
               maxLines: 2,
             ),
             if (_error != null) ...[
@@ -3622,12 +4462,16 @@ class _WriteoffReversalDialogState
     actions: [
       TextButton(
         onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
+        child: Text(TransactionsWords.of(context).text('transactions.cancel')),
       ),
       FilledButton(
         key: const Key('writeoff-reversal-submit-button'),
         onPressed: _submitting ? null : _submit,
-        child: Text(_submitting ? 'Validation…' : 'Valider'),
+        child: Text(
+          TransactionsWords.of(context).text(
+            _submitting ? 'transactions.validating' : 'transactions.validate',
+          ),
+        ),
       ),
     ],
   );
@@ -3684,32 +4528,53 @@ class _WriteoffDialogState extends ConsumerState<_WriteoffDialog> {
     if (amount.minorUnits <= 0 ||
         amount.minorUnits > widget.remaining.minorUnits) {
       setState(
-        () => _error =
-            'Le montant doit être positif et ne pas dépasser le restant.',
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.writeoff_limit_error'),
       );
       return;
     }
     if (_reason.text.trim().isEmpty) {
-      setState(() => _error = 'Le motif est obligatoire.');
+      setState(
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.reason_missing'),
+      );
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Confirmer l’abandon'),
+        title: Text(
+          TransactionsWords.of(context).text('transactions.confirm_writeoff'),
+        ),
         content: Text(
-          '${widget.description}\n\nMontant abandonné : ${_formatFrenchMoney(amount)}\n'
-          'Restant après abandon : ${_formatFrenchMoney(Money.fromMinorUnits(widget.remaining.minorUnits - amount.minorUnits))}\n\n'
-          'Aucun compte financier et aucune enveloppe ne seront mouvementés.',
+          TransactionsWords.of(
+            context,
+          ).format('transactions.writeoff_confirmation', {
+            'description': widget.description,
+            'amount': _formatFrenchMoney(amount),
+            'remaining': _formatFrenchMoney(
+              Money.fromMinorUnits(
+                widget.remaining.minorUnits - amount.minorUnits,
+              ),
+            ),
+          }),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            child: Text(
+              TransactionsWords.of(context).text('transactions.cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmer l’abandon'),
+            child: Text(
+              TransactionsWords.of(
+                context,
+              ).text('transactions.confirm_writeoff'),
+            ),
           ),
         ],
       ),
@@ -3757,7 +4622,9 @@ class _WriteoffDialogState extends ConsumerState<_WriteoffDialog> {
       }
       if (mounted) Navigator.pop(context, true);
     } catch (exception) {
-      if (mounted) setState(() => _error = _financialErrorMessage(exception));
+      if (mounted) {
+        setState(() => _error = _financialErrorMessage(context, exception));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -3767,8 +4634,18 @@ class _WriteoffDialogState extends ConsumerState<_WriteoffDialog> {
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
       _isRecovery
-          ? 'Abandonner un remboursement à récupérer'
-          : 'Abandonner une ${widget.kind == _WriteoffKind.debt ? 'dette' : 'créance'}',
+          ? TransactionsWords.of(
+              context,
+            ).text('transactions.writeoff_recovery_title')
+          : TransactionsWords.of(
+              context,
+            ).format('transactions.writeoff_title', {
+              'kind': TransactionsWords.of(context).text(
+                widget.kind == _WriteoffKind.debt
+                    ? 'transactions.debt_singular'
+                    : 'transactions.receivable_singular',
+              ),
+            }),
     ),
     content: SizedBox(
       width: 500,
@@ -3785,45 +4662,72 @@ class _WriteoffDialogState extends ConsumerState<_WriteoffDialog> {
               ),
               if (widget.counterparty != null)
                 Text(
-                  _isRecovery
-                      ? 'Débiteur : ${widget.counterparty}'
-                      : '${widget.kind == _WriteoffKind.debt ? 'Créancier' : 'Débiteur'} : ${widget.counterparty}',
+                  TransactionsWords.of(context).format(
+                    _isRecovery || widget.kind != _WriteoffKind.debt
+                        ? 'transactions.detail.debtor'
+                        : 'transactions.creditor_value',
+                    {'value': widget.counterparty!},
+                  ),
                 ),
-              Text('Restant : ${_formatFrenchMoney(widget.remaining)}'),
+              Text(
+                TransactionsWords.of(context).format('transactions.remaining', {
+                  'value': _formatFrenchMoney(widget.remaining),
+                }),
+              ),
               const SizedBox(height: AppSpacing.md),
               TextFormField(
                 controller: _amount,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Montant abandonné (MAD) *',
+                decoration: InputDecoration(
+                  labelText: TransactionsWords.of(
+                    context,
+                  ).text('transactions.writeoff_amount_required'),
                 ),
                 validator: (value) => (_madToCents(value ?? '') ?? 0) <= 0
-                    ? 'Saisissez un montant positif.'
+                    ? TransactionsWords.of(
+                        context,
+                      ).text('transactions.amount_invalid')
                     : null,
               ),
               const SizedBox(height: AppSpacing.sm),
               TextFormField(
                 controller: _reason,
-                decoration: const InputDecoration(labelText: 'Motif *'),
+                decoration: InputDecoration(
+                  labelText: TransactionsWords.of(
+                    context,
+                  ).text('transactions.reason_required'),
+                ),
                 validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Le motif est obligatoire.'
+                    ? TransactionsWords.of(
+                        context,
+                      ).text('transactions.reason_missing')
                     : null,
               ),
               const SizedBox(height: AppSpacing.sm),
               TextFormField(
                 controller: _notes,
-                decoration: const InputDecoration(labelText: 'Notes'),
+                decoration: InputDecoration(
+                  labelText: TransactionsWords.of(
+                    context,
+                  ).text('transactions.notes'),
+                ),
                 maxLines: 2,
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
                 _isRecovery
-                    ? 'Vous renoncez définitivement à récupérer ce montant. Aucun compte financier ne sera crédité et l’enveloppe source ne sera pas restaurée. Cet abandon ne permettra pas de créer un nouveau remboursement sur cette même part de dépense.'
+                    ? TransactionsWords.of(
+                        context,
+                      ).text('transactions.writeoff_recovery_warning')
                     : widget.kind == _WriteoffKind.debt
-                    ? 'Aucun paiement ne sera effectué. Aucun compte financier ni aucune enveloppe ne seront modifiés. Le montant abandonné réduira définitivement la dette restante.'
-                    : 'Aucun encaissement ne sera effectué. Aucun compte financier ne sera crédité et aucune enveloppe ne sera alimentée. Le montant sera définitivement passé en perte sur créance.',
+                    ? TransactionsWords.of(
+                        context,
+                      ).text('transactions.writeoff_debt_warning')
+                    : TransactionsWords.of(
+                        context,
+                      ).text('transactions.writeoff_receivable_warning'),
               ),
               if (_error != null)
                 Padding(
@@ -3843,11 +4747,15 @@ class _WriteoffDialogState extends ConsumerState<_WriteoffDialog> {
     actions: [
       TextButton(
         onPressed: _submitting ? null : () => Navigator.pop(context),
-        child: const Text('Annuler'),
+        child: Text(TransactionsWords.of(context).text('transactions.cancel')),
       ),
       FilledButton(
         onPressed: _submitting ? null : _submit,
-        child: Text(_submitting ? 'Validation…' : 'Abandonner'),
+        child: Text(
+          _submitting
+              ? TransactionsWords.of(context).text('transactions.validating')
+              : TransactionsWords.of(context).text('transactions.write_off'),
+        ),
       ),
     ],
   );
@@ -3951,20 +4859,29 @@ class _ReceivableSettlementDialogState
     final cents = _amountCents;
     if (cents <= 0 || cents > widget.receivable.remainingAmount.minorUnits) {
       setState(
-        () => _error =
-            'L’encaissement doit être positif et ne pas dépasser le restant.',
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.collection_limit_error'),
       );
       return;
     }
     if (_accountId == null) {
-      setState(() => _error = 'Choisissez un compte à créditer.');
+      setState(
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.choose_credit_account'),
+      );
       return;
     }
     if (!_allocationsAreValid) {
       setState(
         () => _error = _splitCents > cents
-            ? 'Le total affecté ne peut pas dépasser l’encaissement.'
-            : 'Chaque enveloppe ajoutée doit avoir un montant positif unique.',
+            ? TransactionsWords.of(
+                context,
+              ).text('transactions.collection_allocation_error')
+            : TransactionsWords.of(
+                context,
+              ).text('transactions.unique_allocation_error'),
       );
       return;
     }
@@ -4018,7 +4935,9 @@ class _ReceivableSettlementDialogState
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (exception) {
-      if (mounted) setState(() => _error = _financialErrorMessage(exception));
+      if (mounted) {
+        setState(() => _error = _financialErrorMessage(context, exception));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -4032,7 +4951,9 @@ class _ReceivableSettlementDialogState
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
     );
     return AlertDialog(
-      title: const Text('Encaisser une créance'),
+      title: Text(
+        TransactionsWords.of(context).text('transactions.collect_receivable'),
+      ),
       content: SizedBox(
         width: 500,
         child: SingleChildScrollView(
@@ -4048,24 +4969,42 @@ class _ReceivableSettlementDialogState
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Restant à encaisser : ${_formatFrenchMoney(widget.receivable.remainingAmount)}',
+                  TransactionsWords.of(
+                    context,
+                  ).format('transactions.remaining_to_collect', {
+                    'value': _formatFrenchMoney(
+                      widget.receivable.remainingAmount,
+                    ),
+                  }),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 TextFormField(
                   controller: _amount,
                   onChanged: (_) => setState(() {}),
-                  decoration: fieldDecoration('Montant encaissé (MAD) *'),
+                  decoration: fieldDecoration(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.collected_amount_required'),
+                  ),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
                   validator: (value) => (_madToCents(value ?? '') ?? 0) <= 0
-                      ? 'Saisissez un montant positif.'
+                      ? TransactionsWords.of(
+                          context,
+                        ).text('transactions.amount_invalid')
                       : null,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 _AccountSelector(
-                  label: 'Compte à créditer *',
-                  decoration: fieldDecoration('Compte à créditer *'),
+                  label: TransactionsWords.of(
+                    context,
+                  ).text('transactions.credit_account_required'),
+                  decoration: fieldDecoration(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.credit_account_required'),
+                  ),
                   accounts: widget.accounts,
                   value: _accountId,
                   onChanged: _submitting
@@ -4075,26 +5014,43 @@ class _ReceivableSettlementDialogState
                 if (!_isIncome && _recoverySourceEnvelopeName != null) ...[
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Remboursement de la dépense',
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.refund_expense'),
                     style: theme.textTheme.titleSmall,
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  Text('Enveloppe restaurée : $_recoverySourceEnvelopeName'),
                   Text(
-                    'Montant restauré : ${_formatFrenchMoney(Money.fromMinorUnits(_amountCents))}',
+                    TransactionsWords.of(context).format(
+                      'transactions.restored_envelope',
+                      {'value': _recoverySourceEnvelopeName!},
+                    ),
+                  ),
+                  Text(
+                    TransactionsWords.of(
+                      context,
+                    ).format('transactions.restored_amount', {
+                      'value': _formatFrenchMoney(
+                        Money.fromMinorUnits(_amountCents),
+                      ),
+                    }),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Le remboursement recréditera automatiquement cette enveloppe.',
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.refund_envelope_hint'),
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
                 if (_isIncome) ...[
                   const SizedBox(height: AppSpacing.md),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Répartition de l’encaissement',
+                      TransactionsWords.of(
+                        context,
+                      ).text('transactions.collection_allocation'),
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -4124,22 +5080,42 @@ class _ReceivableSettlementDialogState
                       key: const Key('add-receivable-envelope-row'),
                       onPressed: _submitting ? null : _addSplitRow,
                       icon: const Icon(Icons.add),
-                      label: const Text('Ajouter une enveloppe'),
+                      label: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.add_envelope'),
+                      ),
                     ),
                   ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Encaissement : ${_formatFrenchMoney(Money.fromMinorUnits(_amountCents))} • '
-                      'Affecté : ${_formatFrenchMoney(Money.fromMinorUnits(_splitCents))} • '
-                      'Reste à répartir : ${_formatFrenchMoney(Money.fromMinorUnits(_remainingCents))}',
+                      TransactionsWords.of(
+                        context,
+                      ).format('transactions.collection_summary', {
+                        'collected': _formatFrenchMoney(
+                          Money.fromMinorUnits(_amountCents),
+                        ),
+                        'allocated': _formatFrenchMoney(
+                          Money.fromMinorUnits(_splitCents),
+                        ),
+                        'remaining': _formatFrenchMoney(
+                          Money.fromMinorUnits(_remainingCents),
+                        ),
+                      }),
                     ),
                   ),
                   if (_remainingCents > 0)
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${_formatFrenchMoney(Money.fromMinorUnits(_remainingCents))} seront automatiquement affectés à « À répartir ».',
+                        TransactionsWords.of(
+                          context,
+                        ).format('transactions.auto_allocate_remaining', {
+                          'value': _formatFrenchMoney(
+                            Money.fromMinorUnits(_remainingCents),
+                          ),
+                        }),
                         style: theme.textTheme.bodySmall,
                       ),
                     ),
@@ -4147,7 +5123,9 @@ class _ReceivableSettlementDialogState
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Le total affecté ne peut pas dépasser l’encaissement.',
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.collection_allocation_error'),
                         style: TextStyle(color: theme.colorScheme.error),
                       ),
                     ),
@@ -4155,7 +5133,9 @@ class _ReceivableSettlementDialogState
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: _notes,
-                  decoration: fieldDecoration('Notes'),
+                  decoration: fieldDecoration(
+                    TransactionsWords.of(context).text('transactions.notes'),
+                  ),
                   maxLines: 2,
                 ),
                 if (_error != null) ...[
@@ -4173,7 +5153,9 @@ class _ReceivableSettlementDialogState
       actions: [
         TextButton(
           onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
+          child: Text(
+            TransactionsWords.of(context).text('transactions.cancel'),
+          ),
         ),
         FilledButton(
           onPressed:
@@ -4183,7 +5165,11 @@ class _ReceivableSettlementDialogState
                   !_allocationsAreValid
               ? null
               : _submit,
-          child: Text(_submitting ? 'Validation…' : 'Encaisser'),
+          child: Text(
+            _submitting
+                ? TransactionsWords.of(context).text('transactions.validating')
+                : TransactionsWords.of(context).text('transactions.collect'),
+          ),
         ),
       ],
     );
@@ -4220,7 +5206,11 @@ class _ReceivableSettlementConfirmationDialog extends StatelessWidget {
         )
         .name;
     return AlertDialog(
-      title: Text('Encaisser ${_formatFrenchMoney(amount)}'),
+      title: Text(
+        TransactionsWords.of(context).format('transactions.collect_amount', {
+          'value': _formatFrenchMoney(amount),
+        }),
+      ),
       content: SizedBox(
         width: 440,
         child: Column(
@@ -4228,55 +5218,92 @@ class _ReceivableSettlementConfirmationDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              recoveryEnvelopeName == null ? 'Compte :' : 'Compte crédité :',
+              TransactionsWords.of(context).text(
+                recoveryEnvelopeName == null
+                    ? 'transactions.account_label'
+                    : 'transactions.credited_account_label',
+              ),
             ),
             Text(accountName, style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: AppSpacing.md),
             if (recoveryEnvelopeName != null) ...[
-              const Text('Enveloppe restaurée :'),
+              Text(
+                TransactionsWords.of(
+                  context,
+                ).text('transactions.restored_envelope_label'),
+              ),
               Text(
                 recoveryEnvelopeName!,
                 style: Theme.of(context).textTheme.titleSmall,
               ),
-              Text('Montant restauré : ${_formatFrenchMoney(amount)}'),
+              Text(
+                TransactionsWords.of(context).format(
+                  'transactions.restored_amount',
+                  {'value': _formatFrenchMoney(amount)},
+                ),
+              ),
             ] else ...[
-              const Text('Répartition :'),
+              Text(
+                TransactionsWords.of(context).text('transactions.allocation'),
+              ),
               for (final allocation in allocations)
                 Text(
+                  // i18n-dynamic-only
                   '→ ${envelopeName(allocation.envelopeId)} : '
                   '${_formatFrenchMoney(Money.fromDirhams(allocation.amount))}',
                 ),
               if (remainder.minorUnits > 0)
-                Text('→ À répartir : ${_formatFrenchMoney(remainder)}'),
+                Text(
+                  TransactionsWords.of(context).format(
+                    'transactions.to_allocate',
+                    {'value': _formatFrenchMoney(remainder)},
+                  ),
+                ),
             ],
             const SizedBox(height: AppSpacing.md),
-            const Text('Aucun nouveau revenu ne sera créé.'),
+            Text(
+              TransactionsWords.of(context).text('transactions.no_new_income'),
+            ),
           ],
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Annuler'),
+          child: Text(
+            TransactionsWords.of(context).text('transactions.cancel'),
+          ),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Encaisser'),
+          child: Text(
+            TransactionsWords.of(context).text('transactions.collect'),
+          ),
         ),
       ],
     );
   }
 }
 
-String _recoverySourceLabel(RecoveryExpenseSource source) {
+String _recoverySourceLabel(
+  BuildContext context,
+  RecoveryExpenseSource source,
+) {
   final envelope = source.envelopeName == null
       ? ''
       : ' • ${source.envelopeName}';
   final account = source.accountName == null ? '' : ' • ${source.accountName}';
-  return '${source.description} • ${_formatDate(source.occurredAt)} • '
-      'Dépense ${_formatFrenchMoney(source.sourceAmount)} • '
-      'Déjà engagé ${_formatFrenchMoney(source.committedAmount)} • '
-      'Maximum ${_formatFrenchMoney(source.maximumAmount)}$account$envelope';
+  return TransactionsWords.of(
+    context,
+  ).format('transactions.recovery.source_summary', {
+    'description': source.description,
+    'date': _formatDate(source.occurredAt),
+    'source': _formatFrenchMoney(source.sourceAmount),
+    'committed': _formatFrenchMoney(source.committedAmount),
+    'maximum': _formatFrenchMoney(source.maximumAmount),
+    'account': account,
+    'envelope': envelope,
+  });
 }
 
 String _formatFrenchMoney(Money amount) {
@@ -4305,12 +5332,18 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
   final _idempotencyKey = _newIdempotencyKey();
   String? _accountId;
   var _submitting = false;
+  var _descriptionInitialized = false;
   String? _error;
 
   @override
-  void initState() {
-    super.initState();
-    _description.text = 'Règlement : ${widget.debt.description}';
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_descriptionInitialized) return;
+    _description.text = TransactionsWords.of(context).format(
+      'transactions.debt_payment_description',
+      {'value': widget.debt.description},
+    );
+    _descriptionInitialized = true;
   }
 
   @override
@@ -4326,13 +5359,18 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
     final cents = _madToCents(_amount.text) ?? 0;
     if (cents <= 0 || cents > widget.debt.remainingAmount.minorUnits) {
       setState(
-        () => _error =
-            'Le règlement doit être positif et ne pas dépasser le restant.',
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.debt_payment_limit_error'),
       );
       return;
     }
     if (_accountId == null) {
-      setState(() => _error = 'Choisissez un compte de paiement.');
+      setState(
+        () => _error = TransactionsWords.of(
+          context,
+        ).text('transactions.choose_payment_account'),
+      );
       return;
     }
     setState(() {
@@ -4355,7 +5393,9 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
-      if (mounted) setState(() => _error = _financialErrorMessage(error));
+      if (mounted) {
+        setState(() => _error = _financialErrorMessage(context, error));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -4371,7 +5411,9 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
     final remaining = _formatDebtAmount(widget.debt.remainingAmount.minorUnits);
 
     return AlertDialog(
-      title: const Text('Régler une dette'),
+      title: Text(
+        TransactionsWords.of(context).text('transactions.settle_debt'),
+      ),
       content: SizedBox(
         width: 500,
         child: SingleChildScrollView(
@@ -4397,12 +5439,23 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'Créancier : ${widget.debt.creditorName ?? 'Créancier non renseigné'}',
+                        TransactionsWords.of(
+                          context,
+                        ).format('transactions.creditor_value', {
+                          'value':
+                              widget.debt.creditorName ??
+                              TransactionsWords.of(
+                                context,
+                              ).text('transactions.creditor_unknown'),
+                        }),
                         style: theme.textTheme.bodyMedium,
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'Restant à régler : $remaining MAD',
+                        TransactionsWords.of(context).format(
+                          'transactions.remaining_to_settle',
+                          {'value': '$remaining MAD'},
+                        ),
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: theme.colorScheme.primary,
                         ),
@@ -4413,18 +5466,30 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
                 const SizedBox(height: AppSpacing.md),
                 TextFormField(
                   controller: _amount,
-                  decoration: fieldDecoration('Montant à régler (MAD) *'),
+                  decoration: fieldDecoration(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.settle_amount_required'),
+                  ),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
                   validator: (value) => (_madToCents(value ?? '') ?? 0) <= 0
-                      ? 'Saisissez un montant positif.'
+                      ? TransactionsWords.of(
+                          context,
+                        ).text('transactions.amount_invalid')
                       : null,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 _AccountSelector(
-                  label: 'Compte de paiement *',
-                  decoration: fieldDecoration('Compte de paiement *'),
+                  label: TransactionsWords.of(
+                    context,
+                  ).text('transactions.payment_account_required'),
+                  decoration: fieldDecoration(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.payment_account_required'),
+                  ),
                   accounts: widget.accounts
                       .where((item) => !item.isArchived && !item.isSystem)
                       .toList(growable: false),
@@ -4436,15 +5501,23 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: _description,
-                  decoration: fieldDecoration('Libellé *'),
+                  decoration: fieldDecoration(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.label_required'),
+                  ),
                   validator: (value) => value?.trim().isEmpty ?? true
-                      ? 'Le libellé est obligatoire.'
+                      ? TransactionsWords.of(
+                          context,
+                        ).text('transactions.label_empty')
                       : null,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: _notes,
-                  decoration: fieldDecoration('Notes'),
+                  decoration: fieldDecoration(
+                    TransactionsWords.of(context).text('transactions.notes'),
+                  ),
                   maxLines: 2,
                 ),
                 if (_error != null) ...[
@@ -4462,12 +5535,18 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
       actions: [
         TextButton(
           onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
+          child: Text(
+            TransactionsWords.of(context).text('transactions.cancel'),
+          ),
         ),
         FilledButton(
           key: const Key('settle-debt-button'),
           onPressed: _submitting ? null : _submit,
-          child: Text(_submitting ? 'Validation…' : 'Régler'),
+          child: Text(
+            _submitting
+                ? TransactionsWords.of(context).text('transactions.validating')
+                : TransactionsWords.of(context).text('transactions.settle'),
+          ),
         ),
       ],
     );
@@ -4484,30 +5563,36 @@ class _DebtSettlementDialogState extends ConsumerState<_DebtSettlementDialog> {
   }
 }
 
-String _financialErrorMessage(Object error) {
+String _financialErrorMessage(BuildContext context, Object error) {
   final value = error.toString().toLowerCase();
   if (value.contains('write-off reversal') ||
       value.contains('writeoff reversal') ||
       value.contains('still reversible')) {
-    return 'Cet abandon est déjà totalement annulé ou le montant dépasse le reliquat annulable.';
+    return TransactionsWords.of(
+      context,
+    ).text('transactions.error.writeoff_not_reversible');
   }
   if (value.contains('write-off source') ||
       value.contains('source adjustment')) {
-    return 'L’abandon sélectionné n’est plus disponible.';
+    return TransactionsWords.of(
+      context,
+    ).text('transactions.error.writeoff_unavailable');
   }
   if (value.contains('remaining') || value.contains('dépasse')) {
-    return 'Le règlement dépasse le montant restant.';
+    return TransactionsWords.of(
+      context,
+    ).text('transactions.error.exceeds_remaining');
   }
   if (value.contains('network') || value.contains('socket')) {
-    return 'Connexion indisponible. Réessayez.';
+    return TransactionsWords.of(context).text('transactions.error.network');
   }
   if (value.contains('account') || value.contains('compte')) {
-    return 'Le compte sélectionné n’est pas autorisé.';
+    return TransactionsWords.of(context).text('transactions.error.account');
   }
   if (value.contains('envelope') || value.contains('enveloppe')) {
-    return 'L’enveloppe sélectionnée n’est pas valide.';
+    return TransactionsWords.of(context).text('transactions.error.envelope');
   }
-  return 'Impossible d’enregistrer cette opération. Réessayez.';
+  return TransactionsWords.of(context).text('transactions.error.save');
 }
 
 String _newIdempotencyKey() {

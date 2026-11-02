@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:noyau_app/features/finance/application/cutover_opening_import.dart';
 import 'package:noyau_app/features/finance/application/workbook_import.dart';
 import 'package:noyau_app/features/finance/presentation/historical_analytics_preview_card.dart';
@@ -71,6 +72,9 @@ void main() {
           cutoverEligibleHouseholdsProvider.overrideWith((ref) async => []),
         ],
         child: MaterialApp(
+          locale: const Locale('fr'),
+          supportedLocales: const [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: Scaffold(
             body: ListView(
               children: const [
@@ -91,7 +95,7 @@ void main() {
     await open(tester);
     expect(find.text('Propositions analytiques'), findsOneWidget);
     expect(find.text('Total lignes : 9'), findsOneWidget);
-    expect(find.text('Montant dépenses : 124.00 MAD'), findsOneWidget);
+    expect(find.textContaining('Montant dépenses : 124,00'), findsOneWidget);
     expect(find.text('Restant à examiner : 1'), findsOneWidget);
     expect(
       find.text('Répétitions source strictes : 1 groupe / 2 lignes'),
@@ -104,7 +108,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('history-filter-adjustments')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('59630.00 MAD'), findsOneWidget);
+    expect(find.textContaining('59 630,00'), findsOneWidget);
     expect(find.textContaining('Syndic et notaire'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('history-filter-duplicates')));

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:noyau_app/features/finance/application/cutover_opening_import.dart';
 import 'package:noyau_app/features/finance/domain/account_ownership.dart';
 import 'package:noyau_app/features/finance/domain/household_member.dart';
@@ -19,6 +20,9 @@ void main() {
       );
 
       Widget app() => MaterialApp(
+        locale: const Locale('fr'),
+        supportedLocales: const [Locale('fr')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         home: Scaffold(
           body: StatefulBuilder(
             builder: (context, setState) => CutoverAccountOwnershipCard(

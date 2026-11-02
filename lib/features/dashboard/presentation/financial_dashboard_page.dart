@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/finance_shell_navigation.dart';
+import '../../../core/localization/finance_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../budget_intelligence/presentation/budget_monthly_preparation_page.dart';
 import '../../envelopes/presentation/envelope_dashboard_page.dart';
@@ -24,10 +25,11 @@ class FinancialDashboardPage extends ConsumerWidget {
     final dashboard = ref.watch(financialDashboardProvider);
     return SafeArea(
       child: dashboard.when(
-        loading: () => const FpLoadingState(label: 'Chargement du pilotage…'),
-        error: (_, _) => const FpErrorState(
-          message:
-              'Le tableau de bord ne peut pas être chargé. Vérifiez votre connexion.',
+        loading: () => FpLoadingState(
+          label: FinanceWords.of(context).text('dashboard.loading'),
+        ),
+        error: (_, _) => FpErrorState(
+          message: FinanceWords.of(context).text('dashboard.unavailable'),
         ),
         data: (snapshot) => LayoutBuilder(
           builder: (context, constraints) {
@@ -35,10 +37,9 @@ class FinancialDashboardPage extends ConsumerWidget {
               key: const Key('financial-dashboard-page'),
               padding: AppLayout.pagePaddingFor(constraints.maxWidth),
               children: [
-                const FpPageHeader(
-                  title: 'Tableau de bord',
-                  subtitle:
-                      'Vue Foyer • comptes, enveloppes et projections restent distincts.',
+                FpPageHeader(
+                  title: FinanceWords.of(context).text('dashboard.title'),
+                  subtitle: FinanceWords.of(context).text('dashboard.subtitle'),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -56,11 +57,11 @@ class FinancialDashboardPage extends ConsumerWidget {
                   ],
                 ),
                 if (snapshot.isEmpty)
-                  const Padding(
-                    key: Key('dashboard-v2-empty'),
-                    padding: EdgeInsets.symmetric(vertical: 8),
+                  Padding(
+                    key: const Key('dashboard-v2-empty'),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: SecondaryInfoText(
-                      'Aucune donnée financière réelle pour ce foyer. Les graphiques apparaîtront après les premières opérations.',
+                      FinanceWords.of(context).text('dashboard.empty'),
                     ),
                   ),
                 const SizedBox(height: 12),
@@ -70,9 +71,13 @@ class FinancialDashboardPage extends ConsumerWidget {
                   key: const Key('dashboard-monthly-close'),
                   child: ListTile(
                     leading: const Icon(Icons.fact_check_outlined),
-                    title: const Text('Fin de mois'),
-                    subtitle: const Text(
-                      'Santé, actions, rapprochements et clôture guidée',
+                    title: Text(
+                      FinanceWords.of(context).text('dashboard.month_end'),
+                    ),
+                    subtitle: Text(
+                      FinanceWords.of(
+                        context,
+                      ).text('dashboard.month_end_subtitle'),
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
@@ -114,9 +119,14 @@ class _OrganizationSummary extends StatelessWidget {
       child: ListTile(
         leading: const Icon(Icons.event_note_outlined),
         title: Text(
-          '${alerts.where((a) => !a.read).length} alerte(s) • $due tâche(s) à échéance',
+          FinanceWords.of(context).format('dashboard.organization_summary', {
+            'alerts': alerts.where((a) => !a.read).length,
+            'tasks': due,
+          }),
         ),
-        subtitle: const Text('Organisation, calendrier et alertes du foyer'),
+        subtitle: Text(
+          FinanceWords.of(context).text('dashboard.household_organization'),
+        ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
           Navigator.of(context).push(

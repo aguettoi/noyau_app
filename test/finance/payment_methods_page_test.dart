@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
@@ -78,7 +79,7 @@ void main() {
           remoteAccountsProvider.overrideWith((ref) async => const []),
           remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: PaymentMethodsPage()),
+        child: _frenchApp(const PaymentMethodsPage()),
       ),
     );
     await tester.pumpAndSettle();
@@ -102,7 +103,14 @@ Widget _app(_FakePaymentMethodsGateway gateway) => ProviderScope(
     remoteAccountsProvider.overrideWith((ref) async => [_account]),
     remoteHouseholdMembersProvider.overrideWith((ref) async => const [_member]),
   ],
-  child: const MaterialApp(home: PaymentMethodsPage()),
+  child: _frenchApp(const PaymentMethodsPage()),
+);
+
+Widget _frenchApp(Widget home) => MaterialApp(
+  locale: const Locale('fr'),
+  supportedLocales: const [Locale('fr'), Locale('en')],
+  localizationsDelegates: GlobalMaterialLocalizations.delegates,
+  home: home,
 );
 
 final _account = FinancialAccount(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/budget_scenarios_locale.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
@@ -12,6 +13,10 @@ import '../application/providers/remote_budget_provider.dart';
 import '../domain/budget_intelligence.dart';
 import 'programmable_budget_program_page.dart';
 
+String _st(BuildContext c, String k) => BudgetScenarioWords.of(c).text(k);
+String _sf(BuildContext c, String k, Map<String, Object> v) =>
+    BudgetScenarioWords.of(c).format(k, v);
+
 class BudgetScenariosPage extends ConsumerWidget {
   const BudgetScenariosPage({super.key});
 
@@ -19,17 +24,17 @@ class BudgetScenariosPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scenarios = ref.watch(remoteBudgetScenariosProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Scénarios budgétaires')),
+      appBar: AppBar(title: Text(_st(context, 'scenario.title'))),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('create-budget-scenario'),
         onPressed: () => _openScenarioEditor(context, ref),
         icon: const Icon(Icons.add),
-        label: const Text('Créer'),
+        label: Text(_st(context, 'scenario.create')),
       ),
       body: scenarios.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) =>
-            const Center(child: Text('Impossible de charger les scénarios.')),
+            Center(child: Text(_st(context, 'scenario.load_error'))),
         data: (items) => ListView(
           children: [
             DesktopPageContainer(
@@ -37,19 +42,17 @@ class BudgetScenariosPage extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Scénarios budgétaires',
+                    _st(context, 'scenario.title'),
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: AppSpacing.xxs),
-                  const Text('Vos programmes de budget réutilisables.'),
+                  Text(_st(context, 'scenario.hint')),
                   const SizedBox(height: AppSpacing.md),
                   if (items.isEmpty)
-                    const Card(
+                    Card(
                       child: ListTile(
-                        title: Text('Aucun scénario'),
-                        subtitle: Text(
-                          'Créez un scénario pour préparer votre budget.',
-                        ),
+                        title: Text(_st(context, 'scenario.empty')),
+                        subtitle: Text(_st(context, 'scenario.empty_hint')),
                       ),
                     ),
                   ...items.map(
@@ -57,10 +60,24 @@ class BudgetScenariosPage extends ConsumerWidget {
                       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
                       child: CompactListRow(
                         title: scenario.name,
-                        subtitle:
-                            '${scenario.active ? 'Actif' : 'Inactif'}${scenario.description?.trim().isEmpty ?? true ? '' : ' • ${scenario.description}'}',
+                        subtitle: _sf(context, 'scenario.summary', {
+                          'state': _st(
+                            context,
+                            scenario.active
+                                ? 'scenario.active'
+                                : 'scenario.inactive',
+                          ),
+                          'description':
+                              scenario.description?.trim().isEmpty ?? true
+                              ? ''
+                              : _sf(context, 'scenario.description_suffix', {
+                                  'description': scenario.description!,
+                                }),
+                        }),
                         trailing: scenario.isDefault
-                            ? const Chip(label: Text('Par défaut'))
+                            ? Chip(
+                                label: Text(_st(context, 'scenario.default')),
+                              )
                             : TextButton(
                                 key: Key(
                                   'set-default-budget-scenario-${scenario.id}',
@@ -75,7 +92,9 @@ class BudgetScenariosPage extends ConsumerWidget {
                                   );
                                   ref.invalidate(remoteBudgetScenariosProvider);
                                 },
-                                child: const Text('Définir par défaut'),
+                                child: Text(
+                                  _st(context, 'scenario.set_default'),
+                                ),
                               ),
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
@@ -117,13 +136,14 @@ class BudgetScenarioDetailPage extends ConsumerWidget {
     return scenarios.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (_, _) =>
-          const Scaffold(body: Center(child: Text('Scénario indisponible.'))),
+      error: (_, _) => Scaffold(
+        body: Center(child: Text(_st(context, 'scenario.unavailable'))),
+      ),
       data: (all) {
         final scenario = all.where((item) => item.id == scenarioId).firstOrNull;
         if (scenario == null) {
-          return const Scaffold(
-            body: Center(child: Text('Scénario introuvable.')),
+          return Scaffold(
+            body: Center(child: Text(_st(context, 'scenario.not_found'))),
           );
         }
         return Scaffold(
@@ -132,7 +152,7 @@ class BudgetScenarioDetailPage extends ConsumerWidget {
             actions: [
               IconButton(
                 key: const Key('edit-programmable-budget'),
-                tooltip: 'Programme programmable',
+                tooltip: _st(context, 'scenario.program'),
                 icon: const Icon(Icons.account_tree_outlined),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -143,7 +163,7 @@ class BudgetScenarioDetailPage extends ConsumerWidget {
               ),
               IconButton(
                 key: const Key('edit-budget-scenario'),
-                tooltip: 'Modifier',
+                tooltip: _st(context, 'scenario.edit'),
                 icon: const Icon(Icons.edit_outlined),
                 onPressed: () async {
                   final saved = await showDialog<bool>(
@@ -166,7 +186,9 @@ class BudgetScenarioDetailPage extends ConsumerWidget {
                   children: [
                     DesktopSection(
                       title: scenario.name,
-                      subtitle: scenario.description ?? 'Aucune description',
+                      subtitle:
+                          scenario.description ??
+                          _st(context, 'scenario.no_description'),
                       action: FilledButton.tonalIcon(
                         key: const Key('toggle-budget-scenario'),
                         onPressed: () async {
@@ -193,22 +215,30 @@ class BudgetScenarioDetailPage extends ConsumerWidget {
                               ? Icons.pause_circle_outline
                               : Icons.play_circle_outline,
                         ),
-                        label: Text(scenario.active ? 'Désactiver' : 'Activer'),
+                        label: Text(
+                          _st(
+                            context,
+                            scenario.active
+                                ? 'scenario.deactivate'
+                                : 'scenario.activate',
+                          ),
+                        ),
                       ),
                       child: ResponsiveGrid(
                         minItemWidth: 340,
                         children: [
-                          const CompactListRow(
+                          CompactListRow(
                             leading: Icon(Icons.payments_outlined),
-                            title: 'Sources de revenus',
-                            subtitle:
-                                'Configurez les revenus utilisés par ce scénario.',
+                            title: _st(context, 'scenario.income_sources'),
+                            subtitle: _st(
+                              context,
+                              'scenario.income_sources_hint',
+                            ),
                           ),
                           CompactListRow(
                             leading: const Icon(Icons.account_tree_outlined),
-                            title: 'Programme d’allocation',
-                            subtitle:
-                                'Définissez l’ordre et les règles de répartition.',
+                            title: _st(context, 'scenario.allocation_program'),
+                            subtitle: _st(context, 'scenario.allocation_hint'),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute<void>(
@@ -218,11 +248,10 @@ class BudgetScenarioDetailPage extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          const CompactListRow(
-                            leading: Icon(Icons.auto_graph_outlined),
-                            title: 'Aperçu',
-                            subtitle:
-                                'Testez ce scénario avant de préparer un mois.',
+                          CompactListRow(
+                            leading: const Icon(Icons.auto_graph_outlined),
+                            title: _st(context, 'scenario.preview'),
+                            subtitle: _st(context, 'scenario.preview_hint'),
                           ),
                         ],
                       ),
@@ -240,7 +269,7 @@ class BudgetScenarioDetailPage extends ConsumerWidget {
                           ),
                         ),
                         icon: const Icon(Icons.account_tree_outlined),
-                        label: const Text('Configurer sources et programme'),
+                        label: Text(_st(context, 'scenario.configure_program')),
                       ),
                     ),
                   ],
@@ -269,20 +298,27 @@ class LegacyRulesList extends ConsumerWidget {
     final envelopes = ref.watch(remoteEnvelopeBalancesProvider);
     return envelopes.when(
       loading: () => const LinearProgressIndicator(),
-      error: (_, _) => const Text('Enveloppes indisponibles.'),
+      error: (_, _) => Text(_st(context, 'scenario.envelopes_error')),
       data: (all) {
         final names = {for (final envelope in all) envelope.id: envelope.name};
-        if (rules.isEmpty) return const Text('Aucune règle configurée.');
+        if (rules.isEmpty) return Text(_st(context, 'scenario.no_rule'));
         return Column(
           children: rules
               .map(
                 (rule) => Card(
                   child: ListTile(
                     title: Text(
-                      names[rule.envelopeId] ?? 'Enveloppe indisponible',
+                      names[rule.envelopeId] ??
+                          _st(context, 'scenario.envelope_unavailable'),
                     ),
                     subtitle: Text(
-                      '${_ruleLabel(rule)} • ${rule.active ? 'Active' : 'Inactive'}',
+                      _sf(context, 'scenario.rule_status', {
+                        'rule': _ruleLabel(context, rule),
+                        'state': _st(
+                          context,
+                          rule.active ? 'scenario.active' : 'scenario.inactive',
+                        ),
+                      }),
                     ),
                     trailing: IconButton(
                       key: Key('edit-budget-rule-${rule.id}'),
@@ -353,8 +389,9 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
   }
 
   Future<void> _save() async {
+    final words = BudgetScenarioWords.of(context);
     if (_name.text.trim().isEmpty) {
-      setState(() => _error = 'Le nom est obligatoire.');
+      setState(() => _error = _st(context, 'scenario.name_error'));
       return;
     }
     setState(() {
@@ -384,7 +421,9 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
             scenarioId: previous.id,
             version: nextVersion,
             createdAt: DateTime.now(),
-            notes: 'Version $nextVersion créée après modification du modèle.',
+            notes: words.format('scenario.version_note', {
+              'version': nextVersion,
+            }),
           ),
         );
       }
@@ -423,7 +462,7 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Impossible d’enregistrer le scénario.');
+        setState(() => _error = _st(context, 'scenario.scenario_save_error'));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -433,7 +472,10 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
-      widget.scenario == null ? 'Nouveau scénario' : 'Modifier le scénario',
+      _st(
+        context,
+        widget.scenario == null ? 'scenario.new_title' : 'scenario.edit_title',
+      ),
     ),
     content: Column(
       mainAxisSize: MainAxisSize.min,
@@ -441,15 +483,19 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
         TextField(
           key: const Key('budget-scenario-name'),
           controller: _name,
-          decoration: const InputDecoration(labelText: 'Nom *'),
+          decoration: InputDecoration(
+            labelText: _st(context, 'scenario.name_required'),
+          ),
         ),
         TextField(
           key: const Key('budget-scenario-description'),
           controller: _description,
-          decoration: const InputDecoration(labelText: 'Description'),
+          decoration: InputDecoration(
+            labelText: _st(context, 'scenario.description'),
+          ),
         ),
         SwitchListTile(
-          title: const Text('Actif'),
+          title: Text(_st(context, 'scenario.active_label')),
           value: _active,
           onChanged: _saving
               ? null
@@ -458,15 +504,17 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
         DropdownButtonFormField<String>(
           key: const Key('budget-scenario-trigger'),
           initialValue: _triggerType,
-          decoration: const InputDecoration(labelText: 'Déclenchement'),
-          items: const [
+          decoration: InputDecoration(
+            labelText: _st(context, 'scenario.trigger'),
+          ),
+          items: [
             DropdownMenuItem(
               value: 'manual',
-              child: Text('Sélection manuelle'),
+              child: Text(_st(context, 'scenario.manual')),
             ),
             DropdownMenuItem(
               value: 'date_reached',
-              child: Text('À partir d’une date'),
+              child: Text(_st(context, 'scenario.from_date')),
             ),
           ],
           onChanged: _saving
@@ -476,10 +524,10 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
         if (_triggerType == 'date_reached')
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Date d’effet'),
+            title: Text(_st(context, 'scenario.effective_date')),
             subtitle: Text(
               _effectiveOn == null
-                  ? 'À définir'
+                  ? _st(context, 'scenario.undefined')
                   : MaterialLocalizations.of(
                       context,
                     ).formatMediumDate(_effectiveOn!),
@@ -507,12 +555,14 @@ class _ScenarioEditorDialogState extends ConsumerState<_ScenarioEditorDialog> {
     actions: [
       TextButton(
         onPressed: _saving ? null : () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
+        child: Text(_st(context, 'scenario.cancel')),
       ),
       FilledButton(
         key: const Key('save-budget-scenario'),
         onPressed: _saving ? null : _save,
-        child: Text(_saving ? 'Enregistrement…' : 'Enregistrer'),
+        child: Text(
+          _st(context, _saving ? 'scenario.saving' : 'scenario.save'),
+        ),
       ),
     ],
   );
@@ -583,14 +633,14 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
         .where((item) => item.id == _envelopeId)
         .firstOrNull;
     if (selected == null || selected.isSystem || selected.isArchived) {
-      setState(() => _error = 'Choisissez une enveloppe ordinaire active.');
+      setState(() => _error = _st(context, 'scenario.select_envelope'));
       return;
     }
     final duplicate = widget.existingRules.any(
       (rule) => rule.envelopeId == _envelopeId && rule.id != widget.rule?.id,
     );
     if (duplicate) {
-      setState(() => _error = 'Une règle existe déjà pour cette enveloppe.');
+      setState(() => _error = _st(context, 'scenario.duplicate_rule'));
       return;
     }
     final otherResidual = widget.existingRules.any(
@@ -599,7 +649,7 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
           rule.id != widget.rule?.id,
     );
     if (_method == BudgetAllocationMethod.residual && otherResidual) {
-      setState(() => _error = 'Une seule règle de reste est autorisée.');
+      setState(() => _error = _st(context, 'scenario.single_residual'));
       return;
     }
     final amount = _method == BudgetAllocationMethod.fixed
@@ -612,19 +662,14 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
             (amount == null || amount <= 0)) ||
         (_method == BudgetAllocationMethod.percentage &&
             (percentage == null || percentage <= 0 || percentage > 100))) {
-      setState(
-        () => _error = 'Saisissez une valeur strictement positive valide.',
-      );
+      setState(() => _error = _st(context, 'scenario.invalid_value'));
       return;
     }
     if ((_fundingMode == BudgetFundingMode.personalMember ||
             _fundingMode == BudgetFundingMode.exceptionalIncome) &&
         (_fundingMemberId == null ||
             !members.any((member) => member.id == _fundingMemberId))) {
-      setState(
-        () => _error =
-            'Choisissez le membre qui finance cette charge personnelle.',
-      );
+      setState(() => _error = _st(context, 'scenario.select_member'));
       return;
     }
     final definition = _memberFundingDefinition(members);
@@ -638,9 +683,7 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
       }
       if (_fundingMode == BudgetFundingMode.fixedByMember) {
         if (_method != BudgetAllocationMethod.fixed || amount == null) {
-          throw StateError(
-            'Le montant fixe par membre requiert une règle à montant fixe.',
-          );
+          throw StateError(_st(context, 'scenario.fixed_member_error'));
         }
         BudgetContributionCalculator.validateFixedContributions(
           definition.map((id, value) => MapEntry(id, (value as num).toInt())),
@@ -692,7 +735,7 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Impossible d’enregistrer la règle.');
+        setState(() => _error = _st(context, 'scenario.rule_save_error'));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -720,14 +763,17 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
     final accounts = ref.watch(remoteAccountsProvider);
     return AlertDialog(
       title: Text(
-        widget.rule == null ? 'Ajouter une règle' : 'Modifier la règle',
+        _st(
+          context,
+          widget.rule == null ? 'scenario.rule_add' : 'scenario.rule_edit',
+        ),
       ),
       content: envelopes.when(
         loading: () => const SizedBox(
           height: 80,
           child: Center(child: CircularProgressIndicator()),
         ),
-        error: (_, _) => const Text('Les enveloppes sont indisponibles.'),
+        error: (_, _) => Text(_st(context, 'scenario.envelopes_error')),
         data: (items) {
           final List<HouseholdMember> householdMembers =
               members.valueOrNull ?? const <HouseholdMember>[];
@@ -752,7 +798,9 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
                   initialValue: eligible.any((item) => item.id == _envelopeId)
                       ? _envelopeId
                       : null,
-                  decoration: const InputDecoration(labelText: 'Enveloppe *'),
+                  decoration: InputDecoration(
+                    labelText: _st(context, 'scenario.envelope_required'),
+                  ),
                   items: eligible
                       .map<DropdownMenuItem<String>>(
                         (item) => DropdownMenuItem<String>(
@@ -768,19 +816,21 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
                 DropdownButtonFormField<BudgetAllocationMethod>(
                   key: const Key('budget-rule-method'),
                   initialValue: _method,
-                  decoration: const InputDecoration(labelText: 'Méthode *'),
-                  items: const [
+                  decoration: InputDecoration(
+                    labelText: _st(context, 'scenario.method_required'),
+                  ),
+                  items: [
                     DropdownMenuItem<BudgetAllocationMethod>(
                       value: BudgetAllocationMethod.fixed,
-                      child: Text('Montant fixe'),
+                      child: Text(_st(context, 'scenario.fixed')),
                     ),
                     DropdownMenuItem<BudgetAllocationMethod>(
                       value: BudgetAllocationMethod.percentage,
-                      child: Text('Pourcentage'),
+                      child: Text(_st(context, 'scenario.percentage')),
                     ),
                     DropdownMenuItem<BudgetAllocationMethod>(
                       value: BudgetAllocationMethod.residual,
-                      child: Text('Reste à répartir'),
+                      child: Text(_st(context, 'scenario.residual')),
                     ),
                   ],
                   onChanged: _saving
@@ -803,34 +853,36 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
                 TextField(
                   controller: _priority,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Priorité'),
+                  decoration: InputDecoration(
+                    labelText: _st(context, 'scenario.priority'),
+                  ),
                 ),
                 DropdownButtonFormField<BudgetFundingMode>(
                   key: const Key('budget-rule-funding-mode'),
                   initialValue: _fundingMode,
-                  decoration: const InputDecoration(
-                    labelText: 'Mode de financement',
+                  decoration: InputDecoration(
+                    labelText: _st(context, 'scenario.funding_mode'),
                   ),
-                  items: const [
+                  items: [
                     DropdownMenuItem<BudgetFundingMode>(
                       value: BudgetFundingMode.personalMember,
-                      child: Text('Personnel'),
+                      child: Text(_st(context, 'scenario.personal')),
                     ),
                     DropdownMenuItem<BudgetFundingMode>(
                       value: BudgetFundingMode.sharedAuto,
-                      child: Text('Commun — répartition automatique'),
+                      child: Text(_st(context, 'scenario.shared_auto')),
                     ),
                     DropdownMenuItem<BudgetFundingMode>(
                       value: BudgetFundingMode.sharedCustom,
-                      child: Text('Commun — répartition personnalisée'),
+                      child: Text(_st(context, 'scenario.shared_custom')),
                     ),
                     DropdownMenuItem<BudgetFundingMode>(
                       value: BudgetFundingMode.fixedByMember,
-                      child: Text('Montant fixe par membre'),
+                      child: Text(_st(context, 'scenario.fixed_member')),
                     ),
                     DropdownMenuItem<BudgetFundingMode>(
                       value: BudgetFundingMode.exceptionalIncome,
-                      child: Text('Revenu exceptionnel affecté directement'),
+                      child: Text(_st(context, 'scenario.exceptional_direct')),
                     ),
                   ],
                   onChanged: _saving
@@ -869,8 +921,8 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
                     _fundingMode == BudgetFundingMode.fixedByMember) ...[
                   Text(
                     _fundingMode == BudgetFundingMode.sharedCustom
-                        ? 'Répartition personnalisée (total : 100 %)'
-                        : 'Contributions fixes (total : montant de la règle)',
+                        ? _st(context, 'scenario.custom_total')
+                        : _st(context, 'scenario.fixed_total'),
                   ),
                   ...householdMembers.map(
                     (member) => TextField(
@@ -888,8 +940,7 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
                 ],
                 accounts.when(
                   loading: () => const LinearProgressIndicator(),
-                  error: (_, _) =>
-                      const Text('Préférence de paiement indisponible.'),
+                  error: (_, _) => Text(_st(context, 'scenario.payment_error')),
                   data: (items) {
                     final List<FinancialAccount> eligibleAccounts = items
                         .where(
@@ -904,10 +955,10 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
                           )
                           ? _fundingPreference
                           : null,
-                      decoration: const InputDecoration(
-                        labelText: 'Compte / moyen de paiement habituel',
+                      decoration: InputDecoration(
+                        labelText: _st(context, 'scenario.payment_preference'),
                       ),
-                      hint: const Text('Aucune préférence'),
+                      hint: Text(_st(context, 'scenario.no_preference')),
                       items: eligibleAccounts
                           .map<DropdownMenuItem<String>>(
                             (account) => DropdownMenuItem<String>(
@@ -924,7 +975,7 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
                   },
                 ),
                 SwitchListTile(
-                  title: const Text('Règle active'),
+                  title: Text(_st(context, 'scenario.rule_active')),
                   value: _active,
                   onChanged: _saving
                       ? null
@@ -945,7 +996,7 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
+          child: Text(_st(context, 'scenario.cancel')),
         ),
         envelopes.maybeWhen(
           data: (items) => FilledButton(
@@ -953,7 +1004,9 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
             onPressed: _saving || !members.hasValue
                 ? null
                 : () => _save(items, members.requireValue),
-            child: Text(_saving ? 'Enregistrement…' : 'Enregistrer'),
+            child: Text(
+              _st(context, _saving ? 'scenario.saving' : 'scenario.save'),
+            ),
           ),
           orElse: () => const SizedBox.shrink(),
         ),
@@ -962,14 +1015,19 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
   }
 }
 
-String _ruleLabel(BudgetScenarioRule rule) => switch (rule.method) {
-  BudgetAllocationMethod.fixed =>
-    'Montant fixe : ${((rule.amountCents ?? 0) / 100).toStringAsFixed(2)} MAD',
-  BudgetAllocationMethod.percentage =>
-    'Pourcentage : ${rule.percentage ?? 0} %',
-  BudgetAllocationMethod.residual => 'Reste à répartir',
-  _ => 'Règle',
-};
+String _ruleLabel(BuildContext context, BudgetScenarioRule rule) =>
+    switch (rule.method) {
+      BudgetAllocationMethod.fixed => _sf(context, 'scenario.fixed_value', {
+        'value': '${((rule.amountCents ?? 0) / 100).toStringAsFixed(2)} MAD',
+      }),
+      BudgetAllocationMethod.percentage => _sf(
+        context,
+        'scenario.percentage_value',
+        {'value': rule.percentage ?? 0},
+      ),
+      BudgetAllocationMethod.residual => _st(context, 'scenario.residual'),
+      _ => _st(context, 'scenario.rule'),
+    };
 
 int? _parseMoney(String value) {
   final amount = double.tryParse(value.trim().replaceAll(',', '.'));

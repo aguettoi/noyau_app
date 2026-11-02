@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/finance_locale.dart';
+
 import '../application/providers/active_household_provider.dart';
 import '../application/providers/payment_methods_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
@@ -16,7 +18,9 @@ class PaymentMethodsPage extends ConsumerWidget {
     final accounts = ref.watch(remoteAccountsProvider);
     final members = ref.watch(remoteHouseholdMembersProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Moyens de paiement')),
+      appBar: AppBar(
+        title: Text(FinanceWords.of(context).text('payment.title')),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('payment-methods-add-button'),
         onPressed: accounts.hasValue && members.hasValue
@@ -28,16 +32,17 @@ class PaymentMethodsPage extends ConsumerWidget {
               )
             : null,
         icon: const Icon(Icons.add),
-        label: const Text('Ajouter'),
+        label: Text(FinanceWords.of(context).text('common.add')),
       ),
       body: methods.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Moyens de paiement indisponibles.')),
+        error: (_, _) => Center(
+          child: Text(FinanceWords.of(context).text('payment.unavailable')),
+        ),
         data: (items) {
           if (items.isEmpty) {
-            return const Center(
-              child: Text('Aucun moyen de paiement configuré.'),
+            return Center(
+              child: Text(FinanceWords.of(context).text('payment.empty')),
             );
           }
           return ListView.builder(
@@ -58,7 +63,7 @@ class PaymentMethodsPage extends ConsumerWidget {
                   title: Text(item.label),
                   subtitle: Text(
                     [
-                      _typeLabel(item.type),
+                      _typeLabel(context, item.type),
                       if (item.accountId != null)
                         accounts.valueOrNull
                                 ?.where(
@@ -66,7 +71,9 @@ class PaymentMethodsPage extends ConsumerWidget {
                                 )
                                 .map((account) => account.name)
                                 .firstOrNull ??
-                            'Compte associé',
+                            FinanceWords.of(
+                              context,
+                            ).text('payment.linked_account'),
                       if (item.holderUserId != null)
                         members.valueOrNull
                                 ?.where(
@@ -74,8 +81,12 @@ class PaymentMethodsPage extends ConsumerWidget {
                                 )
                                 .map((member) => member.displayName)
                                 .firstOrNull ??
-                            'Titulaire associé',
-                      item.active ? 'Actif' : 'Archivé',
+                            FinanceWords.of(
+                              context,
+                            ).text('payment.linked_holder'),
+                      item.active
+                          ? FinanceWords.of(context).text('common.active')
+                          : FinanceWords.of(context).text('common.archived'),
                     ].join(' · '),
                   ),
                   trailing: Switch(
@@ -122,9 +133,9 @@ class PaymentMethodsPage extends ConsumerWidget {
         builder: (context, setState) => AlertDialog(
           scrollable: true,
           title: Text(
-            existing == null
-                ? 'Ajouter un moyen de paiement'
-                : 'Modifier le moyen de paiement',
+            FinanceWords.of(context).text(
+              existing == null ? 'payment.add_title' : 'payment.edit_title',
+            ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -132,34 +143,57 @@ class PaymentMethodsPage extends ConsumerWidget {
               TextField(
                 key: const Key('payment-method-label-field'),
                 controller: label,
-                decoration: const InputDecoration(labelText: 'Libellé'),
+                decoration: InputDecoration(
+                  labelText: FinanceWords.of(context).text('payment.label'),
+                ),
               ),
               DropdownButtonFormField<String>(
                 key: const Key('payment-method-type-field'),
                 initialValue: type,
-                items: const [
+                items: [
                   DropdownMenuItem(
                     value: 'bank_card',
-                    child: Text('Carte bancaire'),
+                    child: Text(
+                      FinanceWords.of(context).text('payment.kind.card'),
+                    ),
                   ),
-                  DropdownMenuItem(value: 'cash', child: Text('Espèces')),
+                  DropdownMenuItem(
+                    value: 'cash',
+                    child: Text(
+                      FinanceWords.of(context).text('payment.kind.cash'),
+                    ),
+                  ),
                   DropdownMenuItem(
                     value: 'bank_transfer',
-                    child: Text('Virement'),
+                    child: Text(
+                      FinanceWords.of(context).text('payment.kind.transfer'),
+                    ),
                   ),
-                  DropdownMenuItem(value: 'other', child: Text('Autre')),
+                  DropdownMenuItem(
+                    value: 'other',
+                    child: Text(
+                      FinanceWords.of(context).text('payment.kind.other'),
+                    ),
+                  ),
                 ],
                 onChanged: (value) => setState(() => type = value ?? type),
-                decoration: const InputDecoration(labelText: 'Type'),
+                decoration: InputDecoration(
+                  labelText: FinanceWords.of(context).text('payment.type'),
+                ),
               ),
               DropdownButtonFormField<String>(
                 key: const Key('payment-method-account-field'),
                 initialValue: accountId,
-                decoration: const InputDecoration(
-                  labelText: 'Compte associé (facultatif)',
+                decoration: InputDecoration(
+                  labelText: FinanceWords.of(
+                    context,
+                  ).text('payment.account_optional'),
                 ),
                 items: [
-                  const DropdownMenuItem(value: '', child: Text('Aucun')),
+                  DropdownMenuItem(
+                    value: '',
+                    child: Text(FinanceWords.of(context).text('common.none')),
+                  ),
                   for (final account in accounts)
                     if (!account.isArchived)
                       DropdownMenuItem(
@@ -172,11 +206,16 @@ class PaymentMethodsPage extends ConsumerWidget {
               DropdownButtonFormField<String>(
                 key: const Key('payment-method-holder-field'),
                 initialValue: holderUserId,
-                decoration: const InputDecoration(
-                  labelText: 'Titulaire (facultatif)',
+                decoration: InputDecoration(
+                  labelText: FinanceWords.of(
+                    context,
+                  ).text('payment.holder_optional'),
                 ),
                 items: [
-                  const DropdownMenuItem(value: '', child: Text('Aucun')),
+                  DropdownMenuItem(
+                    value: '',
+                    child: Text(FinanceWords.of(context).text('common.none')),
+                  ),
                   for (final member in members)
                     DropdownMenuItem(
                       value: member.id,
@@ -191,12 +230,16 @@ class PaymentMethodsPage extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Annuler'),
+              child: Text(FinanceWords.of(context).text('common.cancel')),
             ),
             FilledButton(
               key: const Key('payment-method-save-button'),
               onPressed: () => Navigator.pop(context, true),
-              child: Text(existing == null ? 'Créer' : 'Enregistrer'),
+              child: Text(
+                FinanceWords.of(
+                  context,
+                ).text(existing == null ? 'common.create' : 'common.save'),
+              ),
             ),
           ],
         ),
@@ -228,10 +271,10 @@ class PaymentMethodsPage extends ConsumerWidget {
     ref.invalidate(paymentMethodsProvider);
   }
 
-  String _typeLabel(String type) => switch (type) {
-    'bank_card' => 'Carte bancaire',
-    'cash' => 'Espèces',
-    'bank_transfer' => 'Virement',
-    _ => 'Autre',
+  String _typeLabel(BuildContext context, String type) => switch (type) {
+    'bank_card' => FinanceWords.of(context).text('payment.kind.card'),
+    'cash' => FinanceWords.of(context).text('payment.kind.cash'),
+    'bank_transfer' => FinanceWords.of(context).text('payment.kind.transfer'),
+    _ => FinanceWords.of(context).text('payment.kind.other'),
   };
 }

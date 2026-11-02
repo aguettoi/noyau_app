@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
+import '../../../core/localization/envelopes_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../finance/application/csv_import_templates.dart';
 import '../../finance/application/providers/payment_methods_provider.dart';
@@ -9,6 +10,14 @@ import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/presentation/imports_page.dart';
 import '../application/providers/remote_envelopes_provider.dart';
 import 'envelope_recommendations_page.dart';
+
+String _envelopeText(BuildContext context, String key) =>
+    EnvelopesWords.of(context).text(key);
+String _envelopeFormat(
+  BuildContext context,
+  String key,
+  Map<String, Object> values,
+) => EnvelopesWords.of(context).format(key, values);
 
 class EnvelopeDashboardPage extends ConsumerWidget {
   const EnvelopeDashboardPage({super.key});
@@ -26,7 +35,9 @@ class EnvelopeDashboardPage extends ConsumerWidget {
       _refreshEnvelopes(ref);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Transfert entre enveloppes validé.')),
+          SnackBar(
+            content: Text(_envelopeText(context, 'envelopes.transfer_success')),
+          ),
         );
       }
     }
@@ -49,7 +60,9 @@ class EnvelopeDashboardPage extends ConsumerWidget {
       _refreshEnvelopes(ref);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Répartition enregistrée.')),
+          SnackBar(
+            content: Text(_envelopeText(context, 'envelopes.allocation_saved')),
+          ),
         );
       }
     }
@@ -76,9 +89,8 @@ class EnvelopeDashboardPage extends ConsumerWidget {
   ) async {
     final confirmed = await _confirmAction(
       context,
-      title: 'Archiver l’enveloppe ?',
-      message:
-          'Son historique restera conservé et elle ne sera plus proposée pour les nouvelles opérations.',
+      title: _envelopeText(context, 'envelopes.archive_title'),
+      message: _envelopeText(context, 'envelopes.archive_warning'),
       confirmLabel: 'Archiver',
     );
     if (!confirmed || !context.mounted) {
@@ -93,15 +105,17 @@ class EnvelopeDashboardPage extends ConsumerWidget {
       );
       _refreshEnvelopes(ref);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Enveloppe archivée.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_envelopeText(context, 'envelopes.archived'))),
+        );
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Archivage impossible.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_envelopeText(context, 'envelopes.archive_error')),
+          ),
+        );
       }
     }
   }
@@ -120,14 +134,18 @@ class EnvelopeDashboardPage extends ConsumerWidget {
       );
       _refreshEnvelopes(ref);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Enveloppe réactivée.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_envelopeText(context, 'envelopes.reactivated')),
+          ),
+        );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Réactivation impossible.')),
+          SnackBar(
+            content: Text(_envelopeText(context, 'envelopes.reactivate_error')),
+          ),
         );
       }
     }
@@ -140,9 +158,8 @@ class EnvelopeDashboardPage extends ConsumerWidget {
   ) async {
     final confirmed = await _confirmAction(
       context,
-      title: 'Supprimer l’enveloppe ?',
-      message:
-          'Cette action est définitive et n’est autorisée que si l’enveloppe ne possède aucun historique.',
+      title: _envelopeText(context, 'envelopes.delete_title'),
+      message: _envelopeText(context, 'envelopes.delete_warning'),
       confirmLabel: 'Supprimer',
       destructive: true,
     );
@@ -153,16 +170,16 @@ class EnvelopeDashboardPage extends ConsumerWidget {
       await ref.read(deleteRemoteEnvelopeProvider)(envelope.id);
       _refreshEnvelopes(ref);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Enveloppe supprimée.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_envelopeText(context, 'envelopes.deleted'))),
+        );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Suppression impossible : archivez une enveloppe avec historique.',
+              _envelopeText(context, 'envelopes.delete_history_error'),
             ),
           ),
         );
@@ -177,15 +194,21 @@ class EnvelopeDashboardPage extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$count enveloppe(s) du dernier import archivées.'),
+            content: Text(
+              _envelopeFormat(context, 'envelopes.import_archived', {
+                'count': count,
+              }),
+            ),
           ),
         );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Le dernier import ne peut plus être annulé.'),
+          SnackBar(
+            content: Text(
+              _envelopeText(context, 'envelopes.import_undo_error'),
+            ),
           ),
         );
       }
@@ -212,7 +235,7 @@ class EnvelopeDashboardPage extends ConsumerWidget {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Annuler'),
+                child: Text(_envelopeText(context, 'envelopes.cancel')),
               ),
               FilledButton(
                 onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -239,7 +262,11 @@ class EnvelopeDashboardPage extends ConsumerWidget {
         error: (error, _) => Center(
           child: Padding(
             padding: AppSpacing.page,
-            child: Text('Impossible de lire les enveloppes : $error'),
+            child: Text(
+              _envelopeFormat(context, 'envelopes.load_error', {
+                'error': error,
+              }),
+            ),
           ),
         ),
         data: (envelopes) {
@@ -259,7 +286,7 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    'Enveloppes',
+                    _envelopeText(context, 'envelopes.title'),
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   FilledButton.icon(
@@ -272,7 +299,7 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                             ordinaryActiveEnvelopes,
                           ),
                     icon: const Icon(Icons.swap_horiz),
-                    label: const Text('Transférer'),
+                    label: Text(_envelopeText(context, 'envelopes.transfer')),
                   ),
                   OutlinedButton.icon(
                     key: const Key('distribute-to-allocate-button'),
@@ -288,14 +315,14 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                             ordinaryActiveEnvelopes,
                           ),
                     icon: const Icon(Icons.call_split),
-                    label: const Text('Répartir'),
+                    label: Text(_envelopeText(context, 'envelopes.allocate')),
                   ),
                   const SizedBox(width: AppSpacing.xs),
                   OutlinedButton.icon(
                     key: const Key('new-envelope-button'),
                     onPressed: () => _openEditor(context, ref),
                     icon: const Icon(Icons.add),
-                    label: const Text('Nouvelle'),
+                    label: Text(_envelopeText(context, 'envelopes.new')),
                   ),
                   TextButton(
                     key: const Key('archived-envelopes-button'),
@@ -304,7 +331,9 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                         builder: (_) => const ArchivedEnvelopesPage(),
                       ),
                     ),
-                    child: const Text('Enveloppes archivées'),
+                    child: Text(
+                      _envelopeText(context, 'envelopes.archived_title'),
+                    ),
                   ),
                   OutlinedButton.icon(
                     key: const Key('configure-envelope-recommendations'),
@@ -314,19 +343,19 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                       ),
                     ),
                     icon: const Icon(Icons.tune),
-                    label: const Text('Paramétrer'),
+                    label: Text(_envelopeText(context, 'envelopes.configure')),
                   ),
                   IconButton(
                     key: const Key('undo-last-envelope-import-button'),
-                    tooltip: 'Annuler le dernier import',
+                    tooltip: _envelopeText(context, 'envelopes.undo_import'),
                     onPressed: () => _undoLastImport(context, ref),
                     icon: const Icon(Icons.undo),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),
-              const SecondaryInfoText(
-                'Soldes calculés exclusivement depuis le journal des enveloppes.',
+              SecondaryInfoText(
+                _envelopeText(context, 'envelopes.ledger_hint'),
               ),
               if (toAllocate != null && toAllocate.balance.minorUnits > 0) ...[
                 const SizedBox(height: AppSpacing.sm),
@@ -347,9 +376,9 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.account_balance_wallet_outlined),
-                    title: const Text('Aucune enveloppe active'),
-                    subtitle: const Text(
-                      'Créez ou importez une enveloppe pour commencer.',
+                    title: Text(_envelopeText(context, 'envelopes.empty')),
+                    subtitle: Text(
+                      _envelopeText(context, 'envelopes.empty_hint'),
                     ),
                     trailing: OutlinedButton(
                       key: const Key('envelope-import-csv-cta'),
@@ -357,7 +386,12 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                         MaterialPageRoute<void>(
                           builder: (_) => Scaffold(
                             appBar: AppBar(
-                              title: const Text('Import des enveloppes'),
+                              title: Text(
+                                _envelopeText(
+                                  context,
+                                  'envelopes.import_title',
+                                ),
+                              ),
                             ),
                             body: const ImportsPage(
                               initialTemplateType: ImportTemplateType.envelopes,
@@ -365,7 +399,9 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      child: const Text('Importer mes enveloppes'),
+                      child: Text(
+                        _envelopeText(context, 'envelopes.import_action'),
+                      ),
                     ),
                   ),
                 ),
@@ -384,25 +420,47 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                             ),
                       title: Text(
                         envelope.isArchived
-                            ? '${envelope.name} (archivée)'
+                            ? _envelopeFormat(
+                                context,
+                                'envelopes.archived_name',
+                                {'name': envelope.name},
+                              )
                             : envelope.name,
                       ),
                       subtitle: Text(
-                        'Entrées : ${_money(envelope.inflows)} MAD • Sorties : ${_money(envelope.outflows)} MAD${envelope.lastMovementAt == null ? '' : ' • Dernier mouvement : ${_date(envelope.lastMovementAt!)}'}',
+                        _envelopeFormat(context, 'envelopes.summary', {
+                          'inflows': '${_money(envelope.inflows)} MAD',
+                          'outflows': '${_money(envelope.outflows)} MAD',
+                          'last': envelope.lastMovementAt == null
+                              ? ''
+                              : _envelopeFormat(
+                                  context,
+                                  'envelopes.last_summary',
+                                  {'date': _date(envelope.lastMovementAt!)},
+                                ),
+                        }),
                       ),
                       trailing: envelope.isSystem
                           ? Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text('${_money(envelope.balance)} MAD'),
-                                const Text('Système'),
+                                Text(
+                                  // i18n-dynamic-only
+                                  '${_money(envelope.balance)} MAD',
+                                ),
+                                Text(
+                                  _envelopeText(context, 'envelopes.system'),
+                                ),
                               ],
                             )
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text('${_money(envelope.balance)} MAD'),
+                                Text(
+                                  // i18n-dynamic-only
+                                  '${_money(envelope.balance)} MAD',
+                                ),
                                 PopupMenuButton<String>(
                                   key: Key('envelope-actions-${envelope.id}'),
                                   onSelected: (action) {
@@ -434,28 +492,53 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                                     }
                                   },
                                   itemBuilder: (_) => envelope.isArchived
-                                      ? const [
+                                      ? [
                                           PopupMenuItem(
                                             value: 'reactivate',
-                                            child: Text('Réactiver'),
+                                            child: Text(
+                                              _envelopeText(
+                                                context,
+                                                'envelopes.reactivate',
+                                              ),
+                                            ),
                                           ),
                                           PopupMenuItem(
                                             value: 'delete',
-                                            child: Text('Supprimer'),
+                                            child: Text(
+                                              _envelopeText(
+                                                context,
+                                                'envelopes.delete',
+                                              ),
+                                            ),
                                           ),
                                         ]
-                                      : const [
+                                      : [
                                           PopupMenuItem(
                                             value: 'edit',
-                                            child: Text('Modifier'),
+                                            child: Text(
+                                              _envelopeText(
+                                                context,
+                                                'envelopes.edit',
+                                              ),
+                                            ),
                                           ),
                                           PopupMenuItem(
                                             value: 'archive',
-                                            child: Text('Archiver'),
+                                            child: Text(
+                                              _envelopeText(
+                                                context,
+                                                'envelopes.archive',
+                                              ),
+                                            ),
                                           ),
                                           PopupMenuItem(
                                             value: 'delete',
-                                            child: Text('Supprimer'),
+                                            child: Text(
+                                              _envelopeText(
+                                                context,
+                                                'envelopes.delete',
+                                              ),
+                                            ),
                                           ),
                                         ],
                                 ),
@@ -484,7 +567,9 @@ class _ToAllocateAlert extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Semantics(
       button: onTap != null,
-      label: '${_frenchMoney(balance)} à répartir',
+      label: _envelopeFormat(context, 'envelopes.to_allocate_label', {
+        'value': _frenchMoney(balance),
+      }),
       child: Card(
         key: const Key('to-allocate-alert'),
         color: colors.secondaryContainer,
@@ -504,7 +589,9 @@ class _ToAllocateAlert extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '${_frenchMoney(balance)} à répartir',
+                      _envelopeFormat(context, 'envelopes.to_allocate_label', {
+                        'value': _frenchMoney(balance),
+                      }),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: colors.onSecondaryContainer,
                         fontWeight: FontWeight.w700,
@@ -512,7 +599,7 @@ class _ToAllocateAlert extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Des fonds attendent d’être affectés à vos enveloppes.',
+                      _envelopeText(context, 'envelopes.pending_allocation'),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colors.onSecondaryContainer,
                       ),
@@ -523,7 +610,7 @@ class _ToAllocateAlert extends StatelessWidget {
                   key: const Key('to-allocate-alert-action'),
                   onPressed: onTap,
                   icon: const Icon(Icons.call_split),
-                  label: const Text('Répartir maintenant'),
+                  label: Text(_envelopeText(context, 'envelopes.allocate_now')),
                 );
                 if (compact) {
                   return Column(
@@ -575,33 +662,70 @@ class _EnvelopeDetailPage extends ConsumerWidget {
         padding: AppSpacing.page,
         children: [
           Text(envelope.name, style: Theme.of(context).textTheme.headlineSmall),
-          Text('Solde actuel : ${_money(envelope.balance)} MAD'),
-          Text('Entrées : ${_money(envelope.inflows)} MAD'),
-          Text('Sorties : ${_money(envelope.outflows)} MAD'),
-          if (envelope.lastMovementAt != null)
-            Text('Dernier mouvement : ${_date(envelope.lastMovementAt!)}'),
-          const SizedBox(height: AppSpacing.sm),
-          Text('Compte recommandé : ${accountName ?? 'Aucun'}'),
           Text(
-            'Moyen recommandé : ${method == null ? 'Aucun' : '${method.label}${method.active ? '' : ' (inactif)'}'}',
+            _envelopeFormat(context, 'envelopes.current_balance', {
+              'value': '${_money(envelope.balance)} MAD',
+            }),
+          ),
+          Text(
+            _envelopeFormat(context, 'envelopes.inflows', {
+              'value': '${_money(envelope.inflows)} MAD',
+            }),
+          ),
+          Text(
+            _envelopeFormat(context, 'envelopes.outflows', {
+              'value': '${_money(envelope.outflows)} MAD',
+            }),
+          ),
+          if (envelope.lastMovementAt != null)
+            Text(
+              _envelopeFormat(context, 'envelopes.last_movement', {
+                'value': _date(envelope.lastMovementAt!),
+              }),
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            _envelopeFormat(context, 'envelopes.recommended_account', {
+              'value': accountName ?? _envelopeText(context, 'envelopes.none'),
+            }),
+          ),
+          Text(
+            _envelopeFormat(context, 'envelopes.recommended_method_value', {
+              'value': method == null
+                  ? _envelopeText(context, 'envelopes.none')
+                  : '${method.label}${method.active ? '' : _envelopeText(context, 'envelopes.inactive_suffix')}',
+            }),
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('Mouvements', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            _envelopeText(context, 'envelopes.movements'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           ...movements.when(
             loading: () => const [Center(child: CircularProgressIndicator())],
-            error: (_, _) => const [
-              Text('Impossible de charger les mouvements.'),
+            error: (_, _) => [
+              Text(_envelopeText(context, 'envelopes.movements_error')),
             ],
             data: (items) => items.isEmpty
-                ? const [Text('Aucun mouvement pour cette enveloppe.')]
+                ? [Text(_envelopeText(context, 'envelopes.no_movement'))]
                 : items
                       .map(
                         (movement) => ListTile(
                           title: Text(movement.description),
                           subtitle: Text(
-                            '${movement.displayType} • ${_date(movement.occurredAt)}',
+                            _envelopeFormat(
+                              context,
+                              'envelopes.movement_summary',
+                              {
+                                'type': movement.displayType,
+                                'date': _date(movement.occurredAt),
+                              },
+                            ),
                           ),
-                          trailing: Text('${_money(movement.amount)} MAD'),
+                          trailing: Text(
+                            // i18n-dynamic-only
+                            '${_money(movement.amount)} MAD',
+                          ),
                         ),
                       )
                       .toList(growable: false),
@@ -630,14 +754,18 @@ class ArchivedEnvelopesPage extends ConsumerWidget {
       ref.invalidate(remoteEnvelopeHistoryProvider);
       ref.invalidate(remoteEnvelopeBalancesProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Enveloppe réactivée.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_envelopeText(context, 'envelopes.reactivated')),
+          ),
+        );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Réactivation impossible.')),
+          SnackBar(
+            content: Text(_envelopeText(context, 'envelopes.reactivate_error')),
+          ),
         );
       }
     }
@@ -647,16 +775,26 @@ class ArchivedEnvelopesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(remoteEnvelopeHistoryProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Enveloppes archivées')),
+      appBar: AppBar(
+        title: Text(_envelopeText(context, 'envelopes.archived_title')),
+      ),
       body: history.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Lecture impossible : $error')),
+        error: (error, _) => Center(
+          child: Text(
+            _envelopeFormat(context, 'envelopes.archived_load_error', {
+              'error': error,
+            }),
+          ),
+        ),
         data: (envelopes) {
           final archived = envelopes
               .where((envelope) => envelope.isArchived && !envelope.isSystem)
               .toList(growable: false);
           if (archived.isEmpty) {
-            return const Center(child: Text('Aucune enveloppe archivée.'));
+            return Center(
+              child: Text(_envelopeText(context, 'envelopes.no_archived')),
+            );
           }
           return ListView.separated(
             padding: AppSpacing.page,
@@ -668,11 +806,13 @@ class ArchivedEnvelopesPage extends ConsumerWidget {
                 child: ListTile(
                   title: Text(envelope.name),
                   subtitle: Text(
-                    'Solde conservé : ${_money(envelope.balance)} MAD',
+                    _envelopeFormat(context, 'envelopes.preserved_balance', {
+                      'value': '${_money(envelope.balance)} MAD',
+                    }),
                   ),
                   trailing: FilledButton(
                     onPressed: () => _reactivate(context, ref, envelope),
-                    child: const Text('Réactiver'),
+                    child: Text(_envelopeText(context, 'envelopes.reactivate')),
                   ),
                 ),
               );
@@ -717,10 +857,22 @@ class _DistributionDraft {
 class _ToAllocateDistributionDialogState
     extends ConsumerState<_ToAllocateDistributionDialog> {
   final _rows = <_DistributionDraft>[_DistributionDraft()];
-  final _description = TextEditingController(text: 'Répartition de À répartir');
+  final _description = TextEditingController();
+  var _descriptionInitialized = false;
   late final String _idempotencyKey;
   var _submitting = false;
   String? _error;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_descriptionInitialized) return;
+    _description.text = _envelopeText(
+      context,
+      'envelopes.default_allocation_description',
+    );
+    _descriptionInitialized = true;
+  }
 
   @override
   void initState() {
@@ -770,9 +922,9 @@ class _ToAllocateDistributionDialogState
     if (_overAllocated || _hasDuplicateDestination || allocations.isEmpty) {
       setState(
         () => _error = _overAllocated
-            ? 'Le total affecté dépasse le solde disponible.'
+            ? _envelopeText(context, 'envelopes.over_available')
             : _hasDuplicateDestination
-            ? 'Une enveloppe ne peut être choisie qu’une fois.'
+            ? _envelopeText(context, 'envelopes.duplicate_envelope')
             : 'Ajoutez au moins une destination.',
       );
       return;
@@ -781,25 +933,40 @@ class _ToAllocateDistributionDialogState
         await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Confirmer la répartition'),
+            title: Text(_envelopeText(context, 'envelopes.confirm_allocation')),
             content: SizedBox(
               width: 440,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('À répartir • ${_money(widget.source.balance)} MAD'),
+                  Text(
+                    _envelopeFormat(context, 'envelopes.to_allocate', {
+                      'value': '${_money(widget.source.balance)} MAD',
+                    }),
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   for (final line in allocations)
                     Text(
-                      '→ ${widget.destinations.firstWhere((item) => item.id == line.envelopeId).name} : ${_money(line.amount)} MAD',
+                      _envelopeFormat(context, 'envelopes.allocation_line', {
+                        'name': widget.destinations
+                            .firstWhere((item) => item.id == line.envelopeId)
+                            .name,
+                        'value': '${_money(line.amount)} MAD',
+                      }),
                     ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Total distribué : ${_money(Money.fromMinorUnits(_allocatedCents))} MAD',
+                    _envelopeFormat(context, 'envelopes.distributed_total', {
+                      'value':
+                          '${_money(Money.fromMinorUnits(_allocatedCents))} MAD',
+                    }),
                   ),
                   Text(
-                    'Reste dans À répartir : ${_money(Money.fromMinorUnits(_availableCents - _allocatedCents))} MAD',
+                    _envelopeFormat(context, 'envelopes.remaining_unallocated', {
+                      'value':
+                          '${_money(Money.fromMinorUnits(_availableCents - _allocatedCents))} MAD',
+                    }),
                   ),
                 ],
               ),
@@ -807,11 +974,11 @@ class _ToAllocateDistributionDialogState
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Annuler'),
+                child: Text(_envelopeText(context, 'envelopes.cancel')),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Confirmer'),
+                child: Text(_envelopeText(context, 'envelopes.confirm')),
               ),
             ],
           ),
@@ -831,7 +998,15 @@ class _ToAllocateDistributionDialogState
       );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
-      if (mounted) setState(() => _error = 'Répartition impossible : $error');
+      if (mounted) {
+        setState(
+          () => _error = _envelopeFormat(
+            context,
+            'envelopes.allocation_error',
+            {'error': error},
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -839,7 +1014,7 @@ class _ToAllocateDistributionDialogState
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Répartir le solde disponible'),
+    title: Text(_envelopeText(context, 'envelopes.allocate_available')),
     content: SizedBox(
       width: 560,
       child: SingleChildScrollView(
@@ -847,7 +1022,11 @@ class _ToAllocateDistributionDialogState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Solde disponible : ${_money(widget.source.balance)} MAD'),
+            Text(
+              _envelopeFormat(context, 'envelopes.available_balance', {
+                'value': '${_money(widget.source.balance)} MAD',
+              }),
+            ),
             const SizedBox(height: AppSpacing.sm),
             for (var index = 0; index < _rows.length; index++)
               Padding(
@@ -859,7 +1038,9 @@ class _ToAllocateDistributionDialogState
                       key: Key('to-allocate-destination-$index'),
                       initialValue: row.envelopeId,
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Enveloppe'),
+                      decoration: InputDecoration(
+                        labelText: _envelopeText(context, 'envelopes.envelope'),
+                      ),
                       items: widget.destinations
                           .map(
                             (item) => DropdownMenuItem(
@@ -881,8 +1062,8 @@ class _ToAllocateDistributionDialogState
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Montant (MAD)',
+                      decoration: InputDecoration(
+                        labelText: _envelopeText(context, 'envelopes.amount'),
                       ),
                       onChanged: (_) => setState(() {}),
                     );
@@ -895,7 +1076,7 @@ class _ToAllocateDistributionDialogState
                               removed.dispose();
                             }),
                       icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Supprimer',
+                      tooltip: _envelopeText(context, 'envelopes.remove'),
                     );
                     return constraints.maxWidth < 420
                         ? Column(
@@ -927,16 +1108,23 @@ class _ToAllocateDistributionDialogState
                   ? null
                   : () => setState(() => _rows.add(_DistributionDraft())),
               icon: const Icon(Icons.add),
-              label: const Text('Ajouter une enveloppe'),
+              label: Text(_envelopeText(context, 'envelopes.add_envelope')),
             ),
             Text(
-              'Disponible : ${_money(Money.fromMinorUnits(_availableCents))} MAD',
+              _envelopeFormat(context, 'envelopes.available', {
+                'value': '${_money(Money.fromMinorUnits(_availableCents))} MAD',
+              }),
             ),
             Text(
-              'Affecté : ${_money(Money.fromMinorUnits(_allocatedCents))} MAD',
+              _envelopeFormat(context, 'envelopes.allocated', {
+                'value': '${_money(Money.fromMinorUnits(_allocatedCents))} MAD',
+              }),
             ),
             Text(
-              'Reste : ${_money(Money.fromMinorUnits(_availableCents - _allocatedCents))} MAD',
+              _envelopeFormat(context, 'envelopes.remaining', {
+                'value':
+                    '${_money(Money.fromMinorUnits(_availableCents - _allocatedCents))} MAD',
+              }),
             ),
             if (_overAllocated || _hasDuplicateDestination || _error != null)
               Padding(
@@ -944,8 +1132,11 @@ class _ToAllocateDistributionDialogState
                 child: Text(
                   _error ??
                       (_overAllocated
-                          ? 'Le total affecté dépasse le solde disponible.'
-                          : 'Une enveloppe ne peut être choisie qu’une fois.'),
+                          ? _envelopeText(context, 'envelopes.over_available')
+                          : _envelopeText(
+                              context,
+                              'envelopes.duplicate_envelope',
+                            )),
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
@@ -956,14 +1147,18 @@ class _ToAllocateDistributionDialogState
     actions: [
       TextButton(
         onPressed: _submitting ? null : () => Navigator.pop(context),
-        child: const Text('Annuler'),
+        child: Text(_envelopeText(context, 'envelopes.cancel')),
       ),
       FilledButton(
         key: const Key('confirm-to-allocate-distribution-button'),
         onPressed: _submitting || _overAllocated || _hasDuplicateDestination
             ? null
             : _submit,
-        child: Text(_submitting ? 'Répartition…' : 'Confirmer'),
+        child: Text(
+          _submitting
+              ? _envelopeText(context, 'envelopes.allocating')
+              : _envelopeText(context, 'envelopes.confirm'),
+        ),
       ),
     ],
   );
@@ -1011,8 +1206,10 @@ class _EnvelopeTransferDialogState
     }
     if (_sourceId == _destinationId) {
       setState(
-        () => _error =
-            'Les enveloppes source et destination doivent être différentes.',
+        () => _error = _envelopeText(
+          context,
+          'envelopes.source_destination_different',
+        ),
       );
       return;
     }
@@ -1050,7 +1247,7 @@ class _EnvelopeTransferDialogState
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Transférer entre enveloppes'),
+    title: Text(_envelopeText(context, 'envelopes.transfer_title')),
     content: SizedBox(
       width: 440,
       child: Form(
@@ -1062,14 +1259,14 @@ class _EnvelopeTransferDialogState
               ListTile(
                 key: const Key('envelope-transfer-economic-date-field'),
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Date économique *'),
+                title: Text(_envelopeText(context, 'envelopes.economic_date')),
                 subtitle: Text(_date(_economicDate)),
                 trailing: const Icon(Icons.calendar_today_outlined),
                 onTap: _submitting ? null : _pickEconomicDate,
               ),
               _EnvelopeDropdown(
                 key: const Key('transfer-source-envelope-field'),
-                label: 'Enveloppe source *',
+                label: _envelopeText(context, 'envelopes.source_required'),
                 envelopes: widget.envelopes,
                 value: _sourceId,
                 onChanged: _submitting
@@ -1079,7 +1276,7 @@ class _EnvelopeTransferDialogState
               const SizedBox(height: AppSpacing.sm),
               _EnvelopeDropdown(
                 key: const Key('transfer-destination-envelope-field'),
-                label: 'Enveloppe destination *',
+                label: _envelopeText(context, 'envelopes.destination_required'),
                 envelopes: widget.envelopes,
                 value: _destinationId,
                 onChanged: _submitting
@@ -1093,7 +1290,12 @@ class _EnvelopeTransferDialogState
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(labelText: 'Montant (MAD) *'),
+                decoration: InputDecoration(
+                  labelText: _envelopeText(
+                    context,
+                    'envelopes.amount_required',
+                  ),
+                ),
                 validator: (value) => (_madToCents(value ?? '') ?? 0) <= 0
                     ? 'Saisissez un montant positif valide.'
                     : null,
@@ -1102,7 +1304,12 @@ class _EnvelopeTransferDialogState
               TextFormField(
                 key: const Key('transfer-envelope-description-field'),
                 controller: _description,
-                decoration: const InputDecoration(labelText: 'Description *'),
+                decoration: InputDecoration(
+                  labelText: _envelopeText(
+                    context,
+                    'envelopes.description_required',
+                  ),
+                ),
                 validator: (value) => (value?.trim().isEmpty ?? true)
                     ? 'La description est obligatoire.'
                     : null,
@@ -1122,12 +1329,16 @@ class _EnvelopeTransferDialogState
     actions: [
       TextButton(
         onPressed: _submitting ? null : () => Navigator.pop(context),
-        child: const Text('Annuler'),
+        child: Text(_envelopeText(context, 'envelopes.cancel')),
       ),
       FilledButton(
         key: const Key('confirm-envelope-transfer-button'),
         onPressed: _submitting ? null : _submit,
-        child: Text(_submitting ? 'Validation…' : 'Transférer'),
+        child: Text(
+          _submitting
+              ? _envelopeText(context, 'envelopes.validating')
+              : _envelopeText(context, 'envelopes.transfer'),
+        ),
       ),
     ],
   );
@@ -1156,7 +1367,11 @@ class _EnvelopeDropdown extends StatelessWidget {
           (item) => DropdownMenuItem(
             value: item.id,
             child: Text(
-              item.isSystem ? '${item.name} (Système)' : item.name,
+              item.isSystem
+                  ? _envelopeFormat(context, 'envelopes.system_name', {
+                      'name': item.name,
+                    })
+                  : item.name,
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -1269,7 +1484,7 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Enregistrement impossible. Réessayez.');
+        setState(() => _error = _envelopeText(context, 'envelopes.save_retry'));
       }
     } finally {
       if (mounted) {
@@ -1303,7 +1518,9 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
               TextFormField(
                 key: const Key('envelope-name-field'),
                 controller: _name,
-                decoration: const InputDecoration(labelText: 'Nom *'),
+                decoration: InputDecoration(
+                  labelText: _envelopeText(context, 'envelopes.name_required'),
+                ),
                 validator: (value) => value?.trim().isEmpty ?? true
                     ? 'Le nom est obligatoire.'
                     : null,
@@ -1315,14 +1532,19 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Solde initial (MAD)',
+                  decoration: InputDecoration(
+                    labelText: _envelopeText(
+                      context,
+                      'envelopes.opening_balance',
+                    ),
                   ),
                 ),
               TextFormField(
                 key: const Key('envelope-notes-field'),
                 controller: _notes,
-                decoration: const InputDecoration(labelText: 'Notes'),
+                decoration: InputDecoration(
+                  labelText: _envelopeText(context, 'envelopes.notes'),
+                ),
                 maxLines: 2,
               ),
               if (_editing) ...[
@@ -1330,14 +1552,20 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
                 DropdownButtonFormField<String?>(
                   key: const Key('envelope-recommended-account-field'),
                   initialValue: _recommendedAccountId,
-                  decoration: const InputDecoration(
-                    labelText: 'Compte recommandé (facultatif)',
-                    helperText: 'Recommandation non bloquante',
+                  decoration: InputDecoration(
+                    labelText: _envelopeText(
+                      context,
+                      'envelopes.recommended_account_optional',
+                    ),
+                    helperText: _envelopeText(
+                      context,
+                      'envelopes.recommendation_hint',
+                    ),
                   ),
                   items: [
-                    const DropdownMenuItem<String?>(
+                    DropdownMenuItem<String?>(
                       value: null,
-                      child: Text('Aucun'),
+                      child: Text(_envelopeText(context, 'envelopes.none')),
                     ),
                     for (final account in accounts)
                       DropdownMenuItem<String?>(
@@ -1362,15 +1590,20 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
                 DropdownButtonFormField<String?>(
                   key: const Key('envelope-recommended-payment-method-field'),
                   initialValue: _recommendedPaymentMethodId,
-                  decoration: const InputDecoration(
-                    labelText: 'Moyen recommandé (facultatif)',
-                    helperText:
-                        'Un moyen inactif reste visible mais non sélectionnable',
+                  decoration: InputDecoration(
+                    labelText: _envelopeText(
+                      context,
+                      'envelopes.recommended_method_optional',
+                    ),
+                    helperText: _envelopeText(
+                      context,
+                      'envelopes.inactive_method_hint',
+                    ),
                   ),
                   items: [
-                    const DropdownMenuItem<String?>(
+                    DropdownMenuItem<String?>(
                       value: null,
-                      child: Text('Aucun'),
+                      child: Text(_envelopeText(context, 'envelopes.none')),
                     ),
                     for (final method in selectableMethods)
                       DropdownMenuItem<String?>(
@@ -1379,7 +1612,11 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
                         child: Text(
                           method.active
                               ? method.label
-                              : '${method.label} (inactif)',
+                              : _envelopeFormat(
+                                  context,
+                                  'envelopes.inactive_name',
+                                  {'name': method.label},
+                                ),
                         ),
                       ),
                   ],
@@ -1411,7 +1648,7 @@ class _EnvelopeEditorDialogState extends ConsumerState<_EnvelopeEditorDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
+          child: Text(_envelopeText(context, 'envelopes.cancel')),
         ),
         FilledButton(
           key: const Key('save-envelope-button'),

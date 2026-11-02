@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -15,7 +16,7 @@ import 'package:noyau_app/features/finance/domain/household_member.dart';
 
 void main() {
   testWidgets('projection is explainable and responsive', (tester) async {
-    await initializeDateFormatting('fr');
+    await initializeDateFormatting('fr_MA');
     tester.view.physicalSize = const Size(390, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -80,7 +81,12 @@ void main() {
           ),
           remoteBudgetScenariosProvider.overrideWith((_) async => const []),
         ],
-        child: const MaterialApp(home: CashflowProjectionPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: CashflowProjectionPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

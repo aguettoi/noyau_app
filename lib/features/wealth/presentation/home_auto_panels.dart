@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
+import '../../../core/localization/home_auto_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../application/providers/home_auto_provider.dart';
 import '../application/providers/wealth_provider.dart';
@@ -13,38 +14,36 @@ class HomePanel extends ConsumerWidget {
   final WealthData wealth;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(homeAutoDataProvider)
-      .when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) =>
-            Center(child: Text('Logement indisponible : $error')),
-        data: (data) {
-          final homes = wealth.assets
-              .where((a) => a.type == WealthAssetType.realEstate)
-              .toList();
-          return ListView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            children: [
-              const ListTile(
-                leading: Icon(Icons.home_work_outlined),
-                title: Text('Logement'),
-                subtitle: Text(
-                  'Actif, financement canonique, aides et avantages — réalisé et projeté restent séparés.',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final w = HomeAutoWords.of(context);
+    return ref
+        .watch(homeAutoDataProvider)
+        .when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => Center(child: Text(w.text('home_error'))),
+          data: (data) {
+            final homes = wealth.assets
+                .where((a) => a.type == WealthAssetType.realEstate)
+                .toList();
+            return ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                ListTile(
+                  leading: Icon(Icons.home_work_outlined),
+                  title: Text(w.text('home')),
+                  subtitle: Text(w.text('home_intro')),
                 ),
-              ),
-              if (homes.isEmpty)
-                const ListTile(
-                  title: Text('Aucun actif immobilier'),
-                  subtitle: Text(
-                    'Ajoutez d’abord un actif immobilier dans Patrimoine.',
+                if (homes.isEmpty)
+                  ListTile(
+                    title: Text(w.text('no_home')),
+                    subtitle: Text(w.text('no_home_detail')),
                   ),
-                ),
-              ...homes.map((asset) => _homeCard(context, ref, data, asset)),
-            ],
-          );
-        },
-      );
+                ...homes.map((asset) => _homeCard(context, ref, data, asset)),
+              ],
+            );
+          },
+        );
+  }
 
   Widget _homeCard(
     BuildContext context,
@@ -52,6 +51,7 @@ class HomePanel extends ConsumerWidget {
     HomeAutoData data,
     WealthAsset asset,
   ) {
+    final w = HomeAutoWords.of(context);
     final benefits = data.benefits.where((b) => b.assetId == asset.id);
     final financing = wealth.financings
         .where((f) => f.assetId == asset.id)
@@ -67,24 +67,27 @@ class HomePanel extends ConsumerWidget {
       child: ExpansionTile(
         title: Text(asset.label),
         subtitle: Text(
-          'Valeur ${_money(asset.currentValue)} · ${financing == null ? 'sans financement lié' : financing.structure.name}',
+          w.format('home_summary', {
+            'value': _money(asset.currentValue),
+            'financing': financing == null
+                ? w.text('no_financing')
+                : financing.structure.name,
+          }),
         ),
         children: [
           ResponsiveGrid(
             minItemWidth: 180,
             children: [
-              _metric('Coût brut financement', summary.grossFinancingCost),
-              _metric('Avantages constatés', summary.actualBenefits),
-              _metric('Coût net constaté', summary.actualNetCost),
-              _metric('Coût net projeté', summary.projectedNetCost),
+              _metric(w.text('gross_cost'), summary.grossFinancingCost),
+              _metric(w.text('actual_benefits'), summary.actualBenefits),
+              _metric(w.text('actual_net'), summary.actualNetCost),
+              _metric(w.text('projected_net'), summary.projectedNetCost),
             ],
           ),
           ListTile(
-            title: const Text('Dépenses associées'),
-            trailing: Text('$expenses'),
-            subtitle: const Text(
-              'Références analytiques : aucune dépense recréée.',
-            ),
+            title: Text(w.text('linked_expenses')),
+            trailing: Text(expenses.toString()),
+            subtitle: Text(w.text('expense_notice')),
           ),
           Wrap(
             spacing: 8,
@@ -93,18 +96,18 @@ class HomePanel extends ConsumerWidget {
                 onPressed: () =>
                     _addBenefit(context, ref, asset, projected: true),
                 icon: const Icon(Icons.calculate_outlined),
-                label: const Text('Simuler un avantage'),
+                label: Text(w.text('simulate_benefit')),
               ),
               TextButton.icon(
                 onPressed: () =>
                     _addBenefit(context, ref, asset, projected: false),
                 icon: const Icon(Icons.link),
-                label: const Text('Lier un avantage réel'),
+                label: Text(w.text('link_benefit')),
               ),
               TextButton.icon(
                 onPressed: () => _linkExpense(context, ref, asset),
                 icon: const Icon(Icons.receipt_long_outlined),
-                label: const Text('Rattacher une dépense'),
+                label: Text(w.text('link_expense')),
               ),
             ],
           ),
@@ -165,40 +168,38 @@ class VehiclePanel extends ConsumerWidget {
   final WealthData wealth;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(homeAutoDataProvider)
-      .when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) =>
-            Center(child: Text('Véhicules indisponibles : $error')),
-        data: (data) {
-          final vehicles = wealth.assets
-              .where((a) => a.type == WealthAssetType.vehicle)
-              .toList();
-          return ListView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            children: [
-              const ListTile(
-                leading: Icon(Icons.directions_car_outlined),
-                title: Text('Véhicules'),
-                subtitle: Text(
-                  'Valeur patrimoniale, coûts analytiques, échéances et kilométrage.',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final w = HomeAutoWords.of(context);
+    return ref
+        .watch(homeAutoDataProvider)
+        .when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => Center(child: Text(w.text('vehicle_error'))),
+          data: (data) {
+            final vehicles = wealth.assets
+                .where((a) => a.type == WealthAssetType.vehicle)
+                .toList();
+            return ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                ListTile(
+                  leading: Icon(Icons.directions_car_outlined),
+                  title: Text(w.text('vehicles')),
+                  subtitle: Text(w.text('vehicle_intro')),
                 ),
-              ),
-              if (vehicles.isEmpty)
-                const ListTile(
-                  title: Text('Aucun véhicule'),
-                  subtitle: Text(
-                    'Ajoutez d’abord un actif véhicule dans Patrimoine.',
+                if (vehicles.isEmpty)
+                  ListTile(
+                    title: Text(w.text('no_vehicle')),
+                    subtitle: Text(w.text('no_vehicle_detail')),
                   ),
+                ...vehicles.map(
+                  (asset) => _vehicleCard(context, ref, data, asset),
                 ),
-              ...vehicles.map(
-                (asset) => _vehicleCard(context, ref, data, asset),
-              ),
-            ],
-          );
-        },
-      );
+              ],
+            );
+          },
+        );
+  }
 
   Widget _vehicleCard(
     BuildContext context,
@@ -206,6 +207,7 @@ class VehiclePanel extends ConsumerWidget {
     HomeAutoData data,
     WealthAsset asset,
   ) {
+    final w = HomeAutoWords.of(context);
     final actual = data.expenses.where((e) => e.assetId == asset.id).toList();
     final plans = data.costPlans.where((e) => e.assetId == asset.id).toList();
     final summary = calculateVehicleCost(
@@ -221,16 +223,21 @@ class VehiclePanel extends ConsumerWidget {
       child: ExpansionTile(
         title: Text(asset.label),
         subtitle: Text(
-          '${_money(asset.currentValue)} · ${mileage == null ? 'kilométrage non suivi' : '${mileage['odometer_km']} km'}',
+          w.format('vehicle_summary', {
+            'value': _money(asset.currentValue),
+            'mileage': mileage == null
+                ? w.text('mileage_unknown')
+                : w.format('mileage', {'value': mileage['odometer_km'] ?? '—'}),
+          }),
         ),
         children: [
           ResponsiveGrid(
             minItemWidth: 180,
             children: [
-              _metric('Coûts réels liés', summary.actualCosts),
-              _metric('TCO disponible', summary.totalCostOfOwnership),
+              _metric(w.text('actual_costs'), summary.actualCosts),
+              _metric(w.text('tco'), summary.totalCostOfOwnership),
               _metric(
-                'Prévisions',
+                w.text('forecasts'),
                 Money.fromMinorUnits(
                   plans.fold(0, (s, p) => s + p.amount.minorUnits),
                 ),
@@ -242,7 +249,10 @@ class VehiclePanel extends ConsumerWidget {
               dense: true,
               title: Text(p.label),
               subtitle: Text(
-                '${p.category.name} · ${p.dueDate.toIso8601String().split('T').first}',
+                w.format('plan_detail', {
+                  'category': w.text('category.${p.category.name}'),
+                  'date': p.dueDate.toIso8601String().split('T').first,
+                }),
               ),
               trailing: Text(_money(p.amount)),
             ),
@@ -253,17 +263,17 @@ class VehiclePanel extends ConsumerWidget {
               TextButton.icon(
                 onPressed: () => _linkCost(context, ref, asset),
                 icon: const Icon(Icons.receipt_outlined),
-                label: const Text('Rattacher un coût réel'),
+                label: Text(w.text('link_actual_cost')),
               ),
               TextButton.icon(
                 onPressed: () => _planCost(context, ref, asset),
                 icon: const Icon(Icons.event_outlined),
-                label: const Text('Prévoir un coût'),
+                label: Text(w.text('plan_cost')),
               ),
               TextButton.icon(
                 onPressed: () => _mileage(context, ref, asset),
                 icon: const Icon(Icons.speed),
-                label: const Text('Relever le kilométrage'),
+                label: Text(w.text('record_mileage')),
               ),
             ],
           ),
@@ -291,7 +301,10 @@ class VehiclePanel extends ConsumerWidget {
     WidgetRef ref,
     WealthAsset asset,
   ) async {
-    final amount = await _amount(context, 'Coût automobile projeté');
+    final amount = await _amount(
+      context,
+      HomeAutoWords.of(context).text('planned_auto_cost'),
+    );
     if (amount == null) return;
     await ref.read(homeAutoActionsProvider).insert('vehicle_cost_plans', {
       'asset_id': asset.id,
@@ -311,7 +324,10 @@ class VehiclePanel extends ConsumerWidget {
     WidgetRef ref,
     WealthAsset asset,
   ) async {
-    final amount = await _amount(context, 'Kilométrage observé');
+    final amount = await _amount(
+      context,
+      HomeAutoWords.of(context).text('observed_mileage'),
+    );
     if (amount == null) return;
     await ref.read(homeAutoActionsProvider).insert('vehicle_mileage_readings', {
       'asset_id': asset.id,
@@ -350,7 +366,10 @@ class _BenefitInput {
 }
 
 Future<_BenefitInput?> _actualBenefit(BuildContext context) async {
-  final amount = await _amount(context, 'Avantage réellement constaté');
+  final amount = await _amount(
+    context,
+    HomeAutoWords.of(context).text('actual_benefit'),
+  );
   if (amount == null) return null;
   return _BenefitInput(
     type: 'tax_saving',
@@ -360,6 +379,7 @@ Future<_BenefitInput?> _actualBenefit(BuildContext context) async {
 }
 
 Future<_BenefitInput?> _projectedBenefit(BuildContext context) async {
+  final w = HomeAutoWords.of(context);
   final base = TextEditingController();
   final rate = TextEditingController();
   final ceiling = TextEditingController();
@@ -369,69 +389,67 @@ Future<_BenefitInput?> _projectedBenefit(BuildContext context) async {
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: const Text('Simuler un avantage logement'),
+        title: Text(w.text('simulate_home_benefit')),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
                 initialValue: type,
-                items: const [
+                items: [
                   DropdownMenuItem(
                     value: 'acquisition_aid',
-                    child: Text('Aide / subvention'),
+                    child: Text(w.text('aid')),
                   ),
                   DropdownMenuItem(
                     value: 'tax_saving',
-                    child: Text('Économie fiscale estimée'),
+                    child: Text(w.text('tax_saving')),
                   ),
                   DropdownMenuItem(
                     value: 'employer_contribution',
-                    child: Text('Contribution employeur'),
+                    child: Text(w.text('employer')),
                   ),
-                  DropdownMenuItem(value: 'other', child: Text('Autre')),
+                  DropdownMenuItem(
+                    value: 'other',
+                    child: Text(w.text('other')),
+                  ),
                 ],
                 onChanged: (value) => setState(() => type = value!),
-                decoration: const InputDecoration(labelText: 'Type'),
+                decoration: InputDecoration(labelText: w.text('type')),
               ),
               TextField(
                 controller: base,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Base éligible (MAD)',
-                ),
+                decoration: InputDecoration(labelText: w.text('eligible_base')),
               ),
               TextField(
                 controller: rate,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Taux (%)',
-                  helperText:
-                      'Paramètre saisi, jamais une règle fiscale codée en dur.',
+                decoration: InputDecoration(
+                  labelText: w.text('rate'),
+                  helperText: w.text('rate_help'),
                 ),
               ),
               TextField(
                 controller: ceiling,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Plafond facultatif (MAD)',
+                decoration: InputDecoration(
+                  labelText: w.text('optional_ceiling'),
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'Période ${now.year} · estimation uniquement · 0 écriture financière',
-              ),
+              Text(w.format('period_notice', {'year': now.year})),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
+            child: Text(w.text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Ajouter la projection'),
+            child: Text(w.text('add_projection')),
           ),
         ],
       ),
@@ -471,6 +489,7 @@ Future<_BenefitInput?> _projectedBenefit(BuildContext context) async {
 }
 
 Future<Money?> _amount(BuildContext context, String title) async {
+  final w = HomeAutoWords.of(context);
   final controller = TextEditingController();
   final ok = await showDialog<bool>(
     context: context,
@@ -479,16 +498,16 @@ Future<Money?> _amount(BuildContext context, String title) async {
       content: TextField(
         controller: controller,
         keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: 'Montant'),
+        decoration: InputDecoration(labelText: w.text('amount')),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(c, false),
-          child: const Text('Annuler'),
+          child: Text(w.text('cancel')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(c, true),
-          child: const Text('Continuer'),
+          child: Text(w.text('continue')),
         ),
       ],
     ),
@@ -503,13 +522,14 @@ Future<String?> _event(
   BuildContext context,
   List<WealthEventCandidate> events,
 ) {
+  final w = HomeAutoWords.of(context);
   if (events.isEmpty) return Future.value(null);
   var selected = events.first.id;
   return showDialog<String>(
     context: context,
     builder: (c) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: const Text('Événement financier existant'),
+        title: Text(w.text('existing_event')),
         content: DropdownButtonFormField<String>(
           initialValue: selected,
           isExpanded: true,
@@ -526,11 +546,11 @@ Future<String?> _event(
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text('Annuler'),
+            child: Text(w.text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, selected),
-            child: const Text('Rattacher'),
+            child: Text(w.text('attach')),
           ),
         ],
       ),

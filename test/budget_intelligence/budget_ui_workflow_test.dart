@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/core/theme/app_design_system.dart';
@@ -19,6 +20,13 @@ import 'package:noyau_app/features/finance/domain/household_member.dart';
 import 'package:noyau_app/features/budget_intelligence/presentation/budget_contribution_wizard_page.dart';
 import 'package:noyau_app/features/budget_intelligence/presentation/budget_monthly_preparation_page.dart';
 import 'package:noyau_app/features/budget_intelligence/presentation/programmable_budget_program_page.dart';
+
+Widget _frApp({required Widget home}) => MaterialApp(
+  locale: const Locale('fr'),
+  supportedLocales: const [Locale('fr'), Locale('en'), Locale('ar')],
+  localizationsDelegates: GlobalMaterialLocalizations.delegates,
+  home: home,
+);
 
 void main() {
   final period = RemoteBudgetPeriod(
@@ -92,7 +100,12 @@ void main() {
         ),
         ...extra,
       ],
-      child: MaterialApp(home: child),
+      child: MaterialApp(
+        locale: const Locale('fr'),
+        supportedLocales: const [Locale('fr'), Locale('en'), Locale('ar')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        home: child,
+      ),
     );
   }
 
@@ -454,7 +467,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('prepare-current-month')), findsOneWidget);
-      expect(find.textContaining('Septembre 2026'), findsWidgets);
+      expect(find.textContaining('septembre 2026'), findsWidgets);
       expect(gateway.inserts, isEmpty);
       expect(gateway.rpcs, isEmpty);
     },
@@ -493,7 +506,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('prepared-month-snapshot')), findsOneWidget);
-      expect(find.text('Août 2026'), findsWidgets);
+      expect(find.text('août 2026'), findsWidgets);
       expect(find.byKey(const Key('next-budget-month')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('next-budget-month')));
@@ -504,7 +517,7 @@ void main() {
         find.text('Aucun budget n’a encore été préparé pour ce mois.'),
         findsOneWidget,
       );
-      expect(find.text('Septembre 2026'), findsWidgets);
+      expect(find.text('septembre 2026'), findsWidgets);
       expect(gateway.inserts, isEmpty);
       expect(gateway.rpcs, isEmpty);
 
@@ -512,7 +525,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('prepared-month-snapshot')), findsOneWidget);
-      expect(find.text('Août 2026'), findsWidgets);
+      expect(find.text('août 2026'), findsWidgets);
       expect(gateway.inserts, isEmpty);
       expect(gateway.rpcs, isEmpty);
     },
@@ -533,14 +546,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Décembre 2026'), findsWidgets);
+    expect(find.text('décembre 2026'), findsWidgets);
     await tester.tap(find.byKey(const Key('next-budget-month')));
     await tester.pumpAndSettle();
-    expect(find.text('Janvier 2027'), findsWidgets);
+    expect(find.text('janvier 2027'), findsWidgets);
 
     await tester.tap(find.byKey(const Key('previous-budget-month')));
     await tester.pumpAndSettle();
-    expect(find.text('Décembre 2026'), findsWidgets);
+    expect(find.text('décembre 2026'), findsWidgets);
     expect(gateway.inserts, isEmpty);
     expect(gateway.rpcs, isEmpty);
   });
@@ -1604,7 +1617,7 @@ void main() {
     await tester.tap(find.text('Modifier cette étape'));
     await tester.pumpAndSettle();
     expect(find.text('IDENTIFICATION'), findsOneWidget);
-    expect(find.text('ALLOCATION'), findsOneWidget);
+    expect(find.text('AFFECTATION'), findsOneWidget);
     expect(find.text('POLITIQUE'), findsOneWidget);
     expect(find.text('ÉTAT'), findsOneWidget);
     expect(
@@ -2465,7 +2478,7 @@ void main() {
       expectedCents: 10000,
     );
     await tester.pumpWidget(
-      const MaterialApp(
+      _frApp(
         home: Scaffold(
           body: ScenarioTestSheet(sources: [source], steps: [], members: []),
         ),
@@ -2506,7 +2519,7 @@ void main() {
       HouseholdMember(id: 'c', displayName: 'Member Gamma'),
     ];
     await tester.pumpWidget(
-      const MaterialApp(
+      _frApp(
         home: Scaffold(
           body: ScenarioTestSheet(
             sources: sources,
@@ -2585,7 +2598,7 @@ void main() {
       HouseholdMember(id: 'c', displayName: 'Member Gamma'),
     ];
     await tester.pumpWidget(
-      const MaterialApp(
+      _frApp(
         home: Scaffold(
           body: ScenarioTestSheet(
             sources: sources,
@@ -2673,7 +2686,7 @@ void main() {
       expectedCents: 10000,
     );
     Future<void> open() => tester.pumpWidget(
-      const MaterialApp(
+      _frApp(
         home: Scaffold(
           body: ScenarioTestSheet(sources: [source], steps: [], members: []),
         ),
@@ -2717,7 +2730,7 @@ void main() {
         insufficientFundsPolicy: BudgetInsufficientFundsPolicy.cap,
       );
       await tester.pumpWidget(
-        const MaterialApp(
+        _frApp(
           home: Scaffold(
             body: ScenarioTestSheet(
               sources: [source],

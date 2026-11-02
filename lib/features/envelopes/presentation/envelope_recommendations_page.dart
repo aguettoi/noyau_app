@@ -2,12 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/envelopes_locale.dart';
 import '../../budget_intelligence/presentation/budget_scenarios_page.dart';
 import '../../finance/application/providers/payment_methods_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/domain/account_ownership.dart';
 import '../../finance/domain/financial_account.dart';
 import '../application/providers/remote_envelopes_provider.dart';
+
+String _envelopeText(BuildContext context, String key) =>
+    EnvelopesWords.of(context).text(key);
+String _envelopeFormat(
+  BuildContext context,
+  String key,
+  Map<String, Object> values,
+) => EnvelopesWords.of(context).format(key, values);
 
 class EnvelopeRecommendationsPage extends ConsumerWidget {
   const EnvelopeRecommendationsPage({super.key});
@@ -18,7 +27,9 @@ class EnvelopeRecommendationsPage extends ConsumerWidget {
     final accounts = ref.watch(remoteAccountsProvider);
     final methods = ref.watch(paymentMethodsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Paramétrage des enveloppes')),
+      appBar: AppBar(
+        title: Text(_envelopeText(context, 'envelopes.settings_title')),
+      ),
       body: SafeArea(
         child: switch ((envelopes, accounts, methods)) {
           (
@@ -29,8 +40,8 @@ class EnvelopeRecommendationsPage extends ConsumerWidget {
             _RecommendationsBody(envelopes: e, accounts: a, methods: m),
           (AsyncError(), _, _) ||
           (_, AsyncError(), _) ||
-          (_, _, AsyncError()) => const Center(
-            child: Text('Impossible de charger le paramétrage.'),
+          (_, _, AsyncError()) => Center(
+            child: Text(_envelopeText(context, 'envelopes.settings_error')),
           ),
           _ => const Center(child: CircularProgressIndicator()),
         },
@@ -59,22 +70,22 @@ class _RecommendationsBody extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Configuration structurelle',
+              _envelopeText(context, 'envelopes.structural_title'),
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.xs),
-            const SecondaryInfoText(
-              'Ces recommandations alimentent les paiements quotidiens et les cibles automatiques. Elles ne déplacent aucun argent.',
+            SecondaryInfoText(
+              _envelopeText(context, 'envelopes.settings_hint'),
             ),
             const SizedBox(height: AppSpacing.sm),
             Card(
               child: ListTile(
                 leading: const Icon(Icons.account_tree_outlined),
-                title: const Text(
-                  'Enveloppes réparties entre plusieurs comptes',
+                title: Text(
+                  _envelopeText(context, 'envelopes.multi_account_title'),
                 ),
-                subtitle: const Text(
-                  'La répartition structurelle multi-comptes reste portée par le scénario budgétaire actif, jamais par une dérogation mensuelle.',
+                subtitle: Text(
+                  _envelopeText(context, 'envelopes.multi_account_hint'),
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
@@ -122,13 +133,25 @@ class _DesktopRecommendations extends StatelessWidget {
   Widget build(BuildContext context) => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     child: DataTable(
-      columns: const [
-        DataColumn(label: Text('Enveloppe')),
-        DataColumn(label: Text('Solde actuel')),
-        DataColumn(label: Text('Titulaire / règle')),
-        DataColumn(label: Text('Compte recommandé')),
-        DataColumn(label: Text('Moyen recommandé')),
-        DataColumn(label: Text('État')),
+      columns: [
+        DataColumn(label: Text(_envelopeText(context, 'envelopes.envelope'))),
+        DataColumn(
+          label: Text(
+            _envelopeText(context, 'envelopes.current_balance_column'),
+          ),
+        ),
+        DataColumn(
+          label: Text(_envelopeText(context, 'envelopes.holder_rule')),
+        ),
+        DataColumn(
+          label: Text(
+            _envelopeText(context, 'envelopes.recommended_account_column'),
+          ),
+        ),
+        DataColumn(
+          label: Text(_envelopeText(context, 'envelopes.recommended_method')),
+        ),
+        DataColumn(label: Text(_envelopeText(context, 'envelopes.state'))),
       ],
       rows: [
         for (final envelope in envelopes)
@@ -136,7 +159,10 @@ class _DesktopRecommendations extends StatelessWidget {
             cells: [
               DataCell(Text(envelope.name)),
               DataCell(
-                Text('${envelope.balance.dirhams.toStringAsFixed(2)} MAD'),
+                Text(
+                  // i18n-dynamic-only
+                  '${envelope.balance.dirhams.toStringAsFixed(2)} MAD',
+                ),
               ),
               DataCell(_OwnershipText(envelope: envelope)),
               DataCell(
@@ -210,7 +236,10 @@ class _MobileRecommendations extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  'Solde actuel : ${envelope.balance.dirhams.toStringAsFixed(2)} MAD',
+                  _envelopeFormat(context, 'envelopes.current_balance', {
+                    'value':
+                        '${envelope.balance.dirhams.toStringAsFixed(2)} MAD',
+                  }),
                 ),
                 _OwnershipText(envelope: envelope),
                 const SizedBox(height: AppSpacing.xs),
@@ -248,8 +277,13 @@ class _AccountField extends ConsumerWidget {
     if (envelope.effectiveRecommendationKind != 'single_account' &&
         envelope.effectiveRecommendationKind != 'unconfigured') {
       return InputDecorator(
-        decoration: const InputDecoration(labelText: 'Compte recommandé'),
-        child: Text(_structuralAccountLabel(envelope)),
+        decoration: InputDecoration(
+          labelText: _envelopeText(
+            context,
+            'envelopes.recommended_account_column',
+          ),
+        ),
+        child: Text(_structuralAccountLabel(context, envelope)),
       );
     }
     final selected =
@@ -260,9 +294,17 @@ class _AccountField extends ConsumerWidget {
       key: Key('recommended-account-${envelope.id}'),
       initialValue: selected,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Compte recommandé'),
+      decoration: InputDecoration(
+        labelText: _envelopeText(
+          context,
+          'envelopes.recommended_account_column',
+        ),
+      ),
       items: [
-        const DropdownMenuItem<String?>(value: null, child: Text('Aucun')),
+        DropdownMenuItem<String?>(
+          value: null,
+          child: Text(_envelopeText(context, 'envelopes.none')),
+        ),
         for (final account in accounts)
           DropdownMenuItem<String?>(
             value: account.id,
@@ -304,9 +346,11 @@ class _MethodField extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (envelope.effectiveRecommendationKind != 'single_account' &&
         envelope.effectiveRecommendationKind != 'unconfigured') {
-      return const InputDecorator(
-        decoration: InputDecoration(labelText: 'Moyen recommandé'),
-        child: Text('Facultatif — selon l’opération'),
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: _envelopeText(context, 'envelopes.recommended_method'),
+        ),
+        child: Text(_envelopeText(context, 'envelopes.optional_by_operation')),
       );
     }
     final account = accounts
@@ -323,9 +367,14 @@ class _MethodField extends ConsumerWidget {
       key: Key('recommended-method-${envelope.id}'),
       initialValue: selected,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Moyen recommandé'),
+      decoration: InputDecoration(
+        labelText: _envelopeText(context, 'envelopes.recommended_method'),
+      ),
       items: [
-        const DropdownMenuItem<String?>(value: null, child: Text('Aucun')),
+        DropdownMenuItem<String?>(
+          value: null,
+          child: Text(_envelopeText(context, 'envelopes.none')),
+        ),
         for (final method in compatible)
           DropdownMenuItem<String?>(
             value: method.id,
@@ -365,12 +414,22 @@ class _OwnershipText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = switch (envelope.economicRule) {
-      'individual' => 'Individuel — ${envelope.economicMemberName ?? 'Membre'}',
-      'household_scenario' => 'Foyer — clé du scénario',
-      'household_multi_account' => 'Foyer — plusieurs comptes',
-      'member_beneficiary' => 'Selon le bénéficiaire / membre',
-      'system' => 'Système',
-      _ => 'À définir',
+      'individual' => _envelopeFormat(context, 'envelopes.rule.individual', {
+        'member':
+            envelope.economicMemberName ??
+            _envelopeText(context, 'envelopes.member'),
+      }),
+      'household_scenario' => _envelopeText(
+        context,
+        'envelopes.rule.household',
+      ),
+      'household_multi_account' => _envelopeText(
+        context,
+        'envelopes.rule.household_multi',
+      ),
+      'member_beneficiary' => _envelopeText(context, 'envelopes.rule.member'),
+      'system' => _envelopeText(context, 'envelopes.rule.system'),
+      _ => _envelopeText(context, 'envelopes.rule.undefined'),
     };
     return Text(label);
   }
@@ -392,7 +451,7 @@ class _StateChip extends StatelessWidget {
     if (kind == 'scenario_split' ||
         kind == 'member_beneficiary' ||
         kind == 'system') {
-      return const Chip(label: Text('Configurée'));
+      return Chip(label: Text(_envelopeText(context, 'envelopes.configured')));
     }
     final accountValid =
         envelope.recommendedAccountId != null &&
@@ -404,21 +463,26 @@ class _StateChip extends StatelessWidget {
               item.id == envelope.recommendedPaymentMethodId && item.active,
         );
     final label = !accountValid
-        ? 'À configurer'
+        ? _envelopeText(context, 'envelopes.to_configure')
         : !methodValid
-        ? 'Moyen inactif'
-        : 'Configurée';
+        ? _envelopeText(context, 'envelopes.inactive_method')
+        : _envelopeText(context, 'envelopes.configured');
     return Chip(label: Text(label));
   }
 }
 
-String _structuralAccountLabel(RemoteEnvelopeBalance envelope) =>
-    switch (envelope.effectiveRecommendationKind) {
-      'scenario_split' => 'Répartition sur plusieurs comptes',
-      'member_beneficiary' => 'Compte du bénéficiaire de la prime',
-      'system' => 'Sans objet',
-      _ => 'Aucun',
-    };
+String _structuralAccountLabel(
+  BuildContext context,
+  RemoteEnvelopeBalance envelope,
+) => switch (envelope.effectiveRecommendationKind) {
+  'scenario_split' => _envelopeText(context, 'envelopes.scenario_split'),
+  'member_beneficiary' => _envelopeText(
+    context,
+    'envelopes.beneficiary_account',
+  ),
+  'system' => _envelopeText(context, 'envelopes.not_applicable'),
+  _ => _envelopeText(context, 'envelopes.none'),
+};
 
 Future<void> _saveRecommendation(
   BuildContext context,
@@ -437,13 +501,17 @@ Future<void> _saveRecommendation(
     ref.invalidate(remoteEnvelopeBalancesProvider);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recommandation enregistrée.')),
+        SnackBar(
+          content: Text(
+            _envelopeText(context, 'envelopes.recommendation_saved'),
+          ),
+        ),
       );
     }
   } catch (_) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enregistrement impossible.')),
+        SnackBar(content: Text(_envelopeText(context, 'envelopes.save_error'))),
       );
     }
   }

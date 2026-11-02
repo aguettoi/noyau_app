@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/kpi_reporting_locale.dart';
 import '../../../core/money/money.dart';
+import '../../monthly_close/domain/monthly_close.dart';
 import '../application/reporting_provider.dart';
 import '../domain/business_reporting.dart';
 
@@ -10,6 +12,7 @@ class BusinessReportingPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final words = KpiReportingWords.of(context);
     final month = ref.watch(selectedReportingMonthProvider);
     return Column(
       children: [
@@ -18,7 +21,7 @@ class BusinessReportingPanel extends ConsumerWidget {
           child: Row(
             children: [
               IconButton(
-                tooltip: 'Mois précédent',
+                tooltip: words.text('report.previous_month'),
                 onPressed: () =>
                     ref.read(selectedReportingMonthProvider.notifier).state =
                         DateTime(month.year, month.month - 1),
@@ -26,13 +29,13 @@ class BusinessReportingPanel extends ConsumerWidget {
               ),
               Expanded(
                 child: Text(
-                  _monthLabel(month),
+                  _monthLabel(words, month),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
               IconButton(
-                tooltip: 'Mois suivant',
+                tooltip: words.text('report.next_month'),
                 onPressed: () =>
                     ref.read(selectedReportingMonthProvider.notifier).state =
                         DateTime(month.year, month.month + 1),
@@ -49,7 +52,7 @@ class BusinessReportingPanel extends ConsumerWidget {
                 error: (error, _) => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Text('Rapport indisponible : $error'),
+                    child: Text(words.text('report.unavailable')),
                   ),
                 ),
                 data: (data) => RefreshIndicator(
@@ -61,26 +64,22 @@ class BusinessReportingPanel extends ConsumerWidget {
                       _ReportCard(report: data.report),
                       const SizedBox(height: 12),
                       Text(
-                        'Timeline significative',
+                        words.text('report.timeline_title'),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Une sélection explicable, distincte de l’historique exhaustif.',
-                      ),
+                      Text(words.text('report.timeline_description')),
                       const SizedBox(height: 8),
                       if (data.timeline.isEmpty)
-                        const Card(
+                        Card(
                           child: Padding(
                             padding: EdgeInsets.all(16),
-                            child: Text(
-                              'Aucun fait significatif visible sur cette période.',
-                            ),
+                            child: Text(words.text('report.timeline_empty')),
                           ),
                         )
                       else
                         for (final fact in data.timeline)
-                          _TimelineTile(fact: fact),
+                          _TimelineTile(fact: fact, words: words),
                     ],
                   ),
                 ),
@@ -102,15 +101,23 @@ class _ReportCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Rapport métier', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            KpiReportingWords.of(context).text('report.title'),
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           Text(
             report.isPartial
-                ? 'Données disponibles — période sans snapshot figé'
-                : 'Clôture : ${report.closeStatus.name}',
+                ? KpiReportingWords.of(context).text('report.partial')
+                : KpiReportingWords.of(context).format('report.close_status', {
+                    'status': _closeStatusLabel(
+                      KpiReportingWords.of(context),
+                      report.closeStatus,
+                    ),
+                  }),
           ),
           const Divider(),
           if (report.categories.isEmpty)
-            const Text('Aucun fait financier visible sur cette période.')
+            Text(KpiReportingWords.of(context).text('report.empty'))
           else
             for (final category in report.categories)
               ListTile(
@@ -118,7 +125,15 @@ class _ReportCard extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 title: Text(category.label),
                 subtitle: Text(
-                  '${category.count} fait(s) • ${_statusLabel(category.status)}',
+                  KpiReportingWords.of(
+                    context,
+                  ).format('report.category_summary', {
+                    'count': category.count,
+                    'status': _statusLabel(
+                      KpiReportingWords.of(context),
+                      category.status,
+                    ),
+                  }),
                 ),
                 trailing: Text(_money(category.total)),
               ),
@@ -126,7 +141,11 @@ class _ReportCard extends StatelessWidget {
           for (final explanation in report.explanations)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text('• $explanation'),
+              child: Text(
+                KpiReportingWords.of(
+                  context,
+                ).format('report.explanation', {'explanation': explanation}),
+              ),
             ),
         ],
       ),
@@ -135,8 +154,9 @@ class _ReportCard extends StatelessWidget {
 }
 
 class _TimelineTile extends ConsumerWidget {
-  const _TimelineTile({required this.fact});
+  const _TimelineTile({required this.fact, required this.words});
   final TimelineFact fact;
+  final KpiReportingWords words;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => Card(
@@ -144,7 +164,12 @@ class _TimelineTile extends ConsumerWidget {
       leading: const Icon(Icons.auto_awesome_outlined),
       title: Text(fact.title),
       subtitle: Text(
-        '${_date(fact.date)} • ${_statusLabel(fact.status)} • ${_sourceLabel(fact.source)}\n${fact.reason}',
+        words.format('report.fact_detail', {
+          'date': _date(fact.date),
+          'status': _statusLabel(words, fact.status),
+          'source': _sourceLabel(words, fact.source),
+          'reason': fact.reason,
+        }),
       ),
       isThreeLine: true,
       trailing: Row(
@@ -155,8 +180,8 @@ class _TimelineTile extends ConsumerWidget {
             IconButton(
               key: ValueKey('timeline-mark-${fact.identity}'),
               tooltip: fact.manuallyMarked
-                  ? 'Retirer des faits significatifs'
-                  : 'Marquer comme significatif',
+                  ? words.text('report.unmark')
+                  : words.text('report.mark'),
               onPressed: () async {
                 try {
                   await ref
@@ -165,7 +190,9 @@ class _TimelineTile extends ConsumerWidget {
                 } catch (error) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Action impossible : $error')),
+                      SnackBar(
+                        content: Text(words.text('report.action_failed')),
+                      ),
                     );
                   }
                 }
@@ -178,40 +205,36 @@ class _TimelineTile extends ConsumerWidget {
   );
 }
 
-String _statusLabel(ReportFactStatus status) => switch (status) {
-  ReportFactStatus.observed => 'Réalisé',
-  ReportFactStatus.expected => 'Attendu',
-  ReportFactStatus.projected => 'Projeté',
-  ReportFactStatus.imported => 'Historique importé',
-};
+String _statusLabel(KpiReportingWords words, ReportFactStatus status) =>
+    switch (status) {
+      ReportFactStatus.observed => words.text('report.status.observed'),
+      ReportFactStatus.expected => words.text('report.status.expected'),
+      ReportFactStatus.projected => words.text('report.status.projected'),
+      ReportFactStatus.imported => words.text('report.status.imported'),
+    };
 
-String _sourceLabel(ReportFactSource source) => switch (source) {
-  ReportFactSource.financialEvent => 'Événement financier',
-  ReportFactSource.monthlyClose => 'Clôture',
-  ReportFactSource.obligation => 'Obligation',
-  ReportFactSource.financing => 'Financement',
-  ReportFactSource.importedHistory => 'Historique importé',
-};
+String _closeStatusLabel(KpiReportingWords words, MonthlyCloseStatus status) =>
+    words.text('report.close.${status.name}');
+
+String _sourceLabel(KpiReportingWords words, ReportFactSource source) =>
+    switch (source) {
+      ReportFactSource.financialEvent => words.text(
+        'report.source.financial_event',
+      ),
+      ReportFactSource.monthlyClose => words.text(
+        'report.source.monthly_close',
+      ),
+      ReportFactSource.obligation => words.text('report.source.obligation'),
+      ReportFactSource.financing => words.text('report.source.financing'),
+      ReportFactSource.importedHistory => words.text(
+        'report.source.imported_history',
+      ),
+    };
 
 String _date(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
 
 String _money(Money value) => '${value.dirhams.toStringAsFixed(2)} MAD';
 
-String _monthLabel(DateTime value) {
-  const months = [
-    'Janvier',
-    'Février',
-    'Mars',
-    'Avril',
-    'Mai',
-    'Juin',
-    'Juillet',
-    'Août',
-    'Septembre',
-    'Octobre',
-    'Novembre',
-    'Décembre',
-  ];
-  return '${months[value.month - 1]} ${value.year}';
-}
+String _monthLabel(KpiReportingWords words, DateTime value) =>
+    '${words.text('month.${value.month}')} ${value.year}';

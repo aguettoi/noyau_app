@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/import_preview_locale.dart';
 import '../application/cutover_preparation.dart';
 import '../application/cutover_opening_import.dart';
 import '../application/workbook_import.dart';
@@ -43,6 +45,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
 
   @override
   Widget build(BuildContext context) {
+    final w = ImportPreviewWords.of(context);
     final state = ref.watch(workbookImportProvider);
     final controller = ref.read(workbookImportProvider.notifier);
     final cutoverHouseholds = ref.watch(cutoverEligibleHouseholdsProvider);
@@ -88,7 +91,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Importer mes données',
+                          w.text('title'),
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ),
@@ -96,14 +99,12 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                         key: const Key('exit-import-assistant-button'),
                         onPressed: () => _exitAssistant(controller),
                         icon: const Icon(Icons.close_outlined),
-                        label: const Text('Quitter'),
+                        label: Text(w.text('exit')),
                       ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  const SecondaryInfoText(
-                    'Source, contrôle, plan, exécution et réconciliation dans un parcours unique et auditable.',
-                  ),
+                  SecondaryInfoText(w.text('intro')),
                   const SizedBox(height: AppSpacing.md),
                   ImportWizardStepper(currentStep: currentStep),
                   const SizedBox(height: AppSpacing.md),
@@ -111,8 +112,8 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                     icon: Icons.info_outline,
                     color: const Color(0xFFEEF1F4),
                     message: isRealCutoverSource
-                        ? 'Source reconnue pour la préparation du cutover réel. Cette revue locale ne sélectionne ni n’archive aucun onglet.'
-                        : 'Parcourez le fichier, contrôlez les données et confirmez uniquement ce que vous souhaitez préparer.',
+                        ? w.text('real_source_notice')
+                        : w.text('source_notice'),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   if (state.loadingProgress case final progress?) ...[
@@ -121,7 +122,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                       value: progress.clamp(0, 1).toDouble(),
                     ),
                     const SizedBox(height: 6),
-                    Text(state.loadingMessage ?? 'Preparation de l import...'),
+                    Text(state.loadingMessage ?? w.text('preparing')),
                   ],
                   const SizedBox(height: AppSpacing.md),
                   ResponsiveGrid(
@@ -129,9 +130,8 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                     children: [
                       _ActionCard(
                         icon: Icons.upload_file_rounded,
-                        title: 'Fichier Excel',
-                        body:
-                            'Sélectionnez un fichier .xlsx à analyser localement.',
+                        title: w.text('excel'),
+                        body: w.text('excel_body'),
                         action: FilledButton.icon(
                           onPressed: state.isPicking
                               ? null
@@ -139,26 +139,25 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                           icon: const Icon(Icons.folder_open_outlined),
                           label: Text(
                             state.isPicking
-                                ? 'Lecture en cours...'
-                                : 'Choisir mon fichier Excel',
+                                ? w.text('reading')
+                                : w.text('choose_excel'),
                           ),
                         ),
                       ),
                       _ActionCard(
                         icon: Icons.link_rounded,
-                        title: 'Google Sheets',
-                        body: 'Collez le lien partagé du classeur à analyser.',
+                        title: w.text('google'),
+                        body: w.text('google_body'),
                         action: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             TextField(
                               controller: _googleSheetController,
                               keyboardType: TextInputType.url,
-                              decoration: const InputDecoration(
-                                labelText: 'Lien Google Sheets',
-                                hintText:
-                                    'https://docs.google.com/spreadsheets/d/...',
-                                border: OutlineInputBorder(),
+                              decoration: InputDecoration(
+                                labelText: w.text('google_link'),
+                                hintText: w.text('google_hint'),
+                                border: const OutlineInputBorder(),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -172,8 +171,8 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                               label: Text(
                                 state.isLoadingGoogleSheet
                                     ? (state.loadingMessage ??
-                                          'Lecture du Google Sheet en cours...')
-                                    : 'Lire ce Google Sheet',
+                                          w.text('google_reading'))
+                                    : w.text('read_google'),
                               ),
                             ),
                           ],
@@ -217,20 +216,24 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                     _ActionCard(
                       icon: Icons.checklist_rounded,
                       title: isRealCutoverSource
-                          ? 'Archivage optionnel des onglets'
-                          : '2. Choisir ce que vous voulez importer',
+                          ? w.text('optional_archive')
+                          : w.text('choose_import'),
                       body: isRealCutoverSource
-                          ? 'Ce mécanisme historique est distinct du cutover réel. Journal, scénarios et simulations ne sont pas nécessaires pour préparer les positions d’ouverture.'
-                          : '${analysis.fileName} est pret. Cochez uniquement les onglets que vous souhaitez conserver.',
+                          ? w.text('archive_body')
+                          : w.format('choose_body', {
+                              'file': analysis.fileName,
+                            }),
                       action: isRealCutoverSource
-                          ? const Text(
-                              'Aucun onglet n’est requis pour cette préparation. Ouvrez cette section uniquement si vous souhaitez utiliser l’archivage séparé.',
-                            )
+                          ? Text(w.text('archive_none'))
                           : Row(
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${state.selectedImporterIds.length} onglet(s) choisi(s) sur ${analysis.sheetPreviews.length}',
+                                    w.format('selected', {
+                                      'selected':
+                                          state.selectedImporterIds.length,
+                                      'total': analysis.sheetPreviews.length,
+                                    }),
                                     style: Theme.of(
                                       context,
                                     ).textTheme.labelLarge,
@@ -239,7 +242,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                                 TextButton.icon(
                                   onPressed: controller.selectAllSheets,
                                   icon: const Icon(Icons.select_all_rounded),
-                                  label: const Text('Selectionner tout'),
+                                  label: Text(w.text('select_all')),
                                 ),
                               ],
                             ),
@@ -265,13 +268,15 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                       _ActionCard(
                         icon: Icons.health_and_safety_outlined,
                         title: isRealCutoverSource
-                            ? 'Vérifier l’archivage sélectionné'
-                            : '3. Verifier puis confirmer',
+                            ? w.text('verify_archive')
+                            : w.text('verify_confirm'),
                         body: blockingSelected.isEmpty
                             ? isRealCutoverSource
-                                  ? 'Cette confirmation concerne uniquement l’archivage d’onglets, jamais le cutover réel.'
-                                  : 'Les onglets choisis sont prets. Vous gardez le controle jusqu a la confirmation.'
-                            : '${blockingSelected.length} onglet(s) choisi(s) demandent votre attention.',
+                                  ? w.text('archive_confirmation')
+                                  : w.text('sheets_ready')
+                            : w.format('sheets_attention', {
+                                'count': blockingSelected.length,
+                              }),
                         action: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -286,7 +291,9 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                                     ),
                               icon: const Icon(Icons.help_outline_rounded),
                               label: Text(
-                                'M aider a resoudre les problemes (${blockingSelected.length})',
+                                w.format('help_problems', {
+                                  'count': blockingSelected.length,
+                                }),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -301,8 +308,8 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                               icon: const Icon(Icons.verified_outlined),
                               label: Text(
                                 state.isConfirmed
-                                    ? 'Onglets confirmes'
-                                    : 'Confirmer mes choix',
+                                    ? w.text('sheets_confirmed')
+                                    : w.text('confirm_choices'),
                               ),
                             ),
                           ],
@@ -314,8 +321,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                       _NoticeCard(
                         icon: Icons.check_circle_outline,
                         color: Theme.of(context).colorScheme.primaryContainer,
-                        message:
-                            'Vos choix sont confirmes. L archivage sera realise apres l activation du foyer Supabase.',
+                        message: w.text('choices_confirmed'),
                       ),
                       const SizedBox(height: 12),
                       _buildCutoverSection(
@@ -330,10 +336,9 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                       _ActionCard(
                         icon: Icons.undo_rounded,
                         title: isRealCutoverSource
-                            ? 'Annuler le dernier archivage'
-                            : 'Besoin de revenir en arriere ?',
-                        body:
-                            'Le dernier import termine pourra etre annule sans effacer son historique.',
+                            ? w.text('undo_archive')
+                            : w.text('go_back'),
+                        body: w.text('undo_notice'),
                         action: OutlinedButton.icon(
                           onPressed: state.lastImportSessionId == null
                               ? null
@@ -341,8 +346,8 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                           icon: const Icon(Icons.undo_outlined),
                           label: Text(
                             isRealCutoverSource
-                                ? 'Annuler le dernier archivage'
-                                : 'Annuler le dernier import',
+                                ? w.text('undo_archive')
+                                : w.text('undo_import'),
                           ),
                         ),
                       ),
@@ -352,7 +357,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                       key: const Key('back-to-file-step-button'),
                       onPressed: () => _returnToFileStep(controller),
                       icon: const Icon(Icons.arrow_back_outlined),
-                      label: const Text('Retour au choix du fichier'),
+                      label: Text(w.text('back_file')),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
@@ -360,7 +365,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                     key: const Key('quit-import-assistant-bottom-button'),
                     onPressed: () => _exitAssistant(controller),
                     icon: const Icon(Icons.close_outlined),
-                    label: const Text('Quitter l’assistant'),
+                    label: Text(w.text('exit_assistant')),
                   ),
                 ],
               ),
@@ -389,8 +394,9 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
         _NoticeCard(
           icon: Icons.warning_amber_rounded,
           color: Theme.of(context).colorScheme.tertiaryContainer,
-          message:
-              'Ces onglets ne sont pas encore reconnus : ${analysis.unhandledSheetNames.join(', ')}',
+          message: ImportPreviewWords.of(context).format('unhandled', {
+            'sheets': analysis.unhandledSheetNames.join(', '),
+          }),
         ),
     ],
   );
@@ -402,23 +408,24 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     if (!hasLocalWork) return true;
     final discard = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.info_outline),
-        title: const Text('Quitter l’assistant ?'),
-        content: const Text(
-          'La prévisualisation et les confirmations locales seront abandonnées. Aucune écriture financière n’a été créée.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Rester'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Quitter sans enregistrer'),
-          ),
-        ],
-      ),
+      builder: (dialogContext) {
+        final w = ImportPreviewWords.of(dialogContext);
+        return AlertDialog(
+          icon: const Icon(Icons.info_outline),
+          title: Text(w.text('leave_title')),
+          content: Text(w.text('leave_body')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(w.text('stay')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(w.text('leave_without_save')),
+            ),
+          ],
+        );
+      },
     );
     if (discard == true) {
       controller.abandonPreparation();
@@ -453,6 +460,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     required Set<String> selectedImporterIds,
     required AsyncValue<List<CutoverEligibleHousehold>> cutoverHouseholds,
   }) {
+    final w = ImportPreviewWords.of(context);
     final hasOpeningSheet = selectedImporterIds.contains(
       'cutover-opening-positions',
     );
@@ -477,30 +485,30 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       children: [
         _ActionCard(
           icon: Icons.home_work_outlined,
-          title: 'Destination',
+          title: w.text('destination'),
           body: hasOpeningSheet
-              ? 'Choisissez explicitement le foyer cible autorisé.'
-              : 'Sélectionnez l’onglet « Positions ouverture » pour préparer le cutover B1.',
+              ? w.text('destination_ready')
+              : w.text('destination_sheet'),
           action: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (cutoverHouseholds.hasError)
-                const Text('Impossible de charger les households éligibles.'),
+              if (cutoverHouseholds.hasError) Text(w.text('households_error')),
               if (cutoverHouseholds.isLoading) const LinearProgressIndicator(),
               if (!cutoverHouseholds.isLoading && !cutoverHouseholds.hasError)
                 DropdownButtonFormField<String>(
                   key: const Key('cutover-household-selector'),
                   initialValue: _selectedCutoverHouseholdId,
-                  decoration: const InputDecoration(
-                    labelText: 'Household cible',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: w.text('target_household'),
+                    border: const OutlineInputBorder(),
                   ),
                   items: households
                       .map(
                         (household) => DropdownMenuItem(
                           value: household.id,
                           child: Text(
-                            '${household.name} — ${household.classificationLabel}',
+                            // i18n-dynamic-only
+                            '${household.name} — ${household.isOperational ? w.text('operational') : w.text('technical')}',
                           ),
                         ),
                       )
@@ -525,8 +533,8 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                           : 'technical-household-badge',
                     ),
                     label: selectedHousehold.isOperational
-                        ? 'ENVIRONNEMENT OPÉRATIONNEL'
-                        : 'ENVIRONNEMENT TECHNIQUE',
+                        ? w.text('operational')
+                        : w.text('technical'),
                     tone: selectedHousehold.isOperational
                         ? ImportDecisionTone.operational
                         : ImportDecisionTone.technical,
@@ -538,14 +546,18 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                 key: const Key('cutover-technical-details'),
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                title: const Text('Détails techniques'),
-                subtitle: const Text(
-                  'Fingerprint et identifiant de destination',
-                ),
+                title: Text(w.text('technical_details')),
+                subtitle: Text(w.text('technical_subtitle')),
                 children: [
-                  SelectableText('Fingerprint : ${analysis.sourceFingerprint}'),
+                  SelectableText(
+                    w.format('fingerprint', {
+                      'value': analysis.sourceFingerprint,
+                    }),
+                  ),
                   if (selectedHousehold != null)
-                    SelectableText('Household ID : ${selectedHousehold.id}'),
+                    SelectableText(
+                      w.format('household_id', {'value': selectedHousehold.id}),
+                    ),
                 ],
               ),
               Align(
@@ -561,8 +573,8 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                   icon: const Icon(Icons.preview_outlined),
                   label: Text(
                     _preparingCutover
-                        ? 'Recherche du run...'
-                        : 'Préparer le plan B1',
+                        ? w.text('searching_run')
+                        : w.text('prepare_b1'),
                   ),
                 ),
               ),
@@ -574,9 +586,10 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
           _PlanSummaryCard(plan: plan, household: selectedHousehold),
           const SizedBox(height: AppSpacing.md),
           DesktopSection(
-            title: 'Comptes candidats',
-            subtitle:
-                '${plan.accounts.length} position(s) à créer ou rattacher',
+            title: w.text('candidate_accounts'),
+            subtitle: w.format('account_positions', {
+              'count': plan.accounts.length,
+            }),
             child: ResponsiveGrid(
               minItemWidth: 330,
               children: plan.accounts.indexed
@@ -601,9 +614,10 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
           ),
           const SizedBox(height: AppSpacing.md),
           DesktopSection(
-            title: 'Enveloppes candidates',
-            subtitle:
-                '${plan.envelopes.length} position(s), sans compensation automatique',
+            title: w.text('candidate_envelopes'),
+            subtitle: w.format('envelope_positions', {
+              'count': plan.envelopes.length,
+            }),
             child: ResponsiveGrid(
               minItemWidth: 280,
               children: plan.envelopes
@@ -643,7 +657,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
                         )
                       : null,
                   icon: const Icon(Icons.verified_outlined),
-                  label: const Text('Confirmer ce plan'),
+                  label: Text(w.text('confirm_plan')),
                 ),
               ),
             )
@@ -695,7 +709,11 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       setState(() => _cutoverResult = result);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _cutoverError = 'Exécution B1 refusée : $error');
+      setState(
+        () => _cutoverError = ImportPreviewWords.of(
+          context,
+        ).format('execution_error', {'error': error}),
+      );
     } finally {
       if (mounted) setState(() => _executingCutover = false);
     }
@@ -747,7 +765,9 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     } catch (error) {
       if (!mounted) return;
       setState(
-        () => _cutoverError = 'Impossible de retrouver le run B1 : $error',
+        () => _cutoverError = ImportPreviewWords.of(
+          context,
+        ).format('b1_error', {'error': error}),
       );
     } finally {
       if (mounted) setState(() => _preparingCutover = false);
@@ -760,39 +780,42 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     required VoidCallback onSelectOnlyValid,
   }) => showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      icon: const Icon(Icons.help_outline_rounded),
-      title: const Text('Comment resoudre ces problemes ?'),
-      content: SizedBox(
-        width: 580,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Deux choix simples : corriger le fichier Excel puis le relire, ou retirer temporairement les onglets concernes.',
-              ),
-              const SizedBox(height: 16),
-              ...previews.map((preview) => _ProblemsForSheet(preview: preview)),
-            ],
+    builder: (dialogContext) {
+      final w = ImportPreviewWords.of(dialogContext);
+      return AlertDialog(
+        icon: const Icon(Icons.help_outline_rounded),
+        title: Text(w.text('fix_title')),
+        content: SizedBox(
+          width: 580,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(w.text('fix_body')),
+                const SizedBox(height: 16),
+                ...previews.map(
+                  (preview) => _ProblemsForSheet(preview: preview),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Je vais corriger le fichier'),
-        ),
-        FilledButton(
-          onPressed: () {
-            onSelectOnlyValid();
-            Navigator.of(dialogContext).pop();
-          },
-          child: const Text('Importer seulement les onglets valides'),
-        ),
-      ],
-    ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(w.text('fix_file')),
+          ),
+          FilledButton(
+            onPressed: () {
+              onSelectOnlyValid();
+              Navigator.of(dialogContext).pop();
+            },
+            child: Text(w.text('valid_only')),
+          ),
+        ],
+      );
+    },
   );
 
   Future<void> _showUndoDialog(
@@ -800,26 +823,27 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
     WorkbookImportController controller,
   ) => showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      icon: const Icon(Icons.undo_rounded),
-      title: const Text('Annuler le dernier import'),
-      content: const Text(
-        'Les donnees source seront archivees et l historique restera disponible. Un motif sera demande lorsque le foyer Supabase sera actif.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Conserver'),
-        ),
-        FilledButton(
-          onPressed: () {
-            controller.clearLastImport();
-            Navigator.of(dialogContext).pop();
-          },
-          child: const Text('Annuler l import'),
-        ),
-      ],
-    ),
+    builder: (dialogContext) {
+      final w = ImportPreviewWords.of(dialogContext);
+      return AlertDialog(
+        icon: const Icon(Icons.undo_rounded),
+        title: Text(w.text('undo_title')),
+        content: Text(w.text('undo_body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(w.text('keep')),
+          ),
+          FilledButton(
+            onPressed: () {
+              controller.clearLastImport();
+              Navigator.of(dialogContext).pop();
+            },
+            child: Text(w.text('undo_import')),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -830,50 +854,60 @@ class _SourceSummaryCard extends StatelessWidget {
   final bool realCutover;
 
   @override
-  Widget build(BuildContext context) => Card(
-    key: const Key('import-source-summary'),
-    child: Padding(
-      padding: AppSpacing.card,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.description_outlined, color: AppColors.primary),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  analysis.fileName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
+  Widget build(BuildContext context) {
+    final w = ImportPreviewWords.of(context);
+    return Card(
+      key: const Key('import-source-summary'),
+      child: Padding(
+        padding: AppSpacing.card,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.description_outlined,
+                  color: AppColors.primary,
                 ),
-              ),
-              ImportDecisionBadge(
-                label: realCutover ? 'CUTOVER RÉEL' : 'SOURCE ANALYSÉE',
-                tone: realCutover
-                    ? ImportDecisionTone.technical
-                    : ImportDecisionTone.operational,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          SecondaryInfoText(
-            '${analysis.sheetPreviews.length} onglet(s) reconnu(s) • '
-            '${analysis.unhandledSheetNames.length} non reconnu(s)',
-          ),
-          ExpansionTile(
-            key: const Key('import-technical-details'),
-            tilePadding: EdgeInsets.zero,
-            childrenPadding: const EdgeInsets.only(bottom: AppSpacing.xs),
-            title: const Text('Détails techniques'),
-            subtitle: const Text('Empreinte SHA-256 de la source originale'),
-            children: [SelectableText(analysis.sourceFingerprint)],
-          ),
-        ],
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    analysis.fileName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                ImportDecisionBadge(
+                  label: realCutover
+                      ? w.text('real_cutover')
+                      : w.text('analyzed_source'),
+                  tone: realCutover
+                      ? ImportDecisionTone.technical
+                      : ImportDecisionTone.operational,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            SecondaryInfoText(
+              w.format('sheet_summary', {
+                'recognized': analysis.sheetPreviews.length,
+                'unknown': analysis.unhandledSheetNames.length,
+              }),
+            ),
+            ExpansionTile(
+              key: const Key('import-technical-details'),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              title: Text(w.text('technical_details')),
+              subtitle: Text(w.text('sha_subtitle')),
+              children: [SelectableText(analysis.sourceFingerprint)],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _PlanSummaryCard extends StatelessWidget {
@@ -884,6 +918,7 @@ class _PlanSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = ImportPreviewWords.of(context);
     final accountsTotal = plan.accounts.fold<num>(
       0,
       (total, item) => total + item.openingAmount,
@@ -893,8 +928,8 @@ class _PlanSummaryCard extends StatelessWidget {
       (total, item) => total + item.openingAmount,
     );
     return DesktopSection(
-      title: '3. Plan de positions d’ouverture',
-      subtitle: 'Revue obligatoire avant toute exécution',
+      title: w.text('opening_plan'),
+      subtitle: w.text('mandatory_review'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -902,27 +937,25 @@ class _PlanSummaryCard extends StatelessWidget {
             minItemWidth: 210,
             children: [
               _PlanMetric(
-                label: 'Date effective',
+                label: w.text('effective_date'),
                 value: CutoverOpeningPlan.formatDate(plan.effectiveDate),
               ),
               _PlanMetric(
-                label: 'Comptes',
+                label: w.text('accounts'),
                 value: '${plan.accounts.length} • $accountsTotal MAD',
               ),
               _PlanMetric(
-                label: 'Enveloppes',
+                label: w.text('envelopes'),
                 value: '${plan.envelopes.length} • $envelopesTotal MAD',
               ),
               _PlanMetric(
-                label: 'Destination',
-                value: household?.name ?? 'Household explicite',
+                label: w.text('destination'),
+                value: household?.name ?? w.text('explicit_household'),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          const SecondaryInfoText(
-            'Les comptes et les enveloppes sont deux ledgers indépendants. Aucun équilibrage artificiel entre leurs totaux.',
-          ),
+          SecondaryInfoText(w.text('ledger_notice')),
         ],
       ),
     );
@@ -965,6 +998,7 @@ class _CutoverEnvelopeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = ImportPreviewWords.of(context);
     final conflict = item.referenceConflict != null;
     final match = item.conflictDecision == 'match';
     return Card(
@@ -984,10 +1018,10 @@ class _CutoverEnvelopeCard extends StatelessWidget {
                 ),
                 ImportDecisionBadge(
                   label: conflict
-                      ? 'CONFLIT'
+                      ? w.text('conflict')
                       : match
-                      ? 'MATCH'
-                      : 'CRÉER',
+                      ? w.text('match')
+                      : w.text('create'),
                   tone: conflict
                       ? ImportDecisionTone.conflict
                       : match
@@ -997,9 +1031,14 @@ class _CutoverEnvelopeCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text('${item.openingAmount} MAD'),
-            if (item.isToAllocate)
-              const SecondaryInfoText('Enveloppe système À répartir'),
+            Text(
+              NumberFormat.currency(
+                locale: Localizations.localeOf(context).toLanguageTag(),
+                symbol: 'MAD',
+                decimalDigits: 2,
+              ).format(item.openingAmount),
+            ),
+            if (item.isToAllocate) SecondaryInfoText(w.text('system_envelope')),
             if (item.referenceConflict != null) ...[
               const SizedBox(height: AppSpacing.xs),
               Text(
@@ -1010,7 +1049,7 @@ class _CutoverEnvelopeCard extends StatelessWidget {
             if (item.matchedEnvelopeId != null)
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
-                title: const Text('Référence technique'),
+                title: Text(w.text('technical_reference')),
                 children: [SelectableText(item.matchedEnvelopeId!)],
               ),
           ],
@@ -1040,13 +1079,14 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = ImportPreviewWords.of(context);
     final ownership = account.ownershipType;
     final error = account.ownershipValidationError;
     final action = account.referenceConflict != null || error != null
-        ? 'CONFLIT — À CONFIRMER'
+        ? '${w.text('conflict')} — ${w.text('to_confirm')}'
         : account.conflictDecision == 'match'
-        ? 'RATTACHER À L’EXISTANT'
-        : 'CRÉER';
+        ? w.text('match')
+        : w.text('create');
     return Card(
       margin: const EdgeInsets.only(top: 8),
       child: Padding(
@@ -1058,16 +1098,17 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${account.name} • ${account.openingAmount} MAD',
+                    // i18n-dynamic-only
+                    '${account.name} • ${NumberFormat.currency(locale: Localizations.localeOf(context).toLanguageTag(), symbol: 'MAD', decimalDigits: 2).format(account.openingAmount)}',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
                 ImportDecisionBadge(
                   label: account.referenceConflict != null || error != null
-                      ? 'CONFLIT'
+                      ? w.text('conflict')
                       : account.conflictDecision == 'match'
-                      ? 'MATCH'
-                      : 'CRÉER',
+                      ? w.text('match')
+                      : w.text('create'),
                   tone: account.referenceConflict != null || error != null
                       ? ImportDecisionTone.conflict
                       : account.conflictDecision == 'match'
@@ -1077,26 +1118,32 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.xxs),
-            SecondaryInfoText('Type : ${account.kind}'),
+            SecondaryInfoText(w.format('account_type', {'type': account.kind})),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               key: ValueKey('cutover-ownership-${account.name}'),
               initialValue: ownership?.name ?? 'unconfirmed',
-              decoration: const InputDecoration(
-                labelText: 'Titularité',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: w.text('ownership'),
+                border: const OutlineInputBorder(),
               ),
-              items: const [
+              items: [
                 DropdownMenuItem(
                   value: 'unconfirmed',
-                  child: Text('À CONFIRMER'),
+                  child: Text(w.text('to_confirm')),
                 ),
                 DropdownMenuItem(
                   value: 'individual',
-                  child: Text('Individuel'),
+                  child: Text(w.text('individual')),
                 ),
-                DropdownMenuItem(value: 'shared', child: Text('Partagé')),
-                DropdownMenuItem(value: 'household', child: Text('Foyer')),
+                DropdownMenuItem(
+                  value: 'shared',
+                  child: Text(w.text('shared')),
+                ),
+                DropdownMenuItem(
+                  value: 'household',
+                  child: Text(w.text('household')),
+                ),
               ],
               onChanged: !enabled
                   ? null
@@ -1125,12 +1172,11 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 ownership == AccountOwnershipType.individual
-                    ? 'Titulaire'
-                    : 'Titulaires',
+                    ? w.text('holder')
+                    : w.text('holders'),
               ),
               if (membersLoading) const LinearProgressIndicator(),
-              if (membersError)
-                const Text('Impossible de charger les membres du foyer.'),
+              if (membersError) Text(w.text('members_error')),
               ...members.map(
                 (member) => CheckboxListTile(
                   key: ValueKey('cutover-holder-${account.name}-${member.id}'),
@@ -1159,14 +1205,17 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 6),
-            Text('Décision : $action'),
+            Text(w.format('decision', {'action': action})),
             Text(
-              'Titularité : ${_ownershipLabel(ownership)} • Titulaires : ${_holderLabels(account.holderUserIds, members)}',
+              w.format('ownership_summary', {
+                'ownership': _ownershipLabel(w, ownership),
+                'holders': _holderLabels(w, account.holderUserIds, members),
+              }),
             ),
             if (account.matchedAccountId != null)
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
-                title: const Text('Référence technique'),
+                title: Text(w.text('technical_reference')),
                 children: [SelectableText(account.matchedAccountId!)],
               ),
             if (error != null)
@@ -1185,23 +1234,28 @@ class CutoverAccountOwnershipCard extends StatelessWidget {
     );
   }
 
-  static String _ownershipLabel(AccountOwnershipType? ownership) =>
-      switch (ownership) {
-        AccountOwnershipType.individual => 'Individuel',
-        AccountOwnershipType.shared => 'Partagé',
-        AccountOwnershipType.household => 'Foyer',
-        null => 'À CONFIRMER',
-      };
+  static String _ownershipLabel(
+    ImportPreviewWords w,
+    AccountOwnershipType? ownership,
+  ) => switch (ownership) {
+    AccountOwnershipType.individual => w.text('individual'),
+    AccountOwnershipType.shared => w.text('shared'),
+    AccountOwnershipType.household => w.text('household'),
+    null => w.text('to_confirm'),
+  };
 
   static String _holderLabels(
+    ImportPreviewWords w,
     List<String> holderIds,
     List<HouseholdMember> members,
   ) {
-    if (holderIds.isEmpty) return 'Aucun';
+    if (holderIds.isEmpty) return w.text('none');
     final labels = {
       for (final member in members) member.id: member.displayName,
     };
-    return holderIds.map((id) => labels[id] ?? 'Membre du foyer').join(', ');
+    return holderIds
+        .map((id) => labels[id] ?? w.text('household_member'))
+        .join(', ');
   }
 }
 
@@ -1212,6 +1266,7 @@ class _ProblemsForSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = ImportPreviewWords.of(context);
     final problems = preview.problems;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -1242,13 +1297,20 @@ class _ProblemsForSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Ligne ${problem.rowNumber} - ${problem.field}',
+                        w.format('line_field', {
+                          'line': problem.rowNumber,
+                          'field': problem.field,
+                        }),
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: 4),
                       Text(problem.explanation),
                       const SizedBox(height: 6),
-                      Text('Pour corriger : ${problem.correctionHint}'),
+                      Text(
+                        w.format('correction', {
+                          'hint': problem.correctionHint,
+                        }),
+                      ),
                     ],
                   ),
                 ),
@@ -1308,18 +1370,19 @@ class _OptionalArchiveSheets extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: EdgeInsets.zero,
-    child: ExpansionTile(
-      key: const Key('optional-archive-sheets-panel'),
-      title: const Text('Parcourir les onglets à archiver'),
-      subtitle: const Text(
-        'Optionnel et distinct de la préparation du cutover réel.',
+  Widget build(BuildContext context) {
+    final w = ImportPreviewWords.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ExpansionTile(
+        key: const Key('optional-archive-sheets-panel'),
+        title: Text(w.text('browse_archive')),
+        subtitle: Text(w.text('archive_optional')),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        children: [child],
       ),
-      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      children: [child],
-    ),
-  );
+    );
+  }
 }
 
 class _NoticeCard extends StatelessWidget {
@@ -1362,27 +1425,34 @@ class _SheetPreviewCard extends StatelessWidget {
   final ValueChanged<bool> onSelected;
 
   @override
-  Widget build(BuildContext context) => Card(
-    color: selected && !preview.canBeConfirmed
-        ? Theme.of(context).colorScheme.errorContainer
-        : null,
-    child: CheckboxListTile(
-      dense: true,
-      value: selected,
-      onChanged: (value) => onSelected(value ?? false),
-      controlAffinity: ListTileControlAffinity.leading,
-      secondary: ImportDecisionBadge(
-        label: preview.canBeConfirmed ? 'PRÊT' : 'À VÉRIFIER',
-        tone: preview.canBeConfirmed
-            ? ImportDecisionTone.create
-            : ImportDecisionTone.conflict,
+  Widget build(BuildContext context) {
+    final w = ImportPreviewWords.of(context);
+    return Card(
+      color: selected && !preview.canBeConfirmed
+          ? Theme.of(context).colorScheme.errorContainer
+          : null,
+      child: CheckboxListTile(
+        dense: true,
+        value: selected,
+        onChanged: (value) => onSelected(value ?? false),
+        controlAffinity: ListTileControlAffinity.leading,
+        secondary: ImportDecisionBadge(
+          label: preview.canBeConfirmed ? w.text('ready') : w.text('review'),
+          tone: preview.canBeConfirmed
+              ? ImportDecisionTone.create
+              : ImportDecisionTone.conflict,
+        ),
+        title: Text(preview.sourceSheetName),
+        subtitle: Text(
+          w.format('recognized_items', {
+            'count': preview.detectedRecords,
+            'issues': preview.issues.isEmpty
+                ? ''
+                : '\n${preview.issues.map((issue) => issue.message).join('\n')}',
+          }),
+        ),
+        isThreeLine: preview.issues.isNotEmpty,
       ),
-      title: Text(preview.sourceSheetName),
-      subtitle: Text(
-        '${preview.detectedRecords} élément(s) reconnu(s)'
-        '${preview.issues.isEmpty ? '' : '\n${preview.issues.map((issue) => issue.message).join('\n')}'}',
-      ),
-      isThreeLine: preview.issues.isNotEmpty,
-    ),
-  );
+    );
+  }
 }

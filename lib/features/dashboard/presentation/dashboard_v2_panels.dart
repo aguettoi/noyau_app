@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/dashboard_v2_locale.dart';
 import '../application/dashboard_metrics.dart';
 import '../application/providers/remote_financial_dashboard_provider.dart';
 import 'dashboard_charts.dart';
@@ -23,6 +24,7 @@ class DashboardV2Panels extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = DashboardV2Words.of(context);
     final s = snapshot;
     final report = [...s.report]
       ..sort((a, b) {
@@ -31,7 +33,9 @@ class DashboardV2Panels extends StatelessWidget {
       });
     String name(String id) =>
         s.ordinaryEnvelopes.where((e) => e.id == id).firstOrNull?.name ??
-        (s.toAllocate?.id == id ? 'À répartir' : 'Enveloppe archivée');
+        (s.toAllocate?.id == id
+            ? w.text('to_allocate')
+            : w.text('archived_envelope'));
     final spending = report.where((e) => e.actualCents != 0).toList();
     final positive = spending.where((e) => e.actualCents > 0).toList();
     final total = positive.fold<int>(0, (sum, e) => sum + e.actualCents);
@@ -45,7 +49,7 @@ class DashboardV2Panels extends StatelessWidget {
         (name: name(e.envelopeId), cents: e.actualCents),
       if (positive.length > 5)
         (
-          name: 'Autres',
+          name: w.text('other'),
           cents: positive.skip(5).fold<int>(0, (sum, e) => sum + e.actualCents),
         ),
     ];
@@ -83,60 +87,62 @@ class DashboardV2Panels extends StatelessWidget {
     final kpis = <({String title, String value, String detail})>[
       (
         title: s.hasHiddenAccountBalances
-            ? 'Liquidités visibles'
-            : 'Liquidités',
+            ? w.text('visible_liquidity')
+            : w.text('liquidity'),
         value: chartMoney(s.cashTotal.minorUnits),
         detail: s.hasHiddenAccountBalances
-            ? 'Total partiel — des soldes privés sont exclus'
-            : 'Dont espèces : ${chartMoney(s.cashOnHand.minorUnits)}',
+            ? w.text('partial_total')
+            : w.format('cash_detail', {
+                'amount': chartMoney(s.cashOnHand.minorUnits),
+              }),
       ),
       (
-        title: 'Enveloppes',
+        title: w.text('envelopes'),
         value: chartMoney(s.totalEnvelopes.minorUnits),
-        detail: 'Affectations, pas un patrimoine supplémentaire',
+        detail: w.text('envelopes_detail'),
       ),
       (
-        title: 'Revenus',
+        title: w.text('income'),
         value: chartMoney(s.monthlyFlow.income.minorUnits),
         detail: s.period.label,
       ),
       (
-        title: 'Dépenses',
+        title: w.text('expenses'),
         value: chartMoney(s.monthlyFlow.expense.minorUnits),
         detail: s.period.label,
       ),
       (
-        title: 'Budget restant',
+        title: w.text('budget_remaining'),
         value: s.budget.hasPreparedBudget
             ? chartMoney(s.budget.remaining.minorUnits)
-            : 'Non disponible',
-        detail: 'Budget officiel de la période',
+            : w.text('unavailable'),
+        detail: w.text('official_budget'),
       ),
       (
         title: s.hasHiddenAccountBalances
-            ? 'Épargne visible en comptes'
-            : 'Épargne en comptes',
+            ? w.text('visible_savings')
+            : w.text('savings'),
         value: accounts.any((a) => a.account.type.name == 'savings')
             ? chartMoney(s.savingsAccounts.minorUnits)
-            : 'Non disponible',
-        detail: 'Déjà comprise dans les liquidités',
+            : w.text('unavailable'),
+        detail: w.text('savings_detail'),
       ),
       (
-        title: 'Position nette obligations',
+        title: w.text('net_obligations'),
         value: chartMoney(s.netObligations.minorUnits),
-        detail: 'Créances + Recovery − dettes',
+        detail: w.text('net_obligations_detail'),
       ),
       (
-        title: 'À répartir',
+        title: w.text('to_allocate'),
         value: s.toAllocate == null
-            ? 'Non disponible'
+            ? w.text('unavailable')
             : chartMoney(s.toAllocate!.balance.minorUnits),
-        detail: 'Enveloppe indépendante des comptes',
+        detail: w.text('to_allocate_detail'),
       ),
     ];
     final flow = _Panel(
-      title: 'Revenus vs dépenses',
-      subtitle: '6 derniers mois • mois sans flux non reconstruits',
+      title: w.text('flow_title'),
+      subtitle: w.text('flow_subtitle'),
       height: 310,
       child: IncomeExpenseChart(
         key: const Key('dashboard-chart-income'),
@@ -144,24 +150,21 @@ class DashboardV2Panels extends StatelessWidget {
       ),
     );
     final alertPanel = _Panel(
-      title: 'À faire',
-      subtitle: 'Points prioritaires',
+      title: w.text('todo'),
+      subtitle: w.text('priority_points'),
       height: 310,
       child: alerts.isEmpty
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.check_circle_outline,
                     color: AppColors.secondary,
                     size: 32,
                   ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Aucun point critique actuellement.',
-                    textAlign: TextAlign.center,
-                  ),
+                  const SizedBox(height: 12),
+                  Text(w.text('no_critical'), textAlign: TextAlign.center),
                 ],
               ),
             )
@@ -196,25 +199,25 @@ class DashboardV2Panels extends StatelessWidget {
                   ),
                 if (alerts.length > 4)
                   Text(
-                    '${alerts.length - 4} autres points à consulter dans les modules.',
+                    w.format('more_alerts', {'count': alerts.length - 4}),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
               ],
             ),
     );
     final envelope = _Panel(
-      title: 'Dépenses par enveloppe',
-      subtitle: 'Top 5 • ${s.period.label} • consommation nette',
+      title: w.text('envelope_expenses'),
+      subtitle: w.format('envelope_subtitle', {'period': s.period.label}),
       height: 350,
       action: action(
         'dashboard-open-envelopes',
-        'Voir toutes les enveloppes',
+        w.text('view_envelopes'),
         DashboardDestination.envelopes,
       ),
       child: KeyedSubtree(
         key: const Key('dashboard-chart-envelopes'),
         child: spending.isEmpty
-            ? const EmptyPlot(message: 'Aucune consommation sur cette période.')
+            ? EmptyPlot(message: w.text('no_consumption'))
             : ListView(
                 children: [
                   for (final e in spending.take(5))
@@ -231,8 +234,8 @@ class DashboardV2Panels extends StatelessWidget {
       ),
     );
     final donut = _Panel(
-      title: 'Répartition des dépenses',
-      subtitle: '${s.period.label} • consommations positives',
+      title: w.text('expense_breakdown'),
+      subtitle: w.format('breakdown_subtitle', {'period': s.period.label}),
       height: 350,
       child: ExpenseDonut(
         key: const Key('dashboard-chart-donut'),
@@ -240,20 +243,20 @@ class DashboardV2Panels extends StatelessWidget {
       ),
     );
     final budget = _Panel(
-      title: 'Budget vs réel',
+      title: w.text('budget_actual'),
       subtitle: s.period.label,
       height: 370,
       action: action(
         'dashboard-open-month-preparation',
-        'Préparer le mois',
+        w.text('prepare_month'),
         DashboardDestination.budget,
       ),
       child: KeyedSubtree(
         key: const Key('dashboard-chart-budget'),
         child: budgets.isEmpty
-            ? const EmptyPlot(
-                key: Key('dashboard-budget-empty'),
-                message: 'Préparez votre premier budget pour activer ce suivi.',
+            ? EmptyPlot(
+                key: const Key('dashboard-budget-empty'),
+                message: w.text('prepare_first_budget'),
               )
             : ListView(
                 children: [
@@ -276,7 +279,13 @@ class DashboardV2Panels extends StatelessWidget {
                                 : AppColors.secondary,
                           ),
                           Text(
-                            'Budget ${chartMoney(e.plannedCents)} • Réel ${chartMoney(e.actualCents)} • Reste ${chartMoney(e.plannedCents - e.actualCents)}',
+                            w.format('budget_line', {
+                              'budget': chartMoney(e.plannedCents),
+                              'actual': chartMoney(e.actualCents),
+                              'remaining': chartMoney(
+                                e.plannedCents - e.actualCents,
+                              ),
+                            }),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -287,16 +296,16 @@ class DashboardV2Panels extends StatelessWidget {
       ),
     );
     final goals = _Panel(
-      title: 'Objectifs actifs',
-      subtitle: 'Sécurisé / restant • déjà inclus dans les enveloppes',
+      title: w.text('active_goals'),
+      subtitle: w.text('goals_subtitle'),
       height: 370,
       action: action(
         'dashboard-open-goals',
-        'Voir tous les objectifs',
+        w.text('view_goals'),
         DashboardDestination.goals,
       ),
       child: s.activeGoals.isEmpty
-          ? const _EmptyProgress(message: 'Aucun objectif actif.')
+          ? _EmptyProgress(message: w.text('no_goal'))
           : ListView(
               children: [
                 for (final g in s.activeGoals.take(3))
@@ -313,12 +322,12 @@ class DashboardV2Panels extends StatelessWidget {
                               style: Theme.of(context).textTheme.titleSmall,
                             ),
                             if (p == null)
-                              const _EmptyProgress(
-                                message: 'Financement sécurisé non disponible.',
+                              _EmptyProgress(
+                                message: w.text('secured_unavailable'),
                               )
                             else
                               ValueBar(
-                                label: 'Sécurisé',
+                                label: w.text('secured'),
                                 cents: p.securedFunding.minorUnits,
                                 maximum: g.goal.targetAmount.minorUnits,
                                 color: AppColors.secondary,
@@ -327,7 +336,13 @@ class DashboardV2Panels extends StatelessWidget {
                                     : null,
                               ),
                             Text(
-                              'Reste : ${chartMoney((p?.remaining ?? g.remaining).minorUnits)}\nÉchéance : ${_date(g.goal.targetDate)} • Projection : ${_date(p?.completionDate)}',
+                              w.format('goal_detail', {
+                                'remaining': chartMoney(
+                                  (p?.remaining ?? g.remaining).minorUnits,
+                                ),
+                                'due': _date(w, g.goal.targetDate),
+                                'projection': _date(w, p?.completionDate),
+                              }),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
@@ -339,18 +354,23 @@ class DashboardV2Panels extends StatelessWidget {
             ),
     );
     final priorities = _Panel(
-      title: 'Priorités — trajectoire',
+      title: w.text('priority_path'),
       subtitle: plan == null
-          ? 'Aucun plan actif unique.'
-          : '${plan.plan.name} • capacité simulée : ${plan.plan.monthlyCapacity == null ? 'Non disponible' : chartMoney(plan.plan.monthlyCapacity!.minorUnits)} / mois',
+          ? w.text('no_plan')
+          : w.format('plan_summary', {
+              'plan': plan.plan.name,
+              'capacity': plan.plan.monthlyCapacity == null
+                  ? w.text('unavailable')
+                  : chartMoney(plan.plan.monthlyCapacity!.minorUnits),
+            }),
       height: 300,
       action: action(
         'dashboard-open-priorities',
-        'Voir les priorités',
+        w.text('view_priorities'),
         DashboardDestination.priorities,
       ),
       child: pending == null || pending.isEmpty
-          ? const _EmptyTimeline()
+          ? _EmptyTimeline(words: w)
           : ListView(
               children: [
                 for (final e in pending.take(3))
@@ -374,7 +394,7 @@ class DashboardV2Panels extends StatelessWidget {
                                         .firstOrNull
                                         ?.source
                                         .label ??
-                                    'Projet indisponible',
+                                    w.text('project_unavailable'),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -385,7 +405,7 @@ class DashboardV2Panels extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    _date(e.completionDate),
+                                    _date(w, e.completionDate),
                                     style: Theme.of(
                                       context,
                                     ).textTheme.bodySmall,
@@ -407,55 +427,57 @@ class DashboardV2Panels extends StatelessWidget {
             ),
     );
     final obligations = _Panel(
-      title: 'Engagements',
-      subtitle: 'Restants dus / à recevoir — pas de nouveaux flux',
+      title: w.text('commitments'),
+      subtitle: w.text('commitments_subtitle'),
       height: 300,
       action: action(
         'dashboard-open-obligations',
-        'Voir les dettes',
+        w.text('view_debts'),
         DashboardDestination.debts,
       ),
       child: ListView(
         children: [
           ValueBar(
-            label: 'Dettes',
+            label: w.text('debts'),
             cents: s.debtRemaining.minorUnits,
             maximum: maxObligation,
           ),
           ValueBar(
-            label: 'Créances',
+            label: w.text('receivables'),
             cents: s.incomeReceivableRemaining.minorUnits,
             maximum: maxObligation,
             color: AppColors.secondary,
           ),
           ValueBar(
-            label: 'Recovery',
+            label: w.text('recovery'),
             cents: s.recoveryRemaining.minorUnits,
             maximum: maxObligation,
             color: AppColors.accent,
           ),
           Text(
-            'Position nette : ${chartMoney(s.netObligations.minorUnits)}',
+            w.format('net_position', {
+              'amount': chartMoney(s.netObligations.minorUnits),
+            }),
             style: Theme.of(context).textTheme.titleSmall,
           ),
           TextButton(
             onPressed: () => open(DashboardDestination.receivables),
-            child: const Text('Voir les créances / Recovery'),
+            child: Text(w.text('view_receivables')),
           ),
         ],
       ),
     );
     final distribution = _Panel(
-      title: 'Répartition par compte',
-      subtitle: 'Positions actuelles • indépendante des enveloppes',
+      title: w.text('account_distribution'),
+      subtitle: w.text('account_subtitle'),
       height: 300,
       action: action(
         'dashboard-open-accounts',
-        'Comptes & rapprochements',
+        w.text('accounts'),
         DashboardDestination.accounts,
       ),
       child: accounts.isEmpty
-          ? const EmptyPlot(message: 'Aucun compte disponible.')
+          ? EmptyPlot(message: w.text('no_account'))
           : ListView(
               children: [
                 for (final a in accounts)
@@ -468,42 +490,58 @@ class DashboardV2Panels extends StatelessWidget {
             ),
     );
     final health = _Panel(
-      title: 'Rapprochements',
-      subtitle: 'Santé financière • dossiers ouverts',
+      title: w.text('reconciliations'),
+      subtitle: w.text('reconciliation_subtitle'),
       height: 300,
       child: ListView(
         children: [
           Text(
-            '${s.accounts.where((a) => !observed.contains(a.account.id) || s.reconciliations.any((c) => c.accountId == a.account.id && (c.isOpen || c.status == 'legacy_unfrozen'))).length} compte(s) à contrôler',
+            w.format('accounts_to_check', {
+              'count': s.accounts
+                  .where(
+                    (a) =>
+                        !observed.contains(a.account.id) ||
+                        s.reconciliations.any(
+                          (c) =>
+                              c.accountId == a.account.id &&
+                              (c.isOpen || c.status == 'legacy_unfrozen'),
+                        ),
+                  )
+                  .length,
+            }),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
-          Text('${openCases.length} dossier(s) ouvert(s)'),
+          Text(w.format('open_cases', {'count': openCases.length})),
           Text(
-            'Reliquats absolus : ${chartMoney(openCases.fold<int>(0, (sum, c) => sum + (c.remaining?.minorUnits.abs() ?? 0)))}',
+            w.format('residuals', {
+              'amount': chartMoney(
+                openCases.fold<int>(
+                  0,
+                  (sum, c) => sum + (c.remaining?.minorUnits.abs() ?? 0),
+                ),
+              ),
+            }),
           ),
-          Text('Dernier constat rapproché : ${_date(dates.lastOrNull)}'),
+          Text(
+            w.format('last_observation', {'date': _date(w, dates.lastOrNull)}),
+          ),
           const SizedBox(height: 12),
-          const Text(
-            'Ces reliquats ne corrigent pas la trésorerie. Aucun écart legacy n’est reconstruit.',
-            style: TextStyle(fontSize: 12),
-          ),
+          Text(w.text('residual_notice'), style: const TextStyle(fontSize: 12)),
           TextButton(
             onPressed: () => open(DashboardDestination.accounts),
-            child: const Text('Contrôler les comptes'),
+            child: Text(w.text('check_accounts')),
           ),
         ],
       ),
     );
-    const liquidity = _Panel(
-      title: 'Évolution des liquidités',
-      subtitle:
-          'Historique de positions non disponible • aucun snapshot inventé',
+    final liquidity = _Panel(
+      title: w.text('liquidity_trend'),
+      subtitle: w.text('liquidity_history'),
       height: 250,
       child: EmptyPlot(
-        key: Key('dashboard-chart-liquidity'),
-        message:
-            'Ce suivi apparaîtra à partir d’un historique fiable après le cutover.',
+        key: const Key('dashboard-chart-liquidity'),
+        message: w.text('liquidity_empty'),
       ),
     );
     return LayoutBuilder(
@@ -573,8 +611,8 @@ class DashboardV2Panels extends StatelessWidget {
   }
 }
 
-String _date(DateTime? d) => d == null
-    ? 'Non disponible'
+String _date(DashboardV2Words words, DateTime? d) => d == null
+    ? words.text('date_unavailable')
     : '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
 class _Panel extends StatelessWidget {
@@ -639,7 +677,8 @@ class _EmptyProgress extends StatelessWidget {
 }
 
 class _EmptyTimeline extends StatelessWidget {
-  const _EmptyTimeline();
+  const _EmptyTimeline({required this.words});
+  final DashboardV2Words words;
   @override
   Widget build(BuildContext context) => Column(
     mainAxisAlignment: MainAxisAlignment.center,
@@ -655,7 +694,7 @@ class _EmptyTimeline extends StatelessWidget {
       ),
       const SizedBox(height: 16),
       Text(
-        'Les projections du plan actif apparaîtront ici.',
+        words.text('timeline_empty'),
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodySmall,
       ),

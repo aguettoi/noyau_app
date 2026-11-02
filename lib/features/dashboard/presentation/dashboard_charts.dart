@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../core/localization/finance_residual_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../application/dashboard_metrics.dart';
 
@@ -19,59 +20,71 @@ class IncomeExpenseChart extends StatelessWidget {
   const IncomeExpenseChart({super.key, required this.points});
   final List<DashboardFlowPoint> points;
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      const ChartLegend(
-        labels: ['Revenus', 'Dépenses'],
-        colors: [AppColors.primary, AppColors.secondary],
-      ),
-      const SizedBox(height: 8),
-      Expanded(
-        child: LayoutBuilder(
-          builder: (context, box) => Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _IncomePainter(
-                    points,
-                    Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              if (points.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 40),
-                    child: Text(
-                      'Les données apparaîtront après les premières opérations.',
-                      textAlign: TextAlign.center,
+  Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
+    return Column(
+      children: [
+        ChartLegend(
+          labels: [
+            words.text('dashboard.income'),
+            words.text('dashboard.expenses'),
+          ],
+          colors: [AppColors.primary, AppColors.secondary],
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, box) => Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _IncomePainter(
+                      points,
+                      Theme.of(context).colorScheme.onSurfaceVariant,
+                      words.text('dashboard.month'),
                     ),
                   ),
                 ),
-              if (points.isNotEmpty)
-                Positioned.fill(
-                  left: 44,
-                  bottom: 26,
-                  top: 18,
-                  child: Row(
-                    children: [
-                      for (final p in points)
-                        Expanded(
-                          child: Tooltip(
-                            message:
-                                '${p.month.month}/${p.month.year}\nRevenus : ${chartMoney(p.flow.income.minorUnits)}\nDépenses : ${chartMoney(p.flow.expense.minorUnits)}',
-                            child: const SizedBox.expand(),
-                          ),
-                        ),
-                    ],
+                if (points.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: Text(
+                        words.text('dashboard.chart_empty'),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ),
-                ),
-            ],
+                if (points.isNotEmpty)
+                  Positioned.fill(
+                    left: 44,
+                    bottom: 26,
+                    top: 18,
+                    child: Row(
+                      children: [
+                        for (final p in points)
+                          Expanded(
+                            child: Tooltip(
+                              message: words.format('dashboard.flow_tooltip', {
+                                'month': '${p.month.month}/${p.month.year}',
+                                'income': chartMoney(p.flow.income.minorUnits),
+                                'expenses': chartMoney(
+                                  p.flow.expense.minorUnits,
+                                ),
+                              }),
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 class ChartLegend extends StatelessWidget {
@@ -124,6 +137,7 @@ class EmptyPlot extends StatelessWidget {
           painter: _IncomePainter(
             const [],
             Theme.of(context).colorScheme.onSurfaceVariant,
+            '',
           ),
         ),
       ),
@@ -142,9 +156,10 @@ class EmptyPlot extends StatelessWidget {
 }
 
 class _IncomePainter extends CustomPainter {
-  _IncomePainter(this.points, this.textColor);
+  _IncomePainter(this.points, this.textColor, this.monthLabel);
   final List<DashboardFlowPoint> points;
   final Color textColor;
+  final String monthLabel;
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width < 60 || size.height < 40) return;
@@ -174,7 +189,12 @@ class _IncomePainter extends CustomPainter {
     canvas.drawLine(area.topLeft, area.bottomLeft, grid);
     _text(canvas, 'MAD', const Offset(0, 0), 42);
     if (points.isEmpty) {
-      _text(canvas, 'Mois', Offset(area.center.dx - 15, area.bottom + 8), 50);
+      _text(
+        canvas,
+        monthLabel,
+        Offset(area.center.dx - 15, area.bottom + 8),
+        50,
+      );
       return;
     }
     final slot = area.width / points.length;
@@ -223,7 +243,9 @@ class _IncomePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _IncomePainter old) =>
-      old.points != points || old.textColor != textColor;
+      old.points != points ||
+      old.textColor != textColor ||
+      old.monthLabel != monthLabel;
 }
 
 class ExpenseDonut extends StatelessWidget {
@@ -231,6 +253,7 @@ class ExpenseDonut extends StatelessWidget {
   final List<({String name, int cents})> segments;
   @override
   Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
     final positive = segments.where((s) => s.cents > 0).toList();
     final total = positive.fold<int>(0, (s, e) => s + e.cents);
     return Column(
@@ -254,13 +277,17 @@ class ExpenseDonut extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            total == 0 ? 'Non disponible' : chartMoney(total),
+                            total == 0
+                                ? words.text('dashboard.unavailable')
+                                : chartMoney(total),
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            total == 0 ? 'Aucune dépense' : 'Total dépenses',
+                            total == 0
+                                ? words.text('dashboard.no_expense')
+                                : words.text('dashboard.total_expenses'),
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
@@ -275,9 +302,9 @@ class ExpenseDonut extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         if (total == 0)
-          const Text(
-            'La répartition apparaîtra ici.',
-            style: TextStyle(fontSize: 12),
+          Text(
+            words.text('dashboard.breakdown_empty'),
+            style: const TextStyle(fontSize: 12),
           )
         else
           ChartLegend(
@@ -338,42 +365,54 @@ class ValueBar extends StatelessWidget {
   final Color color;
   final String? suffix;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Tooltip(
-      message: '$label : ${chartMoney(cents)}',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+  Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
+    final amount = chartMoney(cents);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Tooltip(
+        message: words.format('dashboard.value_tooltip', {
+          'label': label,
+          'amount': amount,
+        }),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  suffix == null
+                      ? amount
+                      : words.format('dashboard.value_suffix', {
+                          'amount': amount,
+                          'suffix': suffix!,
+                        }),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${chartMoney(cents)}${suffix == null ? '' : ' • $suffix'}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: maximum <= 0 ? 0 : (cents.abs() / maximum).clamp(0, 1),
-              minHeight: 7,
-              color: color,
-              backgroundColor: AppColors.surface,
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 5),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: maximum <= 0 ? 0 : (cents.abs() / maximum).clamp(0, 1),
+                minHeight: 7,
+                color: color,
+                backgroundColor: AppColors.surface,
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

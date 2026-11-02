@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
@@ -34,7 +35,12 @@ void main() {
             _MembersGateway(members),
           ),
         ],
-        child: const MaterialApp(home: AccountsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: AccountsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -405,7 +411,12 @@ void main() {
           ),
           supabaseAccountsGatewayProvider.overrideWithValue(_Gateway()),
         ],
-        child: const MaterialApp(home: AccountsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: AccountsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

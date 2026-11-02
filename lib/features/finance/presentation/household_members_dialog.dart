@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/finance_residual_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../application/providers/active_household_provider.dart';
 import '../application/providers/household_onboarding_provider.dart';
@@ -27,11 +28,12 @@ class _HouseholdMembersDialogState
   }
 
   Future<void> _invite() async {
+    final words = FinanceResidualWords.of(context);
     final email = _emailController.text.trim();
     final household = await ref.read(activeHouseholdProvider.future);
     final householdId = household.householdId;
     if (_busy || householdId == null || !email.contains('@')) {
-      setState(() => _message = 'Saisissez une adresse e-mail valide.');
+      setState(() => _message = words.text('members.invalid_email'));
       return;
     }
     setState(() {
@@ -45,16 +47,12 @@ class _HouseholdMembersDialogState
       if (mounted) {
         setState(() {
           _emailController.clear();
-          _message =
-              'Invitation enregistrée. La personne la verra après création et confirmation de son compte avec cette adresse.';
+          _message = words.text('members.invited');
         });
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _message =
-              'Invitation impossible. Seul le propriétaire du foyer peut inviter un membre.',
-        );
+        setState(() => _message = words.text('members.invite_failed'));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -63,9 +61,10 @@ class _HouseholdMembersDialogState
 
   @override
   Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
     final members = ref.watch(remoteHouseholdMembersProvider);
     return AlertDialog(
-      title: const Text('Membres du foyer'),
+      title: Text(words.text('members.title')),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -75,7 +74,7 @@ class _HouseholdMembersDialogState
             children: [
               members.when(
                 loading: () => const LinearProgressIndicator(),
-                error: (_, _) => const Text('Membres indisponibles.'),
+                error: (_, _) => Text(words.text('members.unavailable')),
                 data: (items) => Column(
                   children: [
                     for (final member in items)
@@ -90,7 +89,7 @@ class _HouseholdMembersDialogState
               ),
               const Divider(),
               Text(
-                'Inviter une personne',
+                words.text('members.invite_person'),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -98,14 +97,16 @@ class _HouseholdMembersDialogState
                 key: const Key('household-invite-email-field'),
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Adresse e-mail'),
+                decoration: InputDecoration(
+                  labelText: words.text('members.email'),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               FilledButton.icon(
                 key: const Key('household-invite-button'),
                 onPressed: _busy ? null : _invite,
                 icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('Envoyer l’invitation'),
+                label: Text(words.text('members.send_invitation')),
               ),
               if (_message != null) ...[
                 const SizedBox(height: AppSpacing.sm),
@@ -118,7 +119,7 @@ class _HouseholdMembersDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Fermer'),
+          child: Text(words.text('members.close')),
         ),
       ],
     );

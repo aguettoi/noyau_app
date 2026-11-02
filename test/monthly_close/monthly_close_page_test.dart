@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/monthly_close/application/monthly_close_provider.dart';
@@ -11,6 +12,7 @@ import 'package:noyau_app/features/finance/presentation/accounts_page.dart';
 import 'package:noyau_app/features/finance/presentation/member_compensations_page.dart';
 import 'package:noyau_app/features/finance/presentation/transactions_page.dart';
 import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
+import 'package:noyau_app/features/envelopes/presentation/envelope_recommendations_page.dart';
 import 'package:noyau_app/features/finance/application/providers/payment_methods_provider.dart';
 import 'package:noyau_app/core/money/money.dart';
 
@@ -48,7 +50,16 @@ void main() {
           overrides: [
             monthlyCloseProvider.overrideWith((ref) async => snapshot),
           ],
-          child: const MaterialApp(home: MonthlyClosePage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: MonthlyClosePage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -97,7 +108,16 @@ void main() {
             capturedReason = reason;
           }),
         ],
-        child: const MaterialApp(home: MonthlyClosePage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: MonthlyClosePage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -141,7 +161,16 @@ void main() {
           monthlyCloseProvider.overrideWith((ref) async => closed),
           monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: MonthlyClosePage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: MonthlyClosePage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -206,7 +235,16 @@ void main() {
                 amount == Money.fromDirhams(250);
           }),
         ],
-        child: const MaterialApp(home: MonthlyClosePage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: MonthlyClosePage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -264,7 +302,16 @@ void main() {
           ),
           paymentMethodsProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: MonthlyClosePage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: MonthlyClosePage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -275,8 +322,10 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('configure-envelope-targets')));
     await tester.pumpAndSettle();
-    expect(find.text('Paramétrage des enveloppes'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back'));
+    expect(find.byType(EnvelopeRecommendationsPage), findsOneWidget);
+    Navigator.of(
+      tester.element(find.byType(EnvelopeRecommendationsPage)),
+    ).pop();
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('monthly-close-page')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -321,7 +370,16 @@ void main() {
           monthlyCloseProvider.overrideWith((ref) async => actionable),
           monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: MonthlyClosePage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: MonthlyClosePage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -350,7 +408,7 @@ void main() {
       } else if (page is MemberCompensationsPage) {
         expect(page.initialCompensationId, 'compensation-context');
       }
-      await tester.pageBack();
+      Navigator.of(tester.element(find.byType(route.$2))).pop();
       await tester.pumpAndSettle();
     }
   });
@@ -384,7 +442,16 @@ void main() {
             }),
             monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
           ],
-          child: const MaterialApp(home: MonthlyClosePage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: MonthlyClosePage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -400,7 +467,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(AccountsPage), findsOneWidget);
 
-      await tester.pageBack();
+      Navigator.of(tester.element(find.byType(AccountsPage))).pop();
       await tester.pumpAndSettle();
 
       expect(fetches, 2);
@@ -508,7 +575,16 @@ void main() {
                   economicDate.year >= 2026;
             }),
           ],
-          child: const MaterialApp(home: MonthlyClosePage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: MonthlyClosePage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -608,7 +684,16 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: MonthlyClosePage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: MonthlyClosePage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -707,7 +792,16 @@ void main() {
             ],
           ),
         ],
-        child: const MaterialApp(home: MonthlyClosePage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: MonthlyClosePage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -810,7 +904,16 @@ void main() {
               (ref) async => envelopes,
             ),
           ],
-          child: const MaterialApp(home: MonthlyClosePage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: MonthlyClosePage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1114,7 +1217,16 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: MonthlyClosePage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: MonthlyClosePage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1283,7 +1395,16 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: MonthlyClosePage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: MonthlyClosePage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1446,7 +1567,16 @@ void main() {
                 ),
               ),
             ],
-            child: const MaterialApp(home: MonthlyClosePage()),
+            child: const MaterialApp(
+              locale: Locale('fr'),
+              supportedLocales: [Locale('fr')],
+              localizationsDelegates: [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              home: MonthlyClosePage(),
+            ),
           ),
         );
         await tester.pumpAndSettle();

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -487,6 +488,9 @@ void main() {
           UncontrolledProviderScope(
             container: container,
             child: const MaterialApp(
+              locale: Locale('fr'),
+              supportedLocales: [Locale('fr')],
+              localizationsDelegates: GlobalMaterialLocalizations.delegates,
               home: Scaffold(body: FinancialDashboardPage()),
             ),
           ),

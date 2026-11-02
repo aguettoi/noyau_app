@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/financial_availability/application/providers/financial_availability_provider.dart';
@@ -46,7 +47,12 @@ Widget _app(
     if (availability != null)
       financialAvailabilityProvider.overrideWith((ref) async => availability),
   ],
-  child: const MaterialApp(home: Scaffold(body: SavingsGoalsPage())),
+  child: const MaterialApp(
+    locale: Locale('fr'),
+    supportedLocales: [Locale('fr')],
+    localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    home: Scaffold(body: SavingsGoalsPage()),
+  ),
 );
 
 Widget _detailApp(List<SavingsGoalProgress> items) => ProviderScope(
@@ -64,7 +70,12 @@ Widget _detailApp(List<SavingsGoalProgress> items) => ProviderScope(
       ],
     ),
   ],
-  child: const MaterialApp(home: SavingsGoalDetailPage(goalId: 'goal-1')),
+  child: const MaterialApp(
+    locale: Locale('fr'),
+    supportedLocales: [Locale('fr')],
+    localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    home: SavingsGoalDetailPage(goalId: 'goal-1'),
+  ),
 );
 
 void main() {

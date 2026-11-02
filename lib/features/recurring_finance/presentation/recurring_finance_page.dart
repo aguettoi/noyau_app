@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/money/money.dart';
+import '../../../core/localization/recurring_finance_locale.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
@@ -12,74 +13,80 @@ import '../domain/recurring_finance.dart';
 class RecurringFinancePage extends ConsumerWidget {
   const RecurringFinancePage({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => DefaultTabController(
-    length: 3,
-    child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Opérations attendues'),
-        bottom: const TabBar(
-          tabs: [
-            Tab(text: 'Récurrences'),
-            Tab(text: 'Prochaines occurrences'),
-            Tab(text: 'Suggestions'),
-          ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final w = RecurringFinanceWords.of(context);
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(w.text('title')),
+          bottom: TabBar(
+            tabs: [
+              Tab(text: w.text('recurrences')),
+              Tab(text: w.text('occurrences')),
+              Tab(text: w.text('suggestions')),
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          key: const Key('add-recurring-intention'),
+          onPressed: () => _create(context, ref),
+          icon: const Icon(Icons.add),
+          label: Text(w.text('plan')),
+        ),
+        body: TabBarView(
+          children: [_Intentions(), _Occurrences(), _Suggestions()],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('add-recurring-intention'),
-        onPressed: () => _create(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Planifier'),
-      ),
-      body: TabBarView(
-        children: [_Intentions(), _Occurrences(), _Suggestions()],
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class _Suggestions extends ConsumerWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(recurringPatternSuggestionsProvider)
-      .when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Suggestions indisponibles.')),
-        data: (items) => items.isEmpty
-            ? const Center(
-                child: Text('Aucune récurrence suffisamment stable détectée.'),
-              )
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  const Card(
-                    child: ListTile(
-                      leading: Icon(Icons.auto_graph_outlined),
-                      title: Text('Détection assistée'),
-                      subtitle: Text(
-                        'Ces propositions sont explicables et ne créent aucune opération. Confirmez-les avant planification.',
-                      ),
-                    ),
-                  ),
-                  for (final item in items)
+  Widget build(BuildContext context, WidgetRef ref) {
+    final w = RecurringFinanceWords.of(context);
+    return ref
+        .watch(recurringPatternSuggestionsProvider)
+        .when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => Center(child: Text(w.text('suggestions_error'))),
+          data: (items) => items.isEmpty
+              ? Center(child: Text(w.text('suggestions_empty')))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
                     Card(
                       child: ListTile(
-                        title: Text(item.label),
-                        subtitle: Text(
-                          '${item.typicalAmount.dirhams.toStringAsFixed(2)} MAD · ${_frequency(item.frequency)}\n${item.reasons.join(' • ')}',
-                        ),
-                        isThreeLine: true,
-                        trailing: FilledButton.tonal(
-                          onPressed: () =>
-                              _createFromSuggestion(context, ref, item),
-                          child: const Text('Examiner'),
-                        ),
+                        leading: Icon(Icons.auto_graph_outlined),
+                        title: Text(w.text('assisted')),
+                        subtitle: Text(w.text('assisted_detail')),
                       ),
                     ),
-                ],
-              ),
-      );
+                    for (final item in items)
+                      Card(
+                        child: ListTile(
+                          title: Text(item.label),
+                          subtitle: Text(
+                            w.format('suggestion_detail', {
+                              'amount':
+                                  '${item.typicalAmount.dirhams.toStringAsFixed(2)} MAD',
+                              'frequency': _frequency(w, item.frequency),
+                              'reasons': item.reasons.join(' • '),
+                            }),
+                          ),
+                          isThreeLine: true,
+                          trailing: FilledButton.tonal(
+                            onPressed: () =>
+                                _createFromSuggestion(context, ref, item),
+                            child: Text(w.text('review')),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        );
+  }
 }
 
 Future<void> _createFromSuggestion(
@@ -91,6 +98,7 @@ Future<void> _createFromSuggestion(
 class _Intentions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final w = RecurringFinanceWords.of(context);
     final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
     final envelopes =
         ref.watch(remoteEnvelopeBalancesProvider).valueOrNull ?? const [];
@@ -103,12 +111,9 @@ class _Intentions extends ConsumerWidget {
         .watch(recurringIntentionsProvider)
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) =>
-              const Center(child: Text('Récurrences indisponibles.')),
+          error: (_, _) => Center(child: Text(w.text('intentions_error'))),
           data: (items) => items.isEmpty
-              ? const Center(
-                  child: Text('Aucune opération récurrente planifiée.'),
-                )
+              ? Center(child: Text(w.text('intentions_empty')))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: items.length,
@@ -116,19 +121,35 @@ class _Intentions extends ConsumerWidget {
                     final i = items[index];
                     final details = <String>[
                       if (i.sourceAccountId != null)
-                        '${i.type == RecurringEconomicType.accountTransfer ? 'Source' : 'Compte'} : ${accountNames[i.sourceAccountId] ?? 'Compte connu'}',
+                        '${w.text(i.type == RecurringEconomicType.accountTransfer ? 'source' : 'account')} : ${accountNames[i.sourceAccountId] ?? w.text('known_account')}',
                       if (i.destinationAccountId != null)
-                        '${i.type == RecurringEconomicType.accountTransfer ? 'Destination' : 'Compte'} : ${accountNames[i.destinationAccountId] ?? 'Compte connu'}',
+                        '${w.text(i.type == RecurringEconomicType.accountTransfer ? 'destination' : 'account')} : ${accountNames[i.destinationAccountId] ?? w.text('known_account')}',
                       if (i.envelopeId != null)
-                        'Enveloppe : ${envelopeNames[i.envelopeId] ?? 'Enveloppe connue'}',
+                        '${w.text('envelope')} : ${envelopeNames[i.envelopeId] ?? w.text('known_envelope')}',
                       if (i.memberId != null)
-                        'Membre : ${memberNames[i.memberId] ?? 'Membre du foyer'}',
+                        '${w.text('member')} : ${memberNames[i.memberId] ?? w.text('household_member')}',
                     ];
                     return Card(
                       child: ListTile(
                         title: Text(i.label),
                         subtitle: Text(
-                          '${_kind(i.type)} · ${i.amount.dirhams.toStringAsFixed(2)} MAD · ${_frequency(i.frequency)}\n${i.certainty == RecurringCertainty.certain ? 'Engagement certain' : 'Estimation'} · ${_status(i.status)}${details.isEmpty ? '' : '\n${details.join(' • ')}'}',
+                          w.format('detail', {
+                            'kind': _kind(w, i.type),
+                            'amount':
+                                '${i.amount.dirhams.toStringAsFixed(2)} MAD',
+                            'frequency': _frequency(w, i.frequency),
+                            'certainty': w.text(
+                              i.certainty == RecurringCertainty.certain
+                                  ? 'certain'
+                                  : 'estimate',
+                            ),
+                            'status': _status(w, i.status),
+                            'links': details.isEmpty
+                                ? ''
+                                : w.format('links', {
+                                    'details': details.join(' • '),
+                                  }),
+                          }),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -136,7 +157,7 @@ class _Intentions extends ConsumerWidget {
                         trailing: Wrap(
                           children: [
                             IconButton(
-                              tooltip: 'Modifier les prochaines occurrences',
+                              tooltip: w.text('edit'),
                               onPressed: () =>
                                   _create(context, ref, current: i),
                               icon: const Icon(Icons.edit_outlined),
@@ -147,19 +168,19 @@ class _Intentions extends ConsumerWidget {
                                   .status(i.id, s),
                               itemBuilder: (_) => [
                                 if (i.status != RecurringStatus.active)
-                                  const PopupMenuItem(
+                                  PopupMenuItem(
                                     value: RecurringStatus.active,
-                                    child: Text('Réactiver'),
+                                    child: Text(w.text('reactivate')),
                                   ),
                                 if (i.status == RecurringStatus.active)
-                                  const PopupMenuItem(
+                                  PopupMenuItem(
                                     value: RecurringStatus.suspended,
-                                    child: Text('Suspendre'),
+                                    child: Text(w.text('suspend')),
                                   ),
                                 if (i.status != RecurringStatus.stopped)
-                                  const PopupMenuItem(
+                                  PopupMenuItem(
                                     value: RecurringStatus.stopped,
-                                    child: Text('Arrêter'),
+                                    child: Text(w.text('stop')),
                                   ),
                               ],
                             ),
@@ -175,45 +196,53 @@ class _Intentions extends ConsumerWidget {
 
 class _Occurrences extends ConsumerWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ref
-      .watch(expectedOccurrencesProvider)
-      .when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Occurrences indisponibles.')),
-        data: (items) => items.isEmpty
-            ? const Center(
-                child: Text('Aucune occurrence dans la fenêtre actuelle.'),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final o = items[index];
-                  return Card(
-                    child: ListTile(
-                      leading: Icon(_icon(o.status)),
-                      title: Text(o.label),
-                      subtitle: Text(
-                        '${DateFormat.yMMMd('fr').format(o.expectedOn)} · ${o.expectedAmount.dirhams.toStringAsFixed(2)} MAD\n${_occurrenceLabel(o)}',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final w = RecurringFinanceWords.of(context);
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return ref
+        .watch(expectedOccurrencesProvider)
+        .when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => Center(child: Text(w.text('occurrences_error'))),
+          data: (items) => items.isEmpty
+              ? Center(child: Text(w.text('occurrences_empty')))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final o = items[index];
+                    return Card(
+                      child: ListTile(
+                        leading: Icon(_icon(o.status)),
+                        title: Text(o.label),
+                        subtitle: Text(
+                          w.format('occurrence_detail', {
+                            'date': DateFormat.yMMMd(
+                              locale,
+                            ).format(o.expectedOn),
+                            'amount':
+                                '${o.expectedAmount.dirhams.toStringAsFixed(2)} MAD',
+                            'status': _occurrenceLabel(w, o),
+                          }),
+                        ),
+                        isThreeLine: true,
+                        onTap: () => _reviewMatches(context, ref, o),
+                        trailing:
+                            o.status == ExpectedOccurrenceStatus.ignored ||
+                                o.status == ExpectedOccurrenceStatus.realized
+                            ? null
+                            : IconButton(
+                                tooltip: w.text('ignore_tooltip'),
+                                onPressed: () =>
+                                    _ignoreOccurrence(context, ref, o),
+                                icon: const Icon(Icons.visibility_off_outlined),
+                              ),
                       ),
-                      isThreeLine: true,
-                      onTap: () => _reviewMatches(context, ref, o),
-                      trailing:
-                          o.status == ExpectedOccurrenceStatus.ignored ||
-                              o.status == ExpectedOccurrenceStatus.realized
-                          ? null
-                          : IconButton(
-                              tooltip: 'Ignorer cette occurrence',
-                              onPressed: () =>
-                                  _ignoreOccurrence(context, ref, o),
-                              icon: const Icon(Icons.visibility_off_outlined),
-                            ),
-                    ),
-                  );
-                },
-              ),
-      );
+                    );
+                  },
+                ),
+        );
+  }
 }
 
 Future<void> _ignoreOccurrence(
@@ -221,23 +250,24 @@ Future<void> _ignoreOccurrence(
   WidgetRef ref,
   ExpectedFinancialOccurrence occurrence,
 ) async {
+  final w = RecurringFinanceWords.of(context);
   final reason = TextEditingController();
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Ignorer cette occurrence ?'),
+      title: Text(w.text('ignore_title')),
       content: TextField(
         controller: reason,
-        decoration: const InputDecoration(labelText: 'Motif obligatoire'),
+        decoration: InputDecoration(labelText: w.text('required_reason')),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext, false),
-          child: const Text('Annuler'),
+          child: Text(w.text('cancel')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext, true),
-          child: const Text('Ignorer'),
+          child: Text(w.text('ignore')),
         ),
       ],
     ),
@@ -253,6 +283,8 @@ Future<void> _reviewMatches(
   WidgetRef ref,
   ExpectedFinancialOccurrence occurrence,
 ) async {
+  final w = RecurringFinanceWords.of(context);
+  final locale = Localizations.localeOf(context).toLanguageTag();
   final candidates = await ref.read(actualRecurringCandidatesProvider.future);
   final assessed = [
     for (final candidate in candidates)
@@ -270,13 +302,11 @@ Future<void> _reviewMatches(
   await showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Rapprochement attendu ↔ réalisé'),
+      title: Text(w.text('matching_title')),
       content: SizedBox(
         width: 520,
         child: eligible.isEmpty
-            ? const Text(
-                'Aucune opération réelle suffisamment proche. L’attente reste inchangée.',
-              )
+            ? Text(w.text('no_match'))
             : ListView.builder(
                 shrinkWrap: true,
                 itemCount: eligible.length.clamp(0, 8),
@@ -286,14 +316,21 @@ Future<void> _reviewMatches(
                     child: ListTile(
                       title: Text(item.candidate.description),
                       subtitle: Text(
-                        '${DateFormat.yMMMd('fr').format(item.candidate.occurredAt)} · ${item.candidate.amount.dirhams.toStringAsFixed(2)} MAD\n${item.assessment.reasons.join(' · ')}',
+                        w.format('candidate_detail', {
+                          'date': DateFormat.yMMMd(
+                            locale,
+                          ).format(item.candidate.occurredAt),
+                          'amount':
+                              '${item.candidate.amount.dirhams.toStringAsFixed(2)} MAD',
+                          'reasons': item.assessment.reasons.join(' · '),
+                        }),
                       ),
                       isThreeLine: true,
                       trailing: Wrap(
                         spacing: 4,
                         children: [
                           IconButton(
-                            tooltip: 'Refuser ce candidat',
+                            tooltip: w.text('reject_candidate'),
                             onPressed: () async {
                               await ref
                                   .read(recurringFinanceActionsProvider)
@@ -309,7 +346,7 @@ Future<void> _reviewMatches(
                             icon: const Icon(Icons.close),
                           ),
                           IconButton(
-                            tooltip: 'Confirmer ce rapprochement',
+                            tooltip: w.text('confirm_match'),
                             onPressed: () async {
                               await ref
                                   .read(recurringFinanceActionsProvider)
@@ -334,7 +371,7 @@ Future<void> _reviewMatches(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Fermer'),
+          child: Text(w.text('close')),
         ),
       ],
     ),
@@ -347,6 +384,8 @@ Future<void> _create(
   RecurringFinancialIntention? current,
   RecurringPatternSuggestion? suggestion,
 }) async {
+  final w = RecurringFinanceWords.of(context);
+  final locale = Localizations.localeOf(context).toLanguageTag();
   final accounts = await ref.read(remoteAccountsProvider.future);
   final envelopes = await ref.read(remoteEnvelopeBalancesProvider.future);
   final members = await ref.read(remoteHouseholdMembersProvider.future);
@@ -386,11 +425,7 @@ Future<void> _create(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: Text(
-          current == null
-              ? 'Planifier une opération'
-              : 'Modifier la récurrence',
-        ),
+        title: Text(current == null ? w.text('create') : w.text('modify')),
         content: SizedBox(
           width: 440,
           child: SingleChildScrollView(
@@ -399,25 +434,27 @@ Future<void> _create(
               children: [
                 TextField(
                   controller: label,
-                  decoration: const InputDecoration(labelText: 'Libellé'),
+                  decoration: InputDecoration(labelText: w.text('label')),
                 ),
                 TextField(
                   controller: amount,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Montant attendu (MAD)',
+                  decoration: InputDecoration(
+                    labelText: w.text('expected_amount'),
                   ),
                 ),
                 DropdownButtonFormField<RecurringEconomicType>(
                   isExpanded: true,
                   initialValue: type,
-                  decoration: const InputDecoration(labelText: 'Nature'),
+                  decoration: InputDecoration(labelText: w.text('nature')),
                   items: RecurringEconomicType.values
                       .map(
-                        (v) =>
-                            DropdownMenuItem(value: v, child: Text(_kind(v))),
+                        (v) => DropdownMenuItem(
+                          value: v,
+                          child: Text(_kind(w, v)),
+                        ),
                       )
                       .toList(),
                   onChanged: current == null
@@ -427,12 +464,12 @@ Future<void> _create(
                 DropdownButtonFormField<RecurringFrequency>(
                   isExpanded: true,
                   initialValue: frequency,
-                  decoration: const InputDecoration(labelText: 'Fréquence'),
+                  decoration: InputDecoration(labelText: w.text('frequency')),
                   items: RecurringFrequency.values
                       .map(
                         (v) => DropdownMenuItem(
                           value: v,
-                          child: Text(_frequency(v)),
+                          child: Text(_frequency(w, v)),
                         ),
                       )
                       .toList(),
@@ -442,8 +479,8 @@ Future<void> _create(
                   DropdownButtonFormField<String?>(
                     isExpanded: true,
                     initialValue: sourceAccountId,
-                    decoration: const InputDecoration(
-                      labelText: 'Compte source',
+                    decoration: InputDecoration(
+                      labelText: w.text('source_account'),
                     ),
                     items: activeAccounts
                         .map(
@@ -459,8 +496,8 @@ Future<void> _create(
                   DropdownButtonFormField<String?>(
                     isExpanded: true,
                     initialValue: destinationAccountId,
-                    decoration: const InputDecoration(
-                      labelText: 'Compte destination',
+                    decoration: InputDecoration(
+                      labelText: w.text('destination_account'),
                     ),
                     items: activeAccounts
                         .map(
@@ -477,13 +514,13 @@ Future<void> _create(
                   DropdownButtonFormField<String?>(
                     isExpanded: true,
                     initialValue: concernedAccountId,
-                    decoration: const InputDecoration(
-                      labelText: 'Compte concerné (facultatif)',
+                    decoration: InputDecoration(
+                      labelText: w.text('optional_account'),
                     ),
                     items: [
-                      const DropdownMenuItem<String?>(
+                      DropdownMenuItem<String?>(
                         value: null,
-                        child: Text('Non précisé'),
+                        child: Text(w.text('unspecified_m')),
                       ),
                       ...activeAccounts.map(
                         (account) => DropdownMenuItem<String?>(
@@ -499,13 +536,13 @@ Future<void> _create(
                   DropdownButtonFormField<String?>(
                     isExpanded: true,
                     initialValue: envelopeId,
-                    decoration: const InputDecoration(
-                      labelText: 'Enveloppe (facultative)',
+                    decoration: InputDecoration(
+                      labelText: w.text('optional_envelope'),
                     ),
                     items: [
-                      const DropdownMenuItem<String?>(
+                      DropdownMenuItem<String?>(
                         value: null,
-                        child: Text('Non précisée'),
+                        child: Text(w.text('unspecified_f')),
                       ),
                       ...envelopes.map(
                         (envelope) => DropdownMenuItem<String?>(
@@ -519,13 +556,13 @@ Future<void> _create(
                 DropdownButtonFormField<String?>(
                   isExpanded: true,
                   initialValue: memberId,
-                  decoration: const InputDecoration(
-                    labelText: 'Membre concerné (facultatif)',
+                  decoration: InputDecoration(
+                    labelText: w.text('optional_member'),
                   ),
                   items: [
-                    const DropdownMenuItem<String?>(
+                    DropdownMenuItem<String?>(
                       value: null,
-                      child: Text('Non précisé'),
+                      child: Text(w.text('unspecified_m')),
                     ),
                     ...members.map(
                       (member) => DropdownMenuItem<String?>(
@@ -538,11 +575,11 @@ Future<void> _create(
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Montant certain'),
+                  title: Text(w.text('certain_amount')),
                   subtitle: Text(
                     certainty == RecurringCertainty.certain
-                        ? 'Engagement confirmé'
-                        : 'Estimation ou dépense incertaine',
+                        ? w.text('confirmed')
+                        : w.text('uncertain'),
                   ),
                   value: certainty == RecurringCertainty.certain,
                   onChanged: (v) => setState(
@@ -553,8 +590,8 @@ Future<void> _create(
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Première occurrence'),
-                  subtitle: Text(DateFormat.yMMMd('fr').format(starts)),
+                  title: Text(w.text('first_occurrence')),
+                  subtitle: Text(DateFormat.yMMMd(locale).format(starts)),
                   trailing: const Icon(Icons.calendar_today),
                   onTap: current != null
                       ? null
@@ -568,9 +605,9 @@ Future<void> _create(
                           if (d != null) setState(() => starts = d);
                         },
                 ),
-                const Text(
-                  'Compte, enveloppe et membre peuvent rester inconnus. Aucun mouvement financier ne sera créé.',
-                  style: TextStyle(fontSize: 12),
+                Text(
+                  w.text('no_movement'),
+                  style: const TextStyle(fontSize: 12),
                 ),
               ],
             ),
@@ -579,11 +616,11 @@ Future<void> _create(
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            child: Text(w.text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(current == null ? 'Planifier' : 'Enregistrer'),
+            child: Text(current == null ? w.text('plan') : w.text('save')),
           ),
         ],
       ),
@@ -592,20 +629,18 @@ Future<void> _create(
   if (saved != true || !context.mounted) return;
   final parsed = double.tryParse(amount.text.replaceAll(',', '.'));
   if (label.text.trim().isEmpty || parsed == null || parsed <= 0) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Libellé et montant positif requis.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(w.text('invalid_form'))));
     return;
   }
   if (type == RecurringEconomicType.accountTransfer &&
       (sourceAccountId == null ||
           destinationAccountId == null ||
           sourceAccountId == destinationAccountId)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Deux comptes distincts sont requis pour un transfert.'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(w.text('distinct_accounts'))));
     return;
   }
   final actions = ref.read(recurringFinanceActionsProvider);
@@ -651,28 +686,24 @@ Future<void> _create(
   }
 }
 
-String _kind(RecurringEconomicType v) => switch (v) {
-  RecurringEconomicType.income => 'Revenu',
-  RecurringEconomicType.expense => 'Dépense',
-  RecurringEconomicType.accountTransfer => 'Transfert bancaire',
-};
-String _frequency(RecurringFrequency v) => switch (v) {
-  RecurringFrequency.weekly => 'Chaque semaine',
-  RecurringFrequency.monthly => 'Chaque mois',
-  RecurringFrequency.yearly => 'Chaque année',
-};
-String _status(RecurringStatus v) => switch (v) {
-  RecurringStatus.active => 'Active',
-  RecurringStatus.suspended => 'Suspendue',
-  RecurringStatus.stopped => 'Arrêtée',
-};
-String _occurrenceLabel(ExpectedFinancialOccurrence o) => switch (o.status) {
-  ExpectedOccurrenceStatus.expected => 'Attendue — aucune écriture créée',
-  ExpectedOccurrenceStatus.partiallyRealized =>
-    'Partiellement réalisée · reste ${o.remaining.dirhams.toStringAsFixed(2)} MAD',
-  ExpectedOccurrenceStatus.realized => 'Réalisée',
-  ExpectedOccurrenceStatus.ignored => 'Ignorée',
-  ExpectedOccurrenceStatus.overdue => 'Échue non réalisée',
+String _kind(RecurringFinanceWords w, RecurringEconomicType v) =>
+    w.text('kind.${v.name}');
+String _frequency(RecurringFinanceWords w, RecurringFrequency v) =>
+    w.text('frequency.${v.name}');
+String _status(RecurringFinanceWords w, RecurringStatus v) =>
+    w.text('status.${v.name}');
+String _occurrenceLabel(
+  RecurringFinanceWords w,
+  ExpectedFinancialOccurrence o,
+) => switch (o.status) {
+  ExpectedOccurrenceStatus.expected => w.text('occurrence.expected'),
+  ExpectedOccurrenceStatus.partiallyRealized => w.format(
+    'occurrence.partiallyRealized',
+    {'amount': '${o.remaining.dirhams.toStringAsFixed(2)} MAD'},
+  ),
+  ExpectedOccurrenceStatus.realized => w.text('occurrence.realized'),
+  ExpectedOccurrenceStatus.ignored => w.text('occurrence.ignored'),
+  ExpectedOccurrenceStatus.overdue => w.text('occurrence.overdue'),
 };
 IconData _icon(ExpectedOccurrenceStatus s) => switch (s) {
   ExpectedOccurrenceStatus.realized => Icons.check_circle,

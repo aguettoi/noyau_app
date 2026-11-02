@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/money/money.dart';
+import '../../../core/localization/finance_residual_locale.dart';
 import '../../financial_availability/domain/financial_availability.dart';
 import '../domain/financing_simulation.dart';
 import '../domain/wealth_models.dart';
@@ -46,7 +47,8 @@ class _OfferControllers {
 }
 
 class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
-  final _offers = [_OfferControllers('Offre A'), _OfferControllers('Offre B')];
+  final _offers = [_OfferControllers(''), _OfferControllers('')];
+  var _labelsInitialized = false;
   FinancingComparison? _comparison;
   String? _error;
   late DateTime _startDate = DateTime.now();
@@ -60,83 +62,91 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => Dialog(
-    child: SizedBox(
-      width: 980,
-      height: MediaQuery.sizeOf(context).height * .92,
-      child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          title: const Text('Comparer des simulations de financement'),
-          actions: [
-            IconButton(
-              tooltip: 'Fermer',
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close),
-            ),
-          ],
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Card(
-              child: ListTile(
-                leading: Icon(Icons.science_outlined),
-                title: Text('Simulation uniquement'),
-                subtitle: Text(
-                  'Aucune dette, obligation, écriture GL ou FinancialEvent n’est créé. Les hypothèses restent distinctes de la situation réelle.',
-                ),
+  Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
+    if (!_labelsInitialized) {
+      _offers[0].label.text = words.text('financing.offer_a');
+      _offers[1].label.text = words.text('financing.offer_b');
+      _labelsInitialized = true;
+    }
+    return Dialog(
+      child: SizedBox(
+        width: 980,
+        height: MediaQuery.sizeOf(context).height * .92,
+        child: Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: Text(words.text('financing.title')),
+            actions: [
+              IconButton(
+                tooltip: words.text('members.close'),
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.event_outlined),
-              title: const Text('Date de départ de la simulation'),
-              subtitle: Text(_date(_startDate)),
-              trailing: const Icon(Icons.edit_calendar_outlined),
-              onTap: _selectStartDate,
-            ),
-            LayoutBuilder(
-              builder: (context, constraints) => constraints.maxWidth >= 720
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _offerForm(_offers[0], 0)),
-                        const SizedBox(width: 12),
-                        Expanded(child: _offerForm(_offers[1], 1)),
-                      ],
-                    )
-                  : Column(
-                      children: [
-                        _offerForm(_offers[0], 0),
-                        const SizedBox(height: 12),
-                        _offerForm(_offers[1], 1),
-                      ],
-                    ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              key: const Key('compare-financing-offers'),
-              onPressed: _compare,
-              icon: const Icon(Icons.compare_arrows),
-              label: const Text('Comparer les deux offres'),
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            if (_comparison case final comparison?) ...[
-              const SizedBox(height: 16),
-              _results(comparison),
             ],
-          ],
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                child: ListTile(
+                  leading: Icon(Icons.science_outlined),
+                  title: Text(words.text('financing.simulation_only')),
+                  subtitle: Text(words.text('financing.simulation_notice')),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.event_outlined),
+                title: Text(words.text('financing.start_date')),
+                subtitle: Text(_date(context, _startDate)),
+                trailing: const Icon(Icons.edit_calendar_outlined),
+                onTap: _selectStartDate,
+              ),
+              LayoutBuilder(
+                builder: (context, constraints) => constraints.maxWidth >= 720
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _offerForm(_offers[0], 0)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _offerForm(_offers[1], 1)),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          _offerForm(_offers[0], 0),
+                          const SizedBox(height: 12),
+                          _offerForm(_offers[1], 1),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                key: const Key('compare-financing-offers'),
+                onPressed: _compare,
+                icon: const Icon(Icons.compare_arrows),
+                label: Text(words.text('financing.compare')),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              if (_comparison case final comparison?) ...[
+                const SizedBox(height: 16),
+                _results(comparison),
+              ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _offerForm(_OfferControllers offer, int index) => Card(
     key: Key('financing-offer-$index'),
@@ -146,41 +156,74 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
         children: [
           TextField(
             controller: offer.label,
-            decoration: const InputDecoration(labelText: 'Nom de l’offre'),
+            decoration: InputDecoration(
+              labelText: FinanceResidualWords.of(
+                context,
+              ).text('financing.offer_name'),
+            ),
           ),
           DropdownButtonFormField<FinancingStructure>(
             initialValue: offer.structure,
-            items: const [
+            items: [
               DropdownMenuItem(
                 value: FinancingStructure.murabaha,
-                child: Text('Murabaha / participatif'),
+                child: Text(
+                  FinanceResidualWords.of(context).text('financing.murabaha'),
+                ),
               ),
               DropdownMenuItem(
                 value: FinancingStructure.fixedCost,
-                child: Text('Financement à coût fixe'),
+                child: Text(
+                  FinanceResidualWords.of(context).text('financing.fixed_cost'),
+                ),
               ),
               DropdownMenuItem(
                 value: FinancingStructure.interestLoan,
-                child: Text('Prêt à intérêt'),
+                child: Text(
+                  FinanceResidualWords.of(
+                    context,
+                  ).text('financing.interest_loan'),
+                ),
               ),
               DropdownMenuItem(
                 value: FinancingStructure.other,
-                child: Text('Autre structure'),
+                child: Text(
+                  FinanceResidualWords.of(context).text('financing.other'),
+                ),
               ),
             ],
             onChanged: (value) => setState(() => offer.structure = value!),
-            decoration: const InputDecoration(labelText: 'Structure'),
+            decoration: InputDecoration(
+              labelText: FinanceResidualWords.of(
+                context,
+              ).text('financing.structure'),
+            ),
           ),
           _number(
             offer.financed,
-            'Montant financé (MAD)',
+            FinanceResidualWords.of(context).text('financing.financed_amount'),
             key: Key('financed-amount-$index'),
           ),
-          _number(offer.downPayment, 'Apport (MAD)'),
-          _number(offer.duration, 'Durée (mois)'),
-          _number(offer.rate, 'Taux annuel (%) — prêt à intérêt uniquement'),
-          _number(offer.fixedCost, 'Coût / marge fixe (MAD)'),
-          _number(offer.benefits, 'Aides/avantages projetés (MAD)'),
+          _number(
+            offer.downPayment,
+            FinanceResidualWords.of(context).text('financing.down_payment'),
+          ),
+          _number(
+            offer.duration,
+            FinanceResidualWords.of(context).text('financing.duration'),
+          ),
+          _number(
+            offer.rate,
+            FinanceResidualWords.of(context).text('financing.annual_rate'),
+          ),
+          _number(
+            offer.fixedCost,
+            FinanceResidualWords.of(context).text('financing.fixed_margin'),
+          ),
+          _number(
+            offer.benefits,
+            FinanceResidualWords.of(context).text('financing.benefits'),
+          ),
         ],
       ),
     ),
@@ -195,6 +238,7 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
       );
 
   void _compare() {
+    final words = FinanceResidualWords.of(context);
     try {
       final inputs = _offers.indexed.map((entry) {
         final index = entry.$1;
@@ -206,12 +250,12 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
         final fixedCost = _amount(offer.fixedCost);
         final benefits = _amount(offer.benefits);
         if (duration == null || duration <= 0) {
-          throw const FormatException('La durée doit être positive.');
+          throw const FormatException('duration');
         }
         return FinancingSimulationInput(
           id: 'offer-$index',
           label: offer.label.text.trim().isEmpty
-              ? 'Offre ${index + 1}'
+              ? words.format('financing.offer_number', {'number': index + 1})
               : offer.label.text.trim(),
           structure: offer.structure,
           financedAmount: financed,
@@ -238,12 +282,12 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
     } on FormatException catch (error) {
       setState(() {
         _comparison = null;
-        _error = error.message;
+        _error = words.text('financing.error.${error.message}');
       });
-    } on ArgumentError catch (error) {
+    } on ArgumentError {
       setState(() {
         _comparison = null;
-        _error = error.message?.toString() ?? 'Hypothèses invalides.';
+        _error = words.text('financing.error.invalid_assumptions');
       });
     }
   }
@@ -268,7 +312,7 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Comparaison explicable',
+            FinanceResidualWords.of(context).text('financing.explainable'),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
@@ -276,33 +320,51 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
             (result) => ListTile(
               title: Text(result.input.label),
               subtitle: Text(
-                '${result.input.structure.name} · apport ${_money(result.input.downPayment)} · ${result.input.durationMonths} mois\n'
-                'Échéance ${_money(result.periodicPayment)} · coût ${_money(result.totalCost)} · total payé ${_money(result.totalPaid)} · coût net projeté ${_money(result.netProjectedCost)}\n'
-                'Fin projetée ${_date(result.endDate)} · capacité ${_capacity(result.capacityStatus)}',
+                FinanceResidualWords.of(context).format('financing.result', {
+                  'structure': _structure(result.input.structure),
+                  'downPayment': _money(result.input.downPayment),
+                  'duration': result.input.durationMonths,
+                  'payment': _money(result.periodicPayment),
+                  'cost': _money(result.totalCost),
+                  'paid': _money(result.totalPaid),
+                  'netCost': _money(result.netProjectedCost),
+                  'endDate': _date(context, result.endDate),
+                  'capacity': _capacity(result.capacityStatus),
+                }),
               ),
             ),
           ),
           const Divider(),
           Text(
-            'Coût projeté le plus faible : ${comparison.lowestProjectedCost?.input.label}. '
-            'Échéance la plus faible : ${comparison.lowestPayment?.input.label}. '
-            'Durée la plus courte : ${comparison.shortestDuration?.input.label}.',
+            FinanceResidualWords.of(context).format('financing.summary', {
+              'cost': comparison.lowestProjectedCost?.input.label ?? '—',
+              'payment': comparison.lowestPayment?.input.label ?? '—',
+              'duration': comparison.shortestDuration?.input.label ?? '—',
+            }),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Ces constats ne désignent pas automatiquement un “meilleur choix”. Liquidité, durée, objectifs et conditions contractuelles doivent être arbitrés par le foyer.',
-          ),
+          Text(FinanceResidualWords.of(context).text('financing.disclaimer')),
           if (!widget.availability.isComplete)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'Capacité non conclue : les données autorisées sont incomplètes. Aucun montant privé n’est déduit ni affiché.',
+                FinanceResidualWords.of(
+                  context,
+                ).text('financing.capacity_incomplete'),
               ),
             ),
         ],
       ),
     ),
   );
+
+  String _structure(FinancingStructure value) => FinanceResidualWords.of(
+    context,
+  ).text('financing.structure.${value.name}');
+
+  String _capacity(FinancingCapacityStatus status) => FinanceResidualWords.of(
+    context,
+  ).text('financing.capacity.${status.name}');
 }
 
 Money _amount(TextEditingController controller, {bool required = false}) {
@@ -311,12 +373,10 @@ Money _amount(TextEditingController controller, {bool required = false}) {
     if (!required && controller.text.trim().isEmpty) {
       return const Money.fromMinorUnits(0);
     }
-    throw const FormatException(
-      'Tous les montants requis doivent être valides.',
-    );
+    throw const FormatException('invalid_amounts');
   }
   if (value < 0 || required && value == 0) {
-    throw const FormatException('Les montants doivent être positifs.');
+    throw const FormatException('positive_amounts');
   }
   return Money.fromDirhams(value);
 }
@@ -325,15 +385,11 @@ double? _optionalDouble(TextEditingController controller) {
   if (controller.text.trim().isEmpty) return null;
   final value = double.tryParse(controller.text.trim().replaceAll(',', '.'));
   if (value == null || value < 0) {
-    throw const FormatException('Le taux doit être valide.');
+    throw const FormatException('invalid_rate');
   }
   return value;
 }
 
 String _money(Money value) => '${value.dirhams.toStringAsFixed(2)} MAD';
-String _date(DateTime value) => value.toIso8601String().split('T').first;
-String _capacity(FinancingCapacityStatus status) => switch (status) {
-  FinancingCapacityStatus.sufficient => 'apport possible',
-  FinancingCapacityStatus.insufficient => 'apport non couvert',
-  FinancingCapacityStatus.unavailable => 'à confirmer',
-};
+String _date(BuildContext context, DateTime value) =>
+    MaterialLocalizations.of(context).formatCompactDate(value);

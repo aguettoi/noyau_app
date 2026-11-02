@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/features/envelopes/application/envelope_business_import.dart';
 import 'package:noyau_app/features/finance/application/accounts_csv_business_validator.dart';
@@ -39,6 +40,9 @@ void main() {
           ...providerOverrides,
         ],
         child: MaterialApp(
+          locale: const Locale('fr'),
+          supportedLocales: const [Locale('fr'), Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: Scaffold(
             body: ImportsPage(
               downloader: downloader ?? (_) async {},
@@ -421,7 +425,10 @@ void main() {
       readCsvText: (_) async => throw Exception('lecture impossible'),
     );
     await selectCsv(tester);
-    expect(find.textContaining('Erreur de lecture :'), findsOneWidget);
+    expect(
+      find.text('Erreur de lecture. Vérifiez le fichier.'),
+      findsOneWidget,
+    );
     expect(find.byType(ImportsPage), findsOneWidget);
   });
 
@@ -568,7 +575,10 @@ void main() {
             throw StateError('indisponible'),
       );
       await selectCsv(tester);
-      expect(find.textContaining('Erreur de validation :'), findsOneWidget);
+      expect(
+        find.text('Erreur de validation. Vérifiez le fichier.'),
+        findsOneWidget,
+      );
       expect(find.byType(ImportsPage), findsOneWidget);
     },
   );

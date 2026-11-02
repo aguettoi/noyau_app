@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/priorities_locale.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../savings_goals/application/providers/remote_savings_goals_provider.dart';
@@ -27,11 +28,11 @@ class PrioritiesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final words = PrioritiesWords.of(context);
     final plans = ref.watch(priorityPlansProvider);
     return plans.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) =>
-          Center(child: Text('Impossible de lire les priorités : $error')),
+      error: (_, _) => Center(child: Text(words.text('priorities.load_error'))),
       data: (items) => DesktopPageContainer(
         child: ListView(
           children: [
@@ -42,13 +43,11 @@ class PrioritiesPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Priorités',
+                        words.text('priorities.title'),
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: AppSpacing.xs),
-                      const Text(
-                        'Organisez les achats et objectifs existants. Cette projection ne crée aucune écriture financière.',
-                      ),
+                      Text(words.text('priorities.subtitle')),
                     ],
                   ),
                 ),
@@ -56,17 +55,16 @@ class PrioritiesPage extends ConsumerWidget {
                   key: const Key('create-priority-plan'),
                   onPressed: () => _create(context, ref),
                   icon: const Icon(Icons.add),
-                  label: const Text('Créer un plan'),
+                  label: Text(words.text('priorities.create_plan')),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
             if (items.isEmpty)
-              const DesktopSection(
-                title: 'Aucun plan de priorités',
-                subtitle:
-                    'Créez un plan pour ordonner vos achats prévus et vos objectifs.',
-                child: SizedBox.shrink(),
+              DesktopSection(
+                title: words.text('priorities.empty_title'),
+                subtitle: words.text('priorities.empty_subtitle'),
+                child: const SizedBox.shrink(),
               )
             else
               for (final plan in items) ...[
@@ -86,18 +84,19 @@ class _PriorityPlanCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final words = PrioritiesWords.of(context);
     final availabilityState = ref.watch(financialAvailabilityProvider);
     final canonical = availabilityState.valueOrNull;
     final canonicalEntries = availabilityState.isLoading
         ? null
         : canonical?.planEntries[plan.plan.id];
     final unavailableReason = availabilityState.isLoading
-        ? 'Projection en cours de chargement.'
+        ? words.text('priorities.projection_loading')
         : plan.plan.status == PriorityPlanStatus.planned
-        ? 'Plan prévu — utilisez-le comme référence pour obtenir les projections.'
+        ? words.text('priorities.projection_planned')
         : availabilityState.hasError
-        ? 'Projection indisponible — les données nécessaires ne peuvent pas être lues.'
-        : 'Projection indisponible — ce plan ne fournit aucune capacité applicable.';
+        ? words.text('priorities.projection_unavailable_data')
+        : words.text('priorities.projection_unavailable_capacity');
     final projections = canonicalEntries == null
         ? List<PriorityProjectionEntry>.generate(plan.items.length, (index) {
             final item = plan.items[index];
@@ -118,7 +117,7 @@ class _PriorityPlanCard extends ConsumerWidget {
                 remainingNeed:
                     sourceItem.source.estimatedNeed ??
                     const Money.fromMinorUnits(0),
-                reason: 'Projection indisponible — élément absent du plan.',
+                reason: words.text('priorities.projection_missing_item'),
               ),
             );
             return PriorityProjectionEntry(
@@ -137,36 +136,36 @@ class _PriorityPlanCard extends ConsumerWidget {
         spacing: AppSpacing.xs,
         runSpacing: AppSpacing.xs,
         children: [
-          _StatusChip(status: plan.plan.status),
+          _StatusChip(status: plan.plan.status, words: words),
           if (plan.plan.status == PriorityPlanStatus.planned)
             OutlinedButton.icon(
               key: ValueKey('activate-priority-plan-${plan.plan.id}'),
               onPressed: () => _activate(context, ref),
               icon: const Icon(Icons.visibility_outlined),
-              label: const Text('Utiliser pour mes projections'),
+              label: Text(words.text('priorities.use_for_projection')),
             ),
           if (editable)
             IconButton(
-              tooltip: 'Modifier le plan',
+              tooltip: words.text('priorities.edit_plan'),
               onPressed: () => _editPlan(context, ref),
               icon: const Icon(Icons.edit_outlined),
             ),
           PopupMenuButton<PriorityPlanStatus>(
-            tooltip: 'Statut du plan',
+            tooltip: words.text('priorities.plan_status'),
             onSelected: (status) => _run(
               context,
               () => setPriorityPlanStatus(ref, plan.plan.id, status),
             ),
             itemBuilder: (_) => [
               if (editable && plan.plan.status != PriorityPlanStatus.paused)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: PriorityPlanStatus.paused,
-                  child: Text('Mettre en pause'),
+                  child: Text(words.text('priorities.pause')),
                 ),
               if (editable)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: PriorityPlanStatus.archived,
-                  child: Text('Archiver'),
+                  child: Text(words.text('priorities.archive')),
                 ),
             ],
           ),
@@ -177,14 +176,14 @@ class _PriorityPlanCard extends ConsumerWidget {
         children: [
           Text(
             plan.plan.monthlyCapacity == null
-                ? 'Capacité mensuelle simulée : à renseigner'
-                : 'Capacité mensuelle simulée : ${_money(plan.plan.monthlyCapacity!)}',
+                ? words.text('priorities.capacity_missing')
+                : words.format('priorities.capacity_value', {
+                    'amount': _money(plan.plan.monthlyCapacity!),
+                  }),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'Hypothèse de planification uniquement — aucun budget, compte ou solde n’est modifié.',
-          ),
+          Text(words.text('priorities.planning_disclaimer')),
           if (canonical?.warnings.isNotEmpty == true) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(canonical!.warnings.first),
@@ -197,12 +196,12 @@ class _PriorityPlanCard extends ConsumerWidget {
                 key: ValueKey('add-priority-item-${plan.plan.id}'),
                 onPressed: () => _addItem(context, ref),
                 icon: const Icon(Icons.playlist_add_outlined),
-                label: const Text('Ajouter un achat ou un objectif'),
+                label: Text(words.text('priorities.add_project')),
               ),
             ),
           if (plan.items.isEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            const Text('Aucun projet dans ce plan.'),
+            Text(words.text('priorities.no_project')),
           ] else ...[
             const SizedBox(height: AppSpacing.sm),
             _PrioritySequence(
@@ -226,6 +225,7 @@ class _PriorityPlanCard extends ConsumerWidget {
   }
 
   Future<void> _activate(BuildContext context, WidgetRef ref) async {
+    final words = PrioritiesWords.of(context);
     final plans = await ref.read(priorityPlansProvider.future);
     if (!context.mounted) return;
     final previous = plans.where(
@@ -236,20 +236,22 @@ class _PriorityPlanCard extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Utiliser ce plan pour mes projections'),
+        title: Text(words.text('priorities.activate_title')),
         content: Text(
           previous.isEmpty
-              ? 'Ce plan deviendra la référence de vos projections. Aucun mouvement financier ne sera créé.'
-              : 'Ce plan remplacera « ${previous.first.plan.name} » comme référence de vos projections. Aucun mouvement financier ne sera créé.',
+              ? words.text('priorities.activate_first')
+              : words.format('priorities.activate_replace', {
+                  'plan': previous.first.plan.name,
+                }),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Annuler'),
+            child: Text(words.text('priorities.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Utiliser ce plan'),
+            child: Text(words.text('priorities.use_plan')),
           ),
         ],
       ),
@@ -363,6 +365,7 @@ class _PriorityEntryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final words = PrioritiesWords.of(context);
     final source = entry.item.source;
     final date = entry.estimatedCompletionDate ?? source.date;
     final decision = ref
@@ -371,21 +374,42 @@ class _PriorityEntryCard extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: CompactListRow(
-        leading: CircleAvatar(child: Text('$rank')),
+        leading: CircleAvatar(child: Text(rank.toString())),
         title: source.label,
         subtitle: [
-          source.type.label,
+          _sourceTypeLabel(words, source.type),
           if (entry.estimatedNeed != null)
-            'Besoin estimé : ${_money(entry.estimatedNeed!)}',
+            words.format('priorities.estimated_need', {
+              'amount': _money(entry.estimatedNeed!),
+            }),
           if (source.progress != null)
-            'Progression : ${(source.progress! * 100).toStringAsFixed(1).replaceAll('.', ',')} %',
+            words.format('priorities.progress', {
+              'progress': (source.progress! * 100)
+                  .toStringAsFixed(1)
+                  .replaceAll('.', ','),
+            }),
           if (entry.estimatedMonths != null)
-            '${entry.estimatedMonths} mois de financement estimé${entry.estimatedMonths == 1 ? '' : 's'}',
-          if (date != null) 'Prévision : ${_date(date)}',
+            words.format(
+              entry.estimatedMonths == 1
+                  ? 'priorities.funding_month.one'
+                  : 'priorities.funding_month.many',
+              {'count': entry.estimatedMonths!},
+            ),
+          if (date != null)
+            words.format('priorities.forecast', {'date': _date(date)}),
           if (entry.reason != null) entry.reason!,
           if (decision != null)
-            'Décision : ${PriorityDecision.values.firstWhere((value) => value.databaseValue == decision).label}',
-          'Statut : ${source.status}',
+            words.format('priorities.decision', {
+              'decision': _decisionLabel(
+                words,
+                PriorityDecision.values.firstWhere(
+                  (value) => value.databaseValue == decision,
+                ),
+              ),
+            }),
+          words.format('priorities.status', {
+            'status': _sourceStatusLabel(words, source.status),
+          }),
         ].join(' · '),
         trailing: !editable
             ? null
@@ -395,7 +419,7 @@ class _PriorityEntryCard extends ConsumerWidget {
                   if (dragHandle case final Widget handle) handle,
                   PopupMenuButton<PriorityDecision>(
                     key: ValueKey('priority-decision-${entry.item.item.id}'),
-                    tooltip: 'Décision financière',
+                    tooltip: words.text('priorities.financial_decision'),
                     onSelected: (value) => savePriorityDecision(
                       ref,
                       itemId: entry.item.item.id,
@@ -403,12 +427,15 @@ class _PriorityEntryCard extends ConsumerWidget {
                     ),
                     itemBuilder: (_) => [
                       for (final value in PriorityDecision.values)
-                        PopupMenuItem(value: value, child: Text(value.label)),
+                        PopupMenuItem(
+                          value: value,
+                          child: Text(_decisionLabel(words, value)),
+                        ),
                     ],
                     icon: const Icon(Icons.rule_outlined),
                   ),
                   IconButton(
-                    tooltip: 'Retirer du plan',
+                    tooltip: words.text('priorities.remove'),
                     onPressed: onRemove,
                     icon: const Icon(Icons.remove_circle_outline),
                   ),
@@ -451,75 +478,89 @@ class _PlanEditorDialogState extends State<_PlanEditorDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.current == null ? 'Créer un plan' : 'Modifier le plan'),
-    content: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 520),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              key: const Key('priority-plan-name'),
-              controller: _name,
-              decoration: const InputDecoration(labelText: 'Nom du plan *'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              key: const Key('priority-plan-capacity'),
-              controller: _capacity,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+  Widget build(BuildContext context) {
+    final words = PrioritiesWords.of(context);
+    return AlertDialog(
+      title: Text(
+        widget.current == null
+            ? words.text('priorities.create_plan')
+            : words.text('priorities.edit_plan'),
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                key: const Key('priority-plan-name'),
+                controller: _name,
+                decoration: InputDecoration(
+                  labelText: words.text('priorities.plan_name'),
+                ),
               ),
-              decoration: const InputDecoration(
-                labelText: 'Capacité mensuelle simulée (MAD)',
-                helperText:
-                    'Hypothèse de planification, sans écriture financière.',
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                key: const Key('priority-plan-capacity'),
+                controller: _capacity,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: words.text('priorities.monthly_capacity'),
+                  helperText: words.text('priorities.capacity_helper'),
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              key: const Key('priority-plan-notes'),
-              controller: _notes,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Notes'),
-            ),
-          ],
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                key: const Key('priority-plan-notes'),
+                controller: _notes,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: words.text('priorities.notes'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
-      ),
-      FilledButton(
-        onPressed: () {
-          final capacityText = _capacity.text.trim().replaceAll(',', '.');
-          final parsedCapacity = double.tryParse(capacityText);
-          final capacity = capacityText.isEmpty || parsedCapacity == null
-              ? null
-              : Money.fromDirhams(parsedCapacity);
-          final draft = PriorityPlanDraft(
-            name: _name.text,
-            monthlyCapacity: capacity,
-            notes: _notes.text,
-          );
-          final error = parsedCapacity == null && capacityText.isNotEmpty
-              ? 'La capacité mensuelle est invalide.'
-              : draft.validate();
-          if (error != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(error)));
-            return;
-          }
-          Navigator.of(context).pop(draft);
-        },
-        child: Text(widget.current == null ? 'Créer' : 'Enregistrer'),
-      ),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(words.text('priorities.cancel')),
+        ),
+        FilledButton(
+          onPressed: () {
+            final capacityText = _capacity.text.trim().replaceAll(',', '.');
+            final parsedCapacity = double.tryParse(capacityText);
+            final capacity = capacityText.isEmpty || parsedCapacity == null
+                ? null
+                : Money.fromDirhams(parsedCapacity);
+            final draft = PriorityPlanDraft(
+              name: _name.text,
+              monthlyCapacity: capacity,
+              notes: _notes.text,
+            );
+            final error = parsedCapacity == null && capacityText.isNotEmpty
+                ? words.text('priorities.invalid_capacity')
+                : _draftValidation(words, draft);
+            if (error != null) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(error)));
+              return;
+            }
+            Navigator.of(context).pop(draft);
+          },
+          child: Text(
+            widget.current == null
+                ? words.text('priorities.create')
+                : words.text('priorities.save'),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _AddPriorityItemDialog extends StatefulWidget {
@@ -539,7 +580,7 @@ class _AddPriorityItemDialog extends StatefulWidget {
 class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
   String? _selectedKey;
 
-  List<_PriorityCandidate> get _candidates {
+  List<_PriorityCandidate> _candidates(PrioritiesWords words) {
     final sources = widget.currentItems.map((item) => item.source).toList();
     final shopping = widget.shopping
         .where((item) => item.item.status == ShoppingItemStatus.planned)
@@ -562,7 +603,9 @@ class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
           (item) => _PriorityCandidate(
             type: PrioritySourceType.shoppingItem,
             id: item.item.id,
-            label: 'Achat · ${item.item.label}',
+            label: words.format('priorities.shopping_candidate', {
+              'name': item.item.label,
+            }),
           ),
         );
     final goals = widget.goals
@@ -585,7 +628,9 @@ class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
           (item) => _PriorityCandidate(
             type: PrioritySourceType.budgetGoal,
             id: item.goal.id,
-            label: 'Objectif · ${item.goal.name}',
+            label: words.format('priorities.goal_candidate', {
+              'name': item.goal.name,
+            }),
           ),
         );
     return [...shopping, ...goals];
@@ -593,23 +638,24 @@ class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final candidates = _candidates;
+    final words = PrioritiesWords.of(context);
+    final candidates = _candidates(words);
     final selected = candidates
         .where((candidate) => candidate.key == _selectedKey)
         .firstOrNull;
     return AlertDialog(
-      title: const Text('Ajouter une priorité'),
+      title: Text(words.text('priorities.add_priority')),
       content: SizedBox(
         width: 520,
         child: candidates.isEmpty
-            ? const Text(
-                'Aucun achat ou objectif éligible. Les projets déjà liés entre eux ne peuvent pas être ajoutés deux fois.',
-              )
+            ? Text(words.text('priorities.no_eligible_project'))
             : DropdownButtonFormField<String>(
                 key: const Key('priority-source-picker'),
                 initialValue: selected?.key,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Projet *'),
+                decoration: InputDecoration(
+                  labelText: words.text('priorities.project'),
+                ),
                 items: [
                   for (final candidate in candidates)
                     DropdownMenuItem(
@@ -623,13 +669,13 @@ class _AddPriorityItemDialogState extends State<_AddPriorityItemDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
+          child: Text(words.text('priorities.cancel')),
         ),
         FilledButton(
           onPressed: selected == null
               ? null
               : () => Navigator.of(context).pop(selected),
-          child: const Text('Ajouter'),
+          child: Text(words.text('priorities.add')),
         ),
       ],
     );
@@ -653,23 +699,67 @@ class _PriorityCandidate {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
+  const _StatusChip({required this.status, required this.words});
   final PriorityPlanStatus status;
+  final PrioritiesWords words;
 
   @override
-  Widget build(BuildContext context) =>
-      Chip(visualDensity: VisualDensity.compact, label: Text(status.label));
+  Widget build(BuildContext context) => Chip(
+    visualDensity: VisualDensity.compact,
+    label: Text(words.text('priorities.status.${status.name}')),
+  );
 }
 
 Future<void> _run(BuildContext context, Future<void> Function() action) async {
   try {
     await action();
-  } on Object catch (error) {
+  } on Object catch (_) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('$error')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          PrioritiesWords.of(context).text('priorities.action_failed'),
+        ),
+      ),
+    );
   }
+}
+
+String? _draftValidation(PrioritiesWords words, PriorityPlanDraft draft) {
+  if (draft.name.trim().isEmpty || draft.name.trim().length > 120) {
+    return words.text('priorities.invalid_name');
+  }
+  if (draft.monthlyCapacity != null && draft.monthlyCapacity!.minorUnits <= 0) {
+    return words.text('priorities.positive_capacity');
+  }
+  if ((draft.notes?.trim().length ?? 0) > 2000) {
+    return words.text('priorities.notes_too_long');
+  }
+  return null;
+}
+
+String _sourceTypeLabel(PrioritiesWords words, PrioritySourceType type) =>
+    words.text(
+      type == PrioritySourceType.shoppingItem
+          ? 'priorities.source.shopping'
+          : 'priorities.source.goal',
+    );
+
+String _decisionLabel(PrioritiesWords words, PriorityDecision decision) =>
+    words.text('priorities.decision.${decision.databaseValue}');
+
+String _sourceStatusLabel(PrioritiesWords words, String status) {
+  final key = switch (status) {
+    'Prévu' => 'planned',
+    'Actif' => 'active',
+    'En pause' => 'paused',
+    'Clôturé' => 'completed',
+    'Acheté' => 'purchased',
+    'Annulé' => 'cancelled',
+    'Archivé' => 'archived',
+    _ => null,
+  };
+  return key == null ? status : words.text('priorities.source_status.$key');
 }
 
 String _money(Money money) =>

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/localization/app_locale.dart';
+import '../../../core/localization/cashflow_locale.dart';
 import '../../../core/money/money.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../budget_intelligence/application/providers/remote_budget_provider.dart';
@@ -16,6 +18,7 @@ class CashflowProjectionPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final words = CashflowWords.of(context);
     final projection = ref.watch(cashflowProjectionProvider);
     final accounts = ref.watch(remoteAccountsProvider).valueOrNull ?? const [];
     final envelopes =
@@ -28,11 +31,10 @@ class CashflowProjectionPage extends ConsumerWidget {
     final envelopeNames = {for (final e in envelopes) e.id: e.name};
     final memberNames = {for (final m in members) m.id: m.displayName};
     return Scaffold(
-      appBar: AppBar(title: const Text('Prévisions de trésorerie')),
+      appBar: AppBar(title: Text(words.text('cashflow.title'))),
       body: projection.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Impossible de calculer la projection.')),
+        error: (_, _) => Center(child: Text(words.text('cashflow.error'))),
         data: (data) => RefreshIndicator(
           onRefresh: () => ref.refresh(cashflowProjectionProvider.future),
           child: ListView(
@@ -44,15 +46,14 @@ class CashflowProjectionPage extends ConsumerWidget {
                 key: const Key('cashflow-scenario'),
                 isExpanded: true,
                 initialValue: ref.watch(projectionScenarioIdProvider),
-                decoration: const InputDecoration(
-                  labelText: 'Scénario budgétaire',
-                  helperText:
-                      'Le scénario explique les allocations ; seules les opérations datées affectent la trésorerie.',
+                decoration: InputDecoration(
+                  labelText: words.text('cashflow.scenario'),
+                  helperText: words.text('cashflow.scenario_help'),
                 ),
                 items: [
-                  const DropdownMenuItem<String?>(
+                  DropdownMenuItem<String?>(
                     value: null,
-                    child: Text('Scénario applicable automatiquement'),
+                    child: Text(words.text('cashflow.scenario_auto')),
                   ),
                   for (final scenario in scenarios)
                     DropdownMenuItem<String?>(
@@ -68,9 +69,13 @@ class CashflowProjectionPage extends ConsumerWidget {
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.science_outlined),
-                  title: const Text('Trajectoire alternative datée'),
+                  title: Text(words.text('cashflow.alternative_title')),
                   subtitle: Text(
-                    '${ref.watch(hypotheticalProjectionFlowsProvider).length} hypothèse(s) locale(s) — aucune écriture financière',
+                    words.format('cashflow.hypothesis_count', {
+                      'count': ref
+                          .watch(hypotheticalProjectionFlowsProvider)
+                          .length,
+                    }),
                   ),
                   trailing: Wrap(
                     children: [
@@ -78,7 +83,7 @@ class CashflowProjectionPage extends ConsumerWidget {
                           .watch(hypotheticalProjectionFlowsProvider)
                           .isNotEmpty)
                         IconButton(
-                          tooltip: 'Effacer les hypothèses',
+                          tooltip: words.text('cashflow.clear_hypotheses'),
                           onPressed: () =>
                               ref
                                       .read(
@@ -91,7 +96,7 @@ class CashflowProjectionPage extends ConsumerWidget {
                         ),
                       FilledButton.tonal(
                         onPressed: () => _addHypothesis(context, ref),
-                        child: const Text('Ajouter'),
+                        child: Text(words.text('cashflow.add')),
                       ),
                     ],
                   ),
@@ -110,24 +115,18 @@ class CashflowProjectionPage extends ConsumerWidget {
                 envelopeNames: envelopeNames,
                 memberNames: memberNames,
               ),
-              const Card(
+              Card(
                 child: ListTile(
-                  leading: Icon(Icons.savings_outlined),
-                  title: Text('Épargne et fin de mois'),
-                  subtitle: Text(
-                    'Le reliquat de Navette, Nourriture et Sorties WE peut alimenter Epargne. '
-                    'L’effet reste budgétaire tant qu’aucun transfert bancaire réel n’est confirmé.',
-                  ),
+                  leading: const Icon(Icons.savings_outlined),
+                  title: Text(words.text('cashflow.savings_title')),
+                  subtitle: Text(words.text('cashflow.savings_text')),
                 ),
               ),
-              const Card(
+              Card(
                 child: ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('Projection explicable et sans écriture'),
-                  subtitle: Text(
-                    'Les allocations du budget ne sont pas additionnées aux opérations attendues. '
-                    'FinancialAvailability reste la référence pour décider si une dépense est finançable.',
-                  ),
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(words.text('cashflow.explainable_title')),
+                  subtitle: Text(words.text('cashflow.explainable_text')),
                 ),
               ),
             ],
@@ -139,6 +138,7 @@ class CashflowProjectionPage extends ConsumerWidget {
 }
 
 Future<void> _addHypothesis(BuildContext context, WidgetRef ref) async {
+  final words = CashflowWords.of(context);
   final label = TextEditingController();
   final amount = TextEditingController();
   var date = DateTime.now().add(const Duration(days: 1));
@@ -147,7 +147,7 @@ Future<void> _addHypothesis(BuildContext context, WidgetRef ref) async {
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: const Text('Tester une opération datée'),
+        title: Text(words.text('cashflow.hypothesis_title')),
         content: SizedBox(
           width: 420,
           child: Column(
@@ -155,34 +155,40 @@ Future<void> _addHypothesis(BuildContext context, WidgetRef ref) async {
             children: [
               TextField(
                 controller: label,
-                decoration: const InputDecoration(labelText: 'Libellé'),
+                decoration: InputDecoration(
+                  labelText: words.text('cashflow.label'),
+                ),
               ),
               TextField(
                 controller: amount,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(labelText: 'Montant (MAD)'),
+                decoration: InputDecoration(
+                  labelText: words.text('cashflow.amount'),
+                ),
               ),
               DropdownButtonFormField<ProjectionFlowKind>(
                 initialValue: kind,
-                decoration: const InputDecoration(labelText: 'Effet'),
-                items: const [
+                decoration: InputDecoration(
+                  labelText: words.text('cashflow.effect'),
+                ),
+                items: [
                   DropdownMenuItem(
                     value: ProjectionFlowKind.income,
-                    child: Text('Entrée'),
+                    child: Text(words.text('cashflow.income')),
                   ),
                   DropdownMenuItem(
                     value: ProjectionFlowKind.expense,
-                    child: Text('Sortie'),
+                    child: Text(words.text('cashflow.expense')),
                   ),
                 ],
                 onChanged: (value) => setState(() => kind = value ?? kind),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Date métier'),
-                subtitle: Text(DateFormat.yMMMd('fr').format(date)),
+                title: Text(words.text('cashflow.business_date')),
+                subtitle: Text(_date(context, date)),
                 onTap: () async {
                   final selected = await showDatePicker(
                     context: context,
@@ -193,9 +199,9 @@ Future<void> _addHypothesis(BuildContext context, WidgetRef ref) async {
                   if (selected != null) setState(() => date = selected);
                 },
               ),
-              const Text(
-                'Cette hypothèse reste en mémoire locale et ne crée aucune opération.',
-                style: TextStyle(fontSize: 12),
+              Text(
+                words.text('cashflow.hypothesis_disclaimer'),
+                style: const TextStyle(fontSize: 12),
               ),
             ],
           ),
@@ -203,11 +209,11 @@ Future<void> _addHypothesis(BuildContext context, WidgetRef ref) async {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
+            child: Text(words.text('cashflow.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Simuler'),
+            child: Text(words.text('cashflow.simulate')),
           ),
         ],
       ),
@@ -220,7 +226,7 @@ Future<void> _addHypothesis(BuildContext context, WidgetRef ref) async {
   if (label.text.trim().isEmpty || value == null || value <= 0) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Libellé et montant positif requis.')),
+        SnackBar(content: Text(words.text('cashflow.invalid_hypothesis'))),
       );
     }
     return;
@@ -251,80 +257,128 @@ class _HorizonSelector extends ConsumerWidget {
   const _HorizonSelector({required this.value});
   final ProjectionHorizon value;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => DropdownButtonFormField(
-    key: const Key('cashflow-horizon'),
-    isExpanded: true,
-    initialValue: value,
-    decoration: const InputDecoration(labelText: 'Horizon'),
-    items: [
-      for (final item in ProjectionHorizon.values)
-        DropdownMenuItem(value: item, child: Text(_horizon(item))),
-    ],
-    onChanged: (next) {
-      if (next != null) {
-        ref.read(projectionHorizonProvider.notifier).state = next;
-      }
-    },
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = CashflowWords.of(context);
+    return DropdownButtonFormField(
+      key: const Key('cashflow-horizon'),
+      isExpanded: true,
+      initialValue: value,
+      decoration: InputDecoration(labelText: words.text('cashflow.horizon')),
+      items: [
+        for (final item in ProjectionHorizon.values)
+          DropdownMenuItem(value: item, child: Text(_horizon(words, item))),
+      ],
+      onChanged: (next) {
+        if (next != null) {
+          ref.read(projectionHorizonProvider.notifier).state = next;
+        }
+      },
+    );
+  }
 }
 
 class _Summary extends StatelessWidget {
   const _Summary({required this.data});
   final CashflowProjection data;
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Vue foyer', style: Theme.of(context).textTheme.titleLarge),
-          Text('Du ${_date(data.asOf)} au ${_date(data.through)}'),
-          if (data.scenarioName != null)
-            Text('Scénario de référence : ${data.scenarioName}'),
-          const Divider(),
-          Wrap(
-            spacing: AppSpacing.lg,
-            runSpacing: AppSpacing.sm,
-            children: [
-              _metric('Solde actuel', data.currentHouseholdBalance),
-              _metric('Entrées attendues', data.income),
-              _metric('Sorties attendues', data.expenses),
-              _metric('Transferts internes', data.transfers),
-              _metric('Solde projeté', data.projectedHouseholdBalance),
-              _metric('À localiser', data.unlocatedAmount),
-            ],
-          ),
-        ],
+  Widget build(BuildContext context) {
+    final words = CashflowWords.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              words.text('cashflow.household_view'),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            Text(
+              words.format('cashflow.period', {
+                'start': _date(context, data.asOf),
+                'end': _date(context, data.through),
+              }),
+            ),
+            if (data.scenarioName != null)
+              Text(
+                words.format('cashflow.reference_scenario', {
+                  'scenario': data.scenarioName!,
+                }),
+              ),
+            const Divider(),
+            Wrap(
+              spacing: AppSpacing.lg,
+              runSpacing: AppSpacing.sm,
+              children: [
+                _metric(
+                  context,
+                  words.text('cashflow.current_balance'),
+                  data.currentHouseholdBalance,
+                ),
+                _metric(
+                  context,
+                  words.text('cashflow.expected_income'),
+                  data.income,
+                ),
+                _metric(
+                  context,
+                  words.text('cashflow.expected_expenses'),
+                  data.expenses,
+                ),
+                _metric(
+                  context,
+                  words.text('cashflow.internal_transfers'),
+                  data.transfers,
+                ),
+                _metric(
+                  context,
+                  words.text('cashflow.projected_balance'),
+                  data.projectedHouseholdBalance,
+                ),
+                _metric(
+                  context,
+                  words.text('cashflow.unlocated'),
+                  data.unlocatedAmount,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _Risks extends StatelessWidget {
   const _Risks({required this.data});
   final CashflowProjection data;
   @override
-  Widget build(BuildContext context) => Card(
-    color: data.risks.isEmpty
-        ? null
-        : Theme.of(context).colorScheme.errorContainer,
-    child: ExpansionTile(
-      initiallyExpanded: data.risks.isNotEmpty,
-      leading: Icon(
-        data.risks.isEmpty ? Icons.check_circle_outline : Icons.warning_amber,
+  Widget build(BuildContext context) {
+    final words = CashflowWords.of(context);
+    return Card(
+      color: data.risks.isEmpty
+          ? null
+          : Theme.of(context).colorScheme.errorContainer,
+      child: ExpansionTile(
+        initiallyExpanded: data.risks.isNotEmpty,
+        leading: Icon(
+          data.risks.isEmpty ? Icons.check_circle_outline : Icons.warning_amber,
+        ),
+        title: Text(
+          data.risks.isEmpty
+              ? words.text('cashflow.no_risk')
+              : words.format('cashflow.risks', {'count': data.risks.length}),
+        ),
+        children: [
+          for (final risk in data.risks)
+            ListTile(
+              title: Text(_riskMessage(words, risk.message)),
+              subtitle: Text(_date(context, risk.date)),
+            ),
+        ],
       ),
-      title: Text(
-        data.risks.isEmpty
-            ? 'Aucun risque déterministe détecté'
-            : 'Risques de trésorerie (${data.risks.length})',
-      ),
-      children: [
-        for (final risk in data.risks)
-          ListTile(title: Text(risk.message), subtitle: Text(_date(risk.date))),
-      ],
-    ),
-  );
+    );
+  }
 }
 
 class _AccountSection extends StatelessWidget {
@@ -332,18 +386,25 @@ class _AccountSection extends StatelessWidget {
   final CashflowProjection data;
   final Map<String, String> names;
   @override
-  Widget build(BuildContext context) => _section(
-    'Par compte',
-    data.projectedAccountBalances.entries.map((entry) {
-      final start =
-          data.accountBalances[entry.key] ?? const Money.fromMinorUnits(0);
-      return ListTile(
-        title: Text(names[entry.key] ?? 'Compte'),
-        subtitle: Text('Actuel ${_money(start)}'),
-        trailing: Text(_money(entry.value)),
-      );
-    }),
-  );
+  Widget build(BuildContext context) {
+    final words = CashflowWords.of(context);
+    return _section(
+      words.text('cashflow.by_account'),
+      data.projectedAccountBalances.entries.map((entry) {
+        final start =
+            data.accountBalances[entry.key] ?? const Money.fromMinorUnits(0);
+        return ListTile(
+          title: Text(names[entry.key] ?? words.text('cashflow.account')),
+          subtitle: Text(
+            words.format('cashflow.current', {
+              'amount': _money(context, start),
+            }),
+          ),
+          trailing: Text(_money(context, entry.value)),
+        );
+      }),
+    );
+  }
 }
 
 class _MemberSection extends StatelessWidget {
@@ -351,17 +412,20 @@ class _MemberSection extends StatelessWidget {
   final CashflowProjection data;
   final Map<String, String> names;
   @override
-  Widget build(BuildContext context) => _section(
-    'Par membre',
-    data.memberDeltas.isEmpty
-        ? [const ListTile(title: Text('Aucun flux attribué à un membre.'))]
-        : data.memberDeltas.entries.map(
-            (entry) => ListTile(
-              title: Text(names[entry.key] ?? 'Membre'),
-              trailing: Text(_signed(entry.value)),
+  Widget build(BuildContext context) {
+    final words = CashflowWords.of(context);
+    return _section(
+      words.text('cashflow.by_member'),
+      data.memberDeltas.isEmpty
+          ? [ListTile(title: Text(words.text('cashflow.no_member_flow')))]
+          : data.memberDeltas.entries.map(
+              (entry) => ListTile(
+                title: Text(names[entry.key] ?? words.text('cashflow.member')),
+                trailing: Text(_signed(context, entry.value)),
+              ),
             ),
-          ),
-  );
+    );
+  }
 }
 
 class _EnvelopeSection extends StatelessWidget {
@@ -369,18 +433,25 @@ class _EnvelopeSection extends StatelessWidget {
   final CashflowProjection data;
   final Map<String, String> names;
   @override
-  Widget build(BuildContext context) => _section(
-    'Par enveloppe',
-    data.projectedEnvelopeBalances.entries.map((entry) {
-      final start =
-          data.envelopeBalances[entry.key] ?? const Money.fromMinorUnits(0);
-      return ListTile(
-        title: Text(names[entry.key] ?? 'Enveloppe'),
-        subtitle: Text('Disponible actuellement ${_money(start)}'),
-        trailing: Text(_money(entry.value)),
-      );
-    }),
-  );
+  Widget build(BuildContext context) {
+    final words = CashflowWords.of(context);
+    return _section(
+      words.text('cashflow.by_envelope'),
+      data.projectedEnvelopeBalances.entries.map((entry) {
+        final start =
+            data.envelopeBalances[entry.key] ?? const Money.fromMinorUnits(0);
+        return ListTile(
+          title: Text(names[entry.key] ?? words.text('cashflow.envelope')),
+          subtitle: Text(
+            words.format('cashflow.current_available', {
+              'amount': _money(context, start),
+            }),
+          ),
+          trailing: Text(_money(context, entry.value)),
+        );
+      }),
+    );
+  }
 }
 
 class _FlowSection extends StatelessWidget {
@@ -393,77 +464,150 @@ class _FlowSection extends StatelessWidget {
   final CashflowProjection data;
   final Map<String, String> accountNames, envelopeNames, memberNames;
   @override
-  Widget build(BuildContext context) => _section(
-    'Chronologie et explications',
-    data.flows.isEmpty
-        ? [const ListTile(title: Text('Aucune opération future connue.'))]
-        : data.flows.map((flow) {
-            final details = <String>[
-              flow.source,
-              _certainty(flow.certainty),
-              if (flow.sourceAccountId != null)
-                'Depuis ${accountNames[flow.sourceAccountId] ?? 'compte connu'}',
-              if (flow.destinationAccountId != null)
-                'Vers ${accountNames[flow.destinationAccountId] ?? 'compte connu'}',
-              if (flow.envelopeId != null)
-                'Enveloppe ${envelopeNames[flow.envelopeId] ?? 'connue'}',
-              if (flow.memberId != null)
-                'Membre ${memberNames[flow.memberId] ?? 'connu'}',
-              if (flow.kind != ProjectionFlowKind.internalTransfer &&
-                  flow.sourceAccountId == null &&
-                  flow.destinationAccountId == null)
-                'Compte à déterminer',
-              if (flow.envelopeId == null) 'Enveloppe à déterminer',
-            ];
-            return ListTile(
-              leading: Icon(switch (flow.kind) {
-                ProjectionFlowKind.income => Icons.south_west,
-                ProjectionFlowKind.expense ||
-                ProjectionFlowKind.financing => Icons.north_east,
-                ProjectionFlowKind.internalTransfer => Icons.swap_horiz,
-              }),
-              title: Text(flow.label),
-              subtitle: Text('${_date(flow.date)} • ${details.join(' • ')}'),
-              trailing: Text(
-                flow.kind == ProjectionFlowKind.internalTransfer
-                    ? _money(flow.amount)
-                    : _signed(Money.fromMinorUnits(flow.householdDelta)),
-              ),
-            );
-          }),
-  );
+  Widget build(BuildContext context) {
+    final words = CashflowWords.of(context);
+    return _section(
+      words.text('cashflow.timeline'),
+      data.flows.isEmpty
+          ? [ListTile(title: Text(words.text('cashflow.no_future_flow')))]
+          : data.flows.map((flow) {
+              final details = <String>[
+                _sourceLabel(words, flow.source),
+                _certainty(words, flow.certainty),
+                if (flow.sourceAccountId != null)
+                  words.format('cashflow.from', {
+                    'account':
+                        accountNames[flow.sourceAccountId] ??
+                        words.text('cashflow.known_account'),
+                  }),
+                if (flow.destinationAccountId != null)
+                  words.format('cashflow.to', {
+                    'account':
+                        accountNames[flow.destinationAccountId] ??
+                        words.text('cashflow.known_account'),
+                  }),
+                if (flow.envelopeId != null)
+                  words.format('cashflow.envelope_detail', {
+                    'envelope':
+                        envelopeNames[flow.envelopeId] ??
+                        words.text('cashflow.known_envelope'),
+                  }),
+                if (flow.memberId != null)
+                  words.format('cashflow.member_detail', {
+                    'member':
+                        memberNames[flow.memberId] ??
+                        words.text('cashflow.known_member'),
+                  }),
+                if (flow.kind != ProjectionFlowKind.internalTransfer &&
+                    flow.sourceAccountId == null &&
+                    flow.destinationAccountId == null)
+                  words.text('cashflow.account_unknown'),
+                if (flow.envelopeId == null)
+                  words.text('cashflow.envelope_unknown'),
+              ];
+              return ListTile(
+                leading: Icon(switch (flow.kind) {
+                  ProjectionFlowKind.income => Icons.south_west,
+                  ProjectionFlowKind.expense ||
+                  ProjectionFlowKind.financing => Icons.north_east,
+                  ProjectionFlowKind.internalTransfer => Icons.swap_horiz,
+                }),
+                title: Text(flow.label),
+                subtitle: Text(
+                  words.format('cashflow.flow_detail', {
+                    'date': _date(context, flow.date),
+                    'details': details.join(' • '),
+                  }),
+                ),
+                trailing: Text(
+                  flow.kind == ProjectionFlowKind.internalTransfer
+                      ? _money(context, flow.amount)
+                      : _signed(
+                          context,
+                          Money.fromMinorUnits(flow.householdDelta),
+                        ),
+                ),
+              );
+            }),
+    );
+  }
 }
 
 Widget _section(String title, Iterable<Widget> children) => Card(
   child: ExpansionTile(title: Text(title), children: children.toList()),
 );
-Widget _metric(String label, Money value) => SizedBox(
+Widget _metric(BuildContext context, String label, Money value) => SizedBox(
   width: 180,
   child: Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(label),
-      Text(_money(value), style: const TextStyle(fontWeight: FontWeight.bold)),
+      Text(
+        _money(context, value),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
     ],
   ),
 );
-String _money(Money value) => NumberFormat.currency(
-  locale: 'fr_MA',
+String _money(BuildContext context, Money value) => NumberFormat.currency(
+  locale: _intlLocale(CashflowWords.of(context).language),
   symbol: 'MAD',
   decimalDigits: 2,
 ).format(value.dirhams);
-String _signed(Money value) =>
-    '${value.minorUnits >= 0 ? '+' : ''}${_money(value)}';
-String _date(DateTime value) => DateFormat.yMMMd('fr').format(value);
-String _certainty(ProjectionCertainty value) => switch (value) {
-  ProjectionCertainty.certain => 'Certain',
-  ProjectionCertainty.estimated => 'Estimé',
-  ProjectionCertainty.hypothetical => 'Hypothèse',
+String _signed(BuildContext context, Money value) =>
+    '${value.minorUnits >= 0 ? '+' : ''}${_money(context, value)}';
+String _date(BuildContext context, DateTime value) => DateFormat.yMMMd(
+  _intlLocale(CashflowWords.of(context).language),
+).format(value);
+String _certainty(CashflowWords words, ProjectionCertainty value) =>
+    switch (value) {
+      ProjectionCertainty.certain => words.text('cashflow.certainty.certain'),
+      ProjectionCertainty.estimated => words.text(
+        'cashflow.certainty.estimated',
+      ),
+      ProjectionCertainty.hypothetical => words.text(
+        'cashflow.certainty.hypothetical',
+      ),
+    };
+String _horizon(CashflowWords words, ProjectionHorizon value) =>
+    switch (value) {
+      ProjectionHorizon.endOfMonth => words.text('cashflow.horizon.month_end'),
+      ProjectionHorizon.nextMonth => words.text('cashflow.horizon.next_month'),
+      ProjectionHorizon.threeMonths => words.text(
+        'cashflow.horizon.three_months',
+      ),
+      ProjectionHorizon.sixMonths => words.text('cashflow.horizon.six_months'),
+      ProjectionHorizon.year => words.text('cashflow.horizon.year'),
+    };
+
+String _intlLocale(AppLanguage language) => switch (language) {
+  AppLanguage.french => 'fr_MA',
+  AppLanguage.english => 'en',
+  AppLanguage.arabic || AppLanguage.darija => 'ar_MA',
 };
-String _horizon(ProjectionHorizon value) => switch (value) {
-  ProjectionHorizon.endOfMonth => 'Fin du mois courant',
-  ProjectionHorizon.nextMonth => 'Mois suivant',
-  ProjectionHorizon.threeMonths => '3 mois',
-  ProjectionHorizon.sixMonths => '6 mois',
-  ProjectionHorizon.year => '12 mois',
+
+String _sourceLabel(CashflowWords words, String source) => switch (source) {
+  'Simulation locale — trajectoire alternative' => words.text(
+    'cashflow.source.local',
+  ),
+  'R3.1 — opération attendue' => words.text('cashflow.source.expected'),
+  'Obligations — solde dérivé et échéance canonique' => words.text(
+    'cashflow.source.obligation',
+  ),
+  'F6 — coût automobile planifié' => words.text('cashflow.source.vehicle'),
+  'F5 — échéancier de financement' => words.text('cashflow.source.financing'),
+  _ => source,
 };
+
+String _riskMessage(CashflowWords words, String message) {
+  final match = RegExp(r'« (.+) »').firstMatch(message);
+  if (match == null) return message;
+  final label = match.group(1)!;
+  if (message.startsWith('Un compte')) {
+    return words.format('cashflow.risk.account', {'label': label});
+  }
+  if (message.startsWith('La trésorerie')) {
+    return words.format('cashflow.risk.household', {'label': label});
+  }
+  return message;
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
@@ -53,6 +54,9 @@ void main() {
           reportingDataProvider.overrideWith((ref) async => data),
         ],
         child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: Scaffold(body: BusinessReportingPanel()),
         ),
       ),

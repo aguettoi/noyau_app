@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../../core/localization/app_language_picker.dart';
 import '../../../core/localization/app_locale.dart';
+import '../../../core/localization/finance_residual_locale.dart';
 import '../application/providers/active_household_provider.dart';
 import '../application/providers/household_settings_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
@@ -31,6 +32,7 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
   }
 
   Future<void> _save() async {
+    final residual = FinanceResidualWords(ref.read(appLocaleProvider));
     final state = await ref.read(activeHouseholdProvider.future);
     final id = state.householdId;
     if (id == null ||
@@ -53,12 +55,12 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
       ref.invalidate(currentProfileProvider);
       ref.invalidate(householdSettingsProvider);
       ref.invalidate(activeHouseholdProvider);
-      if (mounted) setState(() => _message = 'Paramètres enregistrés.');
+      if (mounted) {
+        setState(() => _message = residual.text('settings.saved'));
+      }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _message = 'Enregistrement impossible. Vérifiez vos droits.',
-        );
+        setState(() => _message = residual.text('settings.save_failed'));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -68,6 +70,7 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final words = AppWords(ref.watch(appLocaleProvider));
+    final residual = FinanceResidualWords(ref.watch(appLocaleProvider));
     final profile = ref.watch(currentProfileProvider);
     final settings = ref.watch(householdSettingsProvider);
     final members = ref.watch(remoteHouseholdMembersProvider);
@@ -83,7 +86,7 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
       }
     });
     return Scaffold(
-      appBar: AppBar(title: const Text('Profil et paramètres du foyer')),
+      appBar: AppBar(title: Text(residual.text('settings.title'))),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: AppSpacing.page,
@@ -101,47 +104,51 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
                   const AppLanguagePicker(key: Key('settings-language-picker')),
                   const SizedBox(height: AppSpacing.lg),
                   Text(
-                    'Mon profil',
+                    residual.text('settings.profile'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   TextField(
                     key: const Key('profile-display-name-field'),
                     controller: _profile,
-                    decoration: const InputDecoration(
-                      labelText: 'Prénom / nom affiché',
+                    decoration: InputDecoration(
+                      labelText: residual.text('settings.display_name'),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Text('E-mail : ${profile.valueOrNull?['email'] ?? '—'}'),
+                  Text(
+                    residual.format('settings.email', {
+                      'email': profile.valueOrNull?['email'] ?? '—',
+                    }),
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                   Text(
-                    'Paramètres du foyer',
+                    residual.text('settings.household'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   TextField(
                     key: const Key('household-name-settings-field'),
                     controller: _household,
-                    decoration: const InputDecoration(
-                      labelText: 'Nom du foyer',
+                    decoration: InputDecoration(
+                      labelText: residual.text('settings.household_name'),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   DropdownButtonFormField<String>(
                     key: const Key('budget-validation-mode-field'),
                     initialValue: _mode,
-                    decoration: const InputDecoration(
-                      labelText: 'Validation du budget',
+                    decoration: InputDecoration(
+                      labelText: residual.text('settings.budget_validation'),
                     ),
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: 'authorized_member',
-                        child: Text('Un membre autorisé peut appliquer'),
+                        child: Text(residual.text('settings.authorized_apply')),
                       ),
                       DropdownMenuItem(
                         value: 'joint_required',
-                        child: Text('Validation conjointe requise'),
+                        child: Text(residual.text('settings.joint_required')),
                       ),
                     ],
                     onChanged: (value) =>
@@ -151,7 +158,7 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
                   FilledButton(
                     key: const Key('save-household-settings-button'),
                     onPressed: _busy ? null : _save,
-                    child: const Text('Enregistrer'),
+                    child: Text(residual.text('settings.save')),
                   ),
                   if (_message != null)
                     Padding(
@@ -167,17 +174,17 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
                       ),
                     ),
                     icon: const Icon(Icons.credit_card),
-                    label: const Text('Moyens de paiement'),
+                    label: Text(residual.text('settings.payment_methods')),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   Text(
-                    'Membres',
+                    residual.text('settings.members'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   members.when(
                     loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text('Membres indisponibles.'),
+                    error: (_, _) => Text(residual.text('members.unavailable')),
                     data: (items) => Column(
                       children: [
                         for (final member in items)
@@ -187,11 +194,11 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
                             title: Text(member.displayName),
                             subtitle: Text(
                               member.role == 'owner'
-                                  ? 'Propriétaire'
-                                  : 'Membre',
+                                  ? residual.text('settings.owner')
+                                  : residual.text('settings.member'),
                             ),
                             trailing: PopupMenuButton<String>(
-                              tooltip: 'Actions membre',
+                              tooltip: residual.text('settings.member_actions'),
                               onSelected: (action) async {
                                 final state = await ref.read(
                                   activeHouseholdProvider.future,
@@ -215,18 +222,24 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
                                 }
                                 ref.invalidate(remoteHouseholdMembersProvider);
                               },
-                              itemBuilder: (_) => const [
+                              itemBuilder: (_) => [
                                 PopupMenuItem(
                                   value: 'owner',
-                                  child: Text('Rendre propriétaire'),
+                                  child: Text(
+                                    residual.text('settings.make_owner'),
+                                  ),
                                 ),
                                 PopupMenuItem(
                                   value: 'member',
-                                  child: Text('Rendre membre'),
+                                  child: Text(
+                                    residual.text('settings.make_member'),
+                                  ),
                                 ),
                                 PopupMenuItem(
                                   value: 'remove',
-                                  child: Text('Retirer du foyer'),
+                                  child: Text(
+                                    residual.text('settings.remove_member'),
+                                  ),
                                 ),
                               ],
                             ),
@@ -240,7 +253,7 @@ class _HouseholdSettingsPageState extends ConsumerState<HouseholdSettingsPage> {
                       context: context,
                       builder: (_) => const _InvitationsDialog(),
                     ),
-                    child: const Text('Voir les invitations'),
+                    child: Text(residual.text('settings.view_invitations')),
                   ),
                 ],
               ),
@@ -267,55 +280,67 @@ class _InvitationsDialogState extends ConsumerState<_InvitationsDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Invitations'),
-    content: SizedBox(
-      width: 520,
-      child: FutureBuilder<List<HouseholdInvitationAdmin>>(
-        future: _load(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return const Text('Invitations indisponibles.');
-          }
-          final items = snapshot.data ?? const <HouseholdInvitationAdmin>[];
-          if (items.isEmpty) {
-            return const Text('Aucune invitation enregistrée.');
-          }
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                for (final item in items)
-                  ListTile(
-                    key: Key('household-invitation-${item.id}'),
-                    title: Text(item.email),
-                    subtitle: Text('${item.status} · ${item.role}'),
-                    trailing: item.status == 'pending'
-                        ? IconButton(
-                            tooltip: 'Révoquer',
-                            icon: const Icon(Icons.cancel_outlined),
-                            onPressed: () async {
-                              await ref
-                                  .read(householdSettingsGatewayProvider)
-                                  .revokeInvitation(item.id);
-                              if (mounted) setState(() {});
-                            },
-                          )
-                        : null,
-                  ),
-              ],
-            ),
-          );
-        },
+  Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
+    return AlertDialog(
+      title: Text(words.text('settings.invitations')),
+      content: SizedBox(
+        width: 520,
+        child: FutureBuilder<List<HouseholdInvitationAdmin>>(
+          future: _load(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Text(words.text('settings.invitations_unavailable'));
+            }
+            final items = snapshot.data ?? const <HouseholdInvitationAdmin>[];
+            if (items.isEmpty) {
+              return Text(words.text('settings.no_invitations'));
+            }
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  for (final item in items)
+                    ListTile(
+                      key: Key('household-invitation-${item.id}'),
+                      title: Text(item.email),
+                      subtitle: Text(
+                        words.format('settings.invitation_summary', {
+                          'status': words.text(
+                            'settings.invitation_status.${item.status}',
+                          ),
+                          'role': words.text(
+                            'settings.invitation_role.${item.role}',
+                          ),
+                        }),
+                      ),
+                      trailing: item.status == 'pending'
+                          ? IconButton(
+                              tooltip: words.text('settings.revoke'),
+                              icon: const Icon(Icons.cancel_outlined),
+                              onPressed: () async {
+                                await ref
+                                    .read(householdSettingsGatewayProvider)
+                                    .revokeInvitation(item.id);
+                                if (mounted) setState(() {});
+                              },
+                            )
+                          : null,
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Fermer'),
-      ),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(words.text('members.close')),
+        ),
+      ],
+    );
+  }
 }

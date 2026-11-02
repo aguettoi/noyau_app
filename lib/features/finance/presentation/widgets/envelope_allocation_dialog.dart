@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/localization/envelopes_locale.dart';
+
 import '../../../envelopes/application/providers/remote_envelopes_provider.dart';
+
+String _envelopeText(BuildContext context, String key) =>
+    EnvelopesWords.of(context).text(key);
+String _envelopeFormat(
+  BuildContext context,
+  String key,
+  Map<String, Object> values,
+) => EnvelopesWords.of(context).format(key, values);
 
 class EnvelopeAllocationResult {
   const EnvelopeAllocationResult(this.allocations, {required this.noImpact});
@@ -58,7 +68,7 @@ class _EnvelopeAllocationDialogState extends State<EnvelopeAllocationDialog> {
   int get _total => _lines.fold(0, (s, l) => s + (_cents(l.amount.text) ?? 0));
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Répartir sur les enveloppes'),
+    title: Text(_envelopeText(context, 'envelopes.allocation_title')),
     content: SizedBox(
       width: 560,
       child: SingleChildScrollView(
@@ -66,13 +76,15 @@ class _EnvelopeAllocationDialogState extends State<EnvelopeAllocationDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Montant à affecter : ${(widget.amountCents / 100).toStringAsFixed(2)} MAD',
+              _envelopeFormat(context, 'envelopes.amount_to_allocate', {
+                'value': '${(widget.amountCents / 100).toStringAsFixed(2)} MAD',
+              }),
             ),
             if (widget.allowNoImpact)
               SwitchListTile(
                 key: const Key('no-envelope-impact'),
-                title: const Text(
-                  'Aucun impact supplémentaire sur les enveloppes',
+                title: Text(
+                  _envelopeText(context, 'envelopes.no_additional_impact'),
                 ),
                 value: _noImpact,
                 onChanged: (v) => setState(() => _noImpact = v),
@@ -85,8 +97,11 @@ class _EnvelopeAllocationDialogState extends State<EnvelopeAllocationDialog> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _lines[i].envelopeId,
-                        decoration: const InputDecoration(
-                          labelText: 'Enveloppe',
+                        decoration: InputDecoration(
+                          labelText: _envelopeText(
+                            context,
+                            'envelopes.envelope',
+                          ),
                         ),
                         items: widget.envelopes
                             .where((e) => !e.isArchived)
@@ -109,8 +124,8 @@ class _EnvelopeAllocationDialogState extends State<EnvelopeAllocationDialog> {
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        decoration: const InputDecoration(
-                          labelText: 'Montant (MAD)',
+                        decoration: InputDecoration(
+                          labelText: _envelopeText(context, 'envelopes.amount'),
                         ),
                         onChanged: (_) => setState(() {}),
                       ),
@@ -132,12 +147,19 @@ class _EnvelopeAllocationDialogState extends State<EnvelopeAllocationDialog> {
                 child: TextButton.icon(
                   onPressed: () => setState(() => _lines.add(_Line())),
                   icon: const Icon(Icons.add),
-                  label: const Text('Ajouter une enveloppe'),
+                  label: Text(_envelopeText(context, 'envelopes.add_envelope')),
                 ),
               ),
-              Text('Total affecté : ${(_total / 100).toStringAsFixed(2)} MAD'),
               Text(
-                'Reste à affecter : ${((widget.amountCents - _total) / 100).toStringAsFixed(2)} MAD',
+                _envelopeFormat(context, 'envelopes.allocated_total', {
+                  'value': '${(_total / 100).toStringAsFixed(2)} MAD',
+                }),
+              ),
+              Text(
+                _envelopeFormat(context, 'envelopes.remaining_to_allocate', {
+                  'value':
+                      '${((widget.amountCents - _total) / 100).toStringAsFixed(2)} MAD',
+                }),
               ),
             ],
           ],
@@ -147,7 +169,7 @@ class _EnvelopeAllocationDialogState extends State<EnvelopeAllocationDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Annuler'),
+        child: Text(_envelopeText(context, 'envelopes.cancel')),
       ),
       FilledButton(
         onPressed:
@@ -177,7 +199,7 @@ class _EnvelopeAllocationDialogState extends State<EnvelopeAllocationDialog> {
                 );
               }
             : null,
-        child: const Text('Confirmer'),
+        child: Text(_envelopeText(context, 'envelopes.confirm')),
       ),
     ],
   );

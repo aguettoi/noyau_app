@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
@@ -116,7 +117,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text(choice));
         await tester.pumpAndSettle();
-        await tester.pageBack();
+        await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
         expect(find.text('Détail du constat'), findsOneWidget);
       }
@@ -255,7 +256,12 @@ Future<void> _pump(
       ),
       accountBalanceObservationGatewayProvider.overrideWithValue(gateway),
     ],
-    child: const MaterialApp(home: AccountsPage()),
+    child: const MaterialApp(
+      locale: Locale('fr'),
+      supportedLocales: [Locale('fr')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      home: AccountsPage(),
+    ),
   ),
 );
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
@@ -108,7 +109,12 @@ void main() {
             ));
           }),
         ],
-        child: const MaterialApp(home: EnvelopeRecommendationsPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr'), Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: EnvelopeRecommendationsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

@@ -12,6 +12,9 @@ void main() {
   final importsPage = File(
     'lib/features/finance/presentation/imports_page.dart',
   ).readAsStringSync();
+  final importsLocale = File(
+    'lib/core/localization/imports_locale.dart',
+  ).readAsStringSync();
 
   test('legacy financial mutation RPCs are no longer client APIs', () {
     for (final function in const [
@@ -32,7 +35,8 @@ void main() {
 
   test('legacy CSV materialisation is visibly disabled', () {
     expect(importsPage, contains('_legacyCsvMaterializationEnabled = false'));
-    expect(importsPage, contains('Matérialisation CSV legacy désactivée'));
+    expect(importsPage, contains("words.text('legacy_disabled')"));
+    expect(importsLocale, contains('Matérialisation CSV legacy désactivée'));
   });
 
   test('opening balance metadata is immutable and ledgers stay protected', () {

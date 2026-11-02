@@ -2,6 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
+import '../../../core/localization/historical_analytics_locale.dart';
 
 import '../application/cutover_opening_import.dart';
 import '../application/historical_analytic_materialization.dart';
@@ -10,28 +13,17 @@ import '../application/providers/historical_analytics_provider.dart';
 import '../application/workbook_import.dart';
 
 enum _ReviewFilter {
-  all('Toutes'),
-  expenses('Dépenses'),
-  positives('Positifs à valider'),
-  duplicates('Répétitions à contrôler'),
-  transfers('Transferts internes'),
-  adjustments('Ajustements techniques'),
-  ignored('Ignorés'),
-  validated('Validés');
-
-  const _ReviewFilter(this.label);
-  final String label;
+  all,
+  expenses,
+  positives,
+  duplicates,
+  transfers,
+  adjustments,
+  ignored,
+  validated,
 }
 
-enum _ReviewSort {
-  date('Date'),
-  amount('Montant'),
-  envelope('Enveloppe'),
-  classification('Classification');
-
-  const _ReviewSort(this.label);
-  final String label;
-}
+enum _ReviewSort { date, amount, envelope, classification }
 
 enum _DuplicateDecision { keep, ignore, review }
 
@@ -63,6 +55,7 @@ class _HistoricalAnalyticsPreviewCardState
 
   @override
   Widget build(BuildContext context) {
+    final w = HistoricalAnalyticsWords.of(context);
     final households = ref.watch(cutoverEligibleHouseholdsProvider);
     return Card(
       child: Padding(
@@ -71,28 +64,46 @@ class _HistoricalAnalyticsPreviewCardState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Historique analytique — aperçu local',
+              w.text('title'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Période retenue : 01/05/2026 au 29/09/2026. '
-              'Aucune écriture financière et aucune donnée Supabase ne sont créées par cet aperçu.',
+            Text(
+              w.format('intro', {
+                'start': _date(context, preview.periodStart),
+                'end': _date(context, preview.periodEnd),
+              }),
             ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 16,
               runSpacing: 8,
               children: [
-                Text('${preview.lines.length} lignes retenues'),
+                Text(w.format('retained', {'count': preview.lines.length})),
                 Text(
-                  '${preview.count(HistoricalAnalyticClassification.expense)} dépenses analytiques',
+                  w.format('expenses', {
+                    'count': preview.count(
+                      HistoricalAnalyticClassification.expense,
+                    ),
+                  }),
                 ),
                 Text(
-                  '${preview.lines.where((line) => (localDecisions[line.sourceRowNumber] ?? line.classification) == HistoricalAnalyticClassification.ambiguousPositive).length} positifs à valider',
+                  w.format('positives', {
+                    'count': preview.lines
+                        .where(
+                          (line) =>
+                              (localDecisions[line.sourceRowNumber] ??
+                                  line.classification) ==
+                              HistoricalAnalyticClassification
+                                  .ambiguousPositive,
+                        )
+                        .length,
+                  }),
                 ),
                 Text(
-                  '${preview.duplicateCandidates} lignes avec répétition à contrôler',
+                  w.format('duplicates', {
+                    'count': preview.duplicateCandidates,
+                  }),
                 ),
               ],
             ),
@@ -101,27 +112,25 @@ class _HistoricalAnalyticsPreviewCardState
               key: const Key('historical-analytics-review'),
               onPressed: preview.lines.isEmpty ? null : _openReview,
               icon: const Icon(Icons.manage_search),
-              label: const Text('Examiner les propositions'),
+              label: Text(w.text('review')),
             ),
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 12),
             Text(
-              'Matérialisation analytique contrôlée',
+              w.text('materialization'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Chargez la sauvegarde certifiée des décisions. La préparation reste locale jusqu’à une confirmation explicite. Aucune écriture GL, compte, enveloppe ou obligation.',
-            ),
+            Text(w.text('materialization_intro')),
             const SizedBox(height: 10),
             households.when(
               data: (items) => DropdownButtonFormField<String>(
                 key: const Key('historical-materialization-household'),
                 initialValue: _selectedHouseholdId,
-                decoration: const InputDecoration(
-                  labelText: 'Household cible explicite',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: w.text('target_household'),
+                  border: const OutlineInputBorder(),
                 ),
                 items: items
                     .where((item) => item.isOperational)
@@ -129,7 +138,8 @@ class _HistoricalAnalyticsPreviewCardState
                       (item) => DropdownMenuItem(
                         value: item.id,
                         child: Text(
-                          '${item.name} — ${item.classificationLabel}',
+                          // i18n-dynamic-only
+                          '${item.name} — ${w.text('operational')}',
                         ),
                       ),
                     )
@@ -141,14 +151,14 @@ class _HistoricalAnalyticsPreviewCardState
                 }),
               ),
               loading: () => const LinearProgressIndicator(),
-              error: (_, _) => const Text('Households indisponibles.'),
+              error: (_, _) => Text(w.text('households_unavailable')),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
               key: const Key('load-historical-decisions'),
               onPressed: _selectedHouseholdId == null ? null : _loadBackup,
               icon: const Icon(Icons.restore_page_outlined),
-              label: const Text('Charger les 45 décisions certifiées'),
+              label: Text(w.text('load_decisions')),
             ),
             if (_materializationError != null) ...[
               const SizedBox(height: 8),
@@ -159,18 +169,38 @@ class _HistoricalAnalyticsPreviewCardState
             ],
             if (_materializationPlan case final plan?) ...[
               const SizedBox(height: 12),
-              Text('Source : ${widget.analysis.fileName}'),
-              SelectableText('SHA-256 : ${plan.sourceFingerprint}'),
-              const Text('Période : 01/05/2026 au 29/09/2026'),
+              Text(w.format('source', {'source': widget.analysis.fileName})),
+              SelectableText(w.format('sha', {'sha': plan.sourceFingerprint})),
               Text(
-                '${plan.lines.length} lignes · ${plan.decisions.length} décisions humaines · 0 ambigu',
+                w.format('period', {
+                  'start': _date(context, preview.periodStart),
+                  'end': _date(context, preview.periodEnd),
+                }),
               ),
               Text(
-                'Ventilation : ${plan.count(HistoricalAnalyticClassification.expense)} dépenses, '
-                '${plan.count(HistoricalAnalyticClassification.validatedIncome)} revenus validés, '
-                '${plan.count(HistoricalAnalyticClassification.internalTransfer)} transferts, '
-                '${plan.count(HistoricalAnalyticClassification.technicalAdjustment)} ajustements, '
-                '${plan.count(HistoricalAnalyticClassification.budgetFunding)} alimentations budget.',
+                w.format('plan_counts', {
+                  'lines': plan.lines.length,
+                  'decisions': plan.decisions.length,
+                }),
+              ),
+              Text(
+                w.format('breakdown', {
+                  'expenses': plan.count(
+                    HistoricalAnalyticClassification.expense,
+                  ),
+                  'income': plan.count(
+                    HistoricalAnalyticClassification.validatedIncome,
+                  ),
+                  'transfers': plan.count(
+                    HistoricalAnalyticClassification.internalTransfer,
+                  ),
+                  'adjustments': plan.count(
+                    HistoricalAnalyticClassification.technicalAdjustment,
+                  ),
+                  'funding': plan.count(
+                    HistoricalAnalyticClassification.budgetFunding,
+                  ),
+                }),
               ),
               const SizedBox(height: 10),
               FilledButton.icon(
@@ -179,7 +209,7 @@ class _HistoricalAnalyticsPreviewCardState
                     ? null
                     : () => _confirmMaterialization(plan),
                 icon: const Icon(Icons.publish_outlined),
-                label: const Text('Matérialiser l’historique analytique'),
+                label: Text(w.text('materialize')),
               ),
             ],
             if (_materializationResult != null) ...[
@@ -197,20 +227,30 @@ class _HistoricalAnalyticsPreviewCardState
       final bytes = await ref.read(historicalDecisionFilePickerProvider)();
       if (bytes == null || !mounted) return;
       _restoreBackup(bytes);
-    } catch (error) {
-      if (mounted) setState(() => _materializationError = '$error');
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _materializationError = HistoricalAnalyticsWords.of(
+            context,
+          ).text('backup_error'),
+        );
+      }
     }
   }
 
   void _restoreBackup(Uint8List bytes) {
     final target = _selectedHouseholdId;
     if (target == null || target != _realHouseholdId) {
-      throw const FormatException(
-        'Le household certifié doit être sélectionné explicitement.',
+      throw FormatException(
+        HistoricalAnalyticsWords.of(
+          context,
+        ).text('certified_household_required'),
       );
     }
     if (widget.analysis.sourceFingerprint != _expectedSourceSha) {
-      throw const FormatException('La source Excel ne correspond pas à C4B.');
+      throw FormatException(
+        HistoricalAnalyticsWords.of(context).text('source_mismatch'),
+      );
     }
     final backup = HistoricalAnalyticDecisionBackup.decodeStrict(
       bytes,
@@ -245,21 +285,20 @@ class _HistoricalAnalyticsPreviewCardState
   Future<void> _confirmMaterialization(
     HistoricalAnalyticMaterializationPlan plan,
   ) async {
+    final w = HistoricalAnalyticsWords.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirmer la matérialisation analytique'),
-        content: const Text(
-          'Cette opération écrit uniquement l’historique analytique et ses décisions. Elle ne crée aucune écriture financière.',
-        ),
+        title: Text(w.text('confirm_title')),
+        content: Text(w.text('confirm_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            child: Text(w.text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmer'),
+            child: Text(w.text('confirm')),
           ),
         ],
       ),
@@ -273,12 +312,17 @@ class _HistoricalAnalyticsPreviewCardState
       if (mounted) {
         setState(() {
           _materializationResult = result['replayed'] == true
-              ? 'Historique déjà matérialisé : replay idempotent.'
-              : '${result['inserted_lines']} lignes et ${result['inserted_decisions']} décisions matérialisées.';
+              ? w.text('replayed')
+              : w.format('inserted', {
+                  'lines': result['inserted_lines']!,
+                  'decisions': result['inserted_decisions']!,
+                });
         });
       }
-    } catch (error) {
-      if (mounted) setState(() => _materializationError = '$error');
+    } catch (_) {
+      if (mounted) {
+        setState(() => _materializationError = w.text('materialization_error'));
+      }
     } finally {
       if (mounted) setState(() => _materializing = false);
     }
@@ -355,7 +399,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
         line.sourceEnvelopeLabel.toLowerCase().contains(q) ||
         line.mappedEnvelopeLabel.toLowerCase().contains(q) ||
         line.sourceAmount.toStringAsFixed(2).contains(q) ||
-        _date(line.occurredOn).contains(q);
+        _searchDate(line.occurredOn).contains(q);
   }
 
   List<HistoricalAnalyticLine> get visible {
@@ -399,109 +443,143 @@ class _ReviewDialogState extends State<_ReviewDialog> {
       .toSet();
 
   @override
-  Widget build(BuildContext context) => Dialog(
-    insetPadding: const EdgeInsets.all(12),
-    child: SafeArea(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1180, maxHeight: 780),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Propositions analytiques',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Fermer',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              _Summary(
-                preview: widget.preview,
-                classification: current,
-                ignoredCount: count(_ReviewFilter.ignored),
-                decisionsCount: decided.length,
-                remainingCount: reviewable.difference(decided).length,
-              ),
-              const SizedBox(height: 10),
-              LayoutBuilder(
-                builder: (_, constraints) => constraints.maxWidth < 700
-                    ? DropdownButtonFormField<_ReviewFilter>(
-                        key: const Key('history-filter-mobile'),
-                        initialValue: filter,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Filtrer les propositions',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _ReviewFilter.values
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(
-                                  '${value.label} (${count(value)})',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) setState(() => filter = value);
-                        },
-                      )
-                    : Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        children: _ReviewFilter.values
-                            .map(
-                              (value) => FilterChip(
-                                key: ValueKey('history-filter-${value.name}'),
-                                selected: filter == value,
-                                label: Text('${value.label} (${count(value)})'),
-                                onSelected: (_) =>
-                                    setState(() => filter = value),
-                              ),
-                            )
-                            .toList(),
+  Widget build(BuildContext context) {
+    final w = HistoricalAnalyticsWords.of(context);
+    return Dialog(
+      insetPadding: const EdgeInsets.all(12),
+      child: SafeArea(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1180, maxHeight: 780),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        w.text('proposals'),
+                        style: Theme.of(context).textTheme.headlineSmall,
                       ),
-              ),
-              const SizedBox(height: 10),
-              LayoutBuilder(
-                builder: (_, c) {
-                  final search = TextField(
-                    key: const Key('history-search'),
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      labelText:
-                          'Rechercher : libellé, enveloppe, montant ou date',
-                      border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => query = value),
-                  );
-                  Widget sorting({required bool expanded}) => Row(
-                    mainAxisSize: expanded
-                        ? MainAxisSize.max
-                        : MainAxisSize.min,
-                    children: [
-                      if (expanded)
-                        Expanded(
-                          child: DropdownButton<_ReviewSort>(
+                    IconButton(
+                      tooltip: w.text('close'),
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                _Summary(
+                  preview: widget.preview,
+                  classification: current,
+                  ignoredCount: count(_ReviewFilter.ignored),
+                  decisionsCount: decided.length,
+                  remainingCount: reviewable.difference(decided).length,
+                ),
+                const SizedBox(height: 10),
+                LayoutBuilder(
+                  builder: (_, constraints) => constraints.maxWidth < 700
+                      ? DropdownButtonFormField<_ReviewFilter>(
+                          key: const Key('history-filter-mobile'),
+                          initialValue: filter,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: w.text('filter'),
+                            border: const OutlineInputBorder(),
+                          ),
+                          items: _ReviewFilter.values
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(
+                                    w.format('filter_count', {
+                                      'label': _filterLabel(w, value),
+                                      'count': count(value),
+                                    }),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) setState(() => filter = value);
+                          },
+                        )
+                      : Wrap(
+                          spacing: 7,
+                          runSpacing: 7,
+                          children: _ReviewFilter.values
+                              .map(
+                                (value) => FilterChip(
+                                  key: ValueKey('history-filter-${value.name}'),
+                                  selected: filter == value,
+                                  label: Text(
+                                    w.format('filter_count', {
+                                      'label': _filterLabel(w, value),
+                                      'count': count(value),
+                                    }),
+                                  ),
+                                  onSelected: (_) =>
+                                      setState(() => filter = value),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                ),
+                const SizedBox(height: 10),
+                LayoutBuilder(
+                  builder: (_, c) {
+                    final search = TextField(
+                      key: const Key('history-search'),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        labelText: w.text('search'),
+                        border: const OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setState(() => query = value),
+                    );
+                    Widget sorting({required bool expanded}) => Row(
+                      mainAxisSize: expanded
+                          ? MainAxisSize.max
+                          : MainAxisSize.min,
+                      children: [
+                        if (expanded)
+                          Expanded(
+                            child: DropdownButton<_ReviewSort>(
+                              key: const Key('history-sort'),
+                              value: sort,
+                              isExpanded: true,
+                              items: _ReviewSort.values
+                                  .map(
+                                    (v) => DropdownMenuItem(
+                                      value: v,
+                                      child: Text(
+                                        w.format('sort', {
+                                          'label': _sortLabel(w, v),
+                                        }),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v != null) setState(() => sort = v);
+                              },
+                            ),
+                          )
+                        else
+                          DropdownButton<_ReviewSort>(
                             key: const Key('history-sort'),
                             value: sort,
-                            isExpanded: true,
                             items: _ReviewSort.values
                                 .map(
                                   (v) => DropdownMenuItem(
                                     value: v,
-                                    child: Text('Tri : ${v.label}'),
+                                    child: Text(
+                                      w.format('sort', {
+                                        'label': _sortLabel(w, v),
+                                      }),
+                                    ),
                                   ),
                                 )
                                 .toList(),
@@ -509,62 +587,50 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                               if (v != null) setState(() => sort = v);
                             },
                           ),
-                        )
-                      else
-                        DropdownButton<_ReviewSort>(
-                          key: const Key('history-sort'),
-                          value: sort,
-                          items: _ReviewSort.values
-                              .map(
-                                (v) => DropdownMenuItem(
-                                  value: v,
-                                  child: Text('Tri : ${v.label}'),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) {
-                            if (v != null) setState(() => sort = v);
-                          },
+                        IconButton(
+                          key: const Key('history-sort-direction'),
+                          onPressed: () =>
+                              setState(() => ascending = !ascending),
+                          icon: Icon(
+                            ascending
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                          ),
                         ),
-                      IconButton(
-                        key: const Key('history-sort-direction'),
-                        onPressed: () => setState(() => ascending = !ascending),
-                        icon: Icon(
-                          ascending ? Icons.arrow_upward : Icons.arrow_downward,
-                        ),
-                      ),
-                    ],
-                  );
-                  return c.maxWidth < 700
-                      ? Column(
-                          children: [
-                            search,
-                            const SizedBox(height: 6),
-                            sorting(expanded: true),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(child: search),
-                            const SizedBox(width: 14),
-                            sorting(expanded: false),
-                          ],
-                        );
-                },
-              ),
-              const SizedBox(height: 10),
-              Expanded(child: results()),
-            ],
+                      ],
+                    );
+                    return c.maxWidth < 700
+                        ? Column(
+                            children: [
+                              search,
+                              const SizedBox(height: 6),
+                              sorting(expanded: true),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(child: search),
+                              const SizedBox(width: 14),
+                              sorting(expanded: false),
+                            ],
+                          );
+                  },
+                ),
+                const SizedBox(height: 10),
+                Expanded(child: results(context)),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
-  Widget results() {
+  Widget results(BuildContext context) {
+    final w = HistoricalAnalyticsWords.of(context);
     final lines = visible;
     if (lines.isEmpty) {
-      return const Center(child: Text('Aucune ligne pour ces critères.'));
+      return Center(child: Text(w.text('empty')));
     }
     if (filter == _ReviewFilter.duplicates) {
       final groups = <String, List<HistoricalAnalyticLine>>{};
@@ -624,6 +690,7 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = HistoricalAnalyticsWords.of(context);
     final expenses = preview.lines
         .where(
           (l) => classification(l) == HistoricalAnalyticClassification.expense,
@@ -637,7 +704,9 @@ class _Summary extends StatelessWidget {
         preview.lines.where((l) => classification(l) == c).length;
     String groups(HistoricalAnalyticRepetition repetition) {
       final count = preview.repetitionGroupCount(repetition);
-      return '$count groupe${count > 1 ? 's' : ''}';
+      return w.format(count == 1 ? 'groups_one' : 'groups_many', {
+        'count': count,
+      });
     }
 
     return Container(
@@ -651,41 +720,59 @@ class _Summary extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            Text('Total lignes : ${preview.lines.length}'),
+            Text(w.format('total_lines', {'count': preview.lines.length})),
             const SizedBox(width: 14),
-            Text('Dépenses proposées : ${expenses.length}'),
-            const SizedBox(width: 14),
-            Text('Montant dépenses : ${amount.toStringAsFixed(2)} MAD'),
+            Text(w.format('proposed_expenses', {'count': expenses.length})),
             const SizedBox(width: 14),
             Text(
-              'Positifs non décidés : ${n(HistoricalAnalyticClassification.ambiguousPositive)}',
+              w.format('expense_amount', {'amount': _money(context, amount)}),
             ),
             const SizedBox(width: 14),
             Text(
-              'Répétitions source strictes : '
-              '${groups(HistoricalAnalyticRepetition.strictSource)} / '
-              '${preview.repetitionLineCount(HistoricalAnalyticRepetition.strictSource)} lignes',
+              w.format('undecided_positives', {
+                'count': n(HistoricalAnalyticClassification.ambiguousPositive),
+              }),
             ),
             const SizedBox(width: 14),
             Text(
-              'Ressemblances métier : '
-              '${groups(HistoricalAnalyticRepetition.businessSimilarity)} / '
-              '${preview.repetitionLineCount(HistoricalAnalyticRepetition.businessSimilarity)} lignes',
+              w.format('strict_repetitions', {
+                'groups': groups(HistoricalAnalyticRepetition.strictSource),
+                'lines': preview.repetitionLineCount(
+                  HistoricalAnalyticRepetition.strictSource,
+                ),
+              }),
             ),
             const SizedBox(width: 14),
             Text(
-              'Transferts internes : ${n(HistoricalAnalyticClassification.internalTransfer)}',
+              w.format('business_similarities', {
+                'groups': groups(
+                  HistoricalAnalyticRepetition.businessSimilarity,
+                ),
+                'lines': preview.repetitionLineCount(
+                  HistoricalAnalyticRepetition.businessSimilarity,
+                ),
+              }),
             ),
             const SizedBox(width: 14),
             Text(
-              'Ajustements techniques : ${n(HistoricalAnalyticClassification.technicalAdjustment)}',
+              w.format('internal_transfers', {
+                'count': n(HistoricalAnalyticClassification.internalTransfer),
+              }),
             ),
             const SizedBox(width: 14),
-            Text('Ignorés : $ignoredCount'),
+            Text(
+              w.format('technical_adjustments', {
+                'count': n(
+                  HistoricalAnalyticClassification.technicalAdjustment,
+                ),
+              }),
+            ),
             const SizedBox(width: 14),
-            Text('Décisions humaines effectuées : $decisionsCount'),
+            Text(w.format('ignored', {'count': ignoredCount})),
             const SizedBox(width: 14),
-            Text('Restant à examiner : $remainingCount'),
+            Text(w.format('human_decisions', {'count': decisionsCount})),
+            const SizedBox(width: 14),
+            Text(w.format('remaining', {'count': remainingCount})),
           ],
         ),
       ),
@@ -707,6 +794,7 @@ class _LineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = HistoricalAnalyticsWords.of(context);
     final selector = DropdownButton<HistoricalAnalyticClassification>(
       key: ValueKey('history-decision-${line.sourceRowNumber}'),
       value: classification,
@@ -715,7 +803,10 @@ class _LineRow extends StatelessWidget {
           .map(
             (v) => DropdownMenuItem(
               value: v,
-              child: Text(v.label, overflow: TextOverflow.ellipsis),
+              child: Text(
+                _classificationLabel(w, v),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           )
           .toList(),
@@ -723,9 +814,13 @@ class _LineRow extends StatelessWidget {
         if (v != null) onChanged(v);
       },
     );
-    final detail =
-        '${_date(line.occurredOn)} · ${line.mappedEnvelopeLabel} · '
-        '${line.sourceAmount.toStringAsFixed(2)} MAD · ${line.detail} · Ligne ${line.sourceRowNumber}';
+    final detail = w.format('detail', {
+      'date': _date(context, line.occurredOn),
+      'envelope': line.mappedEnvelopeLabel,
+      'amount': _money(context, line.sourceAmount),
+      'detail': line.detail,
+      'line': line.sourceRowNumber,
+    });
     if (compact) {
       return Card(
         key: ValueKey('historical-line-${line.sourceRowNumber}'),
@@ -746,17 +841,17 @@ class _LineRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(width: 90, child: Text(_date(line.occurredOn))),
+          SizedBox(width: 90, child: Text(_date(context, line.occurredOn))),
           Expanded(flex: 2, child: Text(line.mappedEnvelopeLabel)),
-          SizedBox(
-            width: 105,
-            child: Text('${line.sourceAmount.toStringAsFixed(2)} MAD'),
-          ),
+          SizedBox(width: 105, child: Text(_money(context, line.sourceAmount))),
           Expanded(
             flex: 3,
             child: Text(line.detail, overflow: TextOverflow.ellipsis),
           ),
-          SizedBox(width: 80, child: Text('Ligne ${line.sourceRowNumber}')),
+          SizedBox(
+            width: 80,
+            child: Text(w.format('line', {'number': line.sourceRowNumber})),
+          ),
           SizedBox(width: 240, child: selector),
         ],
       ),
@@ -777,80 +872,128 @@ class _DuplicateGroup extends StatelessWidget {
   final void Function(int, _DuplicateDecision) onChanged;
 
   @override
-  Widget build(BuildContext context) => Card(
-    key: ValueKey('duplicate-group-$index'),
-    margin: const EdgeInsets.only(bottom: 10),
-    child: Padding(
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${_repetitionLabel(lines.first.repetition)} — '
-            'groupe ${index + 1} — ${lines.length} occurrences conservées',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          ...lines.map(
-            (line) => Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 10,
-                runSpacing: 4,
-                children: [
-                  Text(_date(line.occurredOn)),
-                  Text(line.mappedEnvelopeLabel),
-                  Text('${line.sourceAmount.toStringAsFixed(2)} MAD'),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    child: Text(line.detail),
-                  ),
-                  Text('Ligne ${line.sourceRowNumber}'),
-                  SizedBox(
-                    width: 220,
-                    child: DropdownButton<_DuplicateDecision>(
-                      key: ValueKey(
-                        'duplicate-decision-${line.sourceRowNumber}',
-                      ),
-                      value:
-                          decisions[line.sourceRowNumber] ??
-                          _DuplicateDecision.keep,
-                      isExpanded: true,
-                      items: const [
-                        DropdownMenuItem(
-                          value: _DuplicateDecision.keep,
-                          child: Text('Conserver'),
-                        ),
-                        DropdownMenuItem(
-                          value: _DuplicateDecision.ignore,
-                          child: Text('Ignorer comme saisie dupliquée'),
-                        ),
-                        DropdownMenuItem(
-                          value: _DuplicateDecision.review,
-                          child: Text('À revoir'),
-                        ),
-                      ],
-                      onChanged: (v) {
-                        if (v != null) onChanged(line.sourceRowNumber, v);
-                      },
+  Widget build(BuildContext context) {
+    final w = HistoricalAnalyticsWords.of(context);
+    return Card(
+      key: ValueKey('duplicate-group-$index'),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              w.format('duplicate_group', {
+                'repetition': _repetitionLabel(w, lines.first.repetition),
+                'group': index + 1,
+                'count': lines.length,
+              }),
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            ...lines.map(
+              (line) => Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 4,
+                  children: [
+                    Text(_date(context, line.occurredOn)),
+                    Text(line.mappedEnvelopeLabel),
+                    Text(_money(context, line.sourceAmount)),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 280),
+                      child: Text(line.detail),
                     ),
-                  ),
-                ],
+                    Text(w.format('line', {'number': line.sourceRowNumber})),
+                    SizedBox(
+                      width: 220,
+                      child: DropdownButton<_DuplicateDecision>(
+                        key: ValueKey(
+                          'duplicate-decision-${line.sourceRowNumber}',
+                        ),
+                        value:
+                            decisions[line.sourceRowNumber] ??
+                            _DuplicateDecision.keep,
+                        isExpanded: true,
+                        items: [
+                          DropdownMenuItem(
+                            value: _DuplicateDecision.keep,
+                            child: Text(w.text('keep')),
+                          ),
+                          DropdownMenuItem(
+                            value: _DuplicateDecision.ignore,
+                            child: Text(w.text('ignore_duplicate')),
+                          ),
+                          DropdownMenuItem(
+                            value: _DuplicateDecision.review,
+                            child: Text(w.text('to_review')),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) onChanged(line.sourceRowNumber, v);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
-String _date(DateTime value) =>
-    '${value.day.toString().padLeft(2, '0')}/'
-    '${value.month.toString().padLeft(2, '0')}/${value.year}';
+String _date(BuildContext context, DateTime value) => DateFormat.yMd(
+  Localizations.localeOf(context).toLanguageTag(),
+).format(value);
 
-String _repetitionLabel(HistoricalAnalyticRepetition? value) => switch (value) {
-  HistoricalAnalyticRepetition.strictSource => 'Répétition source stricte',
-  HistoricalAnalyticRepetition.businessSimilarity => 'Ressemblance métier',
-  null => 'Répétition à contrôler',
+String _searchDate(DateTime value) => value.toIso8601String().substring(0, 10);
+
+String _money(BuildContext context, num value) => NumberFormat.currency(
+  locale: Localizations.localeOf(context).toLanguageTag(),
+  symbol: 'MAD',
+  decimalDigits: 2,
+).format(value);
+
+String _repetitionLabel(
+  HistoricalAnalyticsWords w,
+  HistoricalAnalyticRepetition? value,
+) => switch (value) {
+  HistoricalAnalyticRepetition.strictSource => w.text('repetition_strict'),
+  HistoricalAnalyticRepetition.businessSimilarity => w.text(
+    'repetition_business',
+  ),
+  null => w.text('repetition_review'),
+};
+
+String _filterLabel(HistoricalAnalyticsWords w, _ReviewFilter value) =>
+    w.text('filter_${value.name}');
+
+String _sortLabel(HistoricalAnalyticsWords w, _ReviewSort value) =>
+    w.text('sort_${value.name}');
+
+String _classificationLabel(
+  HistoricalAnalyticsWords w,
+  HistoricalAnalyticClassification value,
+) => switch (value) {
+  HistoricalAnalyticClassification.expense => w.text('class_expense'),
+  HistoricalAnalyticClassification.budgetFunding => w.text(
+    'class_budget_funding',
+  ),
+  HistoricalAnalyticClassification.internalTransfer => w.text(
+    'class_internal_transfer',
+  ),
+  HistoricalAnalyticClassification.ambiguousPositive => w.text(
+    'class_ambiguous_positive',
+  ),
+  HistoricalAnalyticClassification.technicalAdjustment => w.text(
+    'class_technical_adjustment',
+  ),
+  HistoricalAnalyticClassification.ignored => w.text('class_ignored'),
+  HistoricalAnalyticClassification.validatedIncome => w.text(
+    'class_validated_income',
+  ),
 };

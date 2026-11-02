@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/budget_monthly_locale.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
@@ -18,23 +19,13 @@ import 'budget_runs_page.dart';
 import 'budget_scenarios_page.dart';
 import 'programmable_budget_program_page.dart';
 
-String _monthLabel(DateTime value) {
-  const names = [
-    'janvier',
-    'février',
-    'mars',
-    'avril',
-    'mai',
-    'juin',
-    'juillet',
-    'août',
-    'septembre',
-    'octobre',
-    'novembre',
-    'décembre',
-  ];
-  return '${names[value.month - 1][0].toUpperCase()}${names[value.month - 1].substring(1)} ${value.year}';
-}
+String _mt(BuildContext context, String key) =>
+    BudgetMonthlyWords.of(context).text(key);
+String _mf(BuildContext context, String key, Map<String, Object> values) =>
+    BudgetMonthlyWords.of(context).format(key, values);
+
+String _monthLabel(BuildContext context, DateTime value) =>
+    MaterialLocalizations.of(context).formatMonthYear(value);
 
 class BudgetMonthlyPreparationPage extends ConsumerStatefulWidget {
   const BudgetMonthlyPreparationPage({super.key, this.initialMonth});
@@ -102,7 +93,7 @@ class _BudgetMonthlyPreparationPageState
       ref.invalidate(remoteBudgetPeriodsProvider);
     } catch (_) {
       if (mounted) {
-        setState(() => _periodError = 'Impossible de préparer ce mois.');
+        setState(() => _periodError = _mt(context, 'monthly.prepare_error'));
       }
     } finally {
       if (mounted) setState(() => _preparingPeriod = false);
@@ -110,6 +101,7 @@ class _BudgetMonthlyPreparationPageState
   }
 
   Future<void> _newScenario() async {
+    final initialVersionNote = _mt(context, 'monthly.initial_version');
     final result = await showDialog<BudgetScenario>(
       context: context,
       builder: (_) => const _MonthlyScenarioDialog(),
@@ -125,7 +117,7 @@ class _BudgetMonthlyPreparationPageState
             scenarioId: id,
             version: 1,
             createdAt: DateTime.now(),
-            notes: 'Version initiale créée depuis la préparation mensuelle.',
+            notes: initialVersionNote,
           ),
         );
         if (versionId != null) {
@@ -152,8 +144,8 @@ class _BudgetMonthlyPreparationPageState
     final result = await showDialog<BudgetScenario>(
       context: context,
       builder: (_) => _MonthlyScenarioDialog(
-        title: 'Dupliquer le scénario',
-        initialName: '${source.name} — copie',
+        title: _mt(context, 'monthly.duplicate'),
+        initialName: '${source.name}${_mt(context, 'monthly.copy_suffix')}',
         initialDescription: source.description,
       ),
     );
@@ -278,10 +270,10 @@ class _BudgetMonthlyPreparationPageState
     final runs = ref.watch(remoteBudgetRunsProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Préparer mon mois'),
+        title: Text(_mt(context, 'monthly.title')),
         actions: [
           IconButton(
-            tooltip: 'Historique mensuel',
+            tooltip: _mt(context, 'monthly.history'),
             icon: const Icon(Icons.history_outlined),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const BudgetRunsPage()),
@@ -292,7 +284,7 @@ class _BudgetMonthlyPreparationPageState
       body: periods.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) =>
-            const Center(child: Text('Périodes budgétaires indisponibles.')),
+            Center(child: Text(_mt(context, 'monthly.periods_error'))),
         data: (items) {
           final period = items
               .where(
@@ -324,7 +316,7 @@ class _BudgetMonthlyPreparationPageState
           return scenarios.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (_, _) =>
-                const Center(child: Text('Scénarios indisponibles.')),
+                Center(child: Text(_mt(context, 'monthly.scenarios_error'))),
             data: (all) {
               final active = all
                   .where((item) => item.active)
@@ -378,12 +370,16 @@ class _BudgetMonthlyPreparationPageState
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Budget — ${period.label}',
+                                        _mf(context, 'monthly.budget', {
+                                          'period': period.label,
+                                        }),
                                         style: Theme.of(
                                           context,
                                         ).textTheme.titleLarge,
                                       ),
-                                      const Text('Statut : Non préparé'),
+                                      Text(
+                                        _mt(context, 'monthly.not_prepared'),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -397,29 +393,31 @@ class _BudgetMonthlyPreparationPageState
                             key: const Key('monthly-default-scenario-prompt'),
                             child: ListTile(
                               title: Text(
-                                'Utiliser ${defaultScenario.name} pour ${period.label} ?',
+                                _mf(context, 'monthly.use_default', {
+                                  'scenario': defaultScenario.name,
+                                  'period': period.label,
+                                }),
                               ),
-                              subtitle: const Text(
-                                'Scénario mensuel par défaut',
+                              subtitle: Text(
+                                _mt(context, 'monthly.default_scenario'),
                               ),
                               trailing: FilledButton(
                                 key: const Key('use-default-monthly-scenario'),
                                 onPressed: () => setState(
                                   () => _scenarioId = defaultScenario.id,
                                 ),
-                                child: const Text('Utiliser'),
+                                child: Text(_mt(context, 'monthly.use')),
                               ),
                             ),
                           ),
                         DesktopSection(
-                          title: 'Choisir un scénario',
-                          subtitle:
-                              'Sélectionnez le programme à utiliser pour ce mois.',
+                          title: _mt(context, 'monthly.choose'),
+                          subtitle: _mt(context, 'monthly.choose_hint'),
                           action: TextButton.icon(
                             key: const Key('new-monthly-scenario'),
                             onPressed: _newScenario,
                             icon: const Icon(Icons.add),
-                            label: const Text('Nouveau scénario'),
+                            label: Text(_mt(context, 'monthly.new_scenario')),
                           ),
                           child: ResponsiveGrid(
                             minItemWidth: 360,
@@ -427,13 +425,32 @@ class _BudgetMonthlyPreparationPageState
                                 .map(
                                   (scenario) => CompactListRow(
                                     title: scenario.name,
-                                    subtitle:
-                                        '${scenario.isDefault ? 'Scénario mensuel par défaut • ' : ''}${scenario.description ?? 'Sans description'}',
+                                    subtitle: _mf(
+                                      context,
+                                      'monthly.scenario_summary',
+                                      {
+                                        'prefix': scenario.isDefault
+                                            ? _mt(
+                                                context,
+                                                'monthly.default_prefix',
+                                              )
+                                            : '',
+                                        'description':
+                                            scenario.description ??
+                                            _mt(
+                                              context,
+                                              'monthly.no_description',
+                                            ),
+                                      },
+                                    ),
                                     trailing: Wrap(
                                       spacing: 4,
                                       children: [
                                         IconButton(
-                                          tooltip: 'Dupliquer',
+                                          tooltip: _mt(
+                                            context,
+                                            'monthly.duplicate_action',
+                                          ),
                                           key: Key(
                                             'duplicate-monthly-scenario-${scenario.id}',
                                           ),
@@ -445,7 +462,9 @@ class _BudgetMonthlyPreparationPageState
                                           onPressed: () => setState(
                                             () => _scenarioId = scenario.id,
                                           ),
-                                          child: const Text('Utiliser'),
+                                          child: Text(
+                                            _mt(context, 'monthly.use'),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -455,9 +474,7 @@ class _BudgetMonthlyPreparationPageState
                           ),
                         ),
                         if (active.isEmpty)
-                          const Text(
-                            'Aucun scénario actif. Créez votre premier modèle.',
-                          ),
+                          Text(_mt(context, 'monthly.no_active')),
                         if (selected != null)
                           _MonthlyScenarioContent(
                             key: ValueKey(
@@ -502,7 +519,7 @@ class _UnpreparedMonth extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = _monthLabel(month);
+    final label = _monthLabel(context, month);
     return Center(
       child: Padding(
         padding: AppSpacing.page,
@@ -516,7 +533,7 @@ class _UnpreparedMonth extends StatelessWidget {
               onPick: onPick,
             ),
             const SizedBox(height: AppSpacing.sm),
-            const Text('Aucun budget n’a encore été préparé pour ce mois.'),
+            Text(_mt(context, 'monthly.empty')),
             const SizedBox(height: AppSpacing.md),
             Wrap(
               alignment: WrapAlignment.center,
@@ -526,7 +543,9 @@ class _UnpreparedMonth extends StatelessWidget {
                 OutlinedButton(
                   key: const Key('prepare-current-month'),
                   onPressed: preparing ? null : onPrepare,
-                  child: Text('Nouveau mois vide — $label'),
+                  child: Text(
+                    _mf(context, 'monthly.empty_month', {'month': label}),
+                  ),
                 ),
                 if (onCopyPrevious != null)
                   FilledButton.icon(
@@ -535,8 +554,8 @@ class _UnpreparedMonth extends StatelessWidget {
                     icon: const Icon(Icons.copy_outlined),
                     label: Text(
                       preparing
-                          ? 'Préparation…'
-                          : 'Reprendre le mois précédent',
+                          ? _mt(context, 'monthly.preparing')
+                          : _mt(context, 'monthly.resume'),
                     ),
                   ),
               ],
@@ -575,7 +594,7 @@ class _MonthNavigation extends StatelessWidget {
         key: const Key('pick-budget-month'),
         onPressed: onPick,
         child: Text(
-          _monthLabel(month),
+          _monthLabel(context, month),
           style: Theme.of(context).textTheme.titleLarge,
         ),
       ),
@@ -771,11 +790,7 @@ class _MonthlyScenarioContentState
   ) async {
     if (version == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Le modèle programmable 080006 doit être installé avant l’enregistrement du snapshot.',
-          ),
-        ),
+        SnackBar(content: Text(_mt(context, 'monthly.model_required'))),
       );
       return;
     }
@@ -806,18 +821,14 @@ class _MonthlyScenarioContentState
       );
       ref.invalidate(remoteBudgetRunsProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Mois enregistré. Aucune écriture financière n’a été créée.',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_mt(context, 'monthly.saved'))));
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible d’enregistrer le mois.')),
+          SnackBar(content: Text(_mt(context, 'monthly.save_error'))),
         );
       }
     } finally {
@@ -887,18 +898,14 @@ class _MonthlyScenarioContentState
       );
       ref.invalidate(remoteBudgetRunsProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Mois enregistré. Aucune écriture financière n’a été créée.',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_mt(context, 'monthly.saved'))));
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible d’enregistrer le mois.')),
+          SnackBar(content: Text(_mt(context, 'monthly.save_error'))),
         );
       }
     } finally {
@@ -1121,9 +1128,10 @@ class _MonthlyScenarioContentState
       children: [
         const SizedBox(height: AppSpacing.md),
         DesktopSection(
-          title: 'Scénario sélectionné : ${scenario.name}',
-          subtitle:
-              'Prévisualiser le budget de ${_monthLabel(widget.period.startsOn)}',
+          title: _mf(context, 'monthly.selected', {'scenario': scenario.name}),
+          subtitle: _mf(context, 'monthly.preview_month', {
+            'month': _monthLabel(context, widget.period.startsOn),
+          }),
           child: ResponsiveGrid(
             minItemWidth: 420,
             children: [
@@ -1131,10 +1139,21 @@ class _MonthlyScenarioContentState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Version actuelle : ${currentVersion?.version ?? 'à créer'}',
+                    _mf(context, 'monthly.current_version', {
+                      'version':
+                          currentVersion?.version ??
+                          _mt(context, 'monthly.to_create'),
+                    }),
                   ),
                   Text(
-                    '${visibleTemplateSources.length} source(s) • ${effectiveSteps.length} étape(s) • ${effectiveSteps.map((step) => step.groupName).toSet().length} groupe(s)',
+                    _mf(context, 'monthly.program_counts', {
+                      'sources': visibleTemplateSources.length,
+                      'steps': effectiveSteps.length,
+                      'groups': effectiveSteps
+                          .map((step) => step.groupName)
+                          .toSet()
+                          .length,
+                    }),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Wrap(
@@ -1146,7 +1165,7 @@ class _MonthlyScenarioContentState
                                 incomes?.valueOrNull == null
                             ? null
                             : () => _editMonthOnly(incomes!.valueOrNull!),
-                        child: const Text('Modifier uniquement ce mois'),
+                        child: Text(_mt(context, 'monthly.edit_month')),
                       ),
                       TextButton(
                         onPressed: () => Navigator.of(context).push(
@@ -1156,32 +1175,37 @@ class _MonthlyScenarioContentState
                             ),
                           ),
                         ),
-                        child: const Text('Modifier le scénario modèle'),
+                        child: Text(_mt(context, 'monthly.edit_template')),
                       ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   if (usesProgrammableModel)
-                    const Text(
-                      'Mode programmable : seules les sources et étapes de cette version sont utilisées.',
-                    )
+                    Text(_mt(context, 'monthly.programmable_mode'))
                   else ...[
                     Text(
-                      'Revenus du mois',
+                      _mt(context, 'monthly.month_income'),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     incomes!.when(
                       loading: () => const LinearProgressIndicator(),
-                      error: (_, _) => const Text('Revenus indisponibles.'),
+                      error: (_, _) =>
+                          Text(_mt(context, 'monthly.income_error')),
                       data: (items) => Text(
-                        '${items.length} source(s) de revenu à confirmer.',
+                        _mf(context, 'monthly.income_count', {
+                          'count': items.length,
+                        }),
                       ),
                     ),
                     rules!.when(
                       loading: () => const LinearProgressIndicator(),
-                      error: (_, _) => const Text('Programme indisponible.'),
-                      data: (items) =>
-                          Text('${items.length} étape(s) du programme.'),
+                      error: (_, _) =>
+                          Text(_mt(context, 'monthly.program_error')),
+                      data: (items) => Text(
+                        _mf(context, 'monthly.step_count', {
+                          'count': items.length,
+                        }),
+                      ),
                     ),
                   ],
                 ],
@@ -1191,7 +1215,7 @@ class _MonthlyScenarioContentState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Ressources du mois',
+                      _mt(context, 'monthly.month_resources'),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: AppSpacing.xs),
@@ -1215,8 +1239,12 @@ class _MonthlyScenarioContentState
                               decoration: InputDecoration(
                                 labelText: source.name,
                                 helperText: changed
-                                    ? 'Modifié ce mois • scénario : ${_mad(source.expectedCents)}'
-                                    : 'Valeur scénario : ${_mad(source.expectedCents)}',
+                                    ? _mf(context, 'monthly.changed_value', {
+                                        'value': _mad(source.expectedCents),
+                                      })
+                                    : _mf(context, 'monthly.template_value', {
+                                        'value': _mad(source.expectedCents),
+                                      }),
                               ),
                               onChanged: (value) {
                                 final cents = _cents(value);
@@ -1245,12 +1273,10 @@ class _MonthlyScenarioContentState
         ),
         const SizedBox(height: AppSpacing.sm),
         if (programIncomplete)
-          const Card(
+          Card(
             child: Padding(
               padding: AppSpacing.card,
-              child: Text(
-                'Programme programmable incomplet : ajoutez au moins une étape avant de simuler et enregistrer le mois.',
-              ),
+              child: Text(_mt(context, 'monthly.program_incomplete')),
             ),
           ),
         FilledButton.icon(
@@ -1278,7 +1304,11 @@ class _MonthlyScenarioContentState
                   envelopes.valueOrNull!,
                 ),
           icon: const Icon(Icons.calculate_outlined),
-          label: Text('Simuler ${_monthLabel(widget.period.startsOn)}'),
+          label: Text(
+            _mf(context, 'monthly.simulate', {
+              'month': _monthLabel(context, widget.period.startsOn),
+            }),
+          ),
         ),
         if (usesProgrammableModel)
           OutlinedButton.icon(
@@ -1295,13 +1325,17 @@ class _MonthlyScenarioContentState
                     },
                   ),
             icon: const Icon(Icons.preview_outlined),
-            label: Text('Prévisualiser ${_monthLabel(widget.period.startsOn)}'),
+            label: Text(
+              _mf(context, 'monthly.preview', {
+                'month': _monthLabel(context, widget.period.startsOn),
+              }),
+            ),
           ),
         if (_monthlySourceOverridesCents.isNotEmpty ||
             _monthlyStepOverrides.isNotEmpty)
           TextButton(
             onPressed: _resetMonthlyOverrides,
-            child: const Text('Réinitialiser les modifications du mois'),
+            child: Text(_mt(context, 'monthly.reset')),
           ),
         if (usesProgrammableModel && _programmableResult != null)
           _MonthlyProgrammablePreview(
@@ -1385,74 +1419,147 @@ class _MonthlySummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Synthèse foyer',
+            _mt(context, 'monthly.household_summary'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          Text('Revenus : ${_mad(analysis.incomeCents)}'),
-          Text('Charges personnelles : ${_mad(analysis.personalChargesCents)}'),
-          Text('Charges communes : ${_mad(analysis.commonChargesCents)}'),
-          Text('Épargne : ${_mad(analysis.savingsCents)}'),
-          Text('Reste : ${_mad(analysis.remainingCents)}'),
+          Text(
+            _mf(context, 'monthly.income', {
+              'value': _mad(analysis.incomeCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.personal', {
+              'value': _mad(analysis.personalChargesCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.common', {
+              'value': _mad(analysis.commonChargesCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.savings', {
+              'value': _mad(analysis.savingsCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.remaining', {
+              'value': _mad(analysis.remainingCents),
+            }),
+          ),
           const SizedBox(height: AppSpacing.sm),
-          Text('KPIs', style: Theme.of(context).textTheme.titleMedium),
           Text(
-            'Taux charges fixes : ${(analysis.fixedChargeRate * 100).toStringAsFixed(1)} %',
+            _mt(context, 'monthly.kpis'),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           Text(
-            'Taux épargne : ${(analysis.savingsRate * 100).toStringAsFixed(1)} %',
+            _mf(context, 'monthly.fixed_charge_rate', {
+              'value': (analysis.fixedChargeRate * 100).toStringAsFixed(1),
+            }),
           ),
-          Text('Besoin espèces : ${_mad(analysis.cashNeedCents)}'),
-          Text('Budget équilibré : ${analysis.isBalanced ? 'Oui' : 'Non'}'),
+          Text(
+            _mf(context, 'monthly.savings_rate', {
+              'value': (analysis.savingsRate * 100).toStringAsFixed(1),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.cash_need', {
+              'value': _mad(analysis.cashNeedCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.balanced', {
+              'value': _mt(
+                context,
+                analysis.isBalanced ? 'monthly.yes' : 'monthly.no',
+              ),
+            }),
+          ),
           if (previous != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Comparaison au mois précédent',
+              _mt(context, 'monthly.previous_comparison'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             Text(
-              'Revenus : ${_mad(analysis.incomeCents)} | ${_mad(previous!.availableCents)} | ${_delta(analysis.incomeCents - previous!.availableCents)}',
+              _mf(context, 'monthly.compare_income', {
+                'current': _mad(analysis.incomeCents),
+                'previous': _mad(previous!.availableCents),
+                'delta': _delta(
+                  analysis.incomeCents - previous!.availableCents,
+                ),
+              }),
             ),
             Text(
-              'Allocations : ${_mad(analysis.commonChargesCents)} | ${_mad(previous!.totalCents)} | ${_delta(analysis.commonChargesCents - previous!.totalCents)}',
+              _mf(context, 'monthly.compare_allocations', {
+                'current': _mad(analysis.commonChargesCents),
+                'previous': _mad(previous!.totalCents),
+                'delta': _delta(
+                  analysis.commonChargesCents - previous!.totalCents,
+                ),
+              }),
             ),
             Text(
-              'Reste : ${_mad(analysis.remainingCents)} | ${_mad(previous!.remainingCents)} | ${_delta(analysis.remainingCents - previous!.remainingCents)}',
+              _mf(context, 'monthly.compare_remaining', {
+                'current': _mad(analysis.remainingCents),
+                'previous': _mad(previous!.remainingCents),
+                'delta': _delta(
+                  analysis.remainingCents - previous!.remainingCents,
+                ),
+              }),
             ),
           ],
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Synthèse membres',
+            _mt(context, 'monthly.members_summary'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           ...analysis.memberSummaries.map(
             (item) => Text(
-              '${labels[item.memberUserId] ?? 'Membre du foyer'} • revenu ${_mad(item.incomeCents)} • charges ${_mad(item.personalChargesCents)} • contribution ${_mad(item.commonContributionCents)} • reste ${_mad(item.remainingCents)}',
+              _mf(context, 'monthly.member_summary', {
+                'member':
+                    labels[item.memberUserId] ??
+                    _mt(context, 'monthly.member_fallback'),
+                'income': _mad(item.incomeCents),
+                'charges': _mad(item.personalChargesCents),
+                'contribution': _mad(item.commonContributionCents),
+                'remaining': _mad(item.remainingCents),
+              }),
             ),
           ),
           if (analysis.transferSuggestion != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Virement suggéré',
+              _mt(context, 'monthly.transfer'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             Text(
-              '${labels[analysis.transferSuggestion!.fromMemberUserId] ?? 'Membre'} → ${labels[analysis.transferSuggestion!.toMemberUserId] ?? 'Membre'} : ${_mad(analysis.transferSuggestion!.amountCents)}',
+              _mf(context, 'monthly.transfer_row', {
+                'from':
+                    labels[analysis.transferSuggestion!.fromMemberUserId] ??
+                    _mt(context, 'monthly.member_short'),
+                'to':
+                    labels[analysis.transferSuggestion!.toMemberUserId] ??
+                    _mt(context, 'monthly.member_short'),
+                'value': _mad(analysis.transferSuggestion!.amountCents),
+              }),
             ),
-            const Text(
-              'Suggestion analytique uniquement : aucun virement n’est exécuté.',
-            ),
+            Text(_mt(context, 'monthly.transfer_hint')),
           ],
           if (analysis.warnings.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Avertissements',
+              _mt(context, 'monthly.warnings'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             ...analysis.warnings.map(Text.new),
           ],
           if (analysis.blockers.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text('Blocages', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              _mt(context, 'monthly.blockers'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             ...analysis.blockers.map(Text.new),
           ],
           const SizedBox(height: AppSpacing.md),
@@ -1494,12 +1601,24 @@ class _ProgrammableMonthlySummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Synthèse programmable',
+            _mt(context, 'monthly.program_summary'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          Text('Ressources : ${_mad(result.initialResourcesCents)}'),
-          Text('Alloué : ${_mad(result.allocatedCents)}'),
-          Text('Reste : ${_mad(result.remainingCents)}'),
+          Text(
+            _mf(context, 'monthly.resources', {
+              'value': _mad(result.initialResourcesCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.allocated', {
+              'value': _mad(result.allocatedCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.remaining', {
+              'value': _mad(result.remainingCents),
+            }),
+          ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
             key: const Key('save-monthly-budget'),
@@ -1538,28 +1657,39 @@ class _MonthlyProgrammablePreview extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Résultat de la prévisualisation',
+            _mt(context, 'monthly.preview_result'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          Text('Ressources : ${_mad(result.initialResourcesCents)}'),
-          Text('Alloué : ${_mad(result.allocatedCents)}'),
-          Text('Reste : ${_mad(result.remainingCents)}'),
           Text(
-            result.isSimulable
-                ? 'Budget simulable : Oui'
-                : 'Budget simulable : Non',
+            _mf(context, 'monthly.resources', {
+              'value': _mad(result.initialResourcesCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.allocated', {
+              'value': _mad(result.allocatedCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.remaining', {
+              'value': _mad(result.remainingCents),
+            }),
+          ),
+          Text(
+            _mf(context, 'monthly.simulable_value', {
+              'value': _mt(
+                context,
+                result.isSimulable ? 'monthly.yes' : 'monthly.no',
+              ),
+            }),
           ),
           if (result.diagnostics.any(
             (item) =>
                 item.severity == ProgrammableBudgetDiagnosticSeverity.warning,
           ))
-            const Text(
-              'Ce budget peut être enregistré, mais certains éléments méritent votre attention.',
-            ),
+            Text(_mt(context, 'monthly.warning_attention')),
           if (!result.isSimulable) ...[
-            const Text(
-              'Le budget ne peut pas être enregistré tant que les blocages suivants ne sont pas corrigés.',
-            ),
+            Text(_mt(context, 'monthly.blocked_attention')),
             ...result.diagnostics
                 .where(
                   (item) =>
@@ -1576,16 +1706,24 @@ class _MonthlyProgrammablePreview extends StatelessWidget {
                 .firstOrNull;
             final changed = overriddenStepIds.contains(item.step.id);
             return ListTile(
-              title: Text('${item.step.order} • ${item.step.groupName}'),
+              title: Text(
+                _mf(context, 'monthly.ordered_group', {
+                  'order': item.step.order,
+                  'group': item.step.groupName,
+                }),
+              ),
               subtitle: Text(
-                '${source ?? 'Source non configurée'} • ${_mad(item.allocatedCents)}',
+                _mf(context, 'monthly.step_summary', {
+                  'source': source ?? _mt(context, 'monthly.source_missing'),
+                  'value': _mad(item.allocatedCents),
+                }),
               ),
               trailing: TextButton(
                 onPressed: () => onEditStep(item.step),
-                child: const Text('Modifier cette étape'),
+                child: Text(_mt(context, 'monthly.edit_step')),
               ),
               leading: changed
-                  ? const Chip(label: Text('Modifié ce mois'))
+                  ? Chip(label: Text(_mt(context, 'monthly.changed_month')))
                   : null,
             );
           }),
@@ -1625,7 +1763,8 @@ class _PreparedMonthlySnapshot extends StatelessWidget {
     final results = _snapshotList(result['steps']);
     final diagnostics = _snapshotList(result['diagnostics']);
     final scenarioName =
-        snapshot['scenario_name'] as String? ?? 'Scénario préparé';
+        snapshot['scenario_name'] as String? ??
+        _mt(context, 'monthly.prepared_scenario');
     final version = snapshot['scenario_version'];
 
     return ListView(
@@ -1640,20 +1779,29 @@ class _PreparedMonthlySnapshot extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'Budget préparé',
+          _mt(context, 'monthly.prepared_budget'),
           style: Theme.of(context).textTheme.headlineSmall,
         ),
-        Text('Période : ${_monthLabel(month)}'),
-        Text('Scénario : $scenarioName'),
-        Text('Version : ${version ?? 'historique'}'),
+        Text(
+          _mf(context, 'monthly.period', {
+            'value': _monthLabel(context, month),
+          }),
+        ),
+        Text(_mf(context, 'monthly.scenario', {'value': scenarioName})),
+        Text(
+          _mf(context, 'monthly.version', {
+            'value': version ?? _mt(context, 'monthly.historical'),
+          }),
+        ),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'Sources effectives',
+          _mt(context, 'monthly.sources_effective'),
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        if (sources.isEmpty) const Text('Aucune source historisée.'),
+        if (sources.isEmpty) Text(_mt(context, 'monthly.no_sources')),
         ...sources.map((source) {
-          final name = source['name'] as String? ?? 'Source';
+          final name =
+              source['name'] as String? ?? _mt(context, 'monthly.source');
           final expected = _snapshotCents(source['expected_cents']);
           final sourceId = source['id'] as String?;
           final memberName = source['member_name'] as String?;
@@ -1666,69 +1814,119 @@ class _PreparedMonthlySnapshot extends StatelessWidget {
             title: Text(name),
             subtitle: Text(
               overridden
-                  ? '${memberName == null ? '' : '$memberName • '}Modifié ce mois • ${_mad(effective)}'
-                  : '${memberName == null ? '' : '$memberName • '}Valeur scénario • ${_mad(effective)}',
+                  ? _mf(context, 'monthly.history_source_changed', {
+                      'member': memberName == null
+                          ? ''
+                          : _mf(context, 'monthly.member_prefix', {
+                              'member': memberName,
+                            }),
+                      'value': _mad(effective),
+                    })
+                  : _mf(context, 'monthly.history_source_template', {
+                      'member': memberName == null
+                          ? ''
+                          : _mf(context, 'monthly.member_prefix', {
+                              'member': memberName,
+                            }),
+                      'value': _mad(effective),
+                    }),
             ),
           );
         }),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Programme effectif',
+          _mt(context, 'monthly.program_effective'),
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        if (steps.isEmpty) const Text('Aucune étape historisée.'),
+        if (steps.isEmpty) Text(_mt(context, 'monthly.no_steps')),
         ...steps.map((step) {
           final id = step['id'] as String?;
           final changed = id != null && stepOverrides.containsKey(id);
-          final group = step['group'] as String? ?? 'Programme';
+          final group =
+              step['group'] as String? ?? _mt(context, 'monthly.program');
           final order = step['order'] as num? ?? 0;
-          final method = _budgetMethodLabel(step['method'] as String?);
+          final method = _budgetMethodLabel(context, step['method'] as String?);
           final override = id == null
               ? const <String, Object?>{}
               : _snapshotMap(stepOverrides[id]);
           return ListTile(
-            title: Text('$order. $group'),
+            title: Text(
+              _mf(context, 'monthly.numbered_group', {
+                'order': order,
+                'group': group,
+              }),
+            ),
             subtitle: Text(
               changed
-                  ? '$method • Modifiée ce mois${_historicalStepOverrideDetails(override)}'
+                  ? _mf(context, 'monthly.history_step_changed', {
+                      'method': method,
+                      'details': _historicalStepOverrideDetails(
+                        context,
+                        override,
+                      ),
+                    })
                   : method,
             ),
           );
         }),
         if (result.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
-          Text('Capacités', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            _mt(context, 'monthly.capacities'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           ...capacities.map(
             (item) => ListTile(
-              title: const Text('Membre du foyer'),
+              title: Text(_mt(context, 'monthly.household_member')),
               subtitle: Text(
-                'Capacité : ${_mad(_snapshotCents(item['capacity_cents']))} • Clé automatique : ${_snapshotPercent(item['auto_share'])}',
+                _mf(context, 'monthly.capacity', {
+                  'capacity': _mad(_snapshotCents(item['capacity_cents'])),
+                  'share': _snapshotPercent(item['auto_share']),
+                }),
               ),
             ),
           ),
-          Text('Résultats', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            _mt(context, 'monthly.results'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           ...results.map(
             (item) => Text(
-              '${_snapshotStepStatus(item['status'] as String?)} • demandé ${_mad(_snapshotCents(item['requested_cents']))} • alloué ${_mad(_snapshotCents(item['allocated_cents']))}',
+              _mf(context, 'monthly.result', {
+                'status': _snapshotStepStatus(
+                  context,
+                  item['status'] as String?,
+                ),
+                'requested': _mad(_snapshotCents(item['requested_cents'])),
+                'allocated': _mad(_snapshotCents(item['allocated_cents'])),
+              }),
             ),
           ),
-          Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
-          if (diagnostics.isEmpty) const Text('Aucun diagnostic.'),
+          Text(
+            _mt(context, 'monthly.diagnostics'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          if (diagnostics.isEmpty) Text(_mt(context, 'monthly.no_diagnostic')),
           ...diagnostics.map(
             (item) => Text(
-              '${_snapshotDiagnosticLabel(item['severity'] as String?)} : ${item['message'] ?? 'Diagnostic'}',
+              _mf(context, 'monthly.diagnostic_row', {
+                'severity': _snapshotDiagnosticLabel(
+                  context,
+                  item['severity'] as String?,
+                ),
+                'message':
+                    item['message'] ?? _mt(context, 'monthly.diagnostic'),
+              }),
             ),
           ),
           Text(
             result['simulable'] == true
-                ? 'Budget simulable'
-                : 'Budget non simulable',
+                ? _mt(context, 'monthly.simulable')
+                : _mt(context, 'monthly.not_simulable'),
           ),
         ],
         const SizedBox(height: AppSpacing.md),
-        const Text(
-          'Consultation historique : aucune nouvelle simulation, sauvegarde ou écriture financière n’est effectuée.',
-        ),
+        Text(_mt(context, 'monthly.history_notice')),
       ],
     );
   }
@@ -1747,42 +1945,58 @@ Map<String, Object?> _snapshotMap(Object? value) =>
 int _snapshotCents(Object? value) => (value as num?)?.toInt() ?? 0;
 String _snapshotPercent(Object? value) =>
     '${(((value as num?)?.toDouble() ?? 0) * 100).toStringAsFixed(1)} %';
-String _budgetMethodLabel(String? value) => switch (value) {
-  'fixed' => 'Montant fixe',
-  'percentage' => 'Pourcentage',
-  'residual' => 'Reste',
-  _ => 'Méthode d’allocation',
-};
-String _snapshotStepStatus(String? value) => switch (value) {
-  'executed' => 'Exécutée',
-  'partiallyExecuted' => 'Partiellement exécutée',
-  'skipped' => 'Ignorée',
-  'blocked' => 'Bloquée',
-  'inactive' => 'Inactive',
-  _ => 'Étape',
-};
-String _snapshotDiagnosticLabel(String? value) => switch (value) {
-  'info' => 'Information',
-  'warning' => 'Avertissement',
-  'blocker' => 'Blocage',
-  _ => 'Diagnostic',
-};
-String _historicalStepOverrideDetails(Map<String, Object?> override) {
+String _budgetMethodLabel(BuildContext context, String? value) =>
+    switch (value) {
+      'fixed' => _mt(context, 'monthly.fixed'),
+      'percentage' => _mt(context, 'monthly.percentage'),
+      'residual' => _mt(context, 'monthly.residual'),
+      _ => _mt(context, 'monthly.method'),
+    };
+String _snapshotStepStatus(BuildContext context, String? value) =>
+    switch (value) {
+      'executed' => _mt(context, 'monthly.executed'),
+      'partiallyExecuted' => _mt(context, 'monthly.partial'),
+      'skipped' => _mt(context, 'monthly.skipped'),
+      'blocked' => _mt(context, 'monthly.blocked'),
+      'inactive' => _mt(context, 'monthly.inactive'),
+      _ => _mt(context, 'monthly.step'),
+    };
+String _snapshotDiagnosticLabel(BuildContext context, String? value) =>
+    switch (value) {
+      'info' => _mt(context, 'monthly.info'),
+      'warning' => _mt(context, 'monthly.warning'),
+      'blocker' => _mt(context, 'monthly.blocker'),
+      _ => _mt(context, 'monthly.diagnostic'),
+    };
+String _historicalStepOverrideDetails(
+  BuildContext context,
+  Map<String, Object?> override,
+) {
   final amount = override['amount_cents'];
-  if (amount is num) return ' • Montant : ${_mad(amount.toInt())}';
+  if (amount is num) {
+    return _mf(context, 'monthly.amount_suffix', {
+      'value': _mad(amount.toInt()),
+    });
+  }
   final percentage = override['percentage'];
-  if (percentage is num) return ' • Pourcentage : ${percentage.toString()} %';
-  if (override['active'] == false) return ' • Désactivée ce mois';
+  if (percentage is num) {
+    return _mf(context, 'monthly.percentage_suffix', {
+      'value': percentage.toString(),
+    });
+  }
+  if (override['active'] == false) {
+    return _mt(context, 'monthly.disabled_suffix');
+  }
   return '';
 }
 
 class _MonthlyScenarioDialog extends StatefulWidget {
   const _MonthlyScenarioDialog({
-    this.title = 'Nouveau scénario',
+    this.title,
     this.initialName,
     this.initialDescription,
   });
-  final String title;
+  final String? title;
   final String? initialName;
   final String? initialDescription;
   @override
@@ -1841,41 +2055,39 @@ class _MonthlyIncomeOverridesDialogState
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Modifier uniquement ce mois'),
+    title: Text(_mt(context, 'monthly.edit_month_title')),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Ces valeurs seront enregistrées dans le snapshot mensuel et ne modifieront pas le scénario modèle.',
-          ),
+          Text(_mt(context, 'monthly.edit_month_hint')),
           ...widget.incomes.map(
             (item) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Membre du foyer'),
+                Text(_mt(context, 'monthly.member')),
                 TextField(
                   key: Key('monthly-income-recurring-${item.memberUserId}'),
                   controller: _recurring[item.memberUserId],
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Salaire réel (MAD)',
+                  decoration: InputDecoration(
+                    labelText: _mt(context, 'monthly.salary'),
                   ),
                 ),
                 TextField(
                   key: Key('monthly-income-other-${item.memberUserId}'),
                   controller: _other[item.memberUserId],
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Autre revenu (MAD)',
+                  decoration: InputDecoration(
+                    labelText: _mt(context, 'monthly.other_income'),
                   ),
                 ),
                 TextField(
                   key: Key('monthly-income-exceptional-${item.memberUserId}'),
                   controller: _exceptional[item.memberUserId],
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Prime / exceptionnel (MAD)',
+                  decoration: InputDecoration(
+                    labelText: _mt(context, 'monthly.bonus'),
                   ),
                 ),
               ],
@@ -1887,9 +2099,12 @@ class _MonthlyIncomeOverridesDialogState
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Annuler'),
+        child: Text(_mt(context, 'monthly.cancel')),
       ),
-      FilledButton(onPressed: _save, child: const Text('Appliquer à ce mois')),
+      FilledButton(
+        onPressed: _save,
+        child: Text(_mt(context, 'monthly.apply_month')),
+      ),
     ],
   );
 
@@ -1942,22 +2157,26 @@ class _MonthlyScenarioDialogState extends State<_MonthlyScenarioDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
+    title: Text(widget.title ?? _mt(context, 'monthly.new_scenario_title')),
     content: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         TextField(
           key: const Key('monthly-scenario-name'),
           controller: _name,
-          decoration: const InputDecoration(labelText: 'Nom *'),
+          decoration: InputDecoration(
+            labelText: _mt(context, 'monthly.name_required'),
+          ),
           onChanged: (_) => setState(() {}),
         ),
         TextField(
           controller: _description,
-          decoration: const InputDecoration(labelText: 'Description'),
+          decoration: InputDecoration(
+            labelText: _mt(context, 'monthly.description'),
+          ),
         ),
         SwitchListTile(
-          title: const Text('Scénario actif'),
+          title: Text(_mt(context, 'monthly.active_scenario')),
           value: _active,
           onChanged: (value) => setState(() => _active = value),
         ),
@@ -1966,7 +2185,7 @@ class _MonthlyScenarioDialogState extends State<_MonthlyScenarioDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Annuler'),
+        child: Text(_mt(context, 'monthly.cancel')),
       ),
       FilledButton(
         key: const Key('save-monthly-scenario'),
@@ -1984,7 +2203,7 @@ class _MonthlyScenarioDialogState extends State<_MonthlyScenarioDialog> {
                   active: _active,
                 ),
               ),
-        child: const Text('Créer'),
+        child: Text(_mt(context, 'monthly.create')),
       ),
     ],
   );

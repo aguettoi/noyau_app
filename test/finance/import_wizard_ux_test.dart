@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:noyau_app/features/finance/application/providers/supabase_client_provider.dart';
 import 'package:noyau_app/features/finance/presentation/import_preview_page.dart';
 import 'package:noyau_app/features/finance/presentation/import_wizard_components.dart';
@@ -24,7 +25,12 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [currentUserIdProvider.overrideWithValue(null)],
-          child: const MaterialApp(home: Scaffold(body: ImportPreviewPage())),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: Scaffold(body: ImportPreviewPage()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -40,11 +46,20 @@ void main() {
   testWidgets('le stepper desktop expose les cinq étapes', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
+        locale: Locale('fr'),
+        supportedLocales: [Locale('fr')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         home: Scaffold(body: ImportWizardStepper(currentStep: 3)),
       ),
     );
 
-    for (final label in ImportWizardStepper.labels) {
+    for (final label in const [
+      'Source',
+      'Données',
+      'Plan',
+      'Exécution',
+      'Réconciliation',
+    ]) {
       expect(find.text(label), findsOneWidget);
     }
     expect(tester.takeException(), isNull);
@@ -112,6 +127,9 @@ void main() {
   testWidgets('après succès le bouton d exécution disparaît', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('fr'),
+        supportedLocales: const [Locale('fr')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         home: Scaffold(
           body: CutoverExecutionPanel(
             confirmed: true,
@@ -137,6 +155,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('fr'),
+        supportedLocales: const [Locale('fr')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         home: Scaffold(
           body: CutoverExecutionPanel(
             confirmed: true,

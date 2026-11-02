@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -35,7 +36,12 @@ void main() {
           globalSearchGatewayProvider.overrideWithValue(_Search()),
           importHistoryProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: PortabilityPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: PortabilityPage(),
+        ),
       ),
     );
     expect(find.text('Saisissez au moins 2 caractères.'), findsOneWidget);
@@ -70,7 +76,12 @@ void main() {
             ],
           ),
         ],
-        child: const MaterialApp(home: PortabilityPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: PortabilityPage(),
+        ),
       ),
     );
     await tester.tap(find.text('Imports'));

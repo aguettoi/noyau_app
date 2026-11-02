@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/localization/finance_residual_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 
 class ImportWizardStepper extends StatelessWidget {
@@ -7,65 +8,73 @@ class ImportWizardStepper extends StatelessWidget {
 
   final int currentStep;
 
-  static const labels = <String>[
-    'Source',
-    'Données',
-    'Plan',
-    'Exécution',
-    'Réconciliation',
-  ];
-
   @override
-  Widget build(BuildContext context) => Card(
-    key: const Key('import-wizard-stepper'),
-    color: AppColors.surfaceSecondary,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final selected = currentStep.clamp(0, labels.length - 1);
-          if (constraints.maxWidth < 620) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Étape ${selected + 1} sur ${labels.length} — ${labels[selected]}',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                LinearProgressIndicator(value: (selected + 1) / labels.length),
-              ],
-            );
-          }
-          return Row(
-            children: [
-              for (var index = 0; index < labels.length; index++) ...[
-                Expanded(
-                  child: _WizardStep(
-                    index: index,
-                    label: labels[index],
-                    active: index <= selected,
-                    current: index == selected,
+  Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
+    final labels = <String>[
+      words.text('import.step.source'),
+      words.text('import.step.data'),
+      words.text('import.step.plan'),
+      words.text('import.step.execution'),
+      words.text('import.step.reconciliation'),
+    ];
+    return Card(
+      key: const Key('import-wizard-stepper'),
+      color: AppColors.surfaceSecondary,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final selected = currentStep.clamp(0, labels.length - 1);
+            if (constraints.maxWidth < 620) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    words.format('import.step_progress', {
+                      'current': selected + 1,
+                      'total': labels.length,
+                      'label': labels[selected],
+                    }),
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
-                ),
-                if (index < labels.length - 1)
+                  const SizedBox(height: AppSpacing.xs),
+                  LinearProgressIndicator(
+                    value: (selected + 1) / labels.length,
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                for (var index = 0; index < labels.length; index++) ...[
                   Expanded(
-                    child: Divider(
-                      color: index < selected
-                          ? AppColors.primary
-                          : AppColors.divider,
+                    child: _WizardStep(
+                      index: index,
+                      label: labels[index],
+                      active: index <= selected,
+                      current: index == selected,
                     ),
                   ),
+                  if (index < labels.length - 1)
+                    Expanded(
+                      child: Divider(
+                        color: index < selected
+                            ? AppColors.primary
+                            : AppColors.divider,
+                      ),
+                    ),
+                ],
               ],
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _WizardStep extends StatelessWidget {
@@ -90,7 +99,7 @@ class _WizardStep extends StatelessWidget {
         backgroundColor: active ? AppColors.primary : AppColors.surface,
         foregroundColor: active ? Colors.white : AppColors.textSecondary,
         child: current
-            ? Text('${index + 1}')
+            ? Text((index + 1).toString())
             : Icon(active ? Icons.check : null, size: 16),
       ),
       const SizedBox(height: AppSpacing.xxs),
@@ -191,6 +200,7 @@ class CutoverExecutionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
     if (!confirmed) return const SizedBox.shrink();
     if (result != null) return CutoverReconciliationPanel(result: result!);
     return Card(
@@ -200,11 +210,12 @@ class CutoverExecutionPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('4. Exécution', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.xs),
-            const SecondaryInfoText(
-              'Le plan confirmé sera exécuté par les primitives canoniques, puis relu pour réconciliation.',
+            Text(
+              words.text('import.execution_title'),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
+            const SizedBox(height: AppSpacing.xs),
+            SecondaryInfoText(words.text('import.execution_description')),
             const SizedBox(height: AppSpacing.md),
             Align(
               alignment: Alignment.centerRight,
@@ -218,7 +229,9 @@ class CutoverExecutionPanel extends StatelessWidget {
                       )
                     : const Icon(Icons.play_arrow_rounded),
                 label: Text(
-                  executing ? 'Exécution...' : 'Exécuter et réconcilier',
+                  executing
+                      ? words.text('import.executing')
+                      : words.text('import.execute'),
                 ),
               ),
             ),
@@ -236,6 +249,7 @@ class CutoverReconciliationPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
     final reconciled = result['status'] == 'RECONCILED';
     final rows = <Map<String, dynamic>>[
       ..._rows('accounts'),
@@ -261,8 +275,8 @@ class CutoverReconciliationPanel extends StatelessWidget {
                 Expanded(
                   child: Text(
                     reconciled
-                        ? '5. Réconciliation — écart zéro'
-                        : '5. Réconciliation — écarts à vérifier',
+                        ? words.text('import.reconciled')
+                        : words.text('import.reconcile_warning'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
@@ -270,9 +284,11 @@ class CutoverReconciliationPanel extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              '${result['financial_events'] ?? 0} événements • '
-              '${result['gl_transactions'] ?? 0} transactions GL • '
-              '${result['envelope_movements'] ?? 0} mouvements enveloppes',
+              words.format('import.result_summary', {
+                'events': result['financial_events'] ?? 0,
+                'transactions': result['gl_transactions'] ?? 0,
+                'movements': result['envelope_movements'] ?? 0,
+              }),
             ),
             const SizedBox(height: AppSpacing.md),
             LayoutBuilder(
@@ -294,12 +310,24 @@ class CutoverReconciliationPanel extends StatelessWidget {
                     3: FlexColumnWidth(),
                   },
                   children: [
-                    const TableRow(
+                    TableRow(
                       children: [
-                        _TableCellText('Position', header: true),
-                        _TableCellText('Attendu', header: true),
-                        _TableCellText('Réel', header: true),
-                        _TableCellText('Écart', header: true),
+                        _TableCellText(
+                          words.text('import.position'),
+                          header: true,
+                        ),
+                        _TableCellText(
+                          words.text('import.expected'),
+                          header: true,
+                        ),
+                        _TableCellText(
+                          words.text('import.actual'),
+                          header: true,
+                        ),
+                        _TableCellText(
+                          words.text('import.difference'),
+                          header: true,
+                        ),
                       ],
                     ),
                     for (final row in rows)
@@ -317,9 +345,7 @@ class CutoverReconciliationPanel extends StatelessWidget {
             ),
             if (reconciled) ...[
               const SizedBox(height: AppSpacing.md),
-              const SecondaryInfoText(
-                'Exécution terminée. Un nouveau clic n’est pas nécessaire : le résultat persistant est déjà relu.',
-              ),
+              SecondaryInfoText(words.text('import.completed')),
             ],
           ],
         ),
@@ -357,21 +383,28 @@ class _ReconciliationRowCard extends StatelessWidget {
   final Map<String, dynamic> value;
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-    padding: const EdgeInsets.all(AppSpacing.sm),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: AppRadius.input,
-      border: Border.all(color: AppColors.border),
-    ),
-    child: Row(
-      children: [
-        Expanded(child: Text('${value['name']}')),
-        Text(
-          '${value['actual']} / ${value['expected']}  •  Δ ${value['difference']}',
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final words = FinanceResidualWords.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: AppRadius.input,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Text(value['name'].toString())),
+          Text(
+            words.format('import.row_summary', {
+              'actual': value['actual'] ?? '',
+              'expected': value['expected'] ?? '',
+              'difference': value['difference'] ?? '',
+            }),
+          ),
+        ],
+      ),
+    );
+  }
 }

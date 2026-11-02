@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/cutover_locale.dart';
 import '../application/cutover_preparation.dart';
 import '../application/workbook_import.dart';
 
@@ -51,27 +52,26 @@ class _CutoverPreparationCardState extends State<CutoverPreparationCard> {
 
   @override
   Widget build(BuildContext context) {
+    final w = CutoverWords.of(context);
     final preparation = _preparation;
     if (preparation == null) {
       return _ActionCard(
         icon: Icons.fact_check_outlined,
-        title: 'Préparer le cutover réel',
-        body:
-            'Contrôlez les valeurs candidates du classeur avant toute écriture. Cette préparation reste locale à cet appareil.',
+        title: w.text('prepare'),
+        body: w.text('prepare_body'),
         action: OutlinedButton.icon(
           key: const Key('start-real-cutover-preparation'),
           onPressed: _start,
           icon: const Icon(Icons.manage_search_outlined),
-          label: const Text('Examiner les données candidates'),
+          label: Text(w.text('examine')),
         ),
       );
     }
 
     return _ActionCard(
       icon: Icons.fact_check_outlined,
-      title: 'Préparation du cutover réel',
-      body:
-          'Source → candidat → confirmé → écart. Aucune écriture financière ne sera créée à cette étape.',
+      title: w.text('title'),
+      body: w.text('body'),
       action: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -111,13 +111,15 @@ class _CutoverPreparationCardState extends State<CutoverPreparationCard> {
                 ? () => _showReadyDialog(context)
                 : null,
             icon: const Icon(Icons.lock_outline),
-            label: const Text('Préparer la revue finale'),
+            label: Text(w.text('final_review')),
           ),
           if (!preparation.canPrepareFuturePlan)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'Date effective et confirmations requises : ${preparation.remainingConfirmations}.',
+                w.format('remaining', {
+                  'count': preparation.remainingConfirmations,
+                }),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
@@ -128,19 +130,20 @@ class _CutoverPreparationCardState extends State<CutoverPreparationCard> {
 
   Future<void> _showReadyDialog(BuildContext context) => showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      icon: const Icon(Icons.verified_outlined),
-      title: const Text('Préparation locale prête'),
-      content: const Text(
-        'Les valeurs sont confirmées localement. Aucun plan B1 ni aucune écriture n’est créé ici ; la revue finale devra rester explicite.',
-      ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Continuer la revue'),
-        ),
-      ],
-    ),
+    builder: (dialogContext) {
+      final w = CutoverWords.of(dialogContext);
+      return AlertDialog(
+        icon: const Icon(Icons.verified_outlined),
+        title: Text(w.text('ready')),
+        content: Text(w.text('ready_body')),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(w.text('continue_review')),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -148,41 +151,34 @@ class _CutoverDayChecklist extends StatelessWidget {
   const _CutoverDayChecklist();
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-    title: 'Protocole de bascule — jour J',
-    child: const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Avant confirmation'),
-        SizedBox(height: 4),
-        Text('1. Figer l’utilisation du Google Sheet.'),
-        Text('2. Choisir la date effective.'),
-        Text(
-          '3. Relever les positions réelles des comptes et compter les espèces.',
-        ),
-        Text('4. Confirmer les enveloppes, dont À répartir indépendamment.'),
-        Text(
-          '5. Confirmer les revenus et traiter les obligations ouvertes séparément.',
-        ),
-        Text(
-          '6. Relire la revue finale avant de préparer l’exécution canonique.',
-        ),
-        SizedBox(height: 10),
-        Text('Après matérialisation'),
-        SizedBox(height: 4),
-        Text('7. Relire les positions persistées depuis la base.'),
-        Text('8. Rapprocher chaque banque avec son solde théorique GL.'),
-        Text('9. Rapprocher la caisse avec le montant physique compté.'),
-        Text(
-          '10. Vérifier toutes les enveloppes sans les compenser avec les comptes.',
-        ),
-        SizedBox(height: 8),
-        Text(
-          'Un rapprochement constate un écart seulement. Il ne corrige ni le Grand Livre ni les enveloppes ; une régularisation future restera une action distincte et append-only.',
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final w = CutoverWords.of(context);
+    return _SectionCard(
+      title: w.text('protocol'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(w.text('before')),
+          const SizedBox(height: 4),
+          Text(w.text('step1')),
+          Text(w.text('step2')),
+          Text(w.text('step3')),
+          Text(w.text('step4')),
+          Text(w.text('step5')),
+          Text(w.text('step6')),
+          const SizedBox(height: 10),
+          Text(w.text('after')),
+          const SizedBox(height: 4),
+          Text(w.text('step7')),
+          Text(w.text('step8')),
+          Text(w.text('step9')),
+          Text(w.text('step10')),
+          const SizedBox(height: 8),
+          Text(w.text('reconciliation_notice')),
+        ],
+      ),
+    );
+  }
 }
 
 class _SourceSummary extends StatelessWidget {
@@ -195,46 +191,53 @@ class _SourceSummary extends StatelessWidget {
   final ValueChanged<DateTime> onDateSelected;
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-    title: 'Date et source',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Fingerprint : ${preparation.sourceFingerprint}'),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                preparation.effectiveDate == null
-                    ? 'Date effective : à confirmer'
-                    : 'Date effective : ${_date(preparation.effectiveDate!)}',
+  Widget build(BuildContext context) {
+    final w = CutoverWords.of(context);
+    return _SectionCard(
+      title: w.text('date_source'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            w.format('fingerprint', {'value': preparation.sourceFingerprint}),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  preparation.effectiveDate == null
+                      ? w.text('date_pending')
+                      : w.format('effective_date', {
+                          'date': _date(context, preparation.effectiveDate!),
+                        }),
+                ),
               ),
-            ),
-            OutlinedButton.icon(
-              key: const Key('cutover-effective-date-button'),
-              onPressed: () async {
-                final value = await showDatePicker(
-                  context: context,
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime(2100),
-                  initialDate: preparation.effectiveDate ?? DateTime.now(),
-                );
-                if (value != null) onDateSelected(value);
-              },
-              icon: const Icon(Icons.calendar_today_outlined),
-              label: const Text('Choisir la date'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Les dates visibles dans le classeur sont des informations de source : elles ne sont jamais retenues automatiquement.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    ),
-  );
+              OutlinedButton.icon(
+                key: const Key('cutover-effective-date-button'),
+                onPressed: () async {
+                  final value = await showDatePicker(
+                    context: context,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
+                    initialDate: preparation.effectiveDate ?? DateTime.now(),
+                  );
+                  if (value != null) onDateSelected(value);
+                },
+                icon: const Icon(Icons.calendar_today_outlined),
+                label: Text(w.text('choose_date')),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            w.text('source_dates'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AccountReview extends StatelessWidget {
@@ -243,38 +246,43 @@ class _AccountReview extends StatelessWidget {
   final ValueChanged<CutoverPreparationAccount> onChanged;
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-    title: 'Comptes candidats (${preparation.accounts.length})',
-    child: Column(
-      children: [
-        const _CandidateTableHeader(),
-        const SizedBox(height: 6),
-        ...preparation.accounts.map(
-          (account) => _AmountConfirmationRow(
-            key: Key('cutover-account-${account.id}'),
-            title: account.name,
-            details: '${account.holder} • ${account.kind}',
-            source: account.candidateSource,
-            candidateAmount: account.candidateAmount,
-            confirmedAmount: account.confirmedAmount,
-            isConfirmed: account.isConfirmed,
-            onAmountChanged: (value) => onChanged(
-              account.copyWith(
-                confirmedAmount: value,
-                clearConfirmedAmount: value == null,
-                isConfirmed: value == null ? false : account.isConfirmed,
+  Widget build(BuildContext context) {
+    final w = CutoverWords.of(context);
+    return _SectionCard(
+      title: w.format('accounts_candidates', {
+        'count': preparation.accounts.length,
+      }),
+      child: Column(
+        children: [
+          const _CandidateTableHeader(),
+          const SizedBox(height: 6),
+          ...preparation.accounts.map(
+            (account) => _AmountConfirmationRow(
+              key: Key('cutover-account-${account.id}'),
+              title: account.name,
+              details: '${account.holder} • ${account.kind}',
+              source: account.candidateSource,
+              candidateAmount: account.candidateAmount,
+              confirmedAmount: account.confirmedAmount,
+              isConfirmed: account.isConfirmed,
+              onAmountChanged: (value) => onChanged(
+                account.copyWith(
+                  confirmedAmount: value,
+                  clearConfirmedAmount: value == null,
+                  isConfirmed: value == null ? false : account.isConfirmed,
+                ),
               ),
-            ),
-            onConfirmedChanged: (value) => onChanged(
-              account.copyWith(
-                isConfirmed: value && account.confirmedAmount != null,
+              onConfirmedChanged: (value) => onChanged(
+                account.copyWith(
+                  isConfirmed: value && account.confirmedAmount != null,
+                ),
               ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _EnvelopeReview extends StatelessWidget {
@@ -283,45 +291,50 @@ class _EnvelopeReview extends StatelessWidget {
   final ValueChanged<CutoverPreparationEnvelope> onChanged;
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-    title: 'Enveloppes candidates (${preparation.envelopes.length})',
-    child: Column(
-      children: [
-        Text(
-          'Les comptes et les enveloppes sont contrôlés séparément. Aucune différence ne sera compensée automatiquement.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 8),
-        const _CandidateTableHeader(),
-        const SizedBox(height: 6),
-        ...preparation.envelopes.map(
-          (envelope) => _AmountConfirmationRow(
-            key: Key('cutover-envelope-${envelope.id}'),
-            title: envelope.name,
-            details: envelope.isToAllocate
-                ? 'Enveloppe système — position indépendante'
-                : 'Enveloppe ordinaire',
-            source: envelope.candidateSource,
-            candidateAmount: envelope.candidateAmount,
-            confirmedAmount: envelope.confirmedAmount,
-            isConfirmed: envelope.isConfirmed,
-            onAmountChanged: (value) => onChanged(
-              envelope.copyWith(
-                confirmedAmount: value,
-                clearConfirmedAmount: value == null,
-                isConfirmed: value == null ? false : envelope.isConfirmed,
+  Widget build(BuildContext context) {
+    final w = CutoverWords.of(context);
+    return _SectionCard(
+      title: w.format('envelopes_candidates', {
+        'count': preparation.envelopes.length,
+      }),
+      child: Column(
+        children: [
+          Text(
+            w.text('separate_controls'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          const _CandidateTableHeader(),
+          const SizedBox(height: 6),
+          ...preparation.envelopes.map(
+            (envelope) => _AmountConfirmationRow(
+              key: Key('cutover-envelope-${envelope.id}'),
+              title: envelope.name,
+              details: envelope.isToAllocate
+                  ? w.text('system_envelope')
+                  : w.text('ordinary_envelope'),
+              source: envelope.candidateSource,
+              candidateAmount: envelope.candidateAmount,
+              confirmedAmount: envelope.confirmedAmount,
+              isConfirmed: envelope.isConfirmed,
+              onAmountChanged: (value) => onChanged(
+                envelope.copyWith(
+                  confirmedAmount: value,
+                  clearConfirmedAmount: value == null,
+                  isConfirmed: value == null ? false : envelope.isConfirmed,
+                ),
               ),
-            ),
-            onConfirmedChanged: (value) => onChanged(
-              envelope.copyWith(
-                isConfirmed: value && envelope.confirmedAmount != null,
+              onConfirmedChanged: (value) => onChanged(
+                envelope.copyWith(
+                  isConfirmed: value && envelope.confirmedAmount != null,
+                ),
               ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _IncomeReview extends StatelessWidget {
@@ -330,80 +343,90 @@ class _IncomeReview extends StatelessWidget {
   final ValueChanged<CutoverPreparationIncome> onChanged;
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-    title: 'Revenus candidats',
-    child: Column(
-      children: preparation.incomes
-          .map(
-            (income) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(income.name),
-                    subtitle: Text(
-                      '${income.isConfiguration ? 'Paramètre de budget, pas un encaissement' : 'Candidat'} : ${_money(income.candidateAmount)} • ${income.candidateSource}',
-                    ),
-                    value: income.isActive,
-                    onChanged: (value) => onChanged(
-                      income.copyWith(isActive: value, isConfirmed: false),
-                    ),
-                  ),
-                  if (income.isActive) ...[
-                    _TextInput(
-                      label: 'Membre bénéficiaire',
-                      value: income.member,
+  Widget build(BuildContext context) {
+    final w = CutoverWords.of(context);
+    return _SectionCard(
+      title: w.text('income_candidates'),
+      child: Column(
+        children: preparation.incomes
+            .map(
+              (income) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(income.name),
+                      subtitle: Text(
+                        w.format('income_candidate', {
+                          'kind': w.text(
+                            income.isConfiguration
+                                ? 'budget_parameter'
+                                : 'candidate',
+                          ),
+                          'amount': _money(context, income.candidateAmount),
+                          'source': income.candidateSource,
+                        }),
+                      ),
+                      value: income.isActive,
                       onChanged: (value) => onChanged(
-                        income.copyWith(member: value, isConfirmed: false),
+                        income.copyWith(isActive: value, isConfirmed: false),
                       ),
                     ),
-                    _TextInput(
-                      label: 'Compte d’encaissement',
-                      value: income.destinationAccount,
-                      onChanged: (value) => onChanged(
-                        income.copyWith(
-                          destinationAccount: value,
-                          isConfirmed: false,
+                    if (income.isActive) ...[
+                      _TextInput(
+                        label: w.text('beneficiary'),
+                        value: income.member,
+                        onChanged: (value) => onChanged(
+                          income.copyWith(member: value, isConfirmed: false),
                         ),
                       ),
-                    ),
-                    _AmountConfirmationRow(
-                      title: 'Montant mensuel confirmé',
-                      details:
-                          'Aucun revenu n’est créé pendant la préparation.',
-                      source: income.candidateSource,
-                      candidateAmount: income.candidateAmount,
-                      confirmedAmount: income.confirmedAmount,
-                      isConfirmed: income.isConfirmed,
-                      onAmountChanged: (value) => onChanged(
-                        income.copyWith(
-                          confirmedAmount: value,
-                          clearConfirmedAmount: value == null,
-                          isConfirmed: value == null
-                              ? false
-                              : income.isConfirmed,
+                      _TextInput(
+                        label: w.text('destination_account'),
+                        value: income.destinationAccount,
+                        onChanged: (value) => onChanged(
+                          income.copyWith(
+                            destinationAccount: value,
+                            isConfirmed: false,
+                          ),
                         ),
                       ),
-                      onConfirmedChanged: (value) => onChanged(
-                        income.copyWith(
-                          isConfirmed:
-                              value &&
-                              income.confirmedAmount != null &&
-                              income.member.trim().isNotEmpty &&
-                              income.destinationAccount.trim().isNotEmpty,
+                      _AmountConfirmationRow(
+                        title: w.text('confirmed_monthly'),
+                        details: w.text('income_notice'),
+                        source: income.candidateSource,
+                        candidateAmount: income.candidateAmount,
+                        confirmedAmount: income.confirmedAmount,
+                        isConfirmed: income.isConfirmed,
+                        onAmountChanged: (value) => onChanged(
+                          income.copyWith(
+                            confirmedAmount: value,
+                            clearConfirmedAmount: value == null,
+                            isConfirmed: value == null
+                                ? false
+                                : income.isConfirmed,
+                          ),
+                        ),
+                        onConfirmedChanged: (value) => onChanged(
+                          income.copyWith(
+                            isConfirmed:
+                                value &&
+                                income.confirmedAmount != null &&
+                                income.member.trim().isNotEmpty &&
+                                income.destinationAccount.trim().isNotEmpty,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          )
-          .toList(growable: false),
-    ),
-  );
+            )
+            .toList(growable: false),
+      ),
+    );
+  }
 }
 
 class _ObligationReview extends StatelessWidget {
@@ -412,121 +435,133 @@ class _ObligationReview extends StatelessWidget {
   final ValueChanged<CutoverPreparationObligation> onChanged;
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-    title: 'Obligations candidates',
-    child: Column(
-      children: preparation.obligations
-          .map(
-            (obligation) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(obligation.name),
-                    subtitle: Text(
-                      '${obligation.classification.label}\nValeur candidate : ${_money(obligation.candidateAmount)} • ${obligation.candidateSource}',
-                    ),
-                    value: obligation.exists,
-                    onChanged: (value) => onChanged(
-                      obligation.copyWith(exists: value, isConfirmed: false),
-                    ),
-                  ),
-                  if (obligation.exists) ...[
-                    _TextInput(
-                      label: 'Créancier',
-                      value: obligation.creditor,
+  Widget build(BuildContext context) {
+    final w = CutoverWords.of(context);
+    return _SectionCard(
+      title: w.text('obligation_candidates'),
+      child: Column(
+        children: preparation.obligations
+            .map(
+              (obligation) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(obligation.name),
+                      subtitle: Text(
+                        w.format('obligation_candidate', {
+                          'classification': obligation.classification.label,
+                          'amount': _money(context, obligation.candidateAmount),
+                          'source': obligation.candidateSource,
+                        }),
+                      ),
+                      value: obligation.exists,
                       onChanged: (value) => onChanged(
-                        obligation.copyWith(
-                          creditor: value,
-                          isConfirmed: false,
-                        ),
+                        obligation.copyWith(exists: value, isConfirmed: false),
                       ),
                     ),
-                    _NumericInput(
-                      label: 'Montant initial (MAD)',
-                      value: obligation.initialAmount,
-                      onChanged: (value) => onChanged(
-                        obligation.copyWith(
-                          initialAmount: value,
-                          isConfirmed: false,
-                        ),
-                      ),
-                    ),
-                    _NumericInput(
-                      label: 'Solde restant réel (MAD)',
-                      value: obligation.remainingAmount,
-                      onChanged: (value) => onChanged(
-                        obligation.copyWith(
-                          remainingAmount: value,
-                          isConfirmed: false,
-                        ),
-                      ),
-                    ),
-                    _NumericInput(
-                      label: 'Mensualité (MAD)',
-                      value: obligation.monthlyAmount,
-                      onChanged: (value) => onChanged(
-                        obligation.copyWith(
-                          monthlyAmount: value,
-                          isConfirmed: false,
-                        ),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            obligation.nextDueDate == null
-                                ? 'Prochaine échéance : à confirmer'
-                                : 'Prochaine échéance : ${_date(obligation.nextDueDate!)}',
+                    if (obligation.exists) ...[
+                      _TextInput(
+                        label: w.text('creditor'),
+                        value: obligation.creditor,
+                        onChanged: (value) => onChanged(
+                          obligation.copyWith(
+                            creditor: value,
+                            isConfirmed: false,
                           ),
                         ),
-                        TextButton(
-                          onPressed: () async {
-                            final date = await showDatePicker(
-                              context: context,
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2100),
-                              initialDate:
-                                  obligation.nextDueDate ?? DateTime.now(),
-                            );
-                            if (date != null) {
-                              onChanged(
-                                obligation.copyWith(
-                                  nextDueDate: date,
-                                  isConfirmed: false,
-                                ),
-                              );
-                            }
-                          },
-                          child: const Text('Choisir'),
-                        ),
-                      ],
-                    ),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Obligation confirmée'),
-                      value: obligation.isConfirmed,
-                      onChanged: (value) => onChanged(
-                        obligation.copyWith(
-                          isConfirmed:
-                              value == true &&
-                              obligation.creditor.trim().isNotEmpty &&
-                              obligation.remainingAmount != null &&
-                              obligation.nextDueDate != null,
+                      ),
+                      _NumericInput(
+                        label: w.text('initial_amount'),
+                        value: obligation.initialAmount,
+                        onChanged: (value) => onChanged(
+                          obligation.copyWith(
+                            initialAmount: value,
+                            isConfirmed: false,
+                          ),
                         ),
                       ),
-                    ),
+                      _NumericInput(
+                        label: w.text('real_remaining'),
+                        value: obligation.remainingAmount,
+                        onChanged: (value) => onChanged(
+                          obligation.copyWith(
+                            remainingAmount: value,
+                            isConfirmed: false,
+                          ),
+                        ),
+                      ),
+                      _NumericInput(
+                        label: w.text('monthly_amount'),
+                        value: obligation.monthlyAmount,
+                        onChanged: (value) => onChanged(
+                          obligation.copyWith(
+                            monthlyAmount: value,
+                            isConfirmed: false,
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              obligation.nextDueDate == null
+                                  ? w.text('due_pending')
+                                  : w.format('next_due', {
+                                      'date': _date(
+                                        context,
+                                        obligation.nextDueDate!,
+                                      ),
+                                    }),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2100),
+                                initialDate:
+                                    obligation.nextDueDate ?? DateTime.now(),
+                              );
+                              if (date != null) {
+                                onChanged(
+                                  obligation.copyWith(
+                                    nextDueDate: date,
+                                    isConfirmed: false,
+                                  ),
+                                );
+                              }
+                            },
+                            child: Text(w.text('choose')),
+                          ),
+                        ],
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(w.text('obligation_confirmed')),
+                        value: obligation.isConfirmed,
+                        onChanged: (value) => onChanged(
+                          obligation.copyWith(
+                            isConfirmed:
+                                value == true &&
+                                obligation.creditor.trim().isNotEmpty &&
+                                obligation.remainingAmount != null &&
+                                obligation.nextDueDate != null,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          )
-          .toList(growable: false),
-    ),
-  );
+            )
+            .toList(growable: false),
+      ),
+    );
+  }
 }
 
 class _PreparationSummary extends StatelessWidget {
@@ -534,36 +569,48 @@ class _PreparationSummary extends StatelessWidget {
   final CutoverPreparation preparation;
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-    title: 'Synthèse de contrôle',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _summaryLine(
-          'Comptes',
-          preparation.candidateAccountsTotal,
-          preparation.confirmedAccountsTotal,
-          preparation.accountsDifference,
-        ),
-        _summaryLine(
-          'Enveloppes',
-          preparation.candidateEnvelopesTotal,
-          preparation.confirmedEnvelopesTotal,
-          preparation.envelopesDifference,
-        ),
-        const SizedBox(height: 6),
-        Text('Confirmés : ${preparation.confirmedCount}'),
-        Text('À confirmer : ${preparation.remainingConfirmations}'),
-        const SizedBox(height: 4),
-        Text(
-          'Les deux totaux sont indépendants : aucun écart ne génère de correction automatique.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final w = CutoverWords.of(context);
+    return _SectionCard(
+      title: w.text('control_summary'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _summaryLine(
+            context,
+            w.text('accounts'),
+            preparation.candidateAccountsTotal,
+            preparation.confirmedAccountsTotal,
+            preparation.accountsDifference,
+          ),
+          _summaryLine(
+            context,
+            w.text('envelopes'),
+            preparation.candidateEnvelopesTotal,
+            preparation.confirmedEnvelopesTotal,
+            preparation.envelopesDifference,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            w.format('confirmed_count', {'count': preparation.confirmedCount}),
+          ),
+          Text(
+            w.format('pending_count', {
+              'count': preparation.remainingConfirmations,
+            }),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            w.text('independent_totals'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _summaryLine(
+    BuildContext context,
     String label,
     num candidate,
     num confirmed,
@@ -571,7 +618,12 @@ class _PreparationSummary extends StatelessWidget {
   ) => Padding(
     padding: const EdgeInsets.only(bottom: 4),
     child: Text(
-      '$label — candidat ${_money(candidate)} • confirmé ${_money(confirmed)} • écart ${_money(delta)}',
+      CutoverWords.of(context).format('summary_line', {
+        'label': label,
+        'candidate': _money(context, candidate),
+        'confirmed': _money(context, confirmed),
+        'delta': _money(context, delta),
+      }),
     ),
   );
 }
@@ -603,6 +655,7 @@ class _AmountConfirmationRow extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 6),
     child: LayoutBuilder(
       builder: (context, constraints) {
+        final w = CutoverWords.of(context);
         final desktop = constraints.maxWidth >= 880;
         final item = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -619,18 +672,18 @@ class _AmountConfirmationRow extends StatelessWidget {
         );
         final candidate = Text(
           candidateAmount == null
-              ? 'Calcul source à contrôler'
-              : _money(candidateAmount),
+              ? w.text('source_check')
+              : _money(context, candidateAmount),
           style: Theme.of(context).textTheme.bodySmall,
         );
         final amountField = TextFormField(
           key: ValueKey('$title-confirmed-value'),
           initialValue: confirmedAmount?.toString() ?? '',
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Montant confirmé (MAD)',
+          decoration: InputDecoration(
+            labelText: w.text('confirmed_amount'),
             isDense: true,
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
           onChanged: (value) => onAmountChanged(_parseAmount(value)),
         );
@@ -639,8 +692,8 @@ class _AmountConfirmationRow extends StatelessWidget {
           children: [
             Tooltip(
               message: confirmedAmount == null
-                  ? 'Saisissez un montant avant confirmation.'
-                  : 'Confirmer cette valeur.',
+                  ? w.text('enter_before_confirm')
+                  : w.text('confirm_value'),
               child: Checkbox(
                 value: isConfirmed,
                 onChanged: confirmedAmount == null
@@ -650,7 +703,7 @@ class _AmountConfirmationRow extends StatelessWidget {
             ),
             Flexible(
               child: Text(
-                isConfirmed ? 'Confirmé' : 'À confirmer',
+                isConfirmed ? w.text('confirmed') : w.text('to_confirm'),
                 style: TextStyle(
                   color: isConfirmed
                       ? const Color(0xFF4F6F52)
@@ -693,11 +746,15 @@ class _AmountConfirmationRow extends StatelessWidget {
                       item,
                       const SizedBox(height: 4),
                       Text(
-                        'Source : $source',
+                        w.format('source', {'source': source}),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       Text(
-                        'Candidat : ${candidateAmount == null ? 'calcul source à contrôler' : _money(candidateAmount)}',
+                        w.format('candidate_value', {
+                          'value': candidateAmount == null
+                              ? w.text('source_check')
+                              : _money(context, candidateAmount),
+                        }),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 8),
@@ -723,24 +780,28 @@ class _CandidateTableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      final w = CutoverWords.of(context);
       if (constraints.maxWidth < 880) return const SizedBox.shrink();
       final style = Theme.of(context).textTheme.labelSmall;
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Row(
           children: [
-            SizedBox(width: 180, child: Text('Élément', style: style)),
+            SizedBox(width: 180, child: Text(w.text('element'), style: style)),
             const SizedBox(width: 12),
-            const Expanded(flex: 3, child: Text('Source / candidat')),
+            Expanded(flex: 3, child: Text(w.text('source_candidate'))),
             const SizedBox(width: 12),
-            SizedBox(width: 140, child: Text('Valeur source', style: style)),
+            SizedBox(
+              width: 140,
+              child: Text(w.text('source_value'), style: style),
+            ),
             const SizedBox(width: 12),
             SizedBox(
               width: 220,
-              child: Text('Montant confirmé (MAD)', style: style),
+              child: Text(w.text('confirmed_amount'), style: style),
             ),
             const SizedBox(width: 8),
-            SizedBox(width: 125, child: Text('Statut', style: style)),
+            SizedBox(width: 125, child: Text(w.text('status'), style: style)),
           ],
         ),
       );
@@ -872,12 +933,14 @@ num? _parseAmount(String value) {
   return parsed != null && parsed >= 0 ? parsed : null;
 }
 
-String _money(num? value) => value == null
-    ? 'Non déterminé'
+String _money(BuildContext context, num? value) => value == null
+    ? CutoverWords.of(context).text('undetermined')
     : NumberFormat.currency(
-        locale: 'fr_FR',
+        locale: Localizations.localeOf(context).toLanguageTag(),
         symbol: 'MAD',
         decimalDigits: 2,
       ).format(value);
 
-String _date(DateTime value) => DateFormat('dd/MM/yyyy', 'fr_FR').format(value);
+String _date(BuildContext context, DateTime value) => DateFormat.yMd(
+  Localizations.localeOf(context).toLanguageTag(),
+).format(value);

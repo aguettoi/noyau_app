@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/core/money/money.dart';
@@ -24,7 +25,12 @@ void main() {
           priorityPlansProvider.overrideWith((ref) async => const []),
           priorityPlansGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const MaterialApp(home: Scaffold(body: PrioritiesPage())),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: Scaffold(body: PrioritiesPage()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -59,7 +65,12 @@ void main() {
             shoppingItemsProvider.overrideWith((ref) async => [_shopping()]),
             savingsGoalsProvider.overrideWith((ref) async => [_goal()]),
           ],
-          child: const MaterialApp(home: Scaffold(body: PrioritiesPage())),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: Scaffold(body: PrioritiesPage()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -115,7 +126,12 @@ void main() {
           shoppingItemsProvider.overrideWith((ref) async => const []),
           savingsGoalsProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: Scaffold(body: PrioritiesPage())),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: Scaffold(body: PrioritiesPage()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -193,7 +209,12 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: Scaffold(body: PrioritiesPage())),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: Scaffold(body: PrioritiesPage()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -238,7 +259,12 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: Scaffold(body: PrioritiesPage())),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: Scaffold(body: PrioritiesPage()),
+          ),
         ),
       );
       await tester.pumpAndSettle();

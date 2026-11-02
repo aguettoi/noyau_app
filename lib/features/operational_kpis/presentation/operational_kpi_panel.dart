@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/kpi_reporting_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../finance/presentation/accounts_page.dart';
 import '../../finance/presentation/transactions_page.dart';
@@ -21,16 +22,13 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final words = KpiReportingWords.of(context);
     final async = ref.watch(operationalKpiProvider);
     return FpCard(
       key: const Key('operational-kpi-panel'),
       child: async.when(
-        loading: () =>
-            const FpLoadingState(label: 'Calcul des indicateurs de qualité…'),
-        error: (_, _) => const FpErrorState(
-          message:
-              'Les indicateurs de qualité sont momentanément indisponibles.',
-        ),
+        loading: () => FpLoadingState(label: words.text('kpi.loading')),
+        error: (_, _) => FpErrorState(message: words.text('kpi.unavailable')),
         data: (bundle) {
           final quality = _memberId == null
               ? bundle.global
@@ -39,13 +37,11 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Qualité et fiabilité',
+                words.text('kpi.title'),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppSpacing.xs),
-              const SecondaryInfoText(
-                'Indicateurs descriptifs : ils ne classent pas les membres. L’auteur d’une saisie n’est pas considéré comme son responsable économique.',
-              ),
+              SecondaryInfoText(words.text('kpi.description')),
               const SizedBox(height: AppSpacing.sm),
               Wrap(
                 spacing: AppSpacing.xs,
@@ -53,7 +49,7 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
                 children: [
                   ChoiceChip(
                     key: const Key('kpi-scope-household'),
-                    label: const Text('Foyer'),
+                    label: Text(words.text('kpi.household')),
                     selected: _memberId == null,
                     onSelected: (_) => setState(() => _memberId = null),
                   ),
@@ -67,7 +63,7 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
-              _QualityGrid(quality: quality, cash: bundle.cash),
+              _QualityGrid(quality: quality, cash: bundle.cash, words: words),
               const SizedBox(height: AppSpacing.sm),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -81,7 +77,7 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
                       ),
                     ),
                     icon: const Icon(Icons.receipt_long_outlined),
-                    label: const Text('Voir les opérations'),
+                    label: Text(words.text('kpi.open_transactions')),
                   ),
                   TextButton.icon(
                     key: const Key('kpi-drill-accounts'),
@@ -91,7 +87,7 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
                       ),
                     ),
                     icon: const Icon(Icons.account_balance_outlined),
-                    label: const Text('Voir les rapprochements'),
+                    label: Text(words.text('kpi.open_reconciliations')),
                   ),
                   TextButton.icon(
                     key: const Key('kpi-drill-monthly-close'),
@@ -101,14 +97,14 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
                       ),
                     ),
                     icon: const Icon(Icons.fact_check_outlined),
-                    label: const Text('Préparer la fin de mois'),
+                    label: Text(words.text('kpi.prepare_month_end')),
                   ),
                 ],
               ),
               ExpansionTile(
                 key: const Key('kpi-explanations'),
                 tilePadding: EdgeInsets.zero,
-                title: const Text('Comment ces indicateurs sont calculés'),
+                title: Text(words.text('kpi.explanation_title')),
                 children: [
                   for (final explanation in [
                     ...quality.explanations,
@@ -119,7 +115,12 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
                       contentPadding: EdgeInsets.zero,
                       title: Text(explanation.rule),
                       subtitle: Text(
-                        '${explanation.reason}\nSource : ${explanation.source}\nPériode : ${explanation.period} • Données : ${explanation.completeness}',
+                        words.format('kpi.explanation_meta', {
+                          'reason': explanation.reason,
+                          'source': explanation.source,
+                          'period': explanation.period,
+                          'completeness': explanation.completeness,
+                        }),
                       ),
                     ),
                 ],
@@ -133,9 +134,14 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
 }
 
 class _QualityGrid extends StatelessWidget {
-  const _QualityGrid({required this.quality, required this.cash});
+  const _QualityGrid({
+    required this.quality,
+    required this.cash,
+    required this.words,
+  });
   final OperationalQualitySnapshot quality;
   final CashQualitySnapshot cash;
+  final KpiReportingWords words;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -151,53 +157,71 @@ class _QualityGrid extends StatelessWidget {
         children: [
           _metric(
             width,
-            'Ponctualité',
+            words.text('kpi.punctuality'),
             '${(quality.expectedDelayRate * 100).round()} %',
-            'médiane ${quality.medianDelayDays.toStringAsFixed(1)} j • moyenne ${quality.meanDelayDays.toStringAsFixed(1)} j',
+            words.format('kpi.delay_detail', {
+              'median': quality.medianDelayDays.toStringAsFixed(1),
+              'mean': quality.meanDelayDays.toStringAsFixed(1),
+            }),
           ),
           _metric(
             width,
-            'Justificatifs',
+            words.text('kpi.receipts'),
             '${quality.receiptsPresent}/${quality.receiptsRequired}',
-            '${quality.drillDownIds['missingReceipt']?.length ?? 0} manquant(s)',
+            words.format('kpi.missing_count', {
+              'count': quality.drillDownIds['missingReceipt']?.length ?? 0,
+            }),
           ),
           _metric(
             width,
-            'Rapprochements',
-            '${quality.openReconciliations} ouvert(s)',
-            '${quality.staleReconciliations} ancien(s) • ${quality.resolvedReconciliations} résolu(s)',
+            words.text('kpi.reconciliations'),
+            '${quality.openReconciliations}',
+            words.format('kpi.reconciliation_detail', {
+              'open': quality.openReconciliations,
+              'stale': quality.staleReconciliations,
+              'resolved': quality.resolvedReconciliations,
+            }),
           ),
           _metric(
             width,
-            'À compléter',
+            words.text('kpi.to_complete'),
             '${quality.unassigned + quality.missingEnvelope}',
-            '${quality.unassigned} non attribué(s) • ${quality.missingEnvelope} sans enveloppe',
+            words.format('kpi.completion_detail', {
+              'unassigned': quality.unassigned,
+              'withoutEnvelope': quality.missingEnvelope,
+            }),
           ),
           _metric(
             width,
-            'Opérations attendues',
+            words.text('kpi.expected_operations'),
             '${quality.expectedNotMaterialized}',
-            'Aucune écriture réelle créée',
+            words.text('kpi.no_real_entry'),
           ),
           _metric(
             width,
-            'Inventaires espèces',
+            words.text('kpi.cash_inventories'),
             '${cash.inventoryCount}',
             cash.lastInventoryAt == null
-                ? 'Aucun inventaire sur la période'
-                : 'Dernier : ${_date(cash.lastInventoryAt!)}',
+                ? words.text('kpi.no_inventory')
+                : words.format('kpi.last_inventory', {
+                    'date': _date(cash.lastInventoryAt!),
+                  }),
           ),
           _metric(
             width,
-            'Écarts espèces',
-            '${cash.unresolvedDifferences} ouvert(s)',
-            '${cash.regularizedDifferences} régularisé(s) • ${(cash.regularizationRate * 100).round()} %',
+            words.text('kpi.cash_differences'),
+            '${cash.unresolvedDifferences}',
+            words.format('kpi.cash_difference_detail', {
+              'open': cash.unresolvedDifferences,
+              'regularized': cash.regularizedDifferences,
+              'rate': (cash.regularizationRate * 100).round(),
+            }),
           ),
           _metric(
             width,
-            'Espèces non attribuées',
+            words.text('kpi.unassigned_cash'),
             '${cash.unassigned}',
-            'Auteur du comptage ≠ responsable',
+            words.text('kpi.counter_not_responsible'),
           ),
         ],
       );

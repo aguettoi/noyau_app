@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
+import '../../../core/localization/budget_runs_locale.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_account_balances_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
@@ -11,6 +12,11 @@ import '../../finance/application/providers/remote_transactions_provider.dart';
 import '../../finance/domain/financial_account.dart';
 import '../application/providers/remote_budget_provider.dart';
 import '../domain/budget_intelligence.dart';
+
+String _rt(BuildContext context, String key) =>
+    BudgetRunWords.of(context).text(key);
+String _rf(BuildContext context, String key, Map<String, Object> values) =>
+    BudgetRunWords.of(context).format(key, values);
 
 class BudgetRunsPage extends ConsumerWidget {
   const BudgetRunsPage({super.key});
@@ -21,21 +27,37 @@ class BudgetRunsPage extends ConsumerWidget {
     final periods = ref.watch(remoteBudgetPeriodsProvider);
     final scenarios = ref.watch(remoteBudgetScenariosProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Historique des budgets')),
+      appBar: AppBar(title: Text(_rt(context, 'run.history'))),
       body: runs.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Impossible de charger les budgets.')),
+        error: (_, _) => Center(child: Text(_rt(context, 'run.load_error'))),
         data: (items) => ListView(
           padding: AppSpacing.page,
           children: [
-            if (items.isEmpty) const Text('Aucune simulation enregistrée.'),
+            if (items.isEmpty) Text(_rt(context, 'run.empty')),
             ...items.map(
               (run) => Card(
                 child: ListTile(
-                  title: Text(_status(run.status)),
+                  title: Text(_status(context, run.status)),
                   subtitle: Text(
-                    '${_periodLabel(periods.valueOrNull, run.periodId)} • ${_scenarioLabel(scenarios.valueOrNull, run.scenarioId)}${run.scenarioVersionId == null ? '' : ' • Version programmée'}\nRessources : ${_money(run.availableCents)} • Alloué : ${_money(run.totalCents)} • Reste : ${_money(run.remainingCents)}',
+                    _rf(context, 'run.summary', {
+                      'period': _periodLabel(
+                        context,
+                        periods.valueOrNull,
+                        run.periodId,
+                      ),
+                      'scenario': _scenarioLabel(
+                        context,
+                        scenarios.valueOrNull,
+                        run.scenarioId,
+                      ),
+                      'version': run.scenarioVersionId == null
+                          ? ''
+                          : _rt(context, 'run.programmed'),
+                      'available': _money(run.availableCents),
+                      'total': _money(run.totalCents),
+                      'remaining': _money(run.remainingCents),
+                    }),
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
@@ -72,9 +94,9 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
   Future<void> _approve(RemoteBudgetRun run) async {
     if (_loading) return;
     final accepted = await _confirm(
-      title: 'Valider ce budget',
-      body: 'La validation ne crée aucune écriture financière.',
-      action: 'Valider',
+      title: _rt(context, 'run.approve_title'),
+      body: _rt(context, 'run.approve_hint'),
+      action: _rt(context, 'run.approve'),
     );
     if (!accepted || !mounted) return;
     setState(() => _loading = true);
@@ -89,10 +111,10 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Budget validé.')));
+        ).showSnackBar(SnackBar(content: Text(_rt(context, 'run.approved'))));
       }
     } catch (_) {
-      if (mounted) setState(() => _error = 'Impossible de valider ce budget.');
+      if (mounted) setState(() => _error = _rt(context, 'run.approve_error'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -109,7 +131,7 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
         .where((account) => !account.isSystem && !account.isArchived)
         .toList();
     if (ordinary.isEmpty) {
-      setState(() => _error = 'Aucun compte de financement disponible.');
+      setState(() => _error = _rt(context, 'run.no_account'));
       return;
     }
     final funding = await showDialog<List<BudgetRunFunding>>(
@@ -158,12 +180,12 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
       if (mounted) setState(() => _applied = true);
       _refreshAfterApply();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Allocations appliquées.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_rt(context, 'run.applied'))));
       }
     } catch (_) {
-      if (mounted) setState(() => _error = 'Impossible d’appliquer ce budget.');
+      if (mounted) setState(() => _error = _rt(context, 'run.apply_error'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -182,7 +204,7 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Annuler'),
+            child: Text(_rt(context, 'run.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -217,83 +239,129 @@ class _BudgetRunDetailPageState extends ConsumerState<BudgetRunDetailPage> {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) =>
-          const Scaffold(body: Center(child: Text('Budget indisponible.'))),
+          Scaffold(body: Center(child: Text(_rt(context, 'run.unavailable')))),
       data: (all) {
         final run = all.where((item) => item.id == widget.runId).firstOrNull;
         if (run == null) {
-          return const Scaffold(
-            body: Center(child: Text('Budget introuvable.')),
+          return Scaffold(
+            body: Center(child: Text(_rt(context, 'run.not_found'))),
           );
         }
         final blocked = run.remainingCents < 0;
         return Scaffold(
-          appBar: AppBar(title: const Text('Détail du budget')),
+          appBar: AppBar(title: Text(_rt(context, 'run.detail'))),
           body: ListView(
             padding: AppSpacing.page,
             children: [
               Text(
-                _status(run.status),
+                _status(context, run.status),
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               Text(
-                'Période : ${_periodLabel(periods.valueOrNull, run.periodId)}',
+                _rf(context, 'run.period', {
+                  'value': _periodLabel(
+                    context,
+                    periods.valueOrNull,
+                    run.periodId,
+                  ),
+                }),
               ),
               Text(
-                'Scénario : ${_scenarioLabel(scenarios.valueOrNull, run.scenarioId)}',
+                _rf(context, 'run.scenario', {
+                  'value': _scenarioLabel(
+                    context,
+                    scenarios.valueOrNull,
+                    run.scenarioId,
+                  ),
+                }),
               ),
               if (run.scenarioVersionId != null)
-                const Text(
-                  'Snapshot issu d’une version programmée du scénario.',
-                ),
-              Text('Ressources : ${_money(run.availableCents)}'),
-              Text('Total alloué : ${_money(run.totalCents)}'),
-              Text('Reste à répartir : ${_money(run.remainingCents)}'),
-              Text('Simulation : ${_date(run.createdAt)}'),
+                Text(_rt(context, 'run.snapshot_version')),
+              Text(
+                _rf(context, 'run.resources', {
+                  'value': _money(run.availableCents),
+                }),
+              ),
+              Text(
+                _rf(context, 'run.allocated', {
+                  'value': _money(run.totalCents),
+                }),
+              ),
+              Text(
+                _rf(context, 'run.remaining', {
+                  'value': _money(run.remainingCents),
+                }),
+              ),
+              Text(
+                _rf(context, 'run.simulation', {'value': _date(run.createdAt)}),
+              ),
               if (run.summary['monthly_snapshot'] == true) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Snapshot mensuel',
+                  _rt(context, 'run.monthly_snapshot'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 _SnapshotSummary(summary: run.summary),
               ],
               if (run.approvedAt != null)
-                Text('Validation : ${_date(run.approvedAt!)}'),
+                Text(
+                  _rf(context, 'run.validation', {
+                    'value': _date(run.approvedAt!),
+                  }),
+                ),
               if (run.status == 'simulated')
                 Text(
                   approval.when(
                     data: (value) => value.complete
-                        ? 'Validations complètes'
-                        : 'En attente de validation : ${value.approved}/${value.required}',
-                    loading: () => 'Validations en cours de chargement…',
-                    error: (_, _) => 'Validations indisponibles',
+                        ? _rt(context, 'run.validations_complete')
+                        : _rf(context, 'run.validations_pending', {
+                            'approved': value.approved,
+                            'required': value.required,
+                          }),
+                    loading: () => _rt(context, 'run.validations_loading'),
+                    error: (_, _) =>
+                        _rt(context, 'run.validations_unavailable'),
                   ),
                 ),
               if (run.appliedAt != null)
-                Text('Application : ${_date(run.appliedAt!)}'),
-              if (blocked)
-                const Text('Budget sur-alloué : application bloquée.'),
+                Text(
+                  _rf(context, 'run.application', {
+                    'value': _date(run.appliedAt!),
+                  }),
+                ),
+              if (blocked) Text(_rt(context, 'run.overallocated')),
               if (_error != null)
                 Text(
                   _error!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               const SizedBox(height: AppSpacing.md),
-              Text('Lignes', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                _rt(context, 'run.lines'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               _RunLines(lines: lines, envelopes: envelopes),
               const SizedBox(height: AppSpacing.md),
               if (run.status == 'simulated' && !_approved)
                 FilledButton(
                   key: const Key('approve-budget-run'),
                   onPressed: _loading || blocked ? null : () => _approve(run),
-                  child: Text(_loading ? 'Validation…' : 'Valider ce budget'),
+                  child: Text(
+                    _rt(
+                      context,
+                      _loading ? 'run.approving' : 'run.approve_title',
+                    ),
+                  ),
                 ),
               if (run.status == 'approved' && !_applied)
                 FilledButton(
                   key: const Key('apply-budget-run'),
                   onPressed: _loading || blocked ? null : () => _apply(run),
                   child: Text(
-                    _loading ? 'Application…' : 'Appliquer les allocations',
+                    _rt(
+                      context,
+                      _loading ? 'run.applying' : 'run.apply_allocations',
+                    ),
                   ),
                 ),
             ],
@@ -378,7 +446,7 @@ class _BudgetFundingDistributionDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Répartition du financement'),
+      title: Text(_rt(context, 'run.funding')),
       content: SizedBox(
         width: 860,
         child: SingleChildScrollView(
@@ -386,10 +454,10 @@ class _BudgetFundingDistributionDialogState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Budget : ${_money(_budgetTotal)}'),
-              Text('Affecté : ${_money(_fundedTotal)}'),
+              Text(_rf(context, 'run.budget', {'value': _money(_budgetTotal)})),
+              Text(_rf(context, 'run.funded', {'value': _money(_fundedTotal)})),
               Text(
-                'Reste à affecter : ${_money(_remaining)}',
+                _rf(context, 'run.to_fund', {'value': _money(_remaining)}),
                 style: TextStyle(
                   color: _remaining == 0
                       ? Theme.of(context).colorScheme.primary
@@ -427,8 +495,8 @@ class _BudgetFundingDistributionDialogState
                             isExpanded: true,
                             itemHeight: 76,
                             menuMaxHeight: 360,
-                            decoration: const InputDecoration(
-                              labelText: 'Compte',
+                            decoration: InputDecoration(
+                              labelText: _rt(context, 'run.account'),
                             ),
                             items: widget.accounts
                                 .map(
@@ -447,7 +515,12 @@ class _BudgetFundingDistributionDialogState
                                   (account) => Align(
                                     alignment: Alignment.centerLeft,
                                     child: Text(
-                                      '${account.name} • ${_money(widget.balancesCents[account.id] ?? 0)}',
+                                      _rf(context, 'run.account_balance', {
+                                        'account': account.name,
+                                        'balance': _money(
+                                          widget.balancesCents[account.id] ?? 0,
+                                        ),
+                                      }),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -466,15 +539,21 @@ class _BudgetFundingDistributionDialogState
                             key: Key('funding-envelope-$index'),
                             initialValue: draft.runLineId,
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Enveloppe',
+                            decoration: InputDecoration(
+                              labelText: _rt(context, 'run.envelope'),
                             ),
                             items: widget.lines
                                 .map(
                                   (line) => DropdownMenuItem(
                                     value: line.id,
                                     child: Text(
-                                      '${widget.envelopeNames[line.envelopeId] ?? 'Enveloppe'} • prévu ${_money(line.plannedCents)}',
+                                      _rf(context, 'run.planned', {
+                                        'envelope':
+                                            widget.envelopeNames[line
+                                                .envelopeId] ??
+                                            _rt(context, 'run.envelope'),
+                                        'value': _money(line.plannedCents),
+                                      }),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -486,7 +565,7 @@ class _BudgetFundingDistributionDialogState
                                     alignment: Alignment.centerLeft,
                                     child: Text(
                                       widget.envelopeNames[line.envelopeId] ??
-                                          'Enveloppe',
+                                          _rt(context, 'run.envelope'),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -512,8 +591,8 @@ class _BudgetFundingDistributionDialogState
                             key: Key('funding-amount-$index'),
                             initialValue: (draft.amountCents / 100).toString(),
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Montant',
+                            decoration: InputDecoration(
+                              labelText: _rt(context, 'run.amount'),
                             ),
                             onChanged: (value) => setState(
                               () => _drafts[index] = draft.copyWith(
@@ -555,7 +634,7 @@ class _BudgetFundingDistributionDialogState
                   ),
                 ),
                 icon: const Icon(Icons.add),
-                label: const Text('Ajouter une ligne'),
+                label: Text(_rt(context, 'run.add_line')),
               ),
             ],
           ),
@@ -564,7 +643,7 @@ class _BudgetFundingDistributionDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
+          child: Text(_rt(context, 'run.cancel')),
         ),
         FilledButton(
           key: const Key('confirm-funding-distribution'),
@@ -582,7 +661,9 @@ class _BudgetFundingDistributionDialogState
                       )
                       .toList(growable: false),
                 ),
-          child: Text('Confirmer l’application de ${_money(_budgetTotal)}'),
+          child: Text(
+            _rf(context, 'run.confirm_apply', {'value': _money(_budgetTotal)}),
+          ),
         ),
       ],
     );
@@ -611,7 +692,9 @@ class BudgetFundingConfirmationDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final accountsById = {for (final account in accounts) account.id: account};
     return AlertDialog(
-      title: Text('Confirmer l’application de ${_money(totalCents)}'),
+      title: Text(
+        _rf(context, 'run.confirm_apply', {'value': _money(totalCents)}),
+      ),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -620,7 +703,7 @@ class BudgetFundingConfirmationDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Répartition à appliquer',
+                _rt(context, 'run.distribution'),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -631,9 +714,13 @@ class BudgetFundingConfirmationDialog extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(account?.name ?? 'Compte'),
+                      Text(account?.name ?? _rt(context, 'run.account')),
                       Text(
-                        '→ ${envelopeNames[item.envelopeId] ?? 'Enveloppe'}',
+                        _rf(context, 'run.to_envelope', {
+                          'envelope':
+                              envelopeNames[item.envelopeId] ??
+                              _rt(context, 'run.envelope'),
+                        }),
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       Text(
@@ -646,7 +733,7 @@ class BudgetFundingConfirmationDialog extends StatelessWidget {
               }),
               const Divider(),
               Text(
-                'Total à appliquer : ${_money(totalCents)}',
+                _rf(context, 'run.total_apply', {'value': _money(totalCents)}),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ],
@@ -654,8 +741,14 @@ class BudgetFundingConfirmationDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(onPressed: onCancel, child: const Text('Annuler')),
-        FilledButton(onPressed: onConfirm, child: const Text('Appliquer')),
+        TextButton(
+          onPressed: onCancel,
+          child: Text(_rt(context, 'run.cancel')),
+        ),
+        FilledButton(
+          onPressed: onConfirm,
+          child: Text(_rt(context, 'run.apply')),
+        ),
       ],
     );
   }
@@ -679,11 +772,13 @@ class _FundingAccountMenuItem extends StatelessWidget {
       children: [
         Text(account.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         Text(
-          _accountType(account.type),
+          _accountType(context, account.type),
           style: Theme.of(context).textTheme.bodySmall,
         ),
         Text(
-          'Solde disponible : ${_money(balanceCents)}',
+          _rf(context, 'run.available_balance', {
+            'value': _money(balanceCents),
+          }),
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -712,16 +807,20 @@ class _FundingAccountAvailability extends StatelessWidget {
     return Semantics(
       container: true,
       label: insufficient
-          ? 'Solde insuffisant pour $accountName'
-          : 'Solde disponible pour $accountName',
+          ? _rf(context, 'run.insufficient_label', {'account': accountName})
+          : _rf(context, 'run.available_label', {'account': accountName}),
       child: Text(
         insufficient
-            ? 'Le compte $accountName ne dispose pas d’un solde suffisant. '
-                  'Disponible : ${_money(availableCents)} • '
-                  'Nécessaire : ${_money(requestedCents)} • '
-                  'Manque : ${_money(missing)}'
-            : 'Solde disponible : ${_money(availableCents)} • '
-                  'Financement demandé : ${_money(requestedCents)}',
+            ? _rf(context, 'run.insufficient', {
+                'account': accountName,
+                'available': _money(availableCents),
+                'requested': _money(requestedCents),
+                'missing': _money(missing),
+              })
+            : _rf(context, 'run.requested', {
+                'available': _money(availableCents),
+                'requested': _money(requestedCents),
+              }),
         style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
       ),
     );
@@ -758,12 +857,13 @@ int _fundingCents(String value) {
   return amount == null ? 0 : (amount * 100).round();
 }
 
-String _accountType(FinancialAccountType type) => switch (type) {
-  FinancialAccountType.bank => 'Compte courant',
-  FinancialAccountType.cash => 'Espèces',
-  FinancialAccountType.savings => 'Compte épargne',
-  FinancialAccountType.debt => 'Compte dette',
-};
+String _accountType(BuildContext context, FinancialAccountType type) =>
+    switch (type) {
+      FinancialAccountType.bank => _rt(context, 'run.bank'),
+      FinancialAccountType.cash => _rt(context, 'run.cash'),
+      FinancialAccountType.savings => _rt(context, 'run.savings'),
+      FinancialAccountType.debt => _rt(context, 'run.debt'),
+    };
 
 class _SnapshotSummary extends StatelessWidget {
   const _SnapshotSummary({required this.summary});
@@ -784,16 +884,33 @@ class _SnapshotSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Revenus : ${_money(cents('income_cents'))}'),
         Text(
-          'Charges personnelles : ${_money(cents('personal_charges_cents'))}',
+          _rf(context, 'run.income', {'value': _money(cents('income_cents'))}),
         ),
-        Text('Charges communes : ${_money(cents('common_charges_cents'))}'),
-        Text('Épargne : ${_money(cents('savings_cents'))}'),
-        Text('Reste : ${_money(cents('remaining_cents'))}'),
+        Text(
+          _rf(context, 'run.personal', {
+            'value': _money(cents('personal_charges_cents')),
+          }),
+        ),
+        Text(
+          _rf(context, 'run.common', {
+            'value': _money(cents('common_charges_cents')),
+          }),
+        ),
+        Text(
+          _rf(context, 'run.savings_kpi', {
+            'value': _money(cents('savings_cents')),
+          }),
+        ),
+        Text(
+          _rf(context, 'run.remaining_kpi', {
+            'value': _money(cents('remaining_cents')),
+          }),
+        ),
         if (warnings.isNotEmpty)
-          Text('Avertissements : ${warnings.join(' • ')}'),
-        if (blockers.isNotEmpty) Text('Blocages : ${blockers.join(' • ')}'),
+          Text(_rf(context, 'run.warnings', {'value': warnings.join(' • ')})),
+        if (blockers.isNotEmpty)
+          Text(_rf(context, 'run.blockers', {'value': blockers.join(' • ')})),
       ],
     );
   }
@@ -807,10 +924,10 @@ class _RunLines extends StatelessWidget {
   @override
   Widget build(BuildContext context) => lines.when(
     loading: () => const LinearProgressIndicator(),
-    error: (_, _) => const Text('Lignes indisponibles.'),
+    error: (_, _) => Text(_rt(context, 'run.lines_error')),
     data: (items) => envelopes.when(
       loading: () => const LinearProgressIndicator(),
-      error: (_, _) => const Text('Enveloppes indisponibles.'),
+      error: (_, _) => Text(_rt(context, 'run.envelopes_error')),
       data: (all) {
         final names = {for (final envelope in all) envelope.id: envelope.name};
         return Column(
@@ -818,9 +935,21 @@ class _RunLines extends StatelessWidget {
               .map(
                 (line) => Card(
                   child: ListTile(
-                    title: Text(names[line.envelopeId] ?? 'Enveloppe'),
+                    title: Text(
+                      names[line.envelopeId] ?? _rt(context, 'run.envelope'),
+                    ),
                     subtitle: Text(
-                      'Avant ${_money(line.previousBalanceCents)} • Report ${_money(line.rolloverCents)} • Allocation ${_money(line.plannedCents)} • Projeté ${_money(line.resultingCents)}${line.warning == null ? '' : ' • ${line.warning}'}',
+                      _rf(context, 'run.line_summary', {
+                        'before': _money(line.previousBalanceCents),
+                        'rollover': _money(line.rolloverCents),
+                        'allocation': _money(line.plannedCents),
+                        'projected': _money(line.resultingCents),
+                        'warning': line.warning == null
+                            ? ''
+                            : _rf(context, 'run.warning_suffix', {
+                                'warning': line.warning!,
+                              }),
+                      }),
                     ),
                   ),
                 ),
@@ -832,12 +961,12 @@ class _RunLines extends StatelessWidget {
   );
 }
 
-String _status(String value) => switch (value) {
-  'simulated' => 'Simulé',
-  'approved' => 'Validé',
-  'applied' => 'Appliqué',
-  'cancelled' => 'Annulé',
-  _ => 'Budget',
+String _status(BuildContext context, String value) => switch (value) {
+  'simulated' => _rt(context, 'run.simulated'),
+  'approved' => _rt(context, 'run.status_approved'),
+  'applied' => _rt(context, 'run.status_applied'),
+  'cancelled' => _rt(context, 'run.cancelled'),
+  _ => _rt(context, 'run.status'),
 };
 
 String _money(int cents) {
@@ -856,11 +985,20 @@ String _money(int cents) {
 String _date(DateTime value) =>
     value.toLocal().toIso8601String().substring(0, 10);
 
-String _periodLabel(List<RemoteBudgetPeriod>? periods, String id) =>
-    periods?.where((item) => item.id == id).firstOrNull?.label ?? 'Période';
-String _scenarioLabel(List<dynamic>? scenarios, String id) =>
+String _periodLabel(
+  BuildContext context,
+  List<RemoteBudgetPeriod>? periods,
+  String id,
+) =>
+    periods?.where((item) => item.id == id).firstOrNull?.label ??
+    _rt(context, 'run.period_fallback');
+String _scenarioLabel(
+  BuildContext context,
+  List<dynamic>? scenarios,
+  String id,
+) =>
     scenarios?.where((item) => item.id == id).firstOrNull?.name as String? ??
-    'Scénario';
+    _rt(context, 'run.scenario_fallback');
 
 String _uuid() {
   final random = Random.secure();

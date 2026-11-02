@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/financial_availability/domain/financial_availability.dart';
 import 'package:noyau_app/features/wealth/application/providers/home_auto_provider.dart';
@@ -53,7 +54,12 @@ void main() {
             wealthDataProvider.overrideWith((ref) async => wealth),
             homeAutoDataProvider.overrideWith((ref) async => specialized),
           ],
-          child: const MaterialApp(home: WealthPage()),
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: WealthPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();

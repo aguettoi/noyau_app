@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -58,7 +59,16 @@ void main() {
           ),
           remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: OrganizationPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: OrganizationPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -110,7 +120,16 @@ void main() {
             (ref) async => const [],
           ),
         ],
-        child: const MaterialApp(home: OrganizationPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: OrganizationPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -158,7 +177,16 @@ void main() {
           }),
           remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: OrganizationPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: OrganizationPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -203,7 +231,16 @@ void main() {
           organizationActionsProvider.overrideWithValue(actions),
           remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
         ],
-        child: const MaterialApp(home: OrganizationPage()),
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: [Locale('fr')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: OrganizationPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
