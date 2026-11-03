@@ -171,7 +171,7 @@ void main() {
     },
   );
   for (final width in [360.0, 1920.0]) {
-    testWidgets('empty cockpit $width: grid, five real plots, no overflow', (
+    testWidgets('home cockpit $width: five-level hierarchy, no overflow', (
       tester,
     ) async {
       tester.view.physicalSize = Size(width, 1080);
@@ -198,48 +198,20 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final grid = find.byKey(const Key('dashboard-kpi-grid'));
-      expect(grid, findsOneWidget);
-      final cards = find.descendant(of: grid, matching: find.byType(Card));
-      expect(cards, findsNWidgets(8));
-      final first = tester.getRect(cards.at(0));
-      final nextRow = tester.getRect(cards.at(width < 600 ? 2 : 4));
-      expect(nextRow.top, greaterThan(first.bottom));
-      if (width > 1000) {
-        final chart = tester.getRect(
-          find.byKey(const Key('dashboard-chart-income')),
-        );
-        final alerts = tester.getRect(find.text('À faire'));
-        expect(chart.bottom, lessThan(1080));
-        expect(alerts.right, greaterThan(chart.right));
-        expect(alerts.top, lessThan(1080));
-      } else {
-        expect(
-          tester.getTopLeft(find.text('À faire')).dy,
-          lessThan(
-            tester
-                .getTopLeft(find.byKey(const Key('dashboard-chart-income')))
-                .dy,
-          ),
-        );
-      }
-      for (final key in [
-        'income',
-        'budget',
-        'envelopes',
-        'donut',
-        'liquidity',
-      ]) {
-        final plot = find.byKey(Key('dashboard-chart-$key'));
-        await tester.ensureVisible(plot);
-        await tester.pumpAndSettle();
-        expect(
-          find.descendant(of: plot, matching: find.byType(CustomPaint)),
-          findsWidgets,
-        );
-        expect(tester.getSize(plot).height, greaterThan(100));
-        expect(tester.takeException(), isNull);
-      }
+      expect(find.byKey(const Key('dashboard-v2-empty')), findsOneWidget);
+      expect(find.text('Votre foyer est prêt'), findsOneWidget);
+      expect(find.text('Ajouter une opération'), findsOneWidget);
+      expect(find.text('Préparer mon budget'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('dashboard-secondary-overview')),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.byKey(const Key('dashboard-secondary-overview')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
       expect(find.textContaining('NaN'), findsNothing);
       expect(find.textContaining('Infinity'), findsNothing);
       expect(find.textContaining('TEST'), findsNothing);

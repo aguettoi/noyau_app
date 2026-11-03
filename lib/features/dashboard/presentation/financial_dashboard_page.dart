@@ -1,141 +1,177 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../app/finance_shell_navigation.dart';
-import '../../../core/localization/finance_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../budget_intelligence/presentation/budget_monthly_preparation_page.dart';
 import '../../envelopes/presentation/envelope_dashboard_page.dart';
 import '../../finance/presentation/accounts_page.dart';
 import '../../finance/presentation/transactions_page.dart';
+import '../../organization/domain/organization_models.dart';
+import '../../organization/presentation/calendar_source_navigator.dart';
+import '../../organization/presentation/organization_page.dart';
 import '../../priorities/presentation/priorities_page.dart';
 import '../../savings_goals/presentation/savings_goals_page.dart';
 import '../application/dashboard_metrics.dart';
-import '../application/providers/dashboard_history_provider.dart';
-import '../application/providers/remote_financial_dashboard_provider.dart';
-import 'dashboard_v2_panels.dart';
-import '../../organization/application/organization_provider.dart';
-import '../../organization/presentation/organization_page.dart';
-import '../../monthly_close/presentation/monthly_close_page.dart';
-import '../../operational_kpis/presentation/operational_kpi_panel.dart';
+import '../application/providers/dashboard_home_provider.dart';
+import 'dashboard_analytics_page.dart';
+import 'dashboard_home_locale.dart';
+import 'dashboard_home_sections.dart';
 
 class FinancialDashboardPage extends ConsumerWidget {
   const FinancialDashboardPage({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final dashboard = ref.watch(financialDashboardProvider);
+    final words = DashboardHomeWords.of(context);
     return SafeArea(
-      child: dashboard.when(
-        loading: () => FpLoadingState(
-          label: FinanceWords.of(context).text('dashboard.loading'),
-        ),
-        error: (_, _) => FpErrorState(
-          message: FinanceWords.of(context).text('dashboard.unavailable'),
-        ),
-        data: (snapshot) => LayoutBuilder(
-          builder: (context, constraints) {
-            return ListView(
-              key: const Key('financial-dashboard-page'),
-              padding: AppLayout.pagePaddingFor(constraints.maxWidth),
-              children: [
-                FpPageHeader(
-                  title: FinanceWords.of(context).text('dashboard.title'),
-                  subtitle: FinanceWords.of(context).text('dashboard.subtitle'),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
+      child: ref
+          .watch(dashboardHomeProvider)
+          .when(
+            loading: () => FpLoadingState(label: words.text('loading')),
+            error: (_, _) => FpErrorState(message: words.text('error')),
+            data: (home) => LayoutBuilder(
+              builder: (context, constraints) {
+                final compact =
+                    constraints.maxWidth < AppLayout.mediumBreakpoint;
+                final empty =
+                    home.snapshot.isEmpty &&
+                    !home.snapshot.budget.hasPreparedBudget &&
+                    home.goals.isEmpty;
+                final situation = DashboardSituationCard(
+                  home: home,
+                  onOpen: () =>
+                      _openDestination(context, DashboardDestination.budget),
+                );
+                final actions = DashboardActionCenter(
+                  actions: home.actions,
+                  onOpen: (alert) => _openAlert(context, alert),
+                );
+                final today = DashboardTodayCard(
+                  entries: home.today,
+                  onOpen: (entry) => _openCalendarEntry(context, entry),
+                  onOpenAll: () => _push(context, const OrganizationPage()),
+                );
+                final goals = DashboardGoalsCard(
+                  goals: home.goals,
+                  onOpen: () =>
+                      _openDestination(context, DashboardDestination.goals),
+                );
+                return ListView(
+                  key: const Key('financial-dashboard-page'),
+                  padding: AppLayout.pagePaddingFor(constraints.maxWidth),
                   children: [
-                    for (final period in DashboardPeriod.values)
-                      ChoiceChip(
-                        label: Text(period.label),
-                        selected: ref.watch(dashboardPeriodProvider) == period,
-                        onSelected: (_) =>
-                            ref.read(dashboardPeriodProvider.notifier).state =
-                                period,
+                    DashboardHomeHeader(name: home.memberName),
+                    if (home.partial) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Material(
+                        color: Theme.of(context).colorScheme.tertiaryContainer,
+                        borderRadius: AppRadius.card,
+                        child: Padding(
+                          padding: AppSpacing.card,
+                          child: Text(words.text('partial')),
+                        ),
                       ),
-                  ],
-                ),
-                if (snapshot.isEmpty)
-                  Padding(
-                    key: const Key('dashboard-v2-empty'),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: SecondaryInfoText(
-                      FinanceWords.of(context).text('dashboard.empty'),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                _OrganizationSummary(ref: ref),
-                const SizedBox(height: 12),
-                Card(
-                  key: const Key('dashboard-monthly-close'),
-                  child: ListTile(
-                    leading: const Icon(Icons.fact_check_outlined),
-                    title: Text(
-                      FinanceWords.of(context).text('dashboard.month_end'),
-                    ),
-                    subtitle: Text(
-                      FinanceWords.of(
+                    ],
+                    const SizedBox(height: AppSpacing.md),
+                    if (empty)
+                      DashboardNewHouseholdState(
+                        onOperation: () =>
+                            _push(context, const TransactionsPage()),
+                        onBudget: () => _openDestination(
+                          context,
+                          DashboardDestination.budget,
+                        ),
+                      )
+                    else if (compact) ...[
+                      situation,
+                      const SizedBox(height: AppSpacing.sm),
+                      actions,
+                      const SizedBox(height: AppSpacing.sm),
+                      today,
+                      const SizedBox(height: AppSpacing.sm),
+                      goals,
+                    ] else ...[
+                      _DashboardRow(first: situation, second: actions),
+                      const SizedBox(height: AppSpacing.md),
+                      _DashboardRow(first: today, second: goals),
+                    ],
+                    const SizedBox(height: AppSpacing.md),
+                    DashboardSecondaryOverview(
+                      snapshot: home.snapshot,
+                      onCloseMonth: () => _openDestination(
                         context,
-                      ).text('dashboard.month_end_subtitle'),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const MonthlyClosePage(),
+                        DashboardDestination.budget,
                       ),
+                      onAnalytics: () async {
+                        final destination = await Navigator.of(context)
+                            .push<DashboardDestination>(
+                              MaterialPageRoute(
+                                builder: (_) => DashboardAnalyticsPage(
+                                  snapshot: home.snapshot,
+                                ),
+                              ),
+                            );
+                        if (context.mounted && destination != null) {
+                          _openDestination(context, destination);
+                        }
+                      },
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DashboardV2Panels(
-                  snapshot: snapshot,
-                  open: (destination) => _openDestination(context, destination),
-                ),
-                const SizedBox(height: 12),
-                const OperationalKpiPanel(),
-              ],
-            );
-          },
-        ),
-      ),
+                  ],
+                );
+              },
+            ),
+          ),
     );
   }
 }
 
-class _OrganizationSummary extends StatelessWidget {
-  const _OrganizationSummary({required this.ref});
-  final WidgetRef ref;
+class _DashboardRow extends StatelessWidget {
+  const _DashboardRow({required this.first, required this.second});
+  final Widget first;
+  final Widget second;
   @override
-  Widget build(BuildContext context) {
-    final tasks = ref.watch(householdTasksProvider).valueOrNull ?? const [];
-    final alerts =
-        ref.watch(organizationAlertsProvider).valueOrNull ?? const [];
-    final due = tasks
-        .where((task) => task.isActive && task.dueDate != null)
-        .length;
-    return Card(
-      key: const Key('dashboard-organization-summary'),
-      child: ListTile(
-        leading: const Icon(Icons.event_note_outlined),
-        title: Text(
-          FinanceWords.of(context).format('dashboard.organization_summary', {
-            'alerts': alerts.where((a) => !a.read).length,
-            'tasks': due,
-          }),
-        ),
-        subtitle: Text(
-          FinanceWords.of(context).text('dashboard.household_organization'),
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const OrganizationPage()),
-          );
-        },
-      ),
-    );
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(child: first),
+      const SizedBox(width: AppSpacing.md),
+      Expanded(child: second),
+    ],
+  );
+}
+
+void _openAlert(BuildContext context, AppAlert alert) {
+  if (alert.key.startsWith('financial:')) {
+    final parts = alert.key.split(':');
+    final raw = parts.length > 1 ? parts[1] : null;
+    final destination = DashboardDestination.values
+        .where((item) => item.name == raw)
+        .firstOrNull;
+    if (destination != null) {
+      _openDestination(context, destination);
+      return;
+    }
   }
+  if (alert.source != null) {
+    final page = const CalendarSourceNavigator().resolve(
+      alert.source!,
+      alert.sourceId,
+    );
+    if (page != null) {
+      _push(context, page);
+      return;
+    }
+  }
+  _push(context, const OrganizationPage());
+}
+
+void _openCalendarEntry(BuildContext context, CalendarEntry entry) {
+  final page = const CalendarSourceNavigator().resolve(
+    entry.source,
+    entry.sourceId,
+  );
+  _push(context, page ?? const OrganizationPage());
 }
 
 void _openDestination(BuildContext context, DashboardDestination destination) {
@@ -163,7 +199,14 @@ void _openDestination(BuildContext context, DashboardDestination destination) {
   final navigation = FinanceShellNavigation.maybeOf(context);
   if (index != null && navigation != null) {
     navigation.selectDestination(index);
-    return;
+  } else {
+    _push(context, page);
   }
-  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+}
+
+void _push(BuildContext context, Widget page) =>
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+
+extension _FirstOrNull<E> on Iterable<E> {
+  E? get firstOrNull => isEmpty ? null : first;
 }

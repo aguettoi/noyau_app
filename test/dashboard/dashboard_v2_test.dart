@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/features/dashboard/application/dashboard_metrics.dart';
 import 'package:noyau_app/features/dashboard/application/providers/dashboard_history_provider.dart';
+import 'package:noyau_app/features/dashboard/application/providers/dashboard_home_provider.dart';
 import 'package:noyau_app/features/dashboard/application/providers/remote_financial_dashboard_provider.dart';
 import 'package:noyau_app/features/dashboard/presentation/financial_dashboard_page.dart';
 import 'package:noyau_app/features/budget_intelligence/application/providers/remote_budget_provider.dart';
@@ -458,67 +459,62 @@ void main() {
     }
   });
   for (final width in [390.0, 1280.0]) {
-    testWidgets(
-      'dashboard empty and populated responsive $width, period UI updates',
-      (tester) async {
-        final diagnostics = <String>[];
-        final originalHandler = FlutterError.onError;
-        FlutterError.onError = (details) {
-          diagnostics.add(details.toString());
-          originalHandler!(details);
-        };
-        addTearDown(() => FlutterError.onError = originalHandler);
-        tester.view.physicalSize = Size(width, 900);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        var populated = false;
-        final container = ProviderContainer(
-          overrides: [
-            financialDashboardProvider.overrideWith(
-              (ref) async => snapshot(
-                period: ref.watch(dashboardPeriodProvider),
-                populated: populated,
-              ),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: const MaterialApp(
-              locale: Locale('fr'),
-              supportedLocales: [Locale('fr')],
-              localizationsDelegates: GlobalMaterialLocalizations.delegates,
-              home: Scaffold(body: FinancialDashboardPage()),
+    testWidgets('dashboard empty and populated responsive $width', (
+      tester,
+    ) async {
+      final diagnostics = <String>[];
+      final originalHandler = FlutterError.onError;
+      FlutterError.onError = (details) {
+        diagnostics.add(details.toString());
+        originalHandler!(details);
+      };
+      addTearDown(() => FlutterError.onError = originalHandler);
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var populated = false;
+      final container = ProviderContainer(
+        overrides: [
+          financialDashboardProvider.overrideWith(
+            (ref) async => snapshot(
+              period: ref.watch(dashboardPeriodProvider),
+              populated: populated,
             ),
           ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: Scaffold(body: FinancialDashboardPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('dashboard-v2-empty')), findsOneWidget);
+      populated = true;
+      container.invalidate(financialDashboardProvider);
+      container.invalidate(dashboardHomeProvider);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('dashboard-v2-empty')), findsNothing);
+      expect(find.byKey(const Key('dashboard-situation')), findsOneWidget);
+      expect(find.byKey(const Key('dashboard-action-center')), findsOneWidget);
+      for (var i = 0; i < 18; i++) {
+        await tester.drag(
+          find.byKey(const Key('financial-dashboard-page')),
+          const Offset(0, -450),
         );
         await tester.pumpAndSettle();
-        expect(find.byKey(const Key('dashboard-v2-empty')), findsOneWidget);
-        await tester.tap(find.widgetWithText(ChoiceChip, 'Mois précédent'));
-        await tester.pumpAndSettle();
-        expect(
-          container.read(dashboardPeriodProvider),
-          DashboardPeriod.previousMonth,
-        );
-        populated = true;
-        container.invalidate(financialDashboardProvider);
-        await tester.pumpAndSettle();
-        expect(find.byKey(const Key('dashboard-v2-empty')), findsNothing);
-        expect(find.text('À faire'), findsOneWidget);
-        for (var i = 0; i < 18; i++) {
-          await tester.drag(
-            find.byKey(const Key('financial-dashboard-page')),
-            const Offset(0, -450),
-          );
-          await tester.pumpAndSettle();
-          final exception = tester.takeException();
-          expect(exception, isNull, reason: diagnostics.join('\n'));
-        }
-      },
-    );
+        final exception = tester.takeException();
+        expect(exception, isNull, reason: diagnostics.join('\n'));
+      }
+    });
   }
 }
 

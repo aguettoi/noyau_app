@@ -8,7 +8,7 @@ never removal.
 
 | Capability family | Historical surface | D1.2 destination | Level | Desktop/Web | Mobile | D1.2-A state | Existing evidence |
 |---|---|---|---|---|---|---|---|
-| Dashboard/KPI/alerts | Dashboard | Home | Simple + analytics advanced | Rail/Home | Home | Routed | dashboard tests |
+| Dashboard/KPI/alerts | Dashboard | Home | Simple cockpit + analytics advanced | Rail/Home | Home | D1.2-B redesigned: month situation, canonical action centre, today, goals and secondary overview; all prior KPI panels remain under Analytics | dashboard home, visual, V2 and KPI tests |
 | Accounts/cash/reconciliation/privacy | Accounts | Money > Accounts | Simple + Advanced | Money hub | Money hub | Routed | accounts/privacy tests |
 | Transactions/transfers | Transactions | Money > Transactions / universal + | Simple + Advanced | Money hub/+ | Money/+ | Routed | transaction tests |
 | Debts/receivables/settlements | Transactions subpages | Money > Debts and receivables / + | Advanced | Money hub/+ | Money/+ | Routed | debt/receivable tests |

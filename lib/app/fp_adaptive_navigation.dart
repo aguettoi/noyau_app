@@ -286,7 +286,7 @@ class FpUniversalAddSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final words = FoundationWords.of(context);
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: AppSpacing.dialog,
         child: Column(
           mainAxisSize: MainAxisSize.min,

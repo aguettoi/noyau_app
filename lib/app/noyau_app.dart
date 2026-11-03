@@ -569,6 +569,54 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
 
   Future<void> _showUniversalAdd() async {
     final actions = switch (_universeForIndex(_selectedIndex)) {
+      FpUniverse.home => [
+        FpAddAction(
+          'expense',
+          Icons.remove_circle_outline,
+          () => _push(const TransactionsPage()),
+        ),
+        FpAddAction(
+          'income',
+          Icons.add_circle_outline,
+          () => _push(const TransactionsPage()),
+        ),
+        FpAddAction(
+          'transfer',
+          Icons.swap_horiz,
+          () => _push(const TransactionsPage()),
+        ),
+        FpAddAction('debt', Icons.south_east, () => _push(const DebtsPage())),
+        FpAddAction(
+          'receivable',
+          Icons.north_east,
+          () => _push(const ReceivablesPage()),
+        ),
+        FpAddAction(
+          'task',
+          Icons.task_alt,
+          () => _push(const OrganizationPage()),
+        ),
+        FpAddAction(
+          'grocery',
+          Icons.shopping_cart_outlined,
+          () => _push(const DailyLifePage()),
+        ),
+        FpAddAction(
+          'event',
+          Icons.event_outlined,
+          () => _push(const OrganizationPage()),
+        ),
+        FpAddAction(
+          'goal',
+          Icons.savings_outlined,
+          () => setState(() => _selectedIndex = 4),
+        ),
+        FpAddAction(
+          'priority',
+          Icons.low_priority,
+          () => setState(() => _selectedIndex = 6),
+        ),
+      ],
       FpUniverse.household => [
         FpAddAction(
           'task',
