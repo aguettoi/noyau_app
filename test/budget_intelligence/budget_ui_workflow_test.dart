@@ -145,6 +145,10 @@ void main() {
       find.textContaining('Aucun budget n’a encore été préparé'),
       findsOneWidget,
     );
+    await expectLater(
+      find.byType(BudgetMonthlyPreparationPage),
+      matchesGoldenFile('../d12/runtime_goldens/d12d_18_empty_household.png'),
+    );
     expect(find.byKey(const Key('prepare-current-month')), findsOneWidget);
     expect(find.textContaining('00000000-'), findsNothing);
     await tester.tap(find.byKey(const Key('next-budget-month')));
@@ -166,6 +170,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(BudgetScenarioDetailPage),
+      matchesGoldenFile(
+        '../d12/runtime_goldens/d12d_05_scenario_simulation.png',
+      ),
+    );
     await tester.tap(find.byKey(const Key('toggle-budget-scenario')));
     await tester.pumpAndSettle();
     expect(gateway.updates.single.$2['active'], isFalse);
@@ -279,10 +289,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(ProgrammableBudgetProgramPage),
+      matchesGoldenFile(
+        '../d12/runtime_goldens/d12d_03_programmable_simple.png',
+      ),
+    );
     final addStep = find.byKey(const Key('add-budget-step'));
     await tester.ensureVisible(addStep);
     await tester.tap(addStep);
     await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(ProgrammableBudgetProgramPage),
+      matchesGoldenFile(
+        '../d12/runtime_goldens/d12d_04_programmable_advanced.png',
+      ),
+    );
     expect(find.text('Charges personnelles'), findsOneWidget);
     expect(find.text('Clé personnalisée'), findsOneWidget);
     expect(find.text('Clé automatique'), findsOneWidget);
@@ -1240,6 +1262,22 @@ void main() {
         find.byKey(const Key('monthly-default-scenario-prompt')),
         findsOneWidget,
       );
+      await expectLater(
+        find.byType(BudgetMonthlyPreparationPage),
+        matchesGoldenFile(
+          '../d12/runtime_goldens/d12d_01_monthly_preparation_desktop.png',
+        ),
+      );
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(BudgetMonthlyPreparationPage),
+        matchesGoldenFile(
+          '../d12/runtime_goldens/d12d_02_monthly_preparation_mobile.png',
+        ),
+      );
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('use-default-monthly-scenario')));
       await tester.pumpAndSettle();
       final simulate = find.byKey(const Key('simulate-monthly-budget'));

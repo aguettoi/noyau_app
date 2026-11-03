@@ -79,6 +79,25 @@ class _RecommendationsBody extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             Card(
+              child: Padding(
+                padding: AppSpacing.card,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_envelopeText(context, 'envelopes.rule_explanation')),
+                    Text(
+                      _envelopeText(
+                        context,
+                        'envelopes.recommendation_explanation',
+                      ),
+                    ),
+                    Text(_envelopeText(context, 'envelopes.error_explanation')),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Card(
               child: ListTile(
                 leading: const Icon(Icons.account_tree_outlined),
                 title: Text(

@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,9 +17,18 @@ import 'package:noyau_app/features/finance/presentation/transactions_page.dart';
 import 'package:noyau_app/features/envelopes/application/providers/remote_envelopes_provider.dart';
 import 'package:noyau_app/features/envelopes/presentation/envelope_recommendations_page.dart';
 import 'package:noyau_app/features/finance/application/providers/payment_methods_provider.dart';
+import 'package:noyau_app/features/finance/application/providers/member_compensations_provider.dart';
 import 'package:noyau_app/core/money/money.dart';
 
 void main() {
+  setUpAll(() async {
+    if (!Platform.isWindows) return;
+    final bytes = await File(r'C:\Windows\Fonts\tahoma.ttf').readAsBytes();
+    final loader = FontLoader('D12DArabic')
+      ..addFont(Future.value(ByteData.sublistView(bytes)));
+    await loader.load();
+  });
+
   final snapshot = MonthlyCloseSnapshot(
     month: DateTime(2026, 10),
     status: MonthlyCloseStatus.open,
@@ -64,6 +76,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('monthly-close-page')), findsOneWidget);
+      await expectLater(
+        find.byKey(const Key('monthly-close-page')),
+        matchesGoldenFile(
+          size.width < 600
+              ? '../d12/runtime_goldens/d12d_12_monthly_close_mobile.png'
+              : '../d12/runtime_goldens/d12d_11_monthly_close_desktop.png',
+        ),
+      );
       await tester.scrollUntilVisible(
         find.text('À faire financier'),
         250,
@@ -79,6 +99,56 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('D1.2-D preuve runtime dark mode', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [monthlyCloseProvider.overrideWith((ref) async => snapshot)],
+        child: MaterialApp(
+          locale: const Locale('fr'),
+          supportedLocales: const [Locale('fr')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          theme: ThemeData.dark(),
+          home: const MonthlyClosePage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byKey(const Key('monthly-close-page')),
+      matchesGoldenFile('../d12/runtime_goldens/d12d_16_dark_mode.png'),
+    );
+  });
+
+  testWidgets('D1.2-D preuve runtime RTL arabe', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [monthlyCloseProvider.overrideWith((ref) async => snapshot)],
+        child: MaterialApp(
+          locale: const Locale('ar'),
+          supportedLocales: const [Locale('fr'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          theme: ThemeData(fontFamily: 'D12DArabic'),
+          home: const MonthlyClosePage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      Directionality.of(tester.element(find.byType(MonthlyClosePage))),
+      TextDirection.rtl,
+    );
+    await expectLater(
+      find.byKey(const Key('monthly-close-page')),
+      matchesGoldenFile('../d12/runtime_goldens/d12d_17_rtl.png'),
+    );
+  });
 
   testWidgets('OWNER réouvre avec motif et conserve l’audit', (tester) async {
     var calls = 0;
@@ -126,12 +196,15 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(find.byKey(const Key('reopen-month-button')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('reopen-month-button')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Confirmer la réouverture'));
     await tester.pumpAndSettle();
     expect(calls, 0);
 
+    await tester.ensureVisible(find.byKey(const Key('reopen-month-button')));
     await tester.tap(find.byKey(const Key('reopen-month-button')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -369,6 +442,23 @@ void main() {
         overrides: [
           monthlyCloseProvider.overrideWith((ref) async => actionable),
           monthlyCloseTargetsProvider.overrideWith((ref) async => const []),
+          memberCompensationsProvider.overrideWith(
+            (ref) async => const [
+              MemberCompensation(
+                id: 'compensation-context',
+                sourceFinancialEventId: 'event-context',
+                debtorUserId: 'member-a',
+                creditorUserId: 'member-b',
+                debtor: 'Membre A',
+                creditor: 'Membre B',
+                initial: 600,
+                remaining: 240,
+                pendingReceipt: 0,
+                status: 'to_pay',
+                reason: 'Dépense partagée',
+              ),
+            ],
+          ),
         ],
         child: const MaterialApp(
           locale: Locale('fr'),
@@ -383,6 +473,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await expectLater(
+      find.byKey(const Key('monthly-close-page')),
+      matchesGoldenFile('../d12/runtime_goldens/d12d_13_close_blocked.png'),
+    );
 
     for (final route in [
       (const Key('todo-reconciliations'), AccountsPage),
@@ -407,6 +501,10 @@ void main() {
         expect(page.initialFinancialEventId, 'event-context');
       } else if (page is MemberCompensationsPage) {
         expect(page.initialCompensationId, 'compensation-context');
+        await expectLater(
+          find.byType(MemberCompensationsPage),
+          matchesGoldenFile('../d12/runtime_goldens/d12d_15_compensation.png'),
+        );
       }
       Navigator.of(tester.element(find.byType(route.$2))).pop();
       await tester.pumpAndSettle();
@@ -600,8 +698,18 @@ void main() {
         find.textContaining('Retrait / alimentation espèces'),
         findsOneWidget,
       );
+      await expectLater(
+        find.byKey(const Key('monthly-close-page')),
+        matchesGoldenFile(
+          '../d12/runtime_goldens/d12d_10_member_regularization.png',
+        ),
+      );
       await tester.tap(find.byKey(const Key('confirm-reallocation')));
       await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(AlertDialog),
+        matchesGoldenFile('../d12/runtime_goldens/d12d_14_final_summary.png'),
+      );
       expect(executed, isFalse);
       await tester.tap(find.byKey(const Key('execute-reallocation')));
       await tester.pumpAndSettle();

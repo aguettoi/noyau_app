@@ -60,6 +60,43 @@ class ProgrammableBudgetProgramPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(_pf(context, 'program.title', {'scenario': scenario.name})),
+        actions: [
+          TextButton.icon(
+            key: const Key('programmable-budget-simple-view'),
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              showDragHandle: true,
+              builder: (sheetContext) => SafeArea(
+                child: Padding(
+                  padding: AppSpacing.page,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _pt(context, 'program.simple_title'),
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(scenario.name),
+                      if ((scenario.description ?? '').trim().isNotEmpty)
+                        Text(scenario.description!),
+                      const SizedBox(height: AppSpacing.sm),
+                      SecondaryInfoText(_pt(context, 'program.simple_hint')),
+                      const SizedBox(height: AppSpacing.md),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        child: Text(_pt(context, 'program.advanced_action')),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.dashboard_outlined),
+            label: Text(_pt(context, 'program.simple_action')),
+          ),
+        ],
       ),
       body: versions.when(
         loading: () => const Center(child: CircularProgressIndicator()),

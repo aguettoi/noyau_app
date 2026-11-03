@@ -18,6 +18,7 @@ import '../domain/budget_intelligence.dart';
 import 'budget_runs_page.dart';
 import 'budget_scenarios_page.dart';
 import 'programmable_budget_program_page.dart';
+import 'widgets/budget_workflow_guide.dart';
 
 String _mt(BuildContext context, String key) =>
     BudgetMonthlyWords.of(context).text(key);
@@ -350,6 +351,18 @@ class _BudgetMonthlyPreparationPageState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        BudgetWorkflowGuide(
+                          key: const Key('monthly-preparation-guide'),
+                          title: _mt(context, 'monthly.preparing'),
+                          subtitle: _mt(context, 'monthly.not_prepared'),
+                          steps: [
+                            _mt(context, 'monthly.resources'),
+                            _mt(context, 'monthly.program'),
+                            _mt(context, 'monthly.preview'),
+                            _mt(context, 'monthly.apply_month'),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.md),
                         _MonthNavigation(
                           month: _month,
                           onPrevious: () => _shiftMonth(-1),

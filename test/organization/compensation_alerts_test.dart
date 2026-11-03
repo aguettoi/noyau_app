@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:noyau_app/core/localization/app_locale.dart';
+import 'package:noyau_app/core/localization/member_compensations_locale.dart';
 import 'package:noyau_app/features/finance/application/providers/member_compensations_provider.dart';
 import 'package:noyau_app/features/organization/application/organization_provider.dart';
 
@@ -59,5 +61,30 @@ void main() {
       ),
       isEmpty,
     );
+  });
+
+  test('compensation wording is complete and keeps arbitrary member names', () {
+    for (final language in AppLanguage.values) {
+      for (final key in const [
+        'debtor',
+        'creditor',
+        'initial_amount',
+        'remaining_amount',
+        'pending_amount',
+        'reason',
+        'state',
+      ]) {
+        expect(
+          MemberCompensationWords.hasOwnTranslation(language, key),
+          isTrue,
+          reason: '$language must translate $key',
+        );
+      }
+      final words = MemberCompensationWords(language);
+      for (final name in const ['Membre unique', 'Membre B', 'Membre E']) {
+        expect(words.format('debtor', {'name': name}), contains(name));
+        expect(words.format('creditor', {'name': name}), contains(name));
+      }
+    }
   });
 }

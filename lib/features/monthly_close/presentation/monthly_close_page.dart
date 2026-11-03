@@ -9,6 +9,7 @@ import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../envelopes/presentation/envelope_recommendations_page.dart';
 import '../../budget_intelligence/presentation/budget_scenarios_page.dart';
+import '../../budget_intelligence/presentation/widgets/budget_workflow_guide.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/application/providers/remote_account_balances_provider.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
@@ -42,6 +43,26 @@ class MonthlyClosePage extends ConsumerWidget {
                     'month':
                         '${snapshot.month.month.toString().padLeft(2, '0')}/${snapshot.month.year}',
                   }),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                BudgetWorkflowGuide(
+                  key: const Key('monthly-close-guide'),
+                  title: w.text('monthly_close'),
+                  subtitle: snapshot.ready
+                      ? w.text('ready_warnings')
+                      : w.format('blocking_conditions', {
+                          'count': snapshot.blockers,
+                        }),
+                  currentStep: snapshot.ready ? 5 : 0,
+                  kind: BudgetExperienceKind.close,
+                  steps: [
+                    w.text('reconciliations'),
+                    w.text('cash_inventory'),
+                    w.text('entries'),
+                    w.text('compensations'),
+                    w.text('month_health'),
+                    w.text('confirm_final'),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _Health(snapshot),

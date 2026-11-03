@@ -24,6 +24,12 @@ void main() {
       await tester.tap(find.text('Banque A'));
       await tester.pumpAndSettle();
 
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../d12/runtime_goldens/d12d_07_verify_balance.png'),
+      );
+
+      expect(find.text('Vérifier mon solde'), findsOneWidget);
       expect(find.text('Rapprochement bancaire'), findsOneWidget);
       expect(
         find.textContaining('Solde théorique GL : 900,00 MAD'),
@@ -142,6 +148,13 @@ void main() {
       find.byKey(const Key('record-account-balance-observation-button')),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Combien avez-vous réellement ?'), findsOneWidget);
+    expect(find.text('Montant direct'), findsOneWidget);
+    expect(find.text('Compter les coupures'), findsOneWidget);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('../d12/runtime_goldens/d12d_08_cash_direct.png'),
+    );
     final field = tester.widget<TextFormField>(
       find.byKey(const Key('actual-account-balance-field')),
     );
@@ -190,6 +203,12 @@ void main() {
       expect(
         find.textContaining('Total des coupures : 807,00 MAD'),
         findsOneWidget,
+      );
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile(
+          '../d12/runtime_goldens/d12d_09_cash_denominations.png',
+        ),
       );
       await tester.enterText(
         find.byKey(const Key('account-balance-observation-reason-field')),

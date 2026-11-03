@@ -518,6 +518,10 @@ class _AccountReconciliationCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
+              AccountsWords.of(context).text('accounts.verify_balance'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(
               account.type == FinancialAccountType.cash
                   ? AccountsWords.of(context).text('accounts.cash_inventory')
                   : AccountsWords.of(
@@ -570,7 +574,11 @@ class _AccountReconciliationCard extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                AccountsWords.of(context).text('accounts.verify_balance'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              Text(title),
               const SizedBox(height: AppSpacing.xxs),
               Text(
                 AccountsWords.of(context).format(
@@ -1501,6 +1509,11 @@ class _RecordAccountBalanceDialogState
               ),
               const SizedBox(height: AppSpacing.sm),
               if (widget.account.type == FinancialAccountType.cash) ...[
+                Text(
+                  AccountsWords.of(context).text('accounts.cash_question'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.xs),
                 SegmentedButton<CashCountInputMode>(
                   key: const Key('cash-inventory-mode'),
                   segments: [
@@ -1560,7 +1573,9 @@ class _RecordAccountBalanceDialogState
                               if ((value ?? '').trim().isEmpty) return null;
                               final quantity = int.tryParse(value!.trim());
                               return quantity == null || quantity < 0
-                                  ? 'Entier ≥ 0'
+                                  ? AccountsWords.of(
+                                      context,
+                                    ).text('accounts.non_negative_integer')
                                   : null;
                             },
                           ),
@@ -1606,7 +1621,9 @@ class _RecordAccountBalanceDialogState
                         ).text('accounts.bank_amount_required'),
                 ),
                 validator: (value) => _madToCents(value?.trim() ?? '') == null
-                    ? 'Saisissez un montant MAD valide.'
+                    ? AccountsWords.of(
+                        context,
+                      ).text('accounts.valid_mad_amount')
                     : null,
               ),
               if (_madToCents(_actualBalance.text.trim())
@@ -1652,9 +1669,11 @@ class _RecordAccountBalanceDialogState
                 minLines: 2,
                 maxLines: 4,
                 decoration: InputDecoration(
-                  labelText: _requiresReason
-                      ? 'Commentaire / justification *'
-                      : 'Commentaire / justification (facultatif)',
+                  labelText: AccountsWords.of(context).text(
+                    _requiresReason
+                        ? 'accounts.comment_required_label'
+                        : 'accounts.comment_optional_label',
+                  ),
                 ),
                 validator: (value) {
                   final reason = value?.trim() ?? '';

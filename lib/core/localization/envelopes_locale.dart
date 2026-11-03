@@ -140,6 +140,11 @@ class EnvelopesWords {
       'envelopes.remaining_to_allocate': 'Reste à affecter : {value}',
       'envelopes.settings_hint':
           'Ces recommandations alimentent les paiements quotidiens et les cibles automatiques. Elles ne déplacent aucun argent.',
+      'envelopes.rule_explanation': 'Règle — comportement structurel appliqué.',
+      'envelopes.recommendation_explanation':
+          'Recommandation — proposition explicable, sans action automatique.',
+      'envelopes.error_explanation':
+          'Erreur — configuration impossible ou incomplète à corriger.',
       'envelopes.multi_account_title':
           'Enveloppes réparties entre plusieurs comptes',
       'envelopes.multi_account_hint':
@@ -283,6 +288,11 @@ class EnvelopesWords {
       'envelopes.remaining_to_allocate': 'Remaining to allocate: {value}',
       'envelopes.settings_hint':
           'These recommendations feed daily payments and automatic targets. They do not move money.',
+      'envelopes.rule_explanation': 'Rule — applied structural behavior.',
+      'envelopes.recommendation_explanation':
+          'Recommendation — explainable proposal, without automatic action.',
+      'envelopes.error_explanation':
+          'Error — impossible or incomplete configuration to fix.',
       'envelopes.multi_account_title':
           'Envelopes split across several accounts',
       'envelopes.multi_account_hint':
@@ -418,6 +428,10 @@ class EnvelopesWords {
       'envelopes.remaining_to_allocate': 'المتبقي للتوزيع: {value}',
       'envelopes.settings_hint':
           'تغذي هذه التوصيات الدفعات اليومية والأهداف التلقائية، ولا تنقل أي أموال.',
+      'envelopes.rule_explanation': 'قاعدة — السلوك الهيكلي المطبق.',
+      'envelopes.recommendation_explanation':
+          'توصية — اقتراح قابل للتفسير دون إجراء تلقائي.',
+      'envelopes.error_explanation': 'خطأ — إعداد مستحيل أو ناقص يجب تصحيحه.',
       'envelopes.multi_account_title': 'مغلفات موزعة بين عدة حسابات',
       'envelopes.multi_account_hint':
           'يبقى التوزيع الهيكلي متعدد الحسابات ضمن السيناريو النشط، وليس استثناءً شهرياً.',
@@ -554,6 +568,10 @@ class EnvelopesWords {
       'envelopes.remaining_to_allocate': 'باقي يتقسم: {value}',
       'envelopes.settings_hint':
           'هاد التوصيات كيتستعملو فالخلاص اليومي والأهداف الأوتوماتيكية، وما كيحركو حتى فلوس.',
+      'envelopes.rule_explanation': 'قاعدة — السلوك الهيكلي اللي كيتطبق.',
+      'envelopes.recommendation_explanation':
+          'توصية — اقتراح مفهوم بلا إجراء أوتوماتيكي.',
+      'envelopes.error_explanation': 'خطأ — إعداد مستحيل ولا ناقص خاصو يتصلح.',
       'envelopes.multi_account_title': 'ظروف مقسمة على كثر من حساب',
       'envelopes.multi_account_hint':
           'التقسيم الهيكلي على كثر من حساب كيبقى فسيناريو الميزانية الخدام، ماشي استثناء شهري.',

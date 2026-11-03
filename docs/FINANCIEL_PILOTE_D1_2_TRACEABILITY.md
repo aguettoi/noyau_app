@@ -30,9 +30,72 @@ never removal.
 | Onboarding/help/language/accessibility | Experience surfaces | More | Simple | Global/More | Global/More | Routed | L4 tests |
 | Offline resilience | Shell/drafts | Global status banner | Simple | Persistent | Persistent | Foundation delivered | L4 tests |
 
+## D1.2-D — Budget, control and close
+
+The D1.2-D checkpoint preserves every historical destination and adds guided,
+progressively disclosed entry points. It does not introduce a second budget,
+alert, calendar, reconciliation or accounting engine.
+
+| Capability | Destination after D1.2-D | Canonical source/action | State |
+|---|---|---|---|
+| Monthly preparation | Money > Budget > Prepare my month | Existing scenario, contributions and monthly preparation providers | Guided and reachable |
+| Programmable budget | Money > Budget > Program | Existing programmable engine and simulation | Simple/advanced modes reachable |
+| Scenarios and simulations | Money > Budget > Scenarios | Existing scenario and simulation contracts | Clearly marked simulation |
+| Envelope recommendations | Money > Envelopes > Recommendations | Existing recommendation provider | Rule/recommendation/error distinguished |
+| Account reconciliation | Money > Accounts > Check my balance | Canonical observation and reconciliation providers | Real/theoretical/difference visible when authorized |
+| Cash inventory | Money > Accounts > Cash inventory | Canonical cash observation, optional denominations | Direct amount or denominations |
+| Member regularization | Canonical transaction/reconciliation flow | FinancialEvent canonical actions | Explicit confirmation, 1/2/N |
+| Monthly close | Money > Advanced > Finalize my month | Existing monthly-close workflow | Six-step guide and blockers |
+| Compensations | Money > Advanced > Internal compensations | Existing compensation actions | Debtor/creditor/amount/reason/state explicit |
+
+Historical capability families without a destination after D1.2-D: **0**.
+Removed or inaccessible historical functions: **0**.
+
+## D1.2-D architecture before / after
+
+Measurements compare baseline `0c693e8cc77073d6eeac6d9e98ade793c6c7db23`
+with the D1.2-D worktree.
+
+| Surface | Before | After | Change and assessment |
+|---|---:|---:|---|
+| `programmable_budget_program_page.dart` | 3,650 lines / 23 declared types | 3,687 lines / 23 declared types | Simple-mode entry and progressive disclosure added; orchestration and most presentation responsibilities remain in the monolith. |
+| `budget_monthly_preparation_page.dart` | 2,236 lines / 14 declared types | 2,249 lines / 14 declared types | Guided entry added; canonical providers and simulator preserved. Significant monolith debt remains. |
+| `monthly_close_page.dart` | 2,885 lines / 13 declared types | 2,906 lines / 13 declared types | Six-step close guide added; canonical blockers/actions preserved. Significant monolith debt remains. |
+
+Extracted reusable component: `BudgetWorkflowGuide`, responsible only for
+step/state/navigation presentation. It contains no financial calculation,
+Supabase access or mutation.
+
+Architecture verdict: user guidance improved, but the three large files were
+not materially decomposed. Human Developer Readiness is therefore **not
+certified**. Final audit debt remains open for Transactions, Accounts,
+Envelopes, Programmable Budget, Monthly Preparation and Monthly Close.
+
 ## Result
 
 - Historical capability families recorded: 20.
 - Families with a D1.2 destination: 20.
 - Families without a destination: 0.
 - All original IndexedStack destinations remain addressable during migration.
+
+## D1.2-D certification evidence
+
+The 18 D1.2-D visual proofs under `test/d12/runtime_goldens/` are rasterized
+from the real production pages with deterministic provider fixtures. They cover
+monthly preparation (desktop/mobile), programmable budget (simple/advanced),
+scenario/simulation, recommendations, reconciliation, both cash-count modes,
+member regularization, monthly close (desktop/mobile/blocker/final confirmation),
+compensation, dark mode, RTL and an empty household state.
+
+The contact-sheet and individual-image review found no overflow, clipping,
+overlap or private-value disclosure. The initial compensation capture exposed
+only a loading state; its fixture was corrected and the proof regenerated with
+an active deterministic compensation. The RTL proof loads the Windows
+Arabic-capable Tahoma font in the test harness, so Arabic glyphs,
+directionality and numeric readability are visually reviewable without
+changing the application font or production code.
+
+Final automated certification: 1,174 tests passed and 3 environment-dependent
+tests were conditionally skipped. Product analysis, formatting, Windows release
+and Web release passed. No financial mutation, import, cutover, purge or
+Supabase migration was performed.

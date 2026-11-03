@@ -118,6 +118,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.textContaining('Règle —'), findsOneWidget);
+    expect(find.textContaining('Recommandation —'), findsOneWidget);
+    expect(find.textContaining('Erreur —'), findsOneWidget);
     return saves;
   }
 
@@ -129,6 +132,14 @@ void main() {
       expect(find.text('Besoin perso'), findsOneWidget);
       expect(find.text('À configurer'), findsOneWidget);
       expect(find.text('Compte inactif'), findsNothing);
+      if (size.width > 600) {
+        await expectLater(
+          find.byType(EnvelopeRecommendationsPage),
+          matchesGoldenFile(
+            '../d12/runtime_goldens/d12d_06_recommendations.png',
+          ),
+        );
+      }
 
       await tester.ensureVisible(
         find.byKey(const Key('recommended-account-envelope-1')),

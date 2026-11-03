@@ -23,6 +23,11 @@ class ProgrammableBudgetWords {
       _v[language]?[key]?.trim().isNotEmpty == true;
   static const _v = <AppLanguage, Map<String, String>>{
     AppLanguage.french: {
+      'program.simple_action': 'Vue simple',
+      'program.simple_title': 'Budget courant',
+      'program.simple_hint':
+          'Consultez le scénario, puis ouvrez les règles avancées uniquement si nécessaire.',
+      'program.advanced_action': 'Voir la programmation avancée',
       'program.title': 'Programme — {scenario}',
       'program.model_required':
           'Le modèle programmable 080006 doit être installé.',
@@ -277,6 +282,11 @@ class ProgrammableBudgetWords {
           'Montant total : {total} • {count} membres → {share} chacun',
     },
     AppLanguage.english: {
+      'program.simple_action': 'Simple view',
+      'program.simple_title': 'Current budget',
+      'program.simple_hint':
+          'Review the scenario, then open advanced rules only when needed.',
+      'program.advanced_action': 'View advanced programming',
       'program.title': 'Program — {scenario}',
       'program.model_required': 'Programmable model 080006 must be installed.',
       'program.create_v1': 'Create version 1',
@@ -521,6 +531,11 @@ class ProgrammableBudgetWords {
           'Total amount: {total} • {count} members → {share} each',
     },
     AppLanguage.arabic: {
+      'program.simple_action': 'عرض مبسط',
+      'program.simple_title': 'الميزانية الحالية',
+      'program.simple_hint':
+          'راجع السيناريو ثم افتح القواعد المتقدمة عند الحاجة فقط.',
+      'program.advanced_action': 'عرض البرمجة المتقدمة',
       'program.title': 'البرنامج — {scenario}',
       'program.model_required': 'يجب تثبيت النموذج القابل للبرمجة 080006.',
       'program.create_v1': 'إنشاء الإصدار 1',
@@ -751,6 +766,11 @@ class ProgrammableBudgetWords {
           'إجمالي المبلغ: {total} • {count} أعضاء ← {share} لكل عضو',
     },
     AppLanguage.darija: {
+      'program.simple_action': 'عرض بسيط',
+      'program.simple_title': 'البودجي دابا',
+      'program.simple_hint':
+          'شوف السيناريو وحل القواعد المتقدمة غير إلا احتجتيهم.',
+      'program.advanced_action': 'شوف البرمجة المتقدمة',
       'program.title': 'البرنامج — {scenario}',
       'program.model_required': 'خاص الموديل المبرمج 080006 يكون مركب.',
       'program.create_v1': 'صايب النسخة 1',

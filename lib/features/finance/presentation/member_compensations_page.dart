@@ -125,13 +125,34 @@ class MemberCompensationsPage extends ConsumerWidget {
             'creditor': item.creditor,
           }),
         ),
-        content: Text(
-          words.format('detail', {
-            'initial': '${item.initial.toStringAsFixed(2)} MAD',
-            'remaining': '${item.remaining.toStringAsFixed(2)} MAD',
-            'pending': '${item.pendingReceipt.toStringAsFixed(2)} MAD',
-            'reason': item.reason,
-          }),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(words.format('debtor', {'name': item.debtor})),
+            Text(words.format('creditor', {'name': item.creditor})),
+            Text(
+              words.format('initial_amount', {
+                'amount': '${item.initial.toStringAsFixed(2)} MAD',
+              }),
+            ),
+            Text(
+              words.format('remaining_amount', {
+                'amount': '${item.remaining.toStringAsFixed(2)} MAD',
+              }),
+            ),
+            Text(
+              words.format('pending_amount', {
+                'amount': '${item.pendingReceipt.toStringAsFixed(2)} MAD',
+              }),
+            ),
+            Text(words.format('reason', {'reason': item.reason})),
+            Text(
+              words.format('state', {
+                'state': words.text('status.${item.status}'),
+              }),
+            ),
+          ],
         ),
         actions: [
           TextButton(
