@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/localization/app_locale.dart';
+import '../../../core/localization/household_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../cashflow_projection/presentation/cashflow_projection_page.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
@@ -25,11 +26,12 @@ class OrganizationPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final words = AppWords(ref.watch(appLocaleProvider));
+    final householdWords = HouseholdWords(ref.watch(appLocaleProvider));
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Organisation du foyer'),
+          title: Text(householdWords.text('hub.title')),
           actions: [
             ref
                 .watch(offlineDraftsProvider)
@@ -72,28 +74,123 @@ class OrganizationPage extends ConsumerWidget {
               icon: const Icon(Icons.tune),
             ),
           ],
-          bottom: const TabBar(
+          bottom: TabBar(
+            isScrollable: true,
             tabs: [
-              Tab(text: 'Tâches'),
-              Tab(text: 'Calendrier'),
-              Tab(text: 'Alertes'),
+              Tab(text: householdWords.text('hub.today')),
+              Tab(text: householdWords.text('hub.tasks')),
+              Tab(text: householdWords.text('hub.calendar')),
+              Tab(text: householdWords.text('hub.alerts')),
             ],
           ),
         ),
         body: const TabBarView(
-          children: [_TasksTab(), _CalendarTab(), _AlertsTab()],
+          children: [_TodayTab(), _TasksTab(), _CalendarTab(), _AlertsTab()],
         ),
         floatingActionButton: FloatingActionButton.extended(
           heroTag: 'organization-add-task',
           key: const Key('add-household-task'),
           onPressed: () => _showTaskDialog(context, ref),
           icon: const Icon(Icons.add_task),
-          label: const Text('Nouvelle tâche'),
+          label: Text(householdWords.text('task.new')),
         ),
       ),
     );
   }
 }
+
+class _TodayTab extends ConsumerWidget {
+  const _TodayTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = HouseholdWords(ref.watch(appLocaleProvider));
+    final now = ref.watch(organizationClockProvider);
+    final calendar = ref.watch(organizationCalendarProvider);
+    return calendar.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, _) => Center(child: Text(words.text('today.empty'))),
+      data: (entries) {
+        final today = filterCalendarEntries(
+          entries,
+          period: CalendarPeriod.today,
+          now: now,
+        );
+        final upcoming = filterCalendarEntries(
+          entries,
+          period: CalendarPeriod.nextSevenDays,
+          now: now,
+        ).where((entry) => !today.contains(entry)).take(5).toList();
+        return ListView(
+          key: const Key('household-today'),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            Text(
+              words.text('today.title'),
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            if (today.isEmpty)
+              _Empty(
+                icon: Icons.celebration_outlined,
+                title: words.text('today.empty'),
+                detail: words.text('today.next'),
+              )
+            else
+              for (final entry in today) _TodayEntry(entry: entry),
+            if (upcoming.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                words.text('today.next'),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              for (final entry in upcoming) _TodayEntry(entry: entry),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            Card(
+              child: ListTile(
+                key: const Key('today-open-daily-life'),
+                leading: const Icon(Icons.home_outlined),
+                title: Text(words.text('hub.daily_life')),
+                subtitle: Text(words.text('hub.daily_life_detail')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DailyLifePage(),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TodayEntry extends StatelessWidget {
+  const _TodayEntry({required this.entry});
+  final CalendarEntry entry;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ListTile(
+      leading: Icon(_sourceIcon(entry.source)),
+      title: Text(entry.title),
+      subtitle: Text(
+        '${_sourceLabel(entry.source)} • ${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(entry.date)}',
+      ),
+    ),
+  );
+}
+
+IconData _sourceIcon(CalendarSource source) => switch (source) {
+  CalendarSource.task => Icons.task_alt,
+  CalendarSource.shopping => Icons.shopping_cart_outlined,
+  CalendarSource.homeAuto => Icons.home_repair_service_outlined,
+  CalendarSource.recurringFinance => Icons.event_repeat,
+  _ => Icons.event_outlined,
+};
 
 void _openRecurringFinance(BuildContext context) => Navigator.of(
   context,
@@ -798,29 +895,6 @@ Future<void> _showTaskDialog(BuildContext context, WidgetRef ref) async {
                   controller: title,
                   decoration: const InputDecoration(labelText: 'Titre'),
                 ),
-                TextField(
-                  controller: room,
-                  decoration: const InputDecoration(
-                    labelText: 'Pièce (facultatif)',
-                  ),
-                ),
-                TextField(
-                  controller: duration,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Durée estimée en minutes',
-                  ),
-                ),
-                DropdownButtonFormField(
-                  initialValue: workload,
-                  decoration: const InputDecoration(labelText: 'Charge'),
-                  items: const [
-                    DropdownMenuItem(value: 'light', child: Text('Légère')),
-                    DropdownMenuItem(value: 'normal', child: Text('Normale')),
-                    DropdownMenuItem(value: 'heavy', child: Text('Importante')),
-                  ],
-                  onChanged: (v) => setState(() => workload = v!),
-                ),
                 DropdownButtonFormField<String?>(
                   initialValue: assignee,
                   decoration: const InputDecoration(
@@ -835,24 +909,6 @@ Future<void> _showTaskDialog(BuildContext context, WidgetRef ref) async {
                       DropdownMenuItem(value: m.id, child: Text(m.displayName)),
                   ],
                   onChanged: (v) => setState(() => assignee = v),
-                ),
-                DropdownButtonFormField(
-                  initialValue: priority,
-                  decoration: const InputDecoration(labelText: 'Priorité'),
-                  items: [
-                    for (final p in HouseholdTaskPriority.values)
-                      DropdownMenuItem(value: p, child: Text(p.name)),
-                  ],
-                  onChanged: (v) => setState(() => priority = v!),
-                ),
-                DropdownButtonFormField(
-                  initialValue: recurrence,
-                  decoration: const InputDecoration(labelText: 'Récurrence'),
-                  items: [
-                    for (final r in TaskRecurrence.values)
-                      DropdownMenuItem(value: r, child: Text(r.name)),
-                  ],
-                  onChanged: (v) => setState(() => recurrence = v!),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -873,6 +929,66 @@ Future<void> _showTaskDialog(BuildContext context, WidgetRef ref) async {
                     );
                     if (picked != null) setState(() => due = picked);
                   },
+                ),
+                ExpansionTile(
+                  key: const Key('task-advanced-options'),
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(
+                    HouseholdWords(
+                      ref.read(appLocaleProvider),
+                    ).text('task.advanced'),
+                  ),
+                  children: [
+                    TextField(
+                      controller: room,
+                      decoration: const InputDecoration(
+                        labelText: 'Pièce (facultatif)',
+                      ),
+                    ),
+                    TextField(
+                      controller: duration,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Durée estimée en minutes',
+                      ),
+                    ),
+                    DropdownButtonFormField(
+                      initialValue: workload,
+                      decoration: const InputDecoration(labelText: 'Charge'),
+                      items: const [
+                        DropdownMenuItem(value: 'light', child: Text('Légère')),
+                        DropdownMenuItem(
+                          value: 'normal',
+                          child: Text('Normale'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'heavy',
+                          child: Text('Importante'),
+                        ),
+                      ],
+                      onChanged: (v) => setState(() => workload = v!),
+                    ),
+                    DropdownButtonFormField(
+                      initialValue: priority,
+                      decoration: const InputDecoration(labelText: 'Priorité'),
+                      items: [
+                        for (final p in HouseholdTaskPriority.values)
+                          DropdownMenuItem(value: p, child: Text(p.name)),
+                      ],
+                      onChanged: (v) => setState(() => priority = v!),
+                    ),
+                    DropdownButtonFormField(
+                      initialValue: recurrence,
+                      decoration: const InputDecoration(
+                        labelText: 'Récurrence',
+                      ),
+                      items: [
+                        for (final r in TaskRecurrence.values)
+                          DropdownMenuItem(value: r, child: Text(r.name)),
+                      ],
+                      onChanged: (v) => setState(() => recurrence = v!),
+                    ),
+                  ],
                 ),
               ],
             ),

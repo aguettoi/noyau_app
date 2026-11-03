@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
+import 'package:noyau_app/core/localization/app_locale.dart';
 import 'package:noyau_app/features/organization/application/organization_provider.dart';
 import 'package:noyau_app/features/organization/domain/organization_models.dart';
 import 'package:noyau_app/features/organization/presentation/organization_page.dart';
@@ -35,6 +36,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
           householdTasksProvider.overrideWith((ref) async => [task]),
           organizationCalendarProvider.overrideWith(
             (ref) async => [
@@ -72,10 +78,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Tâches'));
+    await tester.pumpAndSettle();
     expect(find.text('Opérations attendues'), findsOneWidget);
     expect(find.text('Prévisions de trésorerie'), findsOneWidget);
     expect(find.text('Renouveler assurance'), findsOneWidget);
-    await tester.tap(find.text('Calendrier'));
+    await tester.drag(find.byType(TabBar), const Offset(-160, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Tab).at(2));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('calendar-entry-task:task-1')), findsOneWidget);
     await tester.tap(find.text('Mois'));
@@ -98,7 +108,9 @@ void main() {
     expect(find.byKey(const Key('month-entry-task:task-1')), findsOneWidget);
     await tester.tap(find.byKey(const Key('calendar-reset-filters')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Alertes'));
+    await tester.drag(find.byType(TabBar), const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Tab).at(3));
     await tester.pumpAndSettle();
     expect(find.text('Tâche en retard'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -110,6 +122,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
           householdTasksProvider.overrideWith((ref) async => const []),
           organizationCalendarProvider.overrideWith((ref) async => const []),
           organizationAlertsProvider.overrideWith((ref) async => const []),
@@ -133,6 +150,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Tâches'));
+    await tester.pumpAndSettle();
     final entry = find.byKey(const Key('open-recurring-finance-visible'));
     expect(entry, findsOneWidget);
     expect(find.text('Opérations attendues'), findsOneWidget);
@@ -151,6 +170,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
           householdTasksProvider.overrideWith((ref) async => const []),
           organizationCalendarProvider.overrideWith((ref) async => const []),
           userTimezoneProvider.overrideWith((ref) async => 'Africa/Casablanca'),
@@ -190,7 +214,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Alertes'));
+    await tester.tap(find.byType(Tab).at(3));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Actions du rappel'));
     await tester.pumpAndSettle();
@@ -215,6 +239,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
           householdTasksProvider.overrideWith((ref) async => const []),
           organizationCalendarProvider.overrideWith((ref) async => const []),
           userTimezoneProvider.overrideWith((ref) async => 'Africa/Casablanca'),
@@ -244,7 +273,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Alertes'));
+    await tester.tap(find.byType(Tab).at(3));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Actions du rappel'));
     await tester.pumpAndSettle();

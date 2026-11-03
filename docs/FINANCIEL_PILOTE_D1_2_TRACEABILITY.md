@@ -99,3 +99,39 @@ Final automated certification: 1,174 tests passed and 3 environment-dependent
 tests were conditionally skipped. Product analysis, formatting, Windows release
 and Web release passed. No financial mutation, import, cutover, purge or
 Supabase migration was performed.
+
+## D1.2-E — Household, daily life and personal organization
+
+The Household destination now opens on a focused **Today** projection backed
+by the existing `organizationCalendarProvider`. Tasks, calendar and reminders
+remain the canonical L3B surfaces; no second task, calendar, alert or recurrence
+engine was introduced. Ordinary task creation keeps title, responsible member
+and due date in the primary flow while room, duration, workload, priority and
+recurrence remain available through progressive disclosure.
+
+Domestic groceries remain distinct from financial Shopping. Marking an item as
+purchased only updates the domestic list. The explicit **Record the expense**
+action opens the canonical Transactions expense workflow with safe prefill and
+does not create a `FinancialEvent`, GL posting or envelope movement by itself.
+
+Daily life keeps home, vehicle, contract, warranty and maintenance records on
+their existing providers and calendar projection. Personal space is visually
+separated from collective Household data. Menstrual-cycle events remain owner
+only by default; the existing server-side sharing contract exposes only dates
+and phases to explicitly selected members, while symptoms, notes and flow stay
+private. Revocation continues through the canonical L3B action/provider.
+
+| Historical capability | D1.2-E destination | Canonical contract |
+|---|---|---|
+| Household tasks and responsibility | Household > Tasks | `householdTasksProvider` / existing actions |
+| Today and upcoming items | Household > Today | `organizationCalendarProvider` + `CalendarEntry` filtering |
+| Calendar | Household > Calendar | Existing organization calendar |
+| Recurrences and reminders | Household > Tasks / Reminders | Existing recurring-finance and alert contracts |
+| Domestic groceries | Household > Daily life > Groceries | L3B grocery provider/actions |
+| Grocery to expense | Explicit Transactions transition | Canonical `TransactionsPage` expense flow |
+| Home, vehicles, maintenance, contracts | Household > Daily life > Home & vehicles | L3B home-record provider/calendar projection |
+| Personal menstrual cycle | Household > Daily life > My space | L3B private cycle providers/RLS |
+
+Historical Household/Daily Life/Cycle capabilities without a destination: **0**.
+Functional loss: **0**. Direct Supabase access added to Presentation: **0**.
+Financial mutations introduced by D1.2-E: **0**.

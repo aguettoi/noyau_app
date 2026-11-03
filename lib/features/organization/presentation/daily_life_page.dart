@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/localization/app_locale.dart';
+import '../../../core/localization/household_locale.dart';
+import '../../finance/domain/transaction_draft.dart';
+import '../../finance/presentation/transactions_page.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
@@ -15,68 +18,106 @@ class DailyLifePage extends ConsumerWidget {
   const DailyLifePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => DefaultTabController(
-    length: 4,
-    child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Vie quotidienne'),
-        bottom: const TabBar(
-          isScrollable: true,
-          tabs: [
-            Tab(text: 'Courses'),
-            Tab(text: 'Maison'),
-            Tab(text: 'Cycle privé'),
-            Tab(text: 'Catégories'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = HouseholdWords(ref.watch(appLocaleProvider));
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(words.text('daily.title')),
+          bottom: TabBar(
+            isScrollable: true,
+            tabs: [
+              Tab(text: words.text('daily.groceries')),
+              Tab(text: words.text('daily.home')),
+              Tab(text: words.text('daily.personal')),
+              Tab(text: words.text('daily.categories')),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _GroceriesTab(),
+            _HomeTab(),
+            _CycleTab(),
+            _CategoriesTab(),
           ],
         ),
       ),
-      body: const TabBarView(
-        children: [_GroceriesTab(), _HomeTab(), _CycleTab(), _CategoriesTab()],
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class _GroceriesTab extends ConsumerWidget {
   const _GroceriesTab();
   @override
-  Widget build(BuildContext context, WidgetRef ref) => _AsyncList(
-    value: ref.watch(groceryItemsProvider),
-    empty: 'La liste de courses domestique est vide.',
-    tile: (row) => CheckboxListTile(
-      value: row['status'] == 'picked',
-      title: Text(row['label'] as String),
-      subtitle: Text('${row['quantity']} ${row['unit'] ?? ''}'.trim()),
-      onChanged: (v) => ref
-          .read(dailyLifeActionsProvider)
-          .setGroceryStatus(
-            row['id'] as String,
-            v == true ? 'picked' : 'needed',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = HouseholdWords(ref.watch(appLocaleProvider));
+    return _AsyncList(
+      value: ref.watch(groceryItemsProvider),
+      empty: words.text('grocery.empty'),
+      tile: (row) => Column(
+        children: [
+          CheckboxListTile(
+            key: Key('grocery-${row['id']}'),
+            value: row['status'] == 'picked',
+            title: Text(row['label'] as String),
+            subtitle: Text('${row['quantity']} ${row['unit'] ?? ''}'.trim()),
+            onChanged: (v) => ref
+                .read(dailyLifeActionsProvider)
+                .setGroceryStatus(
+                  row['id'] as String,
+                  v == true ? 'picked' : 'needed',
+                ),
           ),
-    ),
-    onAdd: () => _groceryDialog(context, ref),
-  );
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton.icon(
+              key: Key('grocery-expense-${row['id']}'),
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: Text(words.text('grocery.expense')),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => TransactionsPage(
+                    forceExpense: true,
+                    prefill: TransactionFormPrefill(
+                      description: row['label'] as String,
+                      notes: words.text('grocery.finance_notice'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      onAdd: () => _groceryDialog(context, ref),
+    );
+  }
 }
 
 class _HomeTab extends ConsumerWidget {
   const _HomeTab();
   @override
-  Widget build(BuildContext context, WidgetRef ref) => _AsyncList(
-    value: ref.watch(homeRecordsProvider),
-    empty: 'Aucun contrat, garantie ou entretien.',
-    tile: (row) => ListTile(
-      leading: const Icon(Icons.home_repair_service_outlined),
-      title: Text(row['label'] as String),
-      subtitle: Text(
-        [
-          row['kind'],
-          if (row['provider'] != null) row['provider'],
-          if (row['due_on'] != null) 'Échéance ${row['due_on']}',
-        ].join(' • '),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = HouseholdWords(ref.watch(appLocaleProvider));
+    return _AsyncList(
+      value: ref.watch(homeRecordsProvider),
+      empty: words.text('home.empty'),
+      tile: (row) => ListTile(
+        leading: const Icon(Icons.home_repair_service_outlined),
+        title: Text(row['label'] as String),
+        subtitle: Text(
+          [
+            row['kind'],
+            if (row['provider'] != null) row['provider'],
+            if (row['due_on'] != null) 'Échéance ${row['due_on']}',
+          ].join(' • '),
+        ),
       ),
-    ),
-    onAdd: () => _homeDialog(context, ref),
-  );
+      onAdd: () => _homeDialog(context, ref),
+    );
+  }
 }
 
 class _CycleTab extends ConsumerWidget {
@@ -87,18 +128,21 @@ class _CycleTab extends ConsumerWidget {
         ref.watch(remoteHouseholdMembersProvider).valueOrNull ?? const [];
     final currentUser = ref.watch(currentUserIdProvider);
     final shares = ref.watch(ownCycleSharesProvider).valueOrNull ?? const {};
+    final words = HouseholdWords(ref.watch(appLocaleProvider));
     return Column(
       children: [
-        const MaterialBanner(
-          content: Text(
-            'Privé par défaut. Seules les dates et phases sont partageables explicitement ; notes, flux et symptômes restent personnels.',
+        MaterialBanner(
+          content: ListTile(
+            leading: const Icon(Icons.lock_outline),
+            title: Text(words.text('personal.private')),
+            subtitle: Text(words.text('cycle.share_private')),
           ),
-          actions: [SizedBox.shrink()],
+          actions: const [SizedBox.shrink()],
         ),
         Expanded(
           child: _AsyncList(
             value: ref.watch(ownCycleEventsProvider),
-            empty: 'Aucune donnée de cycle enregistrée.',
+            empty: words.text('cycle.empty'),
             tile: (row) => ListTile(
               leading: const Icon(Icons.favorite_border),
               title: Text('${row['phase']} — ${row['starts_on']}'),
@@ -115,7 +159,10 @@ class _CycleTab extends ConsumerWidget {
             child: Wrap(
               spacing: 8,
               children: [
-                const Text('Partager uniquement le calendrier :'),
+                Text(words.text('cycle.share_title')),
+                Text(words.text('cycle.share_allowed')),
+                Text(words.text('cycle.share_private')),
+                Text(words.text('cycle.revoke')),
                 for (final member in members.where((m) => m.id != currentUser))
                   FilterChip(
                     label: Text(member.displayName),
