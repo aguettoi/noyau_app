@@ -9,10 +9,10 @@ never removal.
 | Capability family | Historical surface | D1.2 destination | Level | Desktop/Web | Mobile | D1.2-A state | Existing evidence |
 |---|---|---|---|---|---|---|---|
 | Dashboard/KPI/alerts | Dashboard | Home | Simple cockpit + analytics advanced | Rail/Home | Home | D1.2-B redesigned: month situation, canonical action centre, today, goals and secondary overview; all prior KPI panels remain under Analytics | dashboard home, visual, V2 and KPI tests |
-| Accounts/cash/reconciliation/privacy | Accounts | Money > Accounts | Simple + Advanced | Money hub | Money hub | Routed | accounts/privacy tests |
-| Transactions/transfers | Transactions | Money > Transactions / universal + | Simple + Advanced | Money hub/+ | Money/+ | Routed | transaction tests |
+| Accounts/cash/reconciliation/privacy | Accounts | Money > Accounts | Simple + Advanced | Money hub | Money hub | D1.2-C redesigned: simple cards and advanced reconciliation/inventory with privacy preserved | accounts/privacy and D1.2-C visual tests |
+| Transactions/transfers | Transactions | Money > Transactions / universal + | Simple + Advanced | Money hub/+ | Money/+ | D1.2-C redesigned: quick filters, progressive entry and advanced workflows preserved | transaction and D1.2-C visual tests |
 | Debts/receivables/settlements | Transactions subpages | Money > Debts and receivables / + | Advanced | Money hub/+ | Money/+ | Routed | debt/receivable tests |
-| Envelopes/movements/recommendations | Envelope dashboard | Money > Envelopes | Simple + Advanced | Money hub | Money hub | Routed | envelope tests |
+| Envelopes/movements/recommendations | Envelope dashboard | Money > Envelopes + ENV-TPL | Simple + Advanced | Money hub | Money hub | D1.2-C redesigned: readable balances plus reusable localized template catalog | envelope, ENV-TPL and D1.2-C visual tests |
 | Budget/contributions/scenarios/program/runs | Budget pages | Money > Budget | Simple + Advanced | Money hub | Money hub | Routed | budget tests |
 | Monthly close/compensations/inventories | Monthly close/compensations | Money > Advanced | Advanced | Existing routes | Existing routes | Preserved | close/compensation tests |
 | Cashflow/projections/recurring | Projection/recurring | Money and Household | Advanced | hubs | hubs | Routed | projection/recurring tests |

@@ -10,6 +10,7 @@ import '../../finance/application/providers/remote_accounts_provider.dart';
 import '../../finance/presentation/imports_page.dart';
 import '../application/providers/remote_envelopes_provider.dart';
 import 'envelope_recommendations_page.dart';
+import 'envelope_template_catalog_page.dart';
 
 String _envelopeText(BuildContext context, String key) =>
     EnvelopesWords.of(context).text(key);
@@ -21,6 +22,51 @@ String _envelopeFormat(
 
 class EnvelopeDashboardPage extends ConsumerWidget {
   const EnvelopeDashboardPage({super.key});
+
+  Future<void> _openTemplateCatalog(
+    BuildContext context,
+    WidgetRef ref,
+    List<RemoteEnvelopeBalance> envelopes,
+  ) async {
+    final result = await Navigator.of(context).push<EnvelopeTemplateSelection>(
+      MaterialPageRoute(
+        builder: (_) => EnvelopeTemplateCatalogPage(
+          existingNames: envelopes
+              .map((item) => item.name.toLowerCase())
+              .toSet(),
+        ),
+      ),
+    );
+    if (result == null || !context.mounted) return;
+    if (result.customRequested) {
+      await _openEditor(context, ref);
+      return;
+    }
+    if (result.names.isEmpty) return;
+    try {
+      for (final name in result.names) {
+        await ref.read(createRemoteEnvelopeProvider)(
+          name: name,
+          openingBalance: const Money.fromMinorUnits(0),
+          notes: null,
+        );
+      }
+      _refreshEnvelopes(ref);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_envelopeText(context, 'envelopes.saved'))),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_envelopeText(context, 'envelopes.save_retry')),
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _openTransfer(
     BuildContext context,
@@ -323,6 +369,13 @@ class EnvelopeDashboardPage extends ConsumerWidget {
                     onPressed: () => _openEditor(context, ref),
                     icon: const Icon(Icons.add),
                     label: Text(_envelopeText(context, 'envelopes.new')),
+                  ),
+                  OutlinedButton.icon(
+                    key: const Key('envelope-template-catalog-button'),
+                    onPressed: () =>
+                        _openTemplateCatalog(context, ref, envelopes),
+                    icon: const Icon(Icons.auto_awesome_outlined),
+                    label: Text(_envelopeText(context, 'envelopes.templates')),
                   ),
                   TextButton(
                     key: const Key('archived-envelopes-button'),

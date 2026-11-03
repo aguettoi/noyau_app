@@ -112,6 +112,12 @@ void main() {
     expect(find.text('Ajustement'), findsNothing);
     expect(
       find.byKey(const Key('transaction-economic-date-field')),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const Key('transaction-more-options')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('transaction-economic-date-field')),
       findsOneWidget,
     );
     await tester.tap(find.byKey(const Key('transaction-envelope-field')));

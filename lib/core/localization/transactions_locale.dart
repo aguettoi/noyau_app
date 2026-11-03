@@ -32,6 +32,9 @@ class TransactionsWords {
 
   static const _obligationValues = <AppLanguage, Map<String, String>>{
     AppLanguage.french: {
+      'transactions.advanced_filters': 'Filtres avancés',
+      'transactions.more_options': 'Plus d’options',
+      'transactions.fewer_options': 'Moins d’options',
       'transactions.creditor_unknown': 'Créancier non renseigné',
       'transactions.counterparty_unknown': 'Contrepartie non renseignée',
       'transactions.amount.initial': 'Initial',
@@ -207,6 +210,9 @@ class TransactionsWords {
           '{description} • {date} • Dépense {source} • Déjà engagé {committed} • Maximum {maximum}{account}{envelope}',
     },
     AppLanguage.english: {
+      'transactions.advanced_filters': 'Advanced filters',
+      'transactions.more_options': 'More options',
+      'transactions.fewer_options': 'Fewer options',
       'transactions.creditor_unknown': 'Creditor not provided',
       'transactions.counterparty_unknown': 'Counterparty not provided',
       'transactions.amount.initial': 'Initial',
@@ -376,6 +382,9 @@ class TransactionsWords {
           '{description} • {date} • Expense {source} • Already committed {committed} • Maximum {maximum}{account}{envelope}',
     },
     AppLanguage.arabic: {
+      'transactions.advanced_filters': 'فلاتر متقدمة',
+      'transactions.more_options': 'خيارات إضافية',
+      'transactions.fewer_options': 'خيارات أقل',
       'transactions.creditor_unknown': 'الدائن غير محدد',
       'transactions.counterparty_unknown': 'الطرف المقابل غير محدد',
       'transactions.amount.initial': 'الأصلي',
@@ -537,6 +546,9 @@ class TransactionsWords {
           '{description} • {date} • المصروف {source} • الملتزم به {committed} • الحد الأقصى {maximum}{account}{envelope}',
     },
     AppLanguage.darija: {
+      'transactions.advanced_filters': 'فيلترات متقدمة',
+      'transactions.more_options': 'اختيارات كثر',
+      'transactions.fewer_options': 'اختيارات قل',
       'transactions.creditor_unknown': 'مول الدين ما متحددش',
       'transactions.counterparty_unknown': 'الطرف الآخر ما متحددش',
       'transactions.amount.initial': 'الأصلي',

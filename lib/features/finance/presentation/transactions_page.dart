@@ -24,6 +24,7 @@ import '../domain/household_member.dart';
 import '../domain/transaction_draft.dart';
 import '../domain/transaction_history_item.dart';
 import 'member_compensations_page.dart';
+import 'widgets/transaction_quick_filters.dart';
 
 class TransactionsPage extends ConsumerStatefulWidget {
   const TransactionsPage({
@@ -340,191 +341,245 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _filterDropdown(
-              TransactionsWords.of(context).text('transactions.filter.account'),
-              _accountId,
-              [
-                for (final a in accounts)
-                  DropdownMenuItem(value: a.id, child: Text(a.name)),
-              ],
-              (v) => setState(() {
-                _accountId = v;
-                _filtering = true;
-                _page = 0;
-              }),
-            ),
-            _filterDropdown(
-              TransactionsWords.of(
+        TransactionQuickFilters(
+          selected: _eventType,
+          options: [
+            TransactionQuickFilter(
+              value: null,
+              label: TransactionsWords.of(
                 context,
-              ).text('transactions.filter.envelope'),
-              _envelopeId,
-              [
-                for (final e in envelopes)
-                  DropdownMenuItem(value: e.id, child: Text(e.name)),
-              ],
-              (v) => setState(() {
-                _envelopeId = v;
-                _filtering = true;
-                _page = 0;
-              }),
+              ).text('transactions.filter.all'),
             ),
-            _filterDropdown(
-              TransactionsWords.of(context).text('transactions.filter.method'),
-              _methodId,
-              [
-                for (final m in methods)
-                  DropdownMenuItem(value: m.id, child: Text(m.label)),
-              ],
-              (v) => setState(() {
-                _methodId = v;
-                _filtering = true;
-                _page = 0;
-              }),
+            TransactionQuickFilter(
+              value: 'cash_expense',
+              label: TransactionsWords.of(
+                context,
+              ).text('transactions.type.expense'),
             ),
-            _filterDropdown(
-              TransactionsWords.of(context).text('transactions.filter.type'),
-              _eventType,
-              [
-                DropdownMenuItem(
-                  value: 'cash_expense',
-                  child: Text(
-                    TransactionsWords.of(
-                      context,
-                    ).text('transactions.type.expense'),
-                  ),
-                ),
-                DropdownMenuItem(
-                  value: 'cash_income',
-                  child: Text(
-                    TransactionsWords.of(
-                      context,
-                    ).text('transactions.type.income'),
-                  ),
-                ),
-                DropdownMenuItem(
-                  value: 'account_transfer',
-                  child: Text(
-                    TransactionsWords.of(
-                      context,
-                    ).text('transactions.type.account_transfer'),
-                  ),
-                ),
-                DropdownMenuItem(
-                  value: 'envelope_transfer',
-                  child: Text(
-                    TransactionsWords.of(
-                      context,
-                    ).text('transactions.type.envelope_transfer'),
-                  ),
-                ),
-              ],
-              (v) => setState(() {
-                _eventType = v;
-                _filtering = true;
-                _page = 0;
-              }),
+            TransactionQuickFilter(
+              value: 'cash_income',
+              label: TransactionsWords.of(
+                context,
+              ).text('transactions.type.income'),
             ),
-            _filterDropdown(
-              TransactionsWords.of(context).text('transactions.filter.status'),
-              _reversalState,
-              [
-                DropdownMenuItem(
-                  value: 'active',
-                  child: Text(
-                    TransactionsWords.of(
-                      context,
-                    ).text('transactions.status.active'),
-                  ),
-                ),
-                DropdownMenuItem(
-                  value: 'reversed',
-                  child: Text(
-                    TransactionsWords.of(
-                      context,
-                    ).text('transactions.status.reversed'),
-                  ),
-                ),
-                DropdownMenuItem(
-                  value: 'reversal',
-                  child: Text(
-                    TransactionsWords.of(
-                      context,
-                    ).text('transactions.status.reversals'),
-                  ),
-                ),
-              ],
-              (v) => setState(() {
-                _reversalState = v;
-                _filtering = true;
-                _page = 0;
-              }),
+            TransactionQuickFilter(
+              value: 'account_transfer',
+              label: TransactionsWords.of(
+                context,
+              ).text('transactions.type.account_transfer'),
             ),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final d = await showDatePicker(
-                  context: context,
-                  initialDate: _from ?? DateTime.now(),
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime.now(),
-                );
-                if (d != null) {
-                  setState(() {
-                    _from = d;
+          ],
+          onChanged: (value) => setState(() {
+            _eventType = value;
+            _filtering = value != null;
+            _page = 0;
+          }),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        ExpansionTile(
+          key: const Key('transaction-advanced-filters'),
+          tilePadding: EdgeInsets.zero,
+          title: Text(
+            TransactionsWords.of(context).text('transactions.advanced_filters'),
+          ),
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _filterDropdown(
+                  TransactionsWords.of(
+                    context,
+                  ).text('transactions.filter.account'),
+                  _accountId,
+                  [
+                    for (final a in accounts)
+                      DropdownMenuItem(value: a.id, child: Text(a.name)),
+                  ],
+                  (v) => setState(() {
+                    _accountId = v;
                     _filtering = true;
-                  });
-                }
-              },
-              icon: const Icon(Icons.date_range),
-              label: Text(
-                _from == null
-                    ? TransactionsWords.of(context).text('transactions.from')
-                    : _formatDate(_from!),
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final d = await showDatePicker(
-                  context: context,
-                  initialDate: _to ?? DateTime.now(),
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime.now(),
-                );
-                if (d != null) {
-                  setState(() {
-                    _to = d;
+                    _page = 0;
+                  }),
+                ),
+                _filterDropdown(
+                  TransactionsWords.of(
+                    context,
+                  ).text('transactions.filter.envelope'),
+                  _envelopeId,
+                  [
+                    for (final e in envelopes)
+                      DropdownMenuItem(value: e.id, child: Text(e.name)),
+                  ],
+                  (v) => setState(() {
+                    _envelopeId = v;
                     _filtering = true;
-                  });
-                }
-              },
-              icon: const Icon(Icons.event),
-              label: Text(
-                _to == null
-                    ? TransactionsWords.of(context).text('transactions.to')
-                    : _formatDate(_to!),
-              ),
-            ),
-            TextButton(
-              onPressed: () => setState(() {
-                _query.clear();
-                _accountId = null;
-                _envelopeId = null;
-                _methodId = null;
-                _eventType = null;
-                _reversalState = null;
-                _from = null;
-                _to = null;
-                _page = 0;
-                _filtering = false;
-              }),
-              child: Text(
-                TransactionsWords.of(
-                  context,
-                ).text('transactions.clear_filters'),
-              ),
+                    _page = 0;
+                  }),
+                ),
+                _filterDropdown(
+                  TransactionsWords.of(
+                    context,
+                  ).text('transactions.filter.method'),
+                  _methodId,
+                  [
+                    for (final m in methods)
+                      DropdownMenuItem(value: m.id, child: Text(m.label)),
+                  ],
+                  (v) => setState(() {
+                    _methodId = v;
+                    _filtering = true;
+                    _page = 0;
+                  }),
+                ),
+                _filterDropdown(
+                  TransactionsWords.of(
+                    context,
+                  ).text('transactions.filter.type'),
+                  _eventType,
+                  [
+                    DropdownMenuItem(
+                      value: 'cash_expense',
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.type.expense'),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'cash_income',
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.type.income'),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'account_transfer',
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.type.account_transfer'),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'envelope_transfer',
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.type.envelope_transfer'),
+                      ),
+                    ),
+                  ],
+                  (v) => setState(() {
+                    _eventType = v;
+                    _filtering = true;
+                    _page = 0;
+                  }),
+                ),
+                _filterDropdown(
+                  TransactionsWords.of(
+                    context,
+                  ).text('transactions.filter.status'),
+                  _reversalState,
+                  [
+                    DropdownMenuItem(
+                      value: 'active',
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.status.active'),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'reversed',
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.status.reversed'),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'reversal',
+                      child: Text(
+                        TransactionsWords.of(
+                          context,
+                        ).text('transactions.status.reversals'),
+                      ),
+                    ),
+                  ],
+                  (v) => setState(() {
+                    _reversalState = v;
+                    _filtering = true;
+                    _page = 0;
+                  }),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: _from ?? DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (d != null) {
+                      setState(() {
+                        _from = d;
+                        _filtering = true;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.date_range),
+                  label: Text(
+                    _from == null
+                        ? TransactionsWords.of(
+                            context,
+                          ).text('transactions.from')
+                        : _formatDate(_from!),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: _to ?? DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (d != null) {
+                      setState(() {
+                        _to = d;
+                        _filtering = true;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.event),
+                  label: Text(
+                    _to == null
+                        ? TransactionsWords.of(context).text('transactions.to')
+                        : _formatDate(_to!),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _query.clear();
+                    _accountId = null;
+                    _envelopeId = null;
+                    _methodId = null;
+                    _eventType = null;
+                    _reversalState = null;
+                    _from = null;
+                    _to = null;
+                    _page = 0;
+                    _filtering = false;
+                  }),
+                  child: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.clear_filters'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -668,6 +723,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
   String? _singleEnvelopeId;
   var _splitExpense = false;
   var _expenseIsDebt = false;
+  var _showAdvanced = false;
   var _submitting = false;
   String? _error;
   DateTime _economicDate = DateTime.now();
@@ -954,6 +1010,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
               else
                 DropdownButtonFormField<LedgerTransactionType>(
                   key: const Key('transaction-type-field'),
+                  isExpanded: true,
                   initialValue: _type,
                   decoration: InputDecoration(
                     labelText: TransactionsWords.of(
@@ -1197,6 +1254,7 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 const SizedBox(height: AppSpacing.md),
                 DropdownButtonFormField<bool>(
                   key: const Key('expense-payment-mode-field'),
+                  isExpanded: true,
                   initialValue: _expenseIsDebt,
                   decoration: InputDecoration(
                     labelText: TransactionsWords.of(
@@ -1321,29 +1379,47 @@ class _CreateTransactionDialogState extends State<_CreateTransactionDialog> {
                 ],
               ],
               const SizedBox(height: AppSpacing.sm),
-              TextFormField(
-                key: const Key('transaction-notes-field'),
-                controller: _notes,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  labelText: TransactionsWords.of(
-                    context,
-                  ).text('transactions.notes'),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  key: const Key('transaction-more-options'),
+                  onPressed: () =>
+                      setState(() => _showAdvanced = !_showAdvanced),
+                  icon: Icon(_showAdvanced ? Icons.expand_less : Icons.tune),
+                  label: Text(
+                    TransactionsWords.of(context).text(
+                      _showAdvanced
+                          ? 'transactions.fewer_options'
+                          : 'transactions.more_options',
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              ListTile(
-                key: const Key('transaction-economic-date-field'),
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  TransactionsWords.of(
-                    context,
-                  ).text('transactions.economic_date_required'),
+              if (_showAdvanced) ...[
+                TextFormField(
+                  key: const Key('transaction-notes-field'),
+                  controller: _notes,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: TransactionsWords.of(
+                      context,
+                    ).text('transactions.notes'),
+                  ),
                 ),
-                subtitle: Text(_formatDate(_economicDate)),
-                trailing: const Icon(Icons.calendar_today_outlined),
-                onTap: _submitting ? null : _pickEconomicDate,
-              ),
+                const SizedBox(height: AppSpacing.sm),
+                ListTile(
+                  key: const Key('transaction-economic-date-field'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    TransactionsWords.of(
+                      context,
+                    ).text('transactions.economic_date_required'),
+                  ),
+                  subtitle: Text(_formatDate(_economicDate)),
+                  trailing: const Icon(Icons.calendar_today_outlined),
+                  onTap: _submitting ? null : _pickEconomicDate,
+                ),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Text(
@@ -1505,6 +1581,7 @@ class _AccountSelector extends StatelessWidget {
   final InputDecoration? decoration;
   @override
   Widget build(BuildContext context) => DropdownButtonFormField<String>(
+    isExpanded: true,
     key: key,
     initialValue: value,
     decoration: decoration ?? InputDecoration(labelText: label),

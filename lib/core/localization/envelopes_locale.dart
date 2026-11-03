@@ -25,6 +25,8 @@ class EnvelopesWords {
 
   static const _values = <AppLanguage, Map<String, String>>{
     AppLanguage.french: {
+      'envelopes.templates': 'Modèles',
+      'envelopes.saved': 'Enveloppes créées.',
       'envelopes.cancel': 'Annuler',
       'envelopes.confirm': 'Confirmer',
       'envelopes.none': 'Aucun',
@@ -167,6 +169,8 @@ class EnvelopesWords {
       'envelopes.inactive_name': '{name} (inactif)',
     },
     AppLanguage.english: {
+      'envelopes.templates': 'Templates',
+      'envelopes.saved': 'Envelopes created.',
       'envelopes.cancel': 'Cancel',
       'envelopes.confirm': 'Confirm',
       'envelopes.none': 'None',
@@ -308,6 +312,8 @@ class EnvelopesWords {
       'envelopes.inactive_name': '{name} (inactive)',
     },
     AppLanguage.arabic: {
+      'envelopes.templates': 'نماذج',
+      'envelopes.saved': 'تم إنشاء المظاريف.',
       'envelopes.cancel': 'إلغاء',
       'envelopes.confirm': 'تأكيد',
       'envelopes.none': 'لا شيء',
@@ -440,6 +446,8 @@ class EnvelopesWords {
       'envelopes.inactive_name': '{name} (غير نشط)',
     },
     AppLanguage.darija: {
+      'envelopes.templates': 'نماذج',
+      'envelopes.saved': 'تصايبو الظروف.',
       'envelopes.cancel': 'لغي',
       'envelopes.confirm': 'أكد',
       'envelopes.none': 'والو',
