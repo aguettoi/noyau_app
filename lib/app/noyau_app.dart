@@ -40,6 +40,7 @@ import '../features/wealth/presentation/wealth_page.dart';
 import 'finance_shell_navigation.dart';
 import 'fp_adaptive_navigation.dart';
 import 'fp_universe_hub.dart';
+import 'projects_hub_page.dart';
 import 'global_refresh_provider.dart';
 
 class NoyauApp extends ConsumerWidget {
@@ -503,26 +504,12 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     ],
   );
 
-  Widget _projectsHub() => FpUniverseHub(
-    titleKey: 'projects',
-    subtitleKey: 'projects.subtitle',
-    destinations: [
-      FpUniverseDestination(
-        labelKey: 'goals',
-        icon: Icons.savings_outlined,
-        open: () => setState(() => _selectedIndex = 4),
-      ),
-      FpUniverseDestination(
-        labelKey: 'priorities',
-        icon: Icons.low_priority,
-        open: () => setState(() => _selectedIndex = 6),
-      ),
-      FpUniverseDestination(
-        labelKey: 'wealth',
-        icon: Icons.account_balance_outlined,
-        open: () => _push(const WealthPage()),
-      ),
-    ],
+  Widget _projectsHub() => ProjectsHubPage(
+    onOpenGoals: () => setState(() => _selectedIndex = 4),
+    onOpenPriorities: () => setState(() => _selectedIndex = 6),
+    onOpenSimulations: () => _push(const WealthPage(initialTab: 2)),
+    onOpenFinancings: () => _push(const WealthPage(initialTab: 2)),
+    onOpenWealth: () => _push(const WealthPage()),
   );
 
   Widget _moreHub() => FpUniverseHub(

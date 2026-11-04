@@ -64,19 +64,26 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
   @override
   Widget build(BuildContext context) {
     final words = FinanceResidualWords.of(context);
+    final compact = MediaQuery.sizeOf(context).width < 600;
     if (!_labelsInitialized) {
       _offers[0].label.text = words.text('financing.offer_a');
       _offers[1].label.text = words.text('financing.offer_b');
       _labelsInitialized = true;
     }
     return Dialog(
+      insetPadding: compact ? EdgeInsets.zero : const EdgeInsets.all(40),
       child: SizedBox(
         width: 980,
-        height: MediaQuery.sizeOf(context).height * .92,
+        height: compact
+            ? MediaQuery.sizeOf(context).height
+            : MediaQuery.sizeOf(context).height * .92,
         child: Scaffold(
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            title: Text(words.text('financing.title')),
+            title: Text(
+              words.text('financing.title'),
+              style: compact ? const TextStyle(fontSize: 16) : null,
+            ),
             actions: [
               IconButton(
                 tooltip: words.text('members.close'),

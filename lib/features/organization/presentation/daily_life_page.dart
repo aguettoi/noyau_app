@@ -13,6 +13,7 @@ import '../../experience/application/experience_provider.dart';
 import '../../experience/domain/offline_draft.dart';
 import '../../portability/application/household_realtime_provider.dart';
 import '../application/daily_life_provider.dart';
+import '../application/organization_provider.dart';
 
 class DailyLifePage extends ConsumerWidget {
   const DailyLifePage({super.key});
@@ -499,7 +500,7 @@ Future<void> _homeDialog(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> _cycleDialog(BuildContext context, WidgetRef ref) async {
-  var start = DateTime.now();
+  var start = ref.read(organizationClockProvider);
   DateTime? end;
   var phase = 'period';
   String? flow;

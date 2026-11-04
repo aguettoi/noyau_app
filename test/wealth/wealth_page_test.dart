@@ -52,6 +52,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Valeur nette'), findsOneWidget);
     expect(find.text('Investissements'), findsWidgets);
+    await tester.drag(find.byType(TabBar), const Offset(-260, 0));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(Tab, 'Financements'));
     await tester.pumpAndSettle();
     expect(find.text('Aucun financement configuré'), findsOneWidget);

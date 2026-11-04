@@ -135,3 +135,32 @@ private. Revocation continues through the canonical L3B action/provider.
 Historical Household/Daily Life/Cycle capabilities without a destination: **0**.
 Functional loss: **0**. Direct Supabase access added to Presentation: **0**.
 Financial mutations introduced by D1.2-E: **0**.
+
+## D1.2-F — Projects, goals, simulations and wealth
+
+The Projects universe now has a dedicated decision hub with explicit routes to
+Goals, PRIOS, Simulations, Financing and Wealth. The hub delegates to existing
+canonical providers and domain calculators; it contains no financial formula,
+Supabase access or mutation.
+
+| Historical capability | D1.2-F destination | Canonical contract |
+|---|---|---|
+| Savings and non-financial goals | Projects > Goals | Existing savings-goal providers and envelope-backed progress |
+| Priority plans and linked projects | Projects > PRIOS | Existing priority-plan and financial-availability projections |
+| Financing simulation | Projects > Simulations | `simulateFinancingOffer` through the existing comparison UI |
+| Financing comparison | Projects > Financing | Existing two-offer comparison, capacity and assumption contracts |
+| Murabaha/fixed cost/interest structures | Financing comparison | Existing `FinancingStructure`; terminology remains structure-specific |
+| Amortization schedules | Wealth > Financing / History & dues | Existing `buildFinancingSchedule` |
+| Assets and liabilities | Projects > Wealth | Existing `wealthDataProvider` and privacy-filtered snapshot |
+| Valuations and investments | Wealth > Assets / Investments | Existing wealth records and valuation dates |
+
+Simulation surfaces explicitly state that no debt, obligation, GL entry or
+`FinancialEvent` is created. Mobile financing comparison now uses the full
+viewport while desktop retains side-by-side offer cards. Wealth tabs remain
+scrollable on compact widths. Private values continue to be omitted by the
+authorized server/provider contracts; Presentation does not substitute zero or
+reconstruct a household total.
+
+Historical Projects/Goals/PRIOS/Simulation/Financing/Wealth capabilities
+without a destination: **0**. Functional loss: **0**. Direct Supabase access
+added to Presentation: **0**. Financial mutations introduced: **0**.

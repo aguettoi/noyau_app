@@ -16,7 +16,9 @@ import 'financing_comparison_dialog.dart';
 import 'home_auto_panels.dart';
 
 class WealthPage extends ConsumerWidget {
-  const WealthPage({super.key});
+  const WealthPage({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,9 +32,11 @@ class WealthPage extends ConsumerWidget {
             error: (_, _) => Center(child: Text(w.text('load_error'))),
             data: (data) => DefaultTabController(
               length: 6,
+              initialIndex: initialTab.clamp(0, 5),
               child: Column(
                 children: [
                   TabBar(
+                    isScrollable: true,
                     tabs: [
                       Tab(text: w.text('wealth')),
                       Tab(text: w.text('investments')),

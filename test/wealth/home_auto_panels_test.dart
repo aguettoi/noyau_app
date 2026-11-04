@@ -63,9 +63,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.drag(find.byType(TabBar), const Offset(-420, 0));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(Tab, 'Logement'));
       await tester.pumpAndSettle();
       expect(find.text('Aucun actif immobilier'), findsOneWidget);
+      await tester.drag(find.byType(TabBar), const Offset(-120, 0));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(Tab, 'Véhicules'));
       await tester.pumpAndSettle();
       expect(find.text('Aucun véhicule'), findsOneWidget);
