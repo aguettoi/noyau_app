@@ -283,6 +283,105 @@ void main() {
   });
 
   testWidgets(
+    'desktop sépare univers actif et index de page métier sans rail invalide',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await pumpApp(tester);
+
+      Future<void> selectUniverse(String label, FpUniverse expected) async {
+        await tester.tap(find.text(label).first);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: label);
+        expect(
+          tester
+              .widget<FpAdaptiveNavigation>(find.byType(FpAdaptiveNavigation))
+              .selected,
+          expected,
+        );
+      }
+
+      await selectUniverse('Accueil', FpUniverse.home);
+      await selectUniverse('Argent', FpUniverse.money);
+
+      for (final destination in ['Comptes', 'Enveloppes']) {
+        await tester.tap(find.text(destination).last);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: destination);
+        expect(
+          tester
+              .widget<FpAdaptiveNavigation>(find.byType(FpAdaptiveNavigation))
+              .selected,
+          FpUniverse.money,
+        );
+        await selectUniverse('Argent', FpUniverse.money);
+      }
+
+      await selectUniverse('Foyer', FpUniverse.household);
+      await selectUniverse('Projets', FpUniverse.projects);
+      for (final destination in ['Objectifs', 'PRIOS']) {
+        await tester.tap(find.text(destination).last);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: destination);
+        expect(
+          tester
+              .widget<FpAdaptiveNavigation>(find.byType(FpAdaptiveNavigation))
+              .selected,
+          FpUniverse.projects,
+        );
+        await selectUniverse('Projets', FpUniverse.projects);
+      }
+
+      await selectUniverse('Plus', FpUniverse.more);
+      await tester.tap(find.text('Imports').last);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(
+        tester
+            .widget<FpAdaptiveNavigation>(find.byType(FpAdaptiveNavigation))
+            .selected,
+        FpUniverse.more,
+      );
+    },
+  );
+
+  testWidgets('le changement de breakpoint conserve un univers valide', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Projets').first);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    tester.view.physicalSize = const Size(800, 900);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Plus'), findsOneWidget);
+
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(FloatingActionButton), findsOneWidget);
+
+    tester.view.physicalSize = const Size(1440, 900);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      tester
+          .widget<FpAdaptiveNavigation>(find.byType(FpAdaptiveNavigation))
+          .selected,
+      FpUniverse.projects,
+    );
+  });
+
+  testWidgets(
     'le Grand Livre est accessible et prêt à saisir une transaction',
     (tester) async {
       await pumpApp(tester);

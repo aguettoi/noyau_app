@@ -176,7 +176,11 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
             child: NavigationRail(
               backgroundColor: Colors.transparent,
               extended: largeDesktop,
-              selectedIndex: _selectedIndex,
+              // This legacy rail still mirrors only the eight historical
+              // business pages. Universe hubs (household/projects/more) have
+              // no destination in it and therefore must not reuse their
+              // IndexedStack index as a rail index.
+              selectedIndex: _legacyRailIndexForPage(_selectedIndex),
               labelType: largeDesktop ? null : NavigationRailLabelType.all,
               indicatorColor: AppColors.secondary,
               selectedIconTheme: const IconThemeData(color: Colors.white),
@@ -419,10 +423,16 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
 
   FpUniverse _universeForIndex(int index) => switch (index) {
     0 => FpUniverse.home,
+    1 || 2 || 3 || 5 => FpUniverse.money,
+    4 || 6 || 9 => FpUniverse.projects,
+    7 || 10 => FpUniverse.more,
     8 => FpUniverse.household,
-    9 => FpUniverse.projects,
-    10 => FpUniverse.more,
-    _ => FpUniverse.money,
+    _ => throw StateError('Unknown business page index: $index'),
+  };
+
+  int? _legacyRailIndexForPage(int pageIndex) => switch (pageIndex) {
+    >= 0 && < 8 => pageIndex,
+    _ => null,
   };
 
   void _selectUniverse(FpUniverse universe) => setState(() {

@@ -164,3 +164,36 @@ reconstruct a household total.
 Historical Projects/Goals/PRIOS/Simulation/Financing/Wealth capabilities
 without a destination: **0**. Functional loss: **0**. Direct Supabase access
 added to Presentation: **0**. Financial mutations introduced: **0**.
+
+## HOTFIX-D1.2-NAV — Universe, business page and legacy index separation
+
+Root cause: the shell still constructed an eight-destination historical
+`NavigationRail` with the modern eleven-page `IndexedStack` index. Household,
+Projects and More use page indices 8, 9 and 10, outside that historical rail.
+
+| Business page / legacy index | Active universe | Historical rail selection |
+|---|---|---|
+| Dashboard / 0 | Home | 0 |
+| Accounts / 1 | Money | 1 |
+| Money hub / 2 | Money | 2 |
+| Envelopes / 3 | Money | 3 |
+| Goals / 4 | Projects | 4 |
+| Shopping / 5 | Money | 5 |
+| PRIOS / 6 | Projects | 6 |
+| Imports / 7 | More | 7 |
+| Household hub / 8 | Household | none (`null`) |
+| Projects hub / 9 | Projects | none (`null`) |
+| More hub / 10 | More | none (`null`) |
+
+The five-universe D1.2 navigation receives only an `FpUniverse`. The legacy
+rail receives an index only when that destination exists in the legacy rail.
+Breakpoint changes preserve the active universe and never reuse a business
+page index as an adaptive-navigation index.
+
+The authenticated Wealth surface also exposed a separate loading defect during
+the runtime campaign. Its gateway queried the canonical
+`expected_financial_occurrence_overview` view with the non-existent `status`
+column, while the view contract exposes `occurrence_status`. The client query
+now selects and filters `occurrence_status`; a PostgREST request-contract test
+locks this mapping. No schema, RLS policy, financial engine or migration was
+changed.

@@ -161,9 +161,15 @@ class SupabaseWealthGateway implements WealthGateway {
   ) => _rows(
     client
         .from('expected_financial_occurrence_overview')
-        .select('id,label,expected_on,expected_amount,economic_type,status')
+        .select(
+          'id,label,expected_on,expected_amount,economic_type,occurrence_status',
+        )
         .eq('household_id', householdId)
-        .inFilter('status', ['expected', 'partially_realized', 'overdue'])
+        .inFilter('occurrence_status', [
+          'expected',
+          'partially_realized',
+          'overdue',
+        ])
         .order('expected_on'),
   );
 

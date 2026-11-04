@@ -427,35 +427,51 @@ class EnvelopeDashboardPage extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
               if (activeEnvelopes.isEmpty)
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.account_balance_wallet_outlined),
-                    title: Text(_envelopeText(context, 'envelopes.empty')),
-                    subtitle: Text(
-                      _envelopeText(context, 'envelopes.empty_hint'),
-                    ),
-                    trailing: OutlinedButton(
-                      key: const Key('envelope-import-csv-cta'),
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => Scaffold(
-                            appBar: AppBar(
-                              title: Text(
-                                _envelopeText(
-                                  context,
-                                  'envelopes.import_title',
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final action = OutlinedButton(
+                        key: const Key('envelope-import-csv-cta'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => Scaffold(
+                              appBar: AppBar(
+                                title: Text(
+                                  _envelopeText(
+                                    context,
+                                    'envelopes.import_title',
+                                  ),
                                 ),
                               ),
-                            ),
-                            body: const ImportsPage(
-                              initialTemplateType: ImportTemplateType.envelopes,
+                              body: const ImportsPage(
+                                initialTemplateType:
+                                    ImportTemplateType.envelopes,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      child: Text(
-                        _envelopeText(context, 'envelopes.import_action'),
-                      ),
-                    ),
+                        child: Text(
+                          _envelopeText(context, 'envelopes.import_action'),
+                        ),
+                      );
+                      final tile = ListTile(
+                        leading: const Icon(
+                          Icons.account_balance_wallet_outlined,
+                        ),
+                        title: Text(_envelopeText(context, 'envelopes.empty')),
+                        subtitle: Text(
+                          _envelopeText(context, 'envelopes.empty_hint'),
+                        ),
+                        trailing: constraints.maxWidth >= 520 ? action : null,
+                      );
+                      if (constraints.maxWidth >= 520) return tile;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [tile, action],
+                        ),
+                      );
+                    },
                   ),
                 ),
               ...envelopes.map(
