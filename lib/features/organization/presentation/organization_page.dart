@@ -18,8 +18,14 @@ import '../../recurring_finance/presentation/recurring_finance_page.dart';
 import '../application/organization_provider.dart';
 import '../domain/organization_models.dart';
 import '../domain/reminder_snooze_policy.dart';
+import '../../../core/platform/native_notification_adapter.dart';
+import '../../../core/platform/native_notification_contract.dart';
 import 'calendar_source_navigator.dart';
 import 'daily_life_page.dart';
+
+final nativeNotificationPortProvider = Provider<NativeNotificationPort>(
+  (ref) => NativeNotificationAdapter.instance,
+);
 
 class OrganizationPage extends ConsumerWidget {
   const OrganizationPage({super.key});
@@ -213,35 +219,99 @@ Future<void> _showPreferences(BuildContext context, WidgetRef ref) async {
               .when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (_, _) => const Text('Préférences indisponibles.'),
-                data: (preferences) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final category in const {
-                      'tasks': 'Tâches',
-                      'budget': 'Budget',
-                      'finance': 'Finance',
-                      'compensations': 'Compensations',
-                      'goals': 'Objectifs',
-                      'home_auto': 'Logement / auto',
-                      'reminders': 'Rappels',
-                      'groceries': 'Courses domestiques',
-                      'home': 'Maison',
-                      'cycle': 'Cycle personnel',
-                    }.entries)
-                      SwitchListTile(
-                        title: Text(category.value),
-                        subtitle: const Text('Alerte dans l’application'),
-                        value: preferences[category.key] ?? true,
-                        onChanged: (value) => dialogRef
-                            .read(organizationActionsProvider)
-                            .setPreference(category.key, value),
+                data: (preferences) => SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final category in const {
+                        'tasks': 'Tâches',
+                        'budget': 'Budget',
+                        'finance': 'Finance',
+                        'compensations': 'Compensations',
+                        'goals': 'Objectifs',
+                        'home_auto': 'Logement / auto',
+                        'reminders': 'Rappels',
+                        'groceries': 'Courses domestiques',
+                        'home': 'Maison',
+                        'cycle': 'Cycle personnel',
+                      }.entries)
+                        SwitchListTile(
+                          title: Text(category.value),
+                          subtitle: const Text('Alerte dans l’application'),
+                          value: preferences[category.key] ?? true,
+                          onChanged: (value) => dialogRef
+                              .read(organizationActionsProvider)
+                              .setPreference(category.key, value),
+                        ),
+                      ListTile(
+                        leading: const Icon(Icons.info_outline),
+                        title: Text(
+                          AppWords.of(
+                            context,
+                          ).text('native_notifications.title'),
+                        ),
+                        subtitle: Text(
+                          AppWords.of(
+                            context,
+                          ).text('native_notifications.privacy'),
+                        ),
                       ),
-                    const ListTile(
-                      leading: Icon(Icons.info_outline),
-                      title: Text('Notifications système'),
-                      subtitle: Text('Reportées au lot P1.'),
-                    ),
-                  ],
+                      SwitchListTile(
+                        key: const Key('native-daily-reminder-preference'),
+                        secondary: const Icon(
+                          Icons.notifications_active_outlined,
+                        ),
+                        title: Text(
+                          AppWords.of(
+                            context,
+                          ).text('native_notifications.daily'),
+                        ),
+                        subtitle: Text(
+                          AppWords.of(
+                            context,
+                          ).text('native_notifications.daily_time'),
+                        ),
+                        value: preferences['native_daily_reminder'] ?? false,
+                        onChanged: (value) async {
+                          final notifications = dialogRef.read(
+                            nativeNotificationPortProvider,
+                          );
+                          try {
+                            if (value) {
+                              final allowed = await notifications
+                                  .requestPermission();
+                              if (!allowed) return;
+                              await notifications.scheduleDaily(
+                                id: 2000,
+                                payload: const NativeReminderPayload(
+                                  reminderKey: 'daily-entry:native',
+                                  route: 'household/reminders',
+                                ),
+                              );
+                            } else {
+                              await notifications.cancel(2000);
+                            }
+                            await dialogRef
+                                .read(organizationActionsProvider)
+                                .setPreference('native_daily_reminder', value);
+                          } catch (_) {
+                            if (value) await notifications.cancel(2000);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    AppWords.of(context).text(
+                                      'native_notifications.activation_error',
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
         ),

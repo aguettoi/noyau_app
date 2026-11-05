@@ -184,6 +184,58 @@ void main() {
     expect(gateway.resetEmail, 'member@example.test');
     expect(find.textContaining('réinitialisation'), findsOneWidget);
   });
+
+  testWidgets('successful sign-in closes the stacked Auth route', (
+    tester,
+  ) async {
+    final gateway = _RecordingAuthGateway();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('fr')],
+            ),
+          ),
+          supabaseAuthGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: MaterialApp(
+          locale: const Locale('fr'),
+          supportedLocales: const [Locale('fr'), Locale('en')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                key: const Key('open-auth'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SupabaseAuthPage(),
+                  ),
+                ),
+                child: const Text('Open Auth'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('open-auth')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('auth-email-field')),
+      'member@example.test',
+    );
+    await tester.enterText(
+      find.byKey(const Key('auth-password-field')),
+      'valid-password',
+    );
+    await tester.tap(find.byKey(const Key('auth-sign-in-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SupabaseAuthPage), findsNothing);
+    expect(find.byKey(const Key('open-auth')), findsOneWidget);
+  });
 }
 
 class _FailingAuthGateway implements SupabaseAuthGateway {

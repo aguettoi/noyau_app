@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/platform/platform_link_contract.dart';
+
 /// Exposes the Supabase client initialized once at application startup.
 final supabaseClientProvider = Provider<SupabaseClient>(
   (ref) => Supabase.instance.client,
@@ -83,7 +85,10 @@ class SupabaseClientAuthGateway implements SupabaseAuthGateway {
 
   @override
   Future<void> sendPasswordReset(String email) =>
-      _client.auth.resetPasswordForEmail(email.trim());
+      _client.auth.resetPasswordForEmail(
+        email.trim(),
+        redirectTo: PlatformLinkContract.passwordReset.toString(),
+      );
 
   @override
   Future<void> signOut() => _client.auth.signOut();

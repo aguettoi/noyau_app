@@ -221,6 +221,13 @@ class AppWords {
       'nav.more_spaces': 'Autres espaces de FINANCIEL PILOTE',
       'shell.offline':
           'Hors ligne — aucune mutation non confirmée ne sera présentée comme réussie.',
+      'native_notifications.title': 'Notifications système',
+      'native_notifications.privacy':
+          'Contenu générique, sans donnée financière privée.',
+      'native_notifications.daily': 'Rappel quotidien natif',
+      'native_notifications.daily_time': 'Chaque jour à 20:00',
+      'native_notifications.activation_error':
+          'Impossible de mettre à jour le rappel système.',
       'shell.reconnecting': 'Reconnexion en cours…',
       'offline.pending_count':
           '{count} action(s) en attente de synchronisation',
@@ -393,6 +400,13 @@ class AppWords {
       'nav.more_spaces': 'Other FINANCIEL PILOTE areas',
       'shell.offline':
           'Offline — no unconfirmed change will be shown as successful.',
+      'native_notifications.title': 'System notifications',
+      'native_notifications.privacy':
+          'Generic content with no private financial data.',
+      'native_notifications.daily': 'Native daily reminder',
+      'native_notifications.daily_time': 'Every day at 20:00',
+      'native_notifications.activation_error':
+          'Unable to update the system reminder.',
       'shell.reconnecting': 'Reconnecting…',
       'offline.pending_count': '{count} action(s) waiting to sync',
       'offline.task_queued':
@@ -560,6 +574,11 @@ class AppWords {
       'nav.more': 'المزيد',
       'nav.more_spaces': 'مساحات أخرى',
       'shell.offline': 'غير متصل — لن يُعرض أي تغيير غير مؤكد على أنه نجح.',
+      'native_notifications.title': 'إشعارات النظام',
+      'native_notifications.privacy': 'محتوى عام من دون أي بيانات مالية خاصة.',
+      'native_notifications.daily': 'التذكير اليومي على الجهاز',
+      'native_notifications.daily_time': 'كل يوم الساعة 20:00',
+      'native_notifications.activation_error': 'تعذّر تحديث تذكير النظام.',
       'shell.reconnecting': 'جارٍ إعادة الاتصال…',
       'offline.pending_count': '{count} إجراء بانتظار المزامنة',
       'offline.task_queued': 'حُفظت المهمة بانتظار المزامنة عند عودة الاتصال.',
@@ -716,6 +735,12 @@ class AppWords {
       'nav.more_spaces': 'فضاءات خرين',
       'shell.offline':
           'ما كاينش الريزو — حتى تبديل ما تأكدش ما غاديش يبان ناجح.',
+      'native_notifications.title': 'إشعارات السيستيم',
+      'native_notifications.privacy': 'محتوى عام بلا حتى معلومة مالية خاصة.',
+      'native_notifications.daily': 'التذكير اليومي فالجهاز',
+      'native_notifications.daily_time': 'كل نهار مع 20:00',
+      'native_notifications.activation_error':
+          'ما قدرناش نحدّثو التذكير ديال السيستيم.',
       'shell.reconnecting': 'كنعاودو نتاصلو…',
       'offline.pending_count': '{count} خدمة كتسنى المزامنة',
       'offline.task_queued': 'تسجلات المهمة وكتسنى المزامنة ملي يرجع الريزو.',

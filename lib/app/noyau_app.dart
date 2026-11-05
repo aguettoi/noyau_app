@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -7,6 +9,10 @@ import '../core/localization/app_locale.dart';
 import '../core/theme/noyau_theme.dart';
 import '../core/theme/app_design_system.dart';
 import '../core/theme/fp_foundation_components.dart';
+import '../core/platform/native_notification_adapter.dart';
+import '../core/platform/native_notification_contract.dart';
+import '../core/platform/platform_link_adapter.dart';
+import '../core/platform/platform_link_contract.dart';
 import '../features/assistant/presentation/assistant_locale.dart';
 import '../features/assistant/presentation/assistant_page.dart';
 import '../features/finance/presentation/transactions_page.dart';
@@ -35,6 +41,8 @@ import '../features/experience/presentation/landing_page.dart';
 import '../features/experience/presentation/quick_actions_dialog.dart';
 import '../features/budget_intelligence/presentation/budget_page.dart';
 import '../features/organization/presentation/organization_page.dart';
+import '../features/organization/application/organization_provider.dart';
+import '../features/organization/domain/reminder_snooze_policy.dart';
 import '../features/organization/presentation/daily_life_page.dart';
 import '../features/recurring_finance/presentation/recurring_finance_page.dart';
 import '../features/wealth/presentation/wealth_page.dart';
@@ -44,14 +52,63 @@ import 'fp_universe_hub.dart';
 import 'projects_hub_page.dart';
 import 'global_refresh_provider.dart';
 
-class NoyauApp extends ConsumerWidget {
+final _platformDestinationProvider = StateProvider<String?>((ref) => null);
+
+class NoyauApp extends ConsumerStatefulWidget {
   const NoyauApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NoyauApp> createState() => _NoyauAppState();
+}
+
+class _NoyauAppState extends ConsumerState<NoyauApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription<PlatformLinkIntent>? _linkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _linkSubscription = PlatformLinkAdapter.instance.intents.listen(
+      _handlePlatformLink,
+    );
+  }
+
+  @override
+  void dispose() {
+    _linkSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _handlePlatformLink(PlatformLinkIntent intent) {
+    final navigator = _navigatorKey.currentState;
+    switch (intent.kind) {
+      case PlatformLinkKind.authCallback:
+        return;
+      case PlatformLinkKind.passwordReset:
+        navigator?.push(
+          MaterialPageRoute<void>(builder: (_) => const SupabaseAuthPage()),
+        );
+      case PlatformLinkKind.invitation:
+        navigator?.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const SupabaseAuthPage(invitationIntent: true),
+          ),
+        );
+      case PlatformLinkKind.destination:
+        final signedIn =
+            ref.read(supabaseAuthGatewayProvider).currentUserId != null;
+        if (signedIn) {
+          ref.read(_platformDestinationProvider.notifier).state = intent.value;
+        }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final language = ref.watch(appLocaleProvider);
     final words = AppWords(language);
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: words.text('title'),
       debugShowCheckedModeBanner: false,
       theme: NoyauTheme.light,
@@ -118,17 +175,57 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
 
   var _selectedIndex = 0;
   var _refreshing = false;
+  StreamSubscription<NativeNotificationEvent>? _notificationSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _notificationSubscription = NativeNotificationAdapter.instance.responses
+        .listen(_handleNativeNotification);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _notificationSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _handleNativeNotification(NativeNotificationEvent event) async {
+    if (!mounted) return;
+    final actionId = event.actionId;
+    final timezone = await ref.read(userTimezoneProvider.future);
+    final localNow = ReminderSnoozePolicy.localNow(
+      timezone,
+      DateTime.now().toUtc(),
+    );
+    final reminderKey = event.payload.reminderKey == 'daily-entry:native'
+        ? 'daily-entry:${localNow.year.toString().padLeft(4, '0')}-'
+              '${localNow.month.toString().padLeft(2, '0')}-'
+              '${localNow.day.toString().padLeft(2, '0')}'
+        : event.payload.reminderKey;
+    if (actionId == 'done') {
+      await ref
+          .read(organizationActionsProvider)
+          .finishDailyReminder(reminderKey);
+    } else if (actionId == 'not_yet') {
+      final now = DateTime.now().toUtc();
+      final dueAt = NativeReminderPolicy.notYet(
+        nowUtc: now,
+        timezone: timezone,
+      );
+      await ref
+          .read(organizationActionsProvider)
+          .snooze(reminderKey, dueAt, notYet: true);
+      await NativeNotificationAdapter.instance.scheduleOnce(
+        id: 2015,
+        atUtc: dueAt,
+        payload: event.payload,
+      );
+    }
+    if (!mounted) return;
+    _selectUniverse(FpUniverse.household);
   }
 
   @override
@@ -142,6 +239,21 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
   Widget build(BuildContext context) {
     final words = AppWords(ref.watch(appLocaleProvider));
     ref.watch(householdRealtimeProvider);
+    ref.listen<String?>(_platformDestinationProvider, (previous, destination) {
+      if (destination == null || destination == previous) return;
+      setState(() {
+        _selectedIndex = switch (destination) {
+          'home' => 0,
+          'money' => 2,
+          'household' => 8,
+          'projects' => 9,
+          'more' || 'imports' => 10,
+          _ => _selectedIndex,
+        };
+      });
+      ref.read(_platformDestinationProvider.notifier).state = null;
+      if (destination == 'imports') _push(const ImportsPage());
+    });
     final syncState = ref.watch(syncConnectionStateProvider);
     ref.listen(syncConnectionStateProvider, (previous, next) {
       if (next == SyncConnectionState.synchronized && previous != next) {

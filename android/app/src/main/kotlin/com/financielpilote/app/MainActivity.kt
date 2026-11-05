@@ -1,4 +1,4 @@
-package com.example.noyau_app
+package com.financielpilote.app
 
 import io.flutter.embedding.android.FlutterActivity
 

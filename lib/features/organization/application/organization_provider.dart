@@ -250,13 +250,19 @@ class SupabaseOrganizationGateway implements OrganizationGateway {
   ) async {
     final rows = await client
         .from('notification_preferences')
-        .select('category,in_app_enabled')
+        .select('category,in_app_enabled,native_enabled')
         .eq('household_id', householdId)
         .eq('user_id', userId);
-    return {
-      for (final raw in rows as List<dynamic>)
-        (raw as Map)['category'] as String: (raw)['in_app_enabled'] as bool,
-    };
+    final preferences = <String, bool>{};
+    for (final raw in rows as List<dynamic>) {
+      final row = raw as Map;
+      final category = row['category'] as String;
+      preferences[category] = row['in_app_enabled'] as bool;
+      if (category == 'reminders') {
+        preferences['native_daily_reminder'] = row['native_enabled'] as bool;
+      }
+    }
+    return preferences;
   }
 
   @override
@@ -266,12 +272,27 @@ class SupabaseOrganizationGateway implements OrganizationGateway {
     String category,
     bool enabled,
   ) async {
+    final canonicalCategory = category == 'native_daily_reminder'
+        ? 'reminders'
+        : category;
+    final existing = await client
+        .from('notification_preferences')
+        .select('in_app_enabled,native_enabled')
+        .eq('household_id', householdId)
+        .eq('user_id', userId)
+        .eq('category', canonicalCategory)
+        .maybeSingle();
+    final isNativePreference = category == 'native_daily_reminder';
     await client.from('notification_preferences').upsert({
       'household_id': householdId,
       'user_id': userId,
-      'category': category,
-      'in_app_enabled': enabled,
-      'native_enabled': false,
+      'category': canonicalCategory,
+      'in_app_enabled': isNativePreference
+          ? (existing?['in_app_enabled'] as bool? ?? true)
+          : enabled,
+      'native_enabled': isNativePreference
+          ? enabled
+          : (existing?['native_enabled'] as bool? ?? false),
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     });
   }

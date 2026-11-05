@@ -1,6 +1,7 @@
 {
-    "name": "noyau_app",
-    "short_name": "noyau_app",
+    "name": "FINANCIEL PILOTE",
+    "short_name": "FINANCIEL PILOTE",
+    "description": "Pilotez. Planifiez. Épargnez. Prospérez.",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

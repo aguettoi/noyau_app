@@ -1,0 +1,5 @@
+# Copy to android/key.properties and keep the real file outside Git.
+storeFile=C:/secure/location/financiel-pilote-release.jks
+storePassword=REPLACE_LOCALLY
+keyAlias=financiel-pilote
+keyPassword=REPLACE_LOCALLY

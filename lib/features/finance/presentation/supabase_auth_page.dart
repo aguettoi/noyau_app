@@ -60,6 +60,11 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.popUntil((route) => route.isFirst);
+      }
     } catch (error) {
       _debugAuthFailure(error);
       if (!mounted) {

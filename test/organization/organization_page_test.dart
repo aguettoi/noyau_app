@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:noyau_app/core/localization/app_locale.dart';
+import 'package:noyau_app/core/platform/native_notification_contract.dart';
 import 'package:noyau_app/features/organization/application/organization_provider.dart';
 import 'package:noyau_app/features/organization/domain/organization_models.dart';
 import 'package:noyau_app/features/organization/presentation/organization_page.dart';
@@ -12,6 +13,155 @@ import 'package:noyau_app/features/finance/application/providers/remote_househol
 import 'package:noyau_app/features/recurring_finance/application/recurring_finance_provider.dart';
 
 void main() {
+  testWidgets(
+    'permission grant completes native reminder activation and persists it',
+    (tester) async {
+      var nativeEnabled = false;
+      final notifications = _FakeNativeNotifications(permissionGranted: true);
+      late _PreferenceActions actions;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appLocaleProvider.overrideWith(
+              (ref) => AppLocaleController(
+                environmentLocales: () => const [Locale('en')],
+              ),
+            ),
+            householdTasksProvider.overrideWith((ref) async => const []),
+            organizationCalendarProvider.overrideWith((ref) async => const []),
+            organizationAlertsProvider.overrideWith((ref) async => const []),
+            notificationPreferencesProvider.overrideWith(
+              (ref) async => {'native_daily_reminder': nativeEnabled},
+            ),
+            organizationActionsProvider.overrideWith((ref) {
+              return actions = _PreferenceActions(
+                onSetPreference: (category, enabled) async {
+                  expect(category, 'native_daily_reminder');
+                  nativeEnabled = enabled;
+                  ref.invalidate(notificationPreferencesProvider);
+                },
+              );
+            }),
+            nativeNotificationPortProvider.overrideWithValue(notifications),
+            remoteHouseholdMembersProvider.overrideWith(
+              (ref) async => const [],
+            ),
+          ],
+          child: const MaterialApp(home: OrganizationPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('notification-preferences')));
+      await tester.pumpAndSettle();
+      final preference = find.byKey(
+        const Key('native-daily-reminder-preference'),
+      );
+      await tester.ensureVisible(preference);
+      await tester.tap(preference);
+      await tester.pumpAndSettle();
+
+      expect(notifications.permissionRequests, 1);
+      expect(notifications.dailySchedules, 1);
+      expect(notifications.lastHour, 20);
+      expect(actions.preferenceWrites, 1);
+      expect(nativeEnabled, isTrue);
+      expect(tester.widget<SwitchListTile>(preference).value, isTrue);
+
+      await tester.tap(find.text('Fermer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('notification-preferences')));
+      await tester.pumpAndSettle();
+      final reopened = find.byKey(
+        const Key('native-daily-reminder-preference'),
+      );
+      await tester.ensureVisible(reopened);
+      expect(tester.widget<SwitchListTile>(reopened).value, isTrue);
+    },
+  );
+
+  testWidgets('permission denial leaves native reminder off', (tester) async {
+    final notifications = _FakeNativeNotifications(permissionGranted: false);
+    final actions = _PreferenceActions(
+      onSetPreference: (_, _) async => fail('Preference must not be written'),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          householdTasksProvider.overrideWith((ref) async => const []),
+          organizationCalendarProvider.overrideWith((ref) async => const []),
+          organizationAlertsProvider.overrideWith((ref) async => const []),
+          notificationPreferencesProvider.overrideWith(
+            (ref) async => const {'native_daily_reminder': false},
+          ),
+          organizationActionsProvider.overrideWithValue(actions),
+          nativeNotificationPortProvider.overrideWithValue(notifications),
+          remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: OrganizationPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('notification-preferences')));
+    await tester.pumpAndSettle();
+    final preference = find.byKey(
+      const Key('native-daily-reminder-preference'),
+    );
+    await tester.ensureVisible(preference);
+    await tester.tap(preference);
+    await tester.pumpAndSettle();
+
+    expect(notifications.permissionRequests, 1);
+    expect(notifications.dailySchedules, 0);
+    expect(actions.preferenceWrites, 0);
+    expect(tester.widget<SwitchListTile>(preference).value, isFalse);
+  });
+
+  testWidgets('native daily reminder is reachable in the mobile preferences', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appLocaleProvider.overrideWith(
+            (ref) => AppLocaleController(
+              environmentLocales: () => const [Locale('en')],
+            ),
+          ),
+          householdTasksProvider.overrideWith((ref) async => const []),
+          organizationCalendarProvider.overrideWith((ref) async => const []),
+          organizationAlertsProvider.overrideWith((ref) async => const []),
+          notificationPreferencesProvider.overrideWith((ref) async => const {}),
+          remoteHouseholdMembersProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(
+          locale: Locale('en'),
+          supportedLocales: [Locale('en')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: OrganizationPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('notification-preferences')));
+    await tester.pumpAndSettle();
+    final nativePreference = find.byKey(
+      const Key('native-daily-reminder-preference'),
+    );
+    expect(nativePreference, findsOneWidget);
+    await tester.ensureVisible(nativePreference);
+    await tester.pumpAndSettle();
+    expect(nativePreference.hitTestable(), findsOneWidget);
+    expect(find.text('Native daily reminder'), findsOneWidget);
+  });
+
   testWidgets('tasks calendar and alerts stay usable on mobile', (
     tester,
   ) async {
@@ -300,4 +450,59 @@ class _FakeOrganizationActions implements OrganizationActionsApi {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _PreferenceActions implements OrganizationActionsApi {
+  _PreferenceActions({required this.onSetPreference});
+
+  final Future<void> Function(String, bool) onSetPreference;
+  int preferenceWrites = 0;
+
+  @override
+  Future<void> setPreference(String category, bool enabled) async {
+    preferenceWrites++;
+    await onSetPreference(category, enabled);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeNativeNotifications implements NativeNotificationPort {
+  _FakeNativeNotifications({required this.permissionGranted});
+
+  final bool permissionGranted;
+  int permissionRequests = 0;
+  int dailySchedules = 0;
+  int? lastHour;
+
+  @override
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return permissionGranted;
+  }
+
+  @override
+  Future<void> scheduleDaily({
+    required int id,
+    required NativeReminderPayload payload,
+    int hour = NativeReminderPolicy.defaultHour,
+    int minute = NativeReminderPolicy.defaultMinute,
+  }) async {
+    dailySchedules++;
+    lastHour = hour;
+  }
+
+  @override
+  Future<void> cancel(int id) async {}
+
+  @override
+  Future<void> cancelAll() async {}
+
+  @override
+  Future<void> scheduleOnce({
+    required int id,
+    required DateTime atUtc,
+    required NativeReminderPayload payload,
+  }) async {}
 }
