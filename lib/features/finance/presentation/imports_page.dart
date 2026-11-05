@@ -23,6 +23,7 @@ import '../application/providers/active_household_provider.dart';
 import '../application/providers/remote_accounts_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
 import 'import_preview_page.dart';
+import 'quick_bulk_import_page.dart';
 import '../domain/financial_account.dart';
 import '../domain/household_member.dart';
 
@@ -162,6 +163,27 @@ class _ImportsPageState extends ConsumerState<ImportsPage> {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.md),
+          Card(
+            child: ListTile(
+              key: const Key('quick-excel-import-route'),
+              leading: const Icon(Icons.bolt_outlined),
+              title: Text(words.text('quick_excel_title')),
+              subtitle: Text(words.text('quick_excel_subtitle')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const QuickBulkImportPage(),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            words.text('advanced_import_title'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text(words.text('advanced_import_subtitle')),
+          const SizedBox(height: AppSpacing.sm),
           OutlinedButton.icon(
             key: const Key('workbook-import-route-button'),
             onPressed: () => Navigator.of(context).push(

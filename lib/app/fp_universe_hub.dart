@@ -10,11 +10,13 @@ class FpUniverseDestination {
     required this.icon,
     required this.open,
     this.description,
+    this.sectionKey,
   });
   final String labelKey;
   final IconData icon;
   final VoidCallback open;
   final String? description;
+  final String? sectionKey;
 }
 
 class FpUniverseHub extends StatelessWidget {
@@ -44,23 +46,43 @@ class FpUniverseHub extends StatelessWidget {
                 const SizedBox(height: AppSpacing.lg),
                 FpSearchFilterBar(onChanged: (_) {}),
                 const SizedBox(height: AppSpacing.lg),
-                ResponsiveGrid(
-                  minItemWidth: 280,
-                  children: [
-                    for (final item in destinations)
-                      FpActionCard(
-                        title: words.text(item.labelKey),
-                        subtitle: item.description,
-                        icon: item.icon,
-                        onTap: item.open,
-                      ),
+                for (final section in _sections) ...[
+                  if (section.$1 != null) ...[
+                    Text(
+                      words.text(section.$1!),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                   ],
-                ),
+                  ResponsiveGrid(
+                    minItemWidth: 280,
+                    children: [
+                      for (final item in section.$2)
+                        FpActionCard(
+                          title: words.text(item.labelKey),
+                          subtitle: item.description,
+                          icon: item.icon,
+                          onTap: item.open,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  List<(String?, List<FpUniverseDestination>)> get _sections {
+    final order = <String?>[];
+    final grouped = <String?, List<FpUniverseDestination>>{};
+    for (final item in destinations) {
+      if (!grouped.containsKey(item.sectionKey)) order.add(item.sectionKey);
+      grouped.putIfAbsent(item.sectionKey, () => []).add(item);
+    }
+    return [for (final key in order) (key, grouped[key]!)];
   }
 }

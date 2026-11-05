@@ -40,6 +40,12 @@ class ImportsWords {
           'Le foyer actif est indisponible pour le moment.',
       'title': 'Import CSV',
       'open_wizard': 'Importer un classeur Excel / Google Sheets',
+      'quick_excel_title': 'Import rapide Excel',
+      'quick_excel_subtitle':
+          'Télécharger le modèle officiel, contrôler puis confirmer vos opérations.',
+      'advanced_import_title': 'Import avancé',
+      'advanced_import_subtitle':
+          'Migration, historique, contrôles spécialisés et préparation du cutover.',
       'journey': 'Parcours',
       'initial': 'Import initial',
       'transactions': 'Alimentation de comptes',
@@ -118,6 +124,12 @@ class ImportsWords {
           'Import terminé dans Supabase : {created} compte(s) créé(s), {kept} existant(s) conservé(s), {replaced} solde(s) remplacé(s), {missing} solde(s) non renseigné(s). La liste locale des comptes n’est pas encore synchronisée.',
     },
     AppLanguage.english: {
+      'quick_excel_title': 'Quick Excel import',
+      'quick_excel_subtitle':
+          'Download the official template, check it, then confirm your operations.',
+      'advanced_import_title': 'Advanced import',
+      'advanced_import_subtitle':
+          'Migration, history, specialised checks and cutover preparation.',
       'import_title': '{type} import',
       'type_accounts': 'accounts',
       'type_envelopes': 'envelopes',
@@ -213,6 +225,11 @@ class ImportsWords {
           'Import completed in Supabase: {created} account(s) created, {kept} existing kept, {replaced} balance(s) replaced, {missing} balance(s) missing. The local account list is not synchronized yet.',
     },
     AppLanguage.arabic: {
+      'quick_excel_title': 'استيراد سريع من Excel',
+      'quick_excel_subtitle': 'نزّل النموذج الرسمي، افحصه ثم أكّد عملياتك.',
+      'advanced_import_title': 'استيراد متقدم',
+      'advanced_import_subtitle':
+          'الترحيل والسجل والفحوصات المتخصصة والتحضير للانتقال النهائي.',
       'import_title': 'استيراد {type}',
       'type_accounts': 'الحسابات',
       'type_envelopes': 'المظاريف',
@@ -307,6 +324,12 @@ class ImportsWords {
           'اكتمل الاستيراد في Supabase: {created} حساب منشأ، {kept} موجود محفوظ، {replaced} رصيد مستبدل، {missing} رصيد غير محدد. قائمة الحسابات المحلية غير متزامنة بعد.',
     },
     AppLanguage.darija: {
+      'quick_excel_title': 'إدخال سريع من Excel',
+      'quick_excel_subtitle':
+          'هبط النموذج الرسمي، فحصو ومن بعد أكد العمليات ديالك.',
+      'advanced_import_title': 'إدخال متقدم',
+      'advanced_import_subtitle':
+          'الترحيل والتاريخ والفحوصات المتخصصة والتحضير للانتقال النهائي.',
       'import_title': 'استيراد {type}',
       'type_accounts': 'الحسابات',
       'type_envelopes': 'الظروف',

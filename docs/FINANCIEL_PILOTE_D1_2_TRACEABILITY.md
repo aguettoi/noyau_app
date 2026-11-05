@@ -197,3 +197,6 @@ column, while the view contract exposes `occurrence_status`. The client query
 now selects and filters `occurrence_status`; a PostgREST request-contract test
 locks this mapping. No schema, RLS policy, financial engine or migration was
 changed.
+# Addendum D1.2-G
+
+La famille **Plus** est organisée en Outils, Foyer et accès, et Application. Les destinations Assistant, Rapports, Imports, Portabilité, Membres, Paramètres, Aide et Configuration guidée restent reliées à leurs moteurs canoniques. `IMP-BULK` dispose d'un modèle Excel officiel sans identifiant technique, d'une validation/correction/prévisualisation avant mutation et d'un commit serveur atomique et idempotent. Voir `FINANCIEL_PILOTE_D1_2_G_PLUS_IMPORT.md`.

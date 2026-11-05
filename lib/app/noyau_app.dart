@@ -26,6 +26,7 @@ import '../features/shopping_list/presentation/shopping_list_page.dart';
 import '../features/priorities/presentation/priorities_page.dart';
 import '../features/portability/application/household_realtime_provider.dart';
 import '../features/portability/presentation/portability_page.dart';
+import '../features/reporting/presentation/reports_page.dart';
 import '../features/experience/application/experience_provider.dart';
 import '../features/experience/application/offline_sync.dart';
 import '../features/experience/presentation/guided_onboarding_page.dart';
@@ -528,6 +529,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     destinations: [
       FpUniverseDestination(
         labelKey: 'assistant',
+        sectionKey: 'more.tools',
         icon: Icons.auto_awesome_outlined,
         open: () => _push(
           AssistantPage(
@@ -539,26 +541,43 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
       FpUniverseDestination(
         labelKey: 'reports',
         icon: Icons.manage_search,
-        open: _showPortability,
+        sectionKey: 'more.tools',
+        open: () => _push(const ReportsPage()),
       ),
       FpUniverseDestination(
         labelKey: 'imports',
         icon: Icons.upload_file_outlined,
+        sectionKey: 'more.tools',
         open: () => setState(() => _selectedIndex = 7),
+      ),
+      FpUniverseDestination(
+        labelKey: 'portability',
+        icon: Icons.inventory_2_outlined,
+        sectionKey: 'more.tools',
+        open: _showPortability,
+      ),
+      FpUniverseDestination(
+        labelKey: 'members',
+        icon: Icons.group_outlined,
+        sectionKey: 'more.householdAccess',
+        open: _showHouseholdMembers,
       ),
       FpUniverseDestination(
         labelKey: 'settings',
         icon: Icons.settings_outlined,
+        sectionKey: 'more.application',
         open: _showHouseholdSettings,
       ),
       FpUniverseDestination(
         labelKey: 'onboarding',
         icon: Icons.route_outlined,
+        sectionKey: 'more.application',
         open: _showGuidedOnboarding,
       ),
       FpUniverseDestination(
         labelKey: 'help',
         icon: Icons.help_outline,
+        sectionKey: 'more.application',
         open: _showHelp,
       ),
     ],
