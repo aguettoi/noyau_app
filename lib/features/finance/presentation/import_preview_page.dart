@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_design_system.dart';
 import '../../../core/localization/import_preview_locale.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../application/cutover_preparation.dart';
 import '../application/cutover_opening_import.dart';
 import '../application/workbook_import.dart';
@@ -709,11 +710,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       setState(() => _cutoverResult = result);
     } catch (error) {
       if (!mounted) return;
-      setState(
-        () => _cutoverError = ImportPreviewWords.of(
-          context,
-        ).format('execution_error', {'error': error}),
-      );
+      setState(() => _cutoverError = userSafeErrorMessage(context, error));
     } finally {
       if (mounted) setState(() => _executingCutover = false);
     }
@@ -764,11 +761,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
       }
     } catch (error) {
       if (!mounted) return;
-      setState(
-        () => _cutoverError = ImportPreviewWords.of(
-          context,
-        ).format('b1_error', {'error': error}),
-      );
+      setState(() => _cutoverError = userSafeErrorMessage(context, error));
     } finally {
       if (mounted) setState(() => _preparingCutover = false);
     }

@@ -102,11 +102,25 @@ class FpAdaptiveNavigation extends StatelessWidget {
                     const Spacer(),
                     Padding(
                       padding: const EdgeInsets.all(AppSpacing.md),
-                      child: FilledButton.icon(
-                        onPressed: onAdd,
-                        icon: const Icon(Icons.add),
-                        label: Text(words.text('add')),
-                      ),
+                      child: AppLayout.isLarge(width)
+                          ? FilledButton.icon(
+                              key: const Key('universal-add-rail-labeled'),
+                              onPressed: onAdd,
+                              icon: const Icon(Icons.add),
+                              label: Text(words.text('add')),
+                            )
+                          : Semantics(
+                              label: words.text('add'),
+                              button: true,
+                              child: Tooltip(
+                                message: words.text('add'),
+                                child: IconButton.filled(
+                                  key: const Key('universal-add-rail-compact'),
+                                  onPressed: onAdd,
+                                  icon: const Icon(Icons.add),
+                                ),
+                              ),
+                            ),
                     ),
                   ],
                 ),

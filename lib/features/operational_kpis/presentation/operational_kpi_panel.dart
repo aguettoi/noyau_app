@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/kpi_reporting_locale.dart';
+import '../../../core/localization/app_locale.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../finance/presentation/accounts_page.dart';
 import '../../finance/presentation/transactions_page.dart';
@@ -113,13 +114,28 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: Text(explanation.rule),
+                      title: Text(
+                        words.text('kpi.explanation.${explanation.id}.rule'),
+                      ),
                       subtitle: Text(
                         words.format('kpi.explanation_meta', {
-                          'reason': explanation.reason,
-                          'source': explanation.source,
+                          'reason': words.format(
+                            'kpi.explanation.${explanation.id}.reason',
+                            {
+                              'days':
+                                  RegExp(
+                                    r'\d+',
+                                  ).firstMatch(explanation.reason)?.group(0) ??
+                                  '0',
+                            },
+                          ),
+                          'source': words.text(
+                            'kpi.explanation.${explanation.id}.source',
+                          ),
                           'period': explanation.period,
-                          'completeness': explanation.completeness,
+                          'completeness': words.text(
+                            'kpi.completeness.${explanation.completeness}',
+                          ),
                         }),
                       ),
                     ),
@@ -146,6 +162,7 @@ class _QualityGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      final language = AppLanguageX.fromLocale(Localizations.localeOf(context));
       final width = constraints.maxWidth >= 900
           ? (constraints.maxWidth - AppSpacing.sm * 3) / 4
           : constraints.maxWidth >= 560
@@ -158,7 +175,10 @@ class _QualityGrid extends StatelessWidget {
           _metric(
             width,
             words.text('kpi.punctuality'),
-            '${(quality.expectedDelayRate * 100).round()} %',
+            localizedPercent(
+              language,
+              (quality.expectedDelayRate * 100).round(),
+            ),
             words.format('kpi.delay_detail', {
               'median': quality.medianDelayDays.toStringAsFixed(1),
               'mean': quality.meanDelayDays.toStringAsFixed(1),
@@ -214,7 +234,10 @@ class _QualityGrid extends StatelessWidget {
             words.format('kpi.cash_difference_detail', {
               'open': cash.unresolvedDifferences,
               'regularized': cash.regularizedDifferences,
-              'rate': (cash.regularizationRate * 100).round(),
+              'rate': localizedPercent(
+                language,
+                (cash.regularizationRate * 100).round(),
+              ),
             }),
           ),
           _metric(

@@ -1203,7 +1203,7 @@ class TransactionsWords {
       'transactions.type.unknown': 'معاملة',
     },
     AppLanguage.darija: {
-      'transactions.title': 'المعاملات',
+      'transactions.title': 'العمليات',
       'transactions.debts': 'الديون',
       'transactions.receivables': 'الفلوس اللي خاصها ترجع',
       'transactions.add': 'زيد',

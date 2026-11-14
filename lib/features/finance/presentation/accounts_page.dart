@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/accounts_locale.dart';
 import '../../../core/money/money.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/providers/remote_account_balances_provider.dart';
@@ -87,34 +88,52 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
     final accountsAsync = ref.watch(remoteAccountsProvider);
     final balancesAsync = ref.watch(remoteAccountBalancesProvider);
     final membersAsync = ref.watch(remoteHouseholdMembersProvider);
+    final compact = AppLayout.isCompact(MediaQuery.sizeOf(context).width);
+    final addAccount = _creating || !accountsAsync.hasValue
+        ? null
+        : () => _openCreateDialog(accountsAsync.requireValue, membersAsync);
     return Scaffold(
       appBar: AppBar(
         title: Text(AccountsWords.of(context).text('accounts.title')),
+        actions: compact
+            ? [
+                IconButton(
+                  key: const Key('add-account-compact'),
+                  tooltip: AccountsWords.of(context).text('accounts.add_title'),
+                  onPressed: addAccount,
+                  icon: _creating
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add),
+                ),
+              ]
+            : null,
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _creating || !accountsAsync.hasValue
-            ? null
-            : () => _openCreateDialog(accountsAsync.requireValue, membersAsync),
-        icon: _creating
-            ? const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.add),
-        label: Text(AccountsWords.of(context).text('accounts.add')),
-      ),
+      floatingActionButton: compact
+          ? null
+          : FloatingActionButton.extended(
+              key: const Key('add-account-fab'),
+              onPressed: addAccount,
+              icon: _creating
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add),
+              label: Text(AccountsWords.of(context).text('accounts.add')),
+            ),
       body: accountsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: AppSpacing.page,
-            child: Text(
-              AccountsWords.of(
-                context,
-              ).format('accounts.read_error', {'error': error}),
-            ),
-          ),
+        error: (error, _) => UserSafeErrorState(
+          error: error,
+          onRetry: () {
+            ref.invalidate(remoteAccountsProvider);
+            ref.invalidate(remoteAccountBalancesProvider);
+          },
         ),
         data: (items) {
           final ordered = widget.initialAccountId == null
@@ -140,6 +159,8 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
             });
           }
           return ListView(
+            key: const Key('accounts-list'),
+            padding: EdgeInsets.only(bottom: compact ? 96 : 0),
             children: [
               DesktopPageContainer(
                 child: Column(
@@ -1477,7 +1498,9 @@ class _RecordAccountBalanceDialogState
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
-      if (mounted) setState(() => _error = 'Constat impossible : $error');
+      if (mounted) {
+        setState(() => _error = userSafeErrorMessage(context, error));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -1913,11 +1936,7 @@ class _CreateAccountDialogState extends State<_CreateAccountDialog> {
       }
     } catch (error) {
       if (mounted) {
-        setState(
-          () => _error = AccountsWords.of(
-            context,
-          ).format('accounts.creation_error', {'error': error}),
-        );
+        setState(() => _error = userSafeErrorMessage(context, error));
       }
     } finally {
       if (mounted) {

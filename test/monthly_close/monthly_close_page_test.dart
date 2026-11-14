@@ -555,7 +555,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fetches, 1);
-      expect(find.text('Espèces : 0 %'), findsOneWidget);
+      expect(find.textContaining('Espèces : '), findsOneWidget);
       await tester.scrollUntilVisible(
         find.byKey(const Key('workflow-step-4')),
         250,

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../finance/application/providers/remote_household_members_provider.dart';
 import '../../../finance/application/providers/supabase_client_provider.dart';
+import '../../../finance/domain/household_member.dart';
 import '../../../organization/application/organization_provider.dart';
 import '../../../organization/domain/organization_models.dart';
 import '../../../savings_goals/domain/savings_goal.dart';
@@ -29,45 +30,64 @@ class DashboardHomeModel {
 }
 
 final dashboardHomeProvider = FutureProvider<DashboardHomeModel>((ref) async {
-  final snapshot = await ref.watch(financialDashboardProvider.future);
+  // Start the mandatory snapshot and the secondary home sources together.
+  // The previous sequence made alerts, calendar and member name wait for the
+  // whole financial snapshot even though none depends on it.
+  final snapshotFuture = ref.watch(financialDashboardProvider.future);
+  final alertsFuture = _optional(
+    ref.watch(organizationAlertsProvider.future),
+    const <AppAlert>[],
+  );
+  final calendarFuture = _optional(
+    ref.watch(organizationCalendarProvider.future),
+    const <CalendarEntry>[],
+  );
+  final membersFuture = _optional(
+    ref.watch(remoteHouseholdMembersProvider.future),
+    const <HouseholdMember>[],
+  );
+
+  final snapshot = await snapshotFuture;
+  final alertsResult = await alertsFuture;
+  final calendarResult = await calendarFuture;
+  final membersResult = await membersFuture;
   final now = ref.watch(dashboardClockProvider);
-  var partial = false;
-
-  List<AppAlert> alerts = const [];
-  try {
-    alerts = await ref.watch(organizationAlertsProvider.future);
-  } catch (_) {
-    partial = true;
-  }
-
-  List<CalendarEntry> calendar = const [];
-  try {
-    calendar = await ref.watch(organizationCalendarProvider.future);
-  } catch (_) {
-    partial = true;
-  }
+  final partial =
+      alertsResult.failed || calendarResult.failed || membersResult.failed;
 
   String? memberName;
-  try {
+  if (!membersResult.failed) {
     final userId = ref.watch(currentUserIdProvider);
-    final members = await ref.watch(remoteHouseholdMembersProvider.future);
-    memberName = members
+    memberName = membersResult.value
         .where((member) => member.id == userId)
         .firstOrNull
         ?.displayName;
-  } catch (_) {
-    partial = true;
   }
 
   return composeDashboardHome(
     snapshot: snapshot,
-    alerts: alerts,
-    calendar: calendar,
+    alerts: alertsResult.value,
+    calendar: calendarResult.value,
     now: now,
     memberName: memberName,
     partial: partial,
   );
 });
+
+Future<_OptionalResult<T>> _optional<T>(Future<T> future, T fallback) async {
+  try {
+    return _OptionalResult(value: await future, failed: false);
+  } catch (_) {
+    return _OptionalResult(value: fallback, failed: true);
+  }
+}
+
+class _OptionalResult<T> {
+  const _OptionalResult({required this.value, required this.failed});
+
+  final T value;
+  final bool failed;
+}
 
 DashboardHomeModel composeDashboardHome({
   required FinancialDashboardSnapshot snapshot,

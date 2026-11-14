@@ -379,7 +379,7 @@ void main() {
     expect(gateway.createCalls, 1);
   });
 
-  testWidgets('erreur distante reste lisible et ne cree aucun compte local', (
+  testWidgets('erreur distante reste sûre et ne cree aucun compte local', (
     tester,
   ) async {
     final gateway = _Gateway(createError: Exception('reseau indisponible'));
@@ -393,7 +393,11 @@ void main() {
     await tester.tap(find.byKey(const Key('create-remote-account-button')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Création impossible :'), findsOneWidget);
+    expect(
+      find.text('Impossible de charger les données pour le moment. Réessayez.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('reseau indisponible'), findsNothing);
     expect(gateway.createdValues, isEmpty);
     expect(find.text('Ajouter un compte'), findsOneWidget);
   });
@@ -425,7 +429,11 @@ void main() {
       find.byType(FloatingActionButton),
     );
     expect(add.onPressed, isNull);
-    expect(find.textContaining('Aucun foyer actif'), findsOneWidget);
+    expect(
+      find.text('Impossible de charger les données pour le moment. Réessayez.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Aucun foyer actif'), findsNothing);
   });
 }
 

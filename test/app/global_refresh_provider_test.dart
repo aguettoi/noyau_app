@@ -13,6 +13,7 @@ import 'package:noyau_app/features/finance/application/providers/remote_debts_pr
 import 'package:noyau_app/features/finance/application/providers/remote_transactions_provider.dart';
 import 'package:noyau_app/features/finance/domain/financial_account.dart';
 import 'package:noyau_app/features/finance/domain/transaction_history_item.dart';
+import 'package:noyau_app/features/organization/application/daily_life_provider.dart';
 
 void main() {
   test(
@@ -60,6 +61,10 @@ void main() {
             hit('dashboard');
             return _emptyDashboard;
           }),
+          groceryItemsProvider.overrideWith((ref) async {
+            hit('groceries');
+            return const <Map<String, Object?>>[];
+          }),
         ],
       );
       addTearDown(container.dispose);
@@ -75,6 +80,7 @@ void main() {
         'budgetPeriods',
         'budgetScenarios',
         'dashboard',
+        'groceries',
       };
       expect(calls.keys, containsAll(requiredSources));
       expect(calls.values, everyElement(greaterThan(0)));

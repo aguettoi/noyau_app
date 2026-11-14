@@ -38,6 +38,21 @@ void main() {
     expect(find.byType(FloatingActionButton), findsNothing);
   });
 
+  for (final width in <double>[1200, 1280, 1439]) {
+    testWidgets('compact desktop rail uses an accessible icon at $width px', (
+      tester,
+    ) async {
+      await _pumpFoundation(tester, Size(width, 900));
+      expect(
+        find.byKey(const Key('universal-add-rail-compact')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Ajouter'), findsOneWidget);
+      expect(find.text('Ajouter'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('mobile exposes central add and keeps projects behind More', (
     tester,
   ) async {

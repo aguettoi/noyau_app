@@ -190,7 +190,7 @@ class BudgetContributionWords {
     },
     AppLanguage.darija: {
       'contribution.title': 'مساهمات الدار',
-      'contribution.members_error': 'الأعضاء ما متوفرينش.',
+      'contribution.members_error': 'ناس الدار ما متوفرينش.',
       'contribution.incomes_error': 'الدخل ما متوفرش.',
       'contribution.save_error': 'ما قدرناش نسجلو الدخل.',
       'contribution.finish': 'سالي',

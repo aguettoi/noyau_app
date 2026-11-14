@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
 import '../../../core/localization/envelopes_locale.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../../../core/theme/app_design_system.dart';
+import '../../experience/application/experience_provider.dart';
 import '../../finance/application/csv_import_templates.dart';
 import '../../finance/application/providers/payment_methods_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
@@ -302,18 +304,18 @@ class EnvelopeDashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final balances = ref.watch(remoteEnvelopeBalancesProvider);
     final history = ref.watch(remoteEnvelopeHistoryProvider);
+    final snapshot = ref.watch(
+      offlineSnapshotStatusProvider.select((items) => items['envelopes']),
+    );
     return SafeArea(
       child: balances.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: AppSpacing.page,
-            child: Text(
-              _envelopeFormat(context, 'envelopes.load_error', {
-                'error': error,
-              }),
-            ),
-          ),
+        error: (error, _) => UserSafeErrorState(
+          error: error,
+          onRetry: () {
+            ref.invalidate(remoteEnvelopeBalancesProvider);
+            ref.invalidate(remoteEnvelopeHistoryProvider);
+          },
         ),
         data: (envelopes) {
           final activeEnvelopes = envelopes;
@@ -326,6 +328,10 @@ class EnvelopeDashboardPage extends ConsumerWidget {
           return ListView(
             padding: AppSpacing.page,
             children: [
+              if (snapshot?.stale == true) ...[
+                OfflineCachedDataBanner(capturedAt: snapshot!.capturedAt),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               Wrap(
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
@@ -849,12 +855,9 @@ class ArchivedEnvelopesPage extends ConsumerWidget {
       ),
       body: history.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Text(
-            _envelopeFormat(context, 'envelopes.archived_load_error', {
-              'error': error,
-            }),
-          ),
+        error: (error, _) => UserSafeErrorState(
+          error: error,
+          onRetry: () => ref.invalidate(remoteEnvelopeHistoryProvider),
         ),
         data: (envelopes) {
           final archived = envelopes
@@ -1068,13 +1071,7 @@ class _ToAllocateDistributionDialogState
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
-        setState(
-          () => _error = _envelopeFormat(
-            context,
-            'envelopes.allocation_error',
-            {'error': error},
-          ),
-        );
+        setState(() => _error = userSafeErrorMessage(context, error));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -1305,7 +1302,7 @@ class _EnvelopeTransferDialogState
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _error = 'Transfert impossible : $error');
+        setState(() => _error = userSafeErrorMessage(context, error));
       }
     } finally {
       if (mounted) {

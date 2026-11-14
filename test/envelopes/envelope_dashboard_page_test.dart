@@ -69,6 +69,36 @@ void main() {
     systemCode: 'to_allocate',
     lastMovementAt: null,
   );
+
+  testWidgets('une panne réseau masque URL, RPC et exception technique', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          remoteEnvelopeBalancesProvider.overrideWith(
+            (ref) async => throw Exception(
+              'ClientException: Failed to fetch, '
+              'uri=https://project.supabase.co/rest/v1/rpc/'
+              'list_household_envelopes_safe',
+            ),
+          ),
+          remoteEnvelopeHistoryProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          home: EnvelopeDashboardPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.refresh), findsOneWidget);
+    expect(find.textContaining('ClientException'), findsNothing);
+    expect(find.textContaining('supabase.co'), findsNothing);
+    expect(find.textContaining('/rest/v1/'), findsNothing);
+    expect(find.textContaining('list_household_envelopes_safe'), findsNothing);
+  });
   const availableSystemEnvelope = RemoteEnvelopeBalance(
     id: 'to-allocate-envelope',
     name: 'À répartir',

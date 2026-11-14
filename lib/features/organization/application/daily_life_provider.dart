@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/network_failure.dart';
+import '../../experience/application/experience_provider.dart';
+import '../../experience/application/offline_connectivity.dart';
+import '../../experience/domain/offline_draft.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
 import '../domain/organization_models.dart';
@@ -10,16 +14,104 @@ Map<String, Object?> _map(dynamic value) =>
 final groceryItemsProvider = FutureProvider<List<Map<String, Object?>>>((
   ref,
 ) async {
-  final h = await ref.watch(activeHouseholdProvider.future);
-  if (h.householdId == null) return const [];
-  final rows = await ref
-      .watch(supabaseClientProvider)
-      .from('household_grocery_items')
-      .select()
-      .eq('household_id', h.householdId!)
-      .order('created_at');
-  return [for (final row in rows as List<dynamic>) _map(row)];
+  final household = await ref.watch(activeHouseholdProvider.future);
+  final householdId = household.householdId;
+  final userId = ref.watch(currentUserIdProvider);
+  if (householdId == null || userId == null) return const [];
+  final store = ref.watch(experienceStoreProvider);
+  final cached = await store.loadReadSnapshot(
+    kind: 'household_groceries',
+    householdId: householdId,
+    userId: userId,
+  );
+  final connection = ref.read(syncConnectionStateProvider);
+  if (connection == SyncConnectionState.offline ||
+      connection == SyncConnectionState.reconnecting) {
+    if (cached == null) {
+      throw StateError('Aucune copie locale des courses disponible.');
+    }
+    setOfflineSnapshotStatus(
+      ref,
+      'household_groceries',
+      OfflineSnapshotStatus(capturedAt: cached.capturedAt, stale: true),
+    );
+    return _mergePendingGroceries(
+      cached.rows,
+      await store.loadDrafts(),
+      householdId,
+      userId,
+    );
+  }
+  try {
+    final rows = await ref
+        .watch(supabaseClientProvider)
+        .from('household_grocery_items')
+        .select()
+        .eq('household_id', householdId)
+        .order('created_at');
+    final serverRows = [for (final row in rows as List<dynamic>) _map(row)];
+    final capturedAt = DateTime.now().toUtc();
+    await store.saveReadSnapshot(
+      kind: 'household_groceries',
+      householdId: householdId,
+      userId: userId,
+      rows: serverRows,
+      capturedAt: capturedAt,
+    );
+    setOfflineSnapshotStatus(
+      ref,
+      'household_groceries',
+      OfflineSnapshotStatus(capturedAt: capturedAt, stale: false),
+    );
+    return _mergePendingGroceries(
+      serverRows,
+      await store.loadDrafts(),
+      householdId,
+      userId,
+    );
+  } catch (error) {
+    if (!isNetworkFailure(error)) rethrow;
+    reportOfflineFailure(ref);
+    if (cached == null) rethrow;
+    setOfflineSnapshotStatus(
+      ref,
+      'household_groceries',
+      OfflineSnapshotStatus(capturedAt: cached.capturedAt, stale: true),
+    );
+    return _mergePendingGroceries(
+      cached.rows,
+      await store.loadDrafts(),
+      householdId,
+      userId,
+    );
+  }
 });
+
+List<Map<String, Object?>> _mergePendingGroceries(
+  List<Map<String, Object?>> rows,
+  List<OfflineDraft> drafts,
+  String householdId,
+  String userId,
+) {
+  final ids = rows.map((row) => row['id']).whereType<String>().toSet();
+  return [
+    ...rows,
+    for (final draft in drafts)
+      if (draft.actionKind == 'grocery_item' &&
+          draft.householdId == householdId &&
+          draft.memberId == userId &&
+          !ids.contains(draft.idempotencyKey))
+        {
+          'id': draft.idempotencyKey,
+          'label': draft.payload['label'],
+          'quantity': draft.payload['quantity'] ?? 1,
+          'unit': draft.payload['unit'],
+          'assignee_user_id': draft.payload['assignee_user_id'],
+          'status': 'needed',
+          'offline_state': draft.state.name,
+        },
+  ];
+}
 
 final homeRecordsProvider = FutureProvider<List<Map<String, Object?>>>((
   ref,

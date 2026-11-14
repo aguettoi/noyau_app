@@ -4,6 +4,7 @@ enum EconomicResponsibility { household, member, unassigned }
 
 class KpiExplanation {
   const KpiExplanation({
+    required this.id,
     required this.rule,
     required this.source,
     required this.period,
@@ -13,6 +14,7 @@ class KpiExplanation {
     this.limitations = const [],
   });
 
+  final String id;
   final String rule, source, period, reason, completeness;
   final String? memberId;
   final List<String> limitations;
@@ -211,6 +213,7 @@ OperationalQualitySnapshot analyzeOperationalQuality({
     expectedNotMaterialized: expectedNotMaterialized,
     explanations: List.unmodifiable([
       KpiExplanation(
+        id: 'punctuality',
         rule: 'Ponctualité de saisie',
         source: 'FinancialEvent : date économique et date de création',
         period: period,
@@ -220,6 +223,7 @@ OperationalQualitySnapshot analyzeOperationalQuality({
         memberId: memberId,
       ),
       KpiExplanation(
+        id: 'attribution',
         rule: 'Attribution économique explicite',
         source: 'Responsabilité métier documentée',
         period: period,
@@ -232,6 +236,7 @@ OperationalQualitySnapshot analyzeOperationalQuality({
             : const [],
       ),
       KpiExplanation(
+        id: 'receipts',
         rule: 'Complétude des justificatifs',
         source: 'FinancialEvent et métadonnées des justificatifs autorisés',
         period: period,
@@ -378,6 +383,7 @@ CashQualitySnapshot analyzeCashQuality({
         .length,
     authorIsNeverResponsibleByDefault: true,
     explanation: KpiExplanation(
+      id: 'cash_inventory',
       rule: 'Qualité des inventaires espèces',
       source: 'Observations de solde et rapprochements autorisés',
       period: period,

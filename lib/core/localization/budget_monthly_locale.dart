@@ -563,7 +563,7 @@ class BudgetMonthlyWords {
       'monthly.yes': 'نعم',
       'monthly.no': 'لا',
       'monthly.previous_comparison': 'مقارنة مع الشهر اللي فات',
-      'monthly.members_summary': 'خلاصة الأعضاء',
+      'monthly.members_summary': 'خلاصة ناس الدار',
       'monthly.transfer': 'تحويل مقترح',
       'monthly.transfer_hint': 'غير اقتراح تحليلي: ما كيتنفذ حتى تحويل.',
       'monthly.blockers': 'العراقيل',

@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/localization/app_locale.dart';
 import '../core/theme/noyau_theme.dart';
@@ -19,6 +21,7 @@ import '../features/finance/presentation/transactions_page.dart';
 import '../features/finance/presentation/imports_page.dart';
 import '../features/finance/presentation/accounts_page.dart';
 import '../features/finance/presentation/supabase_auth_page.dart';
+import '../features/finance/presentation/password_recovery_page.dart';
 import '../features/finance/presentation/household_onboarding_page.dart';
 import '../features/finance/presentation/household_members_dialog.dart';
 import '../features/finance/presentation/household_settings_page.dart';
@@ -26,6 +29,7 @@ import '../features/finance/application/providers/active_household_provider.dart
 import '../features/finance/application/providers/remote_accounts_provider.dart';
 import '../features/finance/application/providers/supabase_client_provider.dart';
 import '../features/dashboard/presentation/financial_dashboard_page.dart';
+import '../features/dashboard/application/providers/dashboard_home_provider.dart';
 import '../features/envelopes/presentation/envelope_dashboard_page.dart';
 import '../features/savings_goals/presentation/savings_goals_page.dart';
 import '../features/shopping_list/presentation/shopping_list_page.dart';
@@ -35,6 +39,7 @@ import '../features/portability/presentation/portability_page.dart';
 import '../features/reporting/presentation/reports_page.dart';
 import '../features/experience/application/experience_provider.dart';
 import '../features/experience/application/offline_sync.dart';
+import '../features/experience/application/offline_connectivity.dart';
 import '../features/experience/presentation/guided_onboarding_page.dart';
 import '../features/experience/presentation/help_center_page.dart';
 import '../features/experience/presentation/landing_page.dart';
@@ -42,6 +47,7 @@ import '../features/experience/presentation/quick_actions_dialog.dart';
 import '../features/budget_intelligence/presentation/budget_page.dart';
 import '../features/organization/presentation/organization_page.dart';
 import '../features/organization/application/organization_provider.dart';
+import '../features/organization/application/daily_life_provider.dart';
 import '../features/organization/domain/reminder_snooze_policy.dart';
 import '../features/organization/presentation/daily_life_page.dart';
 import '../features/recurring_finance/presentation/recurring_finance_page.dart';
@@ -51,8 +57,13 @@ import 'fp_adaptive_navigation.dart';
 import 'fp_universe_hub.dart';
 import 'projects_hub_page.dart';
 import 'global_refresh_provider.dart';
+import 'app_routes.dart';
 
 final _platformDestinationProvider = StateProvider<String?>((ref) => null);
+
+class _AuthRouterRefresh extends ChangeNotifier {
+  void refresh() => notifyListeners();
+}
 
 class NoyauApp extends ConsumerStatefulWidget {
   const NoyauApp({super.key});
@@ -62,12 +73,47 @@ class NoyauApp extends ConsumerStatefulWidget {
 }
 
 class _NoyauAppState extends ConsumerState<NoyauApp> {
-  final _navigatorKey = GlobalKey<NavigatorState>();
+  late final _AuthRouterRefresh _authRefresh;
+  late final ProviderSubscription<AsyncValue<String?>> _authSubscription;
+  late final GoRouter _router;
   StreamSubscription<PlatformLinkIntent>? _linkSubscription;
 
   @override
   void initState() {
     super.initState();
+    // Shell destinations are real, deep-linkable pages. User-initiated
+    // navigation uses push so browser Back/Forward can replay each visit; this
+    // opt-in keeps the Web URL aligned with the top imperative route. Technical
+    // redirects (Auth, canonicalization and incoming platform links) keep using
+    // go/replace semantics below.
+    GoRouter.optionURLReflectsImperativeAPIs = true;
+    _authRefresh = _AuthRouterRefresh();
+    _authSubscription = ref.listenManual(
+      supabaseUserIdProvider,
+      (_, _) => _authRefresh.refresh(),
+    );
+    _router = GoRouter(
+      refreshListenable: _authRefresh,
+      redirect: (context, state) => AppRoutes.authRedirect(
+        location: state.uri,
+        signedIn: ref.read(supabaseUserIdProvider).valueOrNull != null,
+      ),
+      routes: [
+        for (final path in {
+          ...AppRoutes.protectedPaths,
+          ...AppRoutes.publicPaths,
+        })
+          GoRoute(
+            path: path,
+            builder: (context, state) => _AuthenticationGate(
+              location: state.uri.path,
+              returnTo: state.uri.queryParameters['returnTo'],
+            ),
+          ),
+      ],
+      errorBuilder: (context, state) =>
+          const _AuthenticationGate(location: AppRoutes.home),
+    );
     _linkSubscription = PlatformLinkAdapter.instance.intents.listen(
       _handlePlatformLink,
     );
@@ -76,29 +122,32 @@ class _NoyauAppState extends ConsumerState<NoyauApp> {
   @override
   void dispose() {
     _linkSubscription?.cancel();
+    _authSubscription.close();
+    _router.dispose();
+    _authRefresh.dispose();
     super.dispose();
   }
 
   void _handlePlatformLink(PlatformLinkIntent intent) {
-    final navigator = _navigatorKey.currentState;
     switch (intent.kind) {
       case PlatformLinkKind.authCallback:
         return;
       case PlatformLinkKind.passwordReset:
-        navigator?.push(
-          MaterialPageRoute<void>(builder: (_) => const SupabaseAuthPage()),
-        );
+        _router.go(AppRoutes.resetPassword);
       case PlatformLinkKind.invitation:
-        navigator?.push(
-          MaterialPageRoute<void>(
-            builder: (_) => const SupabaseAuthPage(invitationIntent: true),
-          ),
-        );
+        _router.go(AppRoutes.invitation);
       case PlatformLinkKind.destination:
         final signedIn =
             ref.read(supabaseAuthGatewayProvider).currentUserId != null;
         if (signedIn) {
-          ref.read(_platformDestinationProvider.notifier).state = intent.value;
+          _router.go(switch (intent.value) {
+            'money' => AppRoutes.money,
+            'household' => AppRoutes.household,
+            'projects' => AppRoutes.projects,
+            'more' => AppRoutes.more,
+            'imports' => AppRoutes.imports,
+            _ => AppRoutes.home,
+          });
         }
     }
   }
@@ -107,8 +156,8 @@ class _NoyauAppState extends ConsumerState<NoyauApp> {
   Widget build(BuildContext context) {
     final language = ref.watch(appLocaleProvider);
     final words = AppWords(language);
-    return MaterialApp(
-      navigatorKey: _navigatorKey,
+    return MaterialApp.router(
+      routerConfig: _router,
       title: words.text('title'),
       debugShowCheckedModeBanner: false,
       theme: NoyauTheme.light,
@@ -126,13 +175,15 @@ class _NoyauAppState extends ConsumerState<NoyauApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const _AuthenticationGate(),
     );
   }
 }
 
 class _AuthenticationGate extends ConsumerWidget {
-  const _AuthenticationGate();
+  const _AuthenticationGate({required this.location, this.returnTo});
+
+  final String location;
+  final String? returnTo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -142,7 +193,20 @@ class _AuthenticationGate extends ConsumerWidget {
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => const SupabaseAuthPage(),
       data: (id) {
-        if (id == null) return const LandingPage();
+        if (location == AppRoutes.resetPassword) {
+          return const PasswordRecoveryPage();
+        }
+        if (id == null) {
+          return switch (location) {
+            AppRoutes.login ||
+            AppRoutes.forgotPassword => const SupabaseAuthPage(),
+            AppRoutes.signup => const SupabaseAuthPage(createAccount: true),
+            AppRoutes.invitation => const SupabaseAuthPage(
+              invitationIntent: true,
+            ),
+            _ => const LandingPage(),
+          };
+        }
         final household = ref.watch(activeHouseholdProvider);
         return household.when(
           loading: () =>
@@ -151,6 +215,7 @@ class _AuthenticationGate extends ConsumerWidget {
           data: (state) => switch (state.status) {
             ActiveHouseholdStatus.singleHousehold => FinanceShell(
               key: ValueKey('finance-shell-$id'),
+              destinationPath: location,
             ),
             ActiveHouseholdStatus.multipleHouseholds =>
               const MultipleHouseholdsPage(),
@@ -163,7 +228,9 @@ class _AuthenticationGate extends ConsumerWidget {
 }
 
 class FinanceShell extends ConsumerStatefulWidget {
-  const FinanceShell({super.key});
+  const FinanceShell({super.key, this.destinationPath = AppRoutes.home});
+
+  final String destinationPath;
 
   @override
   ConsumerState<FinanceShell> createState() => _FinanceShellState();
@@ -180,9 +247,18 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
   @override
   void initState() {
     super.initState();
+    _selectedIndex = _indexForPath(widget.destinationPath);
     WidgetsBinding.instance.addObserver(this);
     _notificationSubscription = NativeNotificationAdapter.instance.responses
         .listen(_handleNativeNotification);
+  }
+
+  @override
+  void didUpdateWidget(covariant FinanceShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.destinationPath != widget.destinationPath) {
+      _selectedIndex = _indexForPath(widget.destinationPath);
+    }
   }
 
   @override
@@ -225,12 +301,17 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
       );
     }
     if (!mounted) return;
-    _selectUniverse(FpUniverse.household);
+    // A notification response is a technical deep link, not an in-app visit
+    // that should be appended to browser history.
+    context.go(AppRoutes.household);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    // Browser focus/visibility changes are frequent (opening DevTools, changing
+    // tabs, resizing). Realtime invalidations and the reconnect monitor already
+    // refresh Web data; a full refresh here would refetch every finance model.
+    if (!kIsWeb && state == AppLifecycleState.resumed) {
       _refreshAll(silentSuccess: true);
     }
   }
@@ -255,12 +336,48 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
       if (destination == 'imports') _push(const ImportsPage());
     });
     final syncState = ref.watch(syncConnectionStateProvider);
+    ref.watch(offlineReconnectMonitorProvider);
+    ref.listen<AsyncValue<ActiveHouseholdState>>(activeHouseholdProvider, (
+      previous,
+      next,
+    ) {
+      final previousId = previous?.valueOrNull?.householdId;
+      final nextId = next.valueOrNull?.householdId;
+      if (previousId != null && previousId != nextId) {
+        unawaited(ref.read(experienceStoreProvider).purgeReadSnapshots());
+        ref.read(offlineSnapshotStatusProvider.notifier).state = const {};
+      }
+    });
     ref.listen(syncConnectionStateProvider, (previous, next) {
       if (next == SyncConnectionState.synchronized && previous != next) {
-        ref
-            .read(offlineSyncCoordinatorProvider)
-            .synchronize()
-            .whenComplete(() => ref.invalidate(offlineDraftsProvider));
+        unawaited(() async {
+          try {
+            // A reconnect must not reuse a household membership cached before
+            // the outage. Refresh it before replaying any persisted intent;
+            // the adapters then verify both user and household again and RLS
+            // remains the final authorization boundary.
+            ref.invalidate(activeHouseholdProvider);
+            await ref.read(activeHouseholdProvider.future);
+            final report = await ref
+                .read(offlineSyncCoordinatorProvider)
+                .synchronize();
+            ref.invalidate(offlineDraftsProvider);
+            if (report.syncedKinds.contains('grocery_item')) {
+              ref.invalidate(groceryItemsProvider);
+            }
+            if (report.syncedKinds.contains('task')) {
+              ref.invalidate(householdTasksProvider);
+              ref.invalidate(organizationCalendarProvider);
+              ref.invalidate(organizationAlertsProvider);
+            }
+            if (report.synced > 0) {
+              ref.invalidate(dashboardHomeProvider);
+            }
+          } catch (_) {
+            ref.read(syncConnectionStateProvider.notifier).state =
+                SyncConnectionState.reconnecting;
+          }
+        }());
       }
     });
     final pages = <Widget>[
@@ -309,8 +426,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
                 color: AppColors.darkTextSecondary,
                 fontSize: 12,
               ),
-              onDestinationSelected: (index) =>
-                  setState(() => _selectedIndex = index),
+              onDestinationSelected: _selectDestination,
               leading: Padding(
                 padding: const EdgeInsets.only(
                   top: AppSpacing.md,
@@ -444,56 +560,63 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
             ),
           )
         : null;
-    final content = Stack(
+    final routedPage = _pageForPath(widget.destinationPath);
+    final pageContent =
+        routedPage ?? IndexedStack(index: _selectedIndex, children: pages);
+    final mobileActions = Row(
+      key: const Key('shell-mobile-actions'),
+      mainAxisSize: MainAxisSize.min,
       children: [
-        IndexedStack(index: _selectedIndex, children: pages),
-        if (!desktop)
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (syncState != SyncConnectionState.synchronized)
-                    Tooltip(
-                      message: syncState == SyncConnectionState.offline
-                          ? words.text('shell.offline')
-                          : words.text('shell.reconnecting'),
-                      child: const Icon(Icons.cloud_off_outlined),
-                    ),
-                  _ExperienceMenu(
-                    key: const Key('experience-menu-mobile'),
-                    onSettings: _showHouseholdSettings,
-                    onQuickActions: _showQuickActions,
-                    onOnboarding: _showGuidedOnboarding,
-                    onHelp: _showHelp,
-                  ),
-                  IconButton(
-                    key: const Key('portability-button-mobile'),
-                    tooltip: words.text('nav.search'),
-                    onPressed: _showPortability,
-                    icon: const Icon(Icons.manage_search),
-                  ),
-                  IconButton(
-                    tooltip: words.text('nav.members'),
-                    onPressed: _showHouseholdMembers,
-                    icon: const Icon(Icons.group_outlined),
-                  ),
-                  _RefreshButton(
-                    refreshing: _refreshing,
-                    onPressed: _refreshing ? null : _refreshAll,
-                  ),
-                  IconButton(
-                    tooltip: words.text('nav.logout'),
-                    onPressed: _signOut,
-                    icon: const Icon(Icons.logout_outlined),
-                  ),
-                ],
-              ),
-            ),
+        if (syncState != SyncConnectionState.synchronized)
+          Tooltip(
+            message: syncState == SyncConnectionState.offline
+                ? words.text('shell.offline')
+                : words.text('shell.reconnecting'),
+            child: const Icon(Icons.cloud_off_outlined),
           ),
+        _ExperienceMenu(
+          key: const Key('experience-menu-mobile'),
+          onSettings: _showHouseholdSettings,
+          onQuickActions: _showQuickActions,
+          onOnboarding: _showGuidedOnboarding,
+          onHelp: _showHelp,
+        ),
+        IconButton(
+          key: const Key('portability-button-mobile'),
+          tooltip: words.text('nav.search'),
+          onPressed: _showPortability,
+          icon: const Icon(Icons.manage_search),
+        ),
+        IconButton(
+          tooltip: words.text('nav.members'),
+          onPressed: _showHouseholdMembers,
+          icon: const Icon(Icons.group_outlined),
+        ),
+        _RefreshButton(
+          refreshing: _refreshing,
+          onPressed: _refreshing ? null : _refreshAll,
+        ),
+        IconButton(
+          tooltip: words.text('nav.logout'),
+          onPressed: _signOut,
+          icon: const Icon(Icons.logout_outlined),
+        ),
       ],
     );
+    final content = desktop
+        ? pageContent
+        : Column(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: mobileActions,
+                ),
+              ),
+              Expanded(child: pageContent),
+            ],
+          );
     // Keep the legacy navigation construction exercised until every feature
     // adopts the universe contract. Historical destinations remain in the
     // IndexedStack and are still reachable through the new hubs.
@@ -509,8 +632,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         child: Focus(
           autofocus: true,
           child: FinanceShellNavigation(
-            selectDestination: (index) =>
-                setState(() => _selectedIndex = index),
+            selectDestination: _selectDestination,
             child: FpAdaptiveNavigation(
               selected: _universeForIndex(_selectedIndex),
               onSelected: _selectUniverse,
@@ -548,15 +670,83 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     _ => null,
   };
 
-  void _selectUniverse(FpUniverse universe) => setState(() {
-    _selectedIndex = switch (universe) {
-      FpUniverse.home => 0,
-      FpUniverse.money => 2,
-      FpUniverse.household => 8,
-      FpUniverse.projects => 9,
-      FpUniverse.more => 10,
-    };
+  int _indexForPath(String path) => switch (path) {
+    AppRoutes.accounts => 1,
+    AppRoutes.money ||
+    AppRoutes.transactions ||
+    AppRoutes.budget ||
+    AppRoutes.debts ||
+    AppRoutes.forecasts ||
+    AppRoutes.wealth => 2,
+    AppRoutes.envelopes => 3,
+    AppRoutes.goals => 4,
+    AppRoutes.priorities => 6,
+    AppRoutes.imports => 7,
+    AppRoutes.household ||
+    AppRoutes.calendar ||
+    AppRoutes.tasks ||
+    AppRoutes.groceries => 8,
+    AppRoutes.projects || AppRoutes.simulations => 9,
+    AppRoutes.more ||
+    AppRoutes.reports ||
+    AppRoutes.settings ||
+    AppRoutes.help => 10,
+    _ => 0,
+  };
+
+  Widget? _pageForPath(String path) => switch (path) {
+    AppRoutes.home => const FinancialDashboardPage(),
+    AppRoutes.accounts => const AccountsPage(),
+    AppRoutes.money => _moneyHub(),
+    AppRoutes.envelopes => const EnvelopeDashboardPage(),
+    AppRoutes.goals => const SavingsGoalsPage(),
+    AppRoutes.priorities => const PrioritiesPage(),
+    AppRoutes.imports => const ImportsPage(),
+    AppRoutes.household => _householdHub(),
+    AppRoutes.projects => _projectsHub(),
+    AppRoutes.more => _moreHub(),
+    AppRoutes.transactions => const TransactionsPage(),
+    AppRoutes.budget => const BudgetPage(),
+    AppRoutes.debts => const DebtsPage(),
+    AppRoutes.forecasts ||
+    AppRoutes.calendar ||
+    AppRoutes.tasks => const OrganizationPage(),
+    AppRoutes.groceries => const DailyLifePage(),
+    AppRoutes.wealth => const WealthPage(),
+    AppRoutes.simulations => const WealthPage(initialTab: 2),
+    AppRoutes.reports => const ReportsPage(),
+    AppRoutes.settings => const HouseholdSettingsPage(),
+    AppRoutes.help => const HelpCenterPage(),
+    _ => null,
+  };
+
+  void _openCanonicalRoute(String route) {
+    final current = GoRouterState.of(context).uri.path;
+    if (current != route) context.push(route);
+  }
+
+  void _selectDestination(int index) => _openCanonicalRoute(switch (index) {
+    0 => AppRoutes.home,
+    1 => AppRoutes.accounts,
+    2 => AppRoutes.money,
+    3 => AppRoutes.envelopes,
+    4 => AppRoutes.goals,
+    6 => AppRoutes.priorities,
+    7 => AppRoutes.imports,
+    8 => AppRoutes.household,
+    9 => AppRoutes.projects,
+    10 => AppRoutes.more,
+    _ => AppRoutes.home,
   });
+
+  void _selectUniverse(FpUniverse universe) =>
+      _openCanonicalRoute(switch (universe) {
+        FpUniverse.home => AppRoutes.home,
+        FpUniverse.money => AppRoutes.money,
+        FpUniverse.household => AppRoutes.household,
+        FpUniverse.projects => AppRoutes.projects,
+        FpUniverse.more => AppRoutes.more,
+      });
 
   Widget _householdHub() => FpUniverseHub(
     titleKey: 'household',
@@ -565,12 +755,12 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
       FpUniverseDestination(
         labelKey: 'tasks',
         icon: Icons.task_alt,
-        open: () => _push(const OrganizationPage()),
+        open: () => _openCanonicalRoute(AppRoutes.tasks),
       ),
       FpUniverseDestination(
         labelKey: 'daily',
         icon: Icons.home_work_outlined,
-        open: () => _push(const DailyLifePage()),
+        open: () => _openCanonicalRoute(AppRoutes.groceries),
       ),
       FpUniverseDestination(
         labelKey: 'recurring',
@@ -592,47 +782,47 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
       FpUniverseDestination(
         labelKey: 'transactions',
         icon: Icons.receipt_long_outlined,
-        open: () => _push(const TransactionsPage()),
+        open: () => _openCanonicalRoute(AppRoutes.transactions),
       ),
       FpUniverseDestination(
         labelKey: 'budget',
         icon: Icons.pie_chart_outline,
-        open: () => _push(const BudgetPage()),
+        open: () => _openCanonicalRoute(AppRoutes.budget),
       ),
       FpUniverseDestination(
         labelKey: 'envelopes',
         icon: Icons.account_balance_wallet_outlined,
-        open: () => setState(() => _selectedIndex = 3),
+        open: () => _openCanonicalRoute(AppRoutes.envelopes),
       ),
       FpUniverseDestination(
         labelKey: 'accounts',
         icon: Icons.account_balance_outlined,
-        open: () => setState(() => _selectedIndex = 1),
+        open: () => _openCanonicalRoute(AppRoutes.accounts),
       ),
       FpUniverseDestination(
         labelKey: 'debts',
         icon: Icons.swap_vert,
-        open: () => _push(const DebtsPage()),
+        open: () => _openCanonicalRoute(AppRoutes.debts),
       ),
       FpUniverseDestination(
         labelKey: 'forecast',
         icon: Icons.timeline,
-        open: () => _push(const OrganizationPage()),
+        open: () => _openCanonicalRoute(AppRoutes.forecasts),
       ),
       FpUniverseDestination(
         labelKey: 'wealth',
         icon: Icons.assured_workload_outlined,
-        open: () => _push(const WealthPage()),
+        open: () => _openCanonicalRoute(AppRoutes.wealth),
       ),
     ],
   );
 
   Widget _projectsHub() => ProjectsHubPage(
-    onOpenGoals: () => setState(() => _selectedIndex = 4),
-    onOpenPriorities: () => setState(() => _selectedIndex = 6),
-    onOpenSimulations: () => _push(const WealthPage(initialTab: 2)),
-    onOpenFinancings: () => _push(const WealthPage(initialTab: 2)),
-    onOpenWealth: () => _push(const WealthPage()),
+    onOpenGoals: () => _openCanonicalRoute(AppRoutes.goals),
+    onOpenPriorities: () => _openCanonicalRoute(AppRoutes.priorities),
+    onOpenSimulations: () => _openCanonicalRoute(AppRoutes.simulations),
+    onOpenFinancings: () => _openCanonicalRoute(AppRoutes.simulations),
+    onOpenWealth: () => _openCanonicalRoute(AppRoutes.wealth),
   );
 
   Widget _moreHub() => FpUniverseHub(
@@ -645,8 +835,8 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         icon: Icons.auto_awesome_outlined,
         open: () => _push(
           AssistantPage(
-            onOpenBudget: () => _push(const BudgetPage()),
-            onOpenPriorities: () => _push(const PrioritiesPage()),
+            onOpenBudget: () => _openCanonicalRoute(AppRoutes.budget),
+            onOpenPriorities: () => _openCanonicalRoute(AppRoutes.priorities),
           ),
         ),
       ),
@@ -654,13 +844,13 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         labelKey: 'reports',
         icon: Icons.manage_search,
         sectionKey: 'more.tools',
-        open: () => _push(const ReportsPage()),
+        open: () => _openCanonicalRoute(AppRoutes.reports),
       ),
       FpUniverseDestination(
         labelKey: 'imports',
         icon: Icons.upload_file_outlined,
         sectionKey: 'more.tools',
-        open: () => setState(() => _selectedIndex = 7),
+        open: () => _openCanonicalRoute(AppRoutes.imports),
       ),
       FpUniverseDestination(
         labelKey: 'portability',
@@ -678,7 +868,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         labelKey: 'settings',
         icon: Icons.settings_outlined,
         sectionKey: 'more.application',
-        open: _showHouseholdSettings,
+        open: () => _openCanonicalRoute(AppRoutes.settings),
       ),
       FpUniverseDestination(
         labelKey: 'onboarding',
@@ -690,7 +880,13 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         labelKey: 'help',
         icon: Icons.help_outline,
         sectionKey: 'more.application',
-        open: _showHelp,
+        open: () => _openCanonicalRoute(AppRoutes.help),
+      ),
+      FpUniverseDestination(
+        labelKey: 'logout',
+        icon: Icons.logout_outlined,
+        sectionKey: 'more.application',
+        open: _signOut,
       ),
     ],
   );
@@ -701,19 +897,23 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         FpAddAction(
           'expense',
           Icons.remove_circle_outline,
-          () => _push(const TransactionsPage()),
+          () => _openCanonicalRoute(AppRoutes.transactions),
         ),
         FpAddAction(
           'income',
           Icons.add_circle_outline,
-          () => _push(const TransactionsPage()),
+          () => _openCanonicalRoute(AppRoutes.transactions),
         ),
         FpAddAction(
           'transfer',
           Icons.swap_horiz,
-          () => _push(const TransactionsPage()),
+          () => _openCanonicalRoute(AppRoutes.transactions),
         ),
-        FpAddAction('debt', Icons.south_east, () => _push(const DebtsPage())),
+        FpAddAction(
+          'debt',
+          Icons.south_east,
+          () => _openCanonicalRoute(AppRoutes.debts),
+        ),
         FpAddAction(
           'receivable',
           Icons.north_east,
@@ -722,75 +922,71 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         FpAddAction(
           'task',
           Icons.task_alt,
-          () => _push(const OrganizationPage()),
+          () => _openCanonicalRoute(AppRoutes.tasks),
         ),
-        FpAddAction(
-          'grocery',
-          Icons.shopping_cart_outlined,
-          () => _push(const DailyLifePage()),
-        ),
+        FpAddAction('grocery', Icons.shopping_cart_outlined, _openGroceryEntry),
         FpAddAction(
           'event',
           Icons.event_outlined,
-          () => _push(const OrganizationPage()),
+          () => _openCanonicalRoute(AppRoutes.calendar),
         ),
         FpAddAction(
           'goal',
           Icons.savings_outlined,
-          () => setState(() => _selectedIndex = 4),
+          () => _openCanonicalRoute(AppRoutes.goals),
         ),
         FpAddAction(
           'priority',
           Icons.low_priority,
-          () => setState(() => _selectedIndex = 6),
+          () => _openCanonicalRoute(AppRoutes.priorities),
         ),
       ],
       FpUniverse.household => [
         FpAddAction(
           'task',
           Icons.task_alt,
-          () => _push(const OrganizationPage()),
+          () => _openCanonicalRoute(AppRoutes.tasks),
         ),
-        FpAddAction(
-          'grocery',
-          Icons.shopping_cart_outlined,
-          () => _push(const DailyLifePage()),
-        ),
+        FpAddAction('grocery', Icons.shopping_cart_outlined, _openGroceryEntry),
         FpAddAction(
           'event',
           Icons.event_outlined,
-          () => _push(const OrganizationPage()),
+          () => _openCanonicalRoute(AppRoutes.calendar),
         ),
       ],
       FpUniverse.projects => [
         FpAddAction(
           'goal',
           Icons.savings_outlined,
-          () => setState(() => _selectedIndex = 4),
+          () => _openCanonicalRoute(AppRoutes.goals),
         ),
         FpAddAction(
           'priority',
           Icons.low_priority,
-          () => setState(() => _selectedIndex = 6),
+          () => _openCanonicalRoute(AppRoutes.priorities),
         ),
       ],
       _ => [
         FpAddAction(
           'expense',
           Icons.remove_circle_outline,
-          () => _push(const TransactionsPage()),
+          () => _openCanonicalRoute(AppRoutes.transactions),
         ),
         FpAddAction(
           'income',
           Icons.add_circle_outline,
-          () => _push(const TransactionsPage()),
+          () => _openCanonicalRoute(AppRoutes.transactions),
         ),
         FpAddAction(
           'transfer',
           Icons.swap_horiz,
-          () => _push(const TransactionsPage()),
+          () => _openCanonicalRoute(AppRoutes.transactions),
         ),
-        FpAddAction('debt', Icons.south_east, () => _push(const DebtsPage())),
+        FpAddAction(
+          'debt',
+          Icons.south_east,
+          () => _openCanonicalRoute(AppRoutes.debts),
+        ),
         FpAddAction(
           'receivable',
           Icons.north_east,
@@ -806,6 +1002,13 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
         actions: actions,
       ),
     );
+  }
+
+  void _openGroceryEntry() {
+    _openCanonicalRoute(AppRoutes.groceries);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(showGroceryEntryDialog(context, ref));
+    });
   }
 
   void _showPortability() => Navigator.of(
@@ -948,30 +1151,30 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
           icon: Icons.auto_awesome_outlined,
           run: () => _push(
             AssistantPage(
-              onOpenBudget: () => _push(const BudgetPage()),
-              onOpenPriorities: () => _push(const PrioritiesPage()),
+              onOpenBudget: () => _openCanonicalRoute(AppRoutes.budget),
+              onOpenPriorities: () => _openCanonicalRoute(AppRoutes.priorities),
             ),
           ),
         ),
         QuickActionItem(
           label: AppWords(ref.read(appLocaleProvider)).text('nav.dashboard'),
           icon: Icons.dashboard_outlined,
-          run: () => setState(() => _selectedIndex = 0),
+          run: () => _openCanonicalRoute(AppRoutes.home),
         ),
         QuickActionItem(
           label: AppWords(ref.read(appLocaleProvider)).text('nav.accounts'),
           icon: Icons.account_balance_outlined,
-          run: () => setState(() => _selectedIndex = 1),
+          run: () => _openCanonicalRoute(AppRoutes.accounts),
         ),
         QuickActionItem(
           label: AppWords(ref.read(appLocaleProvider)).text('nav.envelopes'),
           icon: Icons.account_balance_wallet_outlined,
-          run: () => setState(() => _selectedIndex = 3),
+          run: () => _openCanonicalRoute(AppRoutes.envelopes),
         ),
         QuickActionItem(
           label: AppWords(ref.read(appLocaleProvider)).text('nav.goals'),
           icon: Icons.savings_outlined,
-          run: () => setState(() => _selectedIndex = 4),
+          run: () => _openCanonicalRoute(AppRoutes.goals),
         ),
         QuickActionItem(
           label: AppWords(ref.read(appLocaleProvider)).text('help'),
@@ -992,6 +1195,7 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
     await ref.read(supabaseAuthGatewayProvider).signOut();
     ref.invalidate(activeHouseholdProvider);
     ref.invalidate(remoteAccountsProvider);
+    if (mounted) context.go(AppRoutes.login);
   }
 
   Future<void> _showHouseholdMembers() => showDialog<void>(

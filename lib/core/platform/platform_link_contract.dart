@@ -12,6 +12,12 @@ abstract final class PlatformLinkContract {
   static final authCallback = Uri.parse('$scheme://auth-callback');
   static final passwordReset = Uri.parse('$scheme://password-reset');
 
+  static const _webPaths = <String, PlatformLinkKind>{
+    '/auth/callback': PlatformLinkKind.authCallback,
+    '/auth/reset-password': PlatformLinkKind.passwordReset,
+    '/auth/invitation': PlatformLinkKind.invitation,
+  };
+
   static const _allowedDestinations = <String>{
     'home',
     'money',
@@ -21,7 +27,23 @@ abstract final class PlatformLinkContract {
     'imports',
   };
 
-  static PlatformLinkIntent? parse(Uri uri) {
+  static PlatformLinkIntent? parse(
+    Uri uri, {
+    Set<String> allowedWebOrigins = const {},
+  }) {
+    if (uri.scheme == 'http' || uri.scheme == 'https') {
+      if (!allowedWebOrigins.contains(uri.origin) || uri.userInfo.isNotEmpty) {
+        return null;
+      }
+      final kind = _webPaths[uri.path];
+      if (kind == null) return null;
+      if (kind == PlatformLinkKind.invitation) {
+        final code = uri.queryParameters['code']?.trim();
+        if (code == null || code.isEmpty || code.length > 128) return null;
+        return PlatformLinkIntent(kind, value: code);
+      }
+      return PlatformLinkIntent(kind);
+    }
     if (uri.scheme != scheme) return null;
     switch (uri.host) {
       case 'auth-callback':
@@ -45,6 +67,8 @@ abstract final class PlatformLinkContract {
   }
 
   static bool isAuthRedirect(Uri uri) =>
-      uri.scheme == scheme &&
-      (uri.host == 'auth-callback' || uri.host == 'password-reset');
+      (uri.scheme == scheme &&
+          (uri.host == 'auth-callback' || uri.host == 'password-reset')) ||
+      ((uri.scheme == 'http' || uri.scheme == 'https') &&
+          (uri.path == '/auth/callback' || uri.path == '/auth/reset-password'));
 }

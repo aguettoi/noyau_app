@@ -4,14 +4,17 @@ import 'package:intl/intl.dart';
 
 import '../../../core/localization/app_locale.dart';
 import '../../../core/localization/household_locale.dart';
+import '../../../core/network/network_failure.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../../finance/domain/transaction_draft.dart';
+import '../../finance/domain/household_member.dart';
 import '../../finance/presentation/transactions_page.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
 import '../../experience/application/experience_provider.dart';
+import '../../experience/application/offline_connectivity.dart';
 import '../../experience/domain/offline_draft.dart';
-import '../../portability/application/household_realtime_provider.dart';
 import '../application/daily_life_provider.dart';
 import '../application/organization_provider.dart';
 
@@ -54,48 +57,89 @@ class _GroceriesTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final words = HouseholdWords(ref.watch(appLocaleProvider));
-    return _AsyncList(
-      value: ref.watch(groceryItemsProvider),
-      empty: words.text('grocery.empty'),
-      tile: (row) => Column(
-        children: [
-          CheckboxListTile(
-            key: Key('grocery-${row['id']}'),
-            value: row['status'] == 'picked',
-            title: Text(row['label'] as String),
-            subtitle: Text('${row['quantity']} ${row['unit'] ?? ''}'.trim()),
-            onChanged: (v) => ref
-                .read(dailyLifeActionsProvider)
-                .setGroceryStatus(
-                  row['id'] as String,
-                  v == true ? 'picked' : 'needed',
-                ),
+    final snapshot = ref.watch(
+      offlineSnapshotStatusProvider.select(
+        (items) => items['household_groceries'],
+      ),
+    );
+    return Column(
+      children: [
+        if (snapshot?.stale == true)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: OfflineCachedDataBanner(capturedAt: snapshot!.capturedAt),
           ),
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: TextButton.icon(
-              key: Key('grocery-expense-${row['id']}'),
-              icon: const Icon(Icons.receipt_long_outlined),
-              label: Text(words.text('grocery.expense')),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => TransactionsPage(
-                    forceExpense: true,
-                    prefill: TransactionFormPrefill(
-                      description: row['label'] as String,
-                      notes: words.text('grocery.finance_notice'),
+        Expanded(
+          child: _AsyncList(
+            value: ref.watch(groceryItemsProvider),
+            empty: words.text('grocery.empty'),
+            tile: (row) {
+              final pending = row['offline_state'] != null;
+              return Column(
+                children: [
+                  CheckboxListTile(
+                    key: Key('grocery-${row['id']}'),
+                    value: row['status'] == 'picked',
+                    title: Text(row['label'] as String),
+                    subtitle: Text(
+                      [
+                        '${row['quantity']} ${row['unit'] ?? ''}'.trim(),
+                        if (pending)
+                          _offlineStateLabel(
+                            AppWords.of(context),
+                            row['offline_state'] as String,
+                          ),
+                      ].join(' • '),
+                    ),
+                    onChanged: pending
+                        ? null
+                        : (v) => ref
+                              .read(dailyLifeActionsProvider)
+                              .setGroceryStatus(
+                                row['id'] as String,
+                                v == true ? 'picked' : 'needed',
+                              ),
+                  ),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton.icon(
+                      key: Key('grocery-expense-${row['id']}'),
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: Text(words.text('grocery.expense')),
+                      onPressed: pending
+                          ? null
+                          : () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => TransactionsPage(
+                                  forceExpense: true,
+                                  prefill: TransactionFormPrefill(
+                                    description: row['label'] as String,
+                                    notes: words.text('grocery.finance_notice'),
+                                  ),
+                                ),
+                              ),
+                            ),
                     ),
                   ),
-                ),
-              ),
-            ),
+                ],
+              );
+            },
+            addKey: const Key('grocery-add-button'),
+            onAdd: () => showGroceryEntryDialog(context, ref),
           ),
-        ],
-      ),
-      onAdd: () => _groceryDialog(context, ref),
+        ),
+      ],
     );
   }
 }
+
+String _offlineStateLabel(AppWords words, String state) => switch (state) {
+  'syncing' => words.text('offline.syncing_item'),
+  'rejected' => words.text('offline.rejected_item'),
+  'conflict' => words.text('offline.conflict_item'),
+  'actionRequired' => words.text('offline.action_required_item'),
+  _ => words.text('offline.pending_item'),
+};
 
 class _HomeTab extends ConsumerWidget {
   const _HomeTab();
@@ -209,30 +253,40 @@ class _AsyncList extends StatelessWidget {
     required this.empty,
     required this.tile,
     required this.onAdd,
+    this.addKey,
   });
   final AsyncValue<List<Map<String, Object?>>> value;
   final String empty;
   final Widget Function(Map<String, Object?>) tile;
   final VoidCallback onAdd;
+  final Key? addKey;
   @override
-  Widget build(BuildContext context) => Stack(
+  Widget build(BuildContext context) => Column(
     children: [
-      value.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Chargement impossible : $e')),
-        data: (rows) => rows.isEmpty
-            ? Center(child: Text(empty))
-            : ListView(
-                padding: const EdgeInsets.only(bottom: 88),
-                children: [for (final row in rows) Card(child: tile(row))],
-              ),
+      Expanded(
+        child: value.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => UserSafeErrorState(error: error),
+          data: (rows) => rows.isEmpty
+              ? Center(child: Text(empty))
+              : ListView(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  children: [for (final row in rows) Card(child: tile(row))],
+                ),
+        ),
       ),
-      Positioned(
-        right: 16,
-        bottom: 16,
-        child: FloatingActionButton(
-          onPressed: onAdd,
-          child: const Icon(Icons.add),
+      SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: FloatingActionButton(
+              key: addKey,
+              onPressed: onAdd,
+              child: const Icon(Icons.add),
+            ),
+          ),
         ),
       ),
     ],
@@ -270,24 +324,29 @@ Future<String?> _textDialog(
   return result == null || result.isEmpty ? null : result;
 }
 
-Future<void> _groceryDialog(BuildContext context, WidgetRef ref) async {
+Future<void> showGroceryEntryDialog(BuildContext context, WidgetRef ref) async {
   final label = TextEditingController();
   final quantity = TextEditingController(text: '1');
   final unit = TextEditingController();
-  final members = await ref.read(remoteHouseholdMembersProvider.future);
+  final words = HouseholdWords(ref.read(appLocaleProvider));
+  final members = await _groceryMembersAvailableOffline(ref);
   if (!context.mounted) return;
   String? assignee;
   final save = await showDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: const Text('Ajouter aux courses domestiques'),
+        key: const Key('grocery-entry-dialog'),
+        title: Text(words.text('grocery.add_title')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: label,
-              decoration: const InputDecoration(labelText: 'Article'),
+              key: const Key('grocery-item-field'),
+              decoration: InputDecoration(
+                labelText: words.text('grocery.item'),
+              ),
             ),
             Row(
               children: [
@@ -295,25 +354,32 @@ Future<void> _groceryDialog(BuildContext context, WidgetRef ref) async {
                   child: TextField(
                     controller: quantity,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Quantité'),
+                    decoration: InputDecoration(
+                      labelText: words.text('grocery.quantity'),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: unit,
-                    decoration: const InputDecoration(labelText: 'Unité'),
+                    decoration: InputDecoration(
+                      labelText: words.text('grocery.unit'),
+                    ),
                   ),
                 ),
               ],
             ),
             DropdownButtonFormField<String?>(
+              isExpanded: true,
               initialValue: assignee,
-              decoration: const InputDecoration(labelText: 'Responsable'),
+              decoration: InputDecoration(
+                labelText: words.text('grocery.assignee'),
+              ),
               items: [
-                const DropdownMenuItem(
+                DropdownMenuItem(
                   value: null,
-                  child: Text('Tout le foyer'),
+                  child: Text(words.text('grocery.everyone')),
                 ),
                 for (final member in members)
                   DropdownMenuItem(
@@ -328,11 +394,12 @@ Future<void> _groceryDialog(BuildContext context, WidgetRef ref) async {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            child: Text(words.text('grocery.cancel')),
           ),
           FilledButton(
+            key: const Key('grocery-submit-button'),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Ajouter'),
+            child: Text(words.text('grocery.add')),
           ),
         ],
       ),
@@ -342,9 +409,7 @@ Future<void> _groceryDialog(BuildContext context, WidgetRef ref) async {
     final idempotencyKey = _offlineUuid();
     final parsedQuantity =
         double.tryParse(quantity.text.replaceAll(',', '.')) ?? 1;
-    final connection = ref.read(syncConnectionStateProvider);
-    if (connection == SyncConnectionState.offline ||
-        connection == SyncConnectionState.reconnecting) {
+    Future<void> enqueue() async {
       final household = await ref.read(activeHouseholdProvider.future);
       final user = ref.read(currentUserIdProvider);
       if (household.householdId == null || user == null) {
@@ -369,27 +434,73 @@ Future<void> _groceryDialog(BuildContext context, WidgetRef ref) async {
             ),
           );
       ref.invalidate(offlineDraftsProvider);
+      ref.invalidate(groceryItemsProvider);
+      await ref.read(groceryItemsProvider.future);
       if (context.mounted) {
         final words = AppWords(ref.read(appLocaleProvider));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(words.text('offline.grocery_queued'))),
         );
       }
+    }
+
+    final connection = ref.read(syncConnectionStateProvider);
+    if (connection == SyncConnectionState.offline ||
+        connection == SyncConnectionState.reconnecting) {
+      await enqueue();
     } else {
-      await ref
-          .read(dailyLifeActionsProvider)
-          .addGrocery(
-            label.text,
-            idempotencyKey: idempotencyKey,
-            assignee: assignee,
-            quantity: parsedQuantity,
-            unit: unit.text,
-          );
+      try {
+        await ref
+            .read(dailyLifeActionsProvider)
+            .addGrocery(
+              label.text,
+              idempotencyKey: idempotencyKey,
+              assignee: assignee,
+              quantity: parsedQuantity,
+              unit: unit.text,
+            );
+      } catch (error) {
+        if (!isNetworkFailure(error)) rethrow;
+        ref.read(syncConnectionStateProvider.notifier).state =
+            SyncConnectionState.offline;
+        await enqueue();
+      }
     }
   }
-  label.dispose();
-  quantity.dispose();
-  unit.dispose();
+  // The route still animates its TextFields after showDialog completes. Delay
+  // controller disposal until the dialog subtree has left the tree; otherwise
+  // a fast local enqueue/invalidation can rebuild a field with a disposed
+  // controller.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      label.dispose();
+      quantity.dispose();
+      unit.dispose();
+    });
+  });
+}
+
+Future<List<HouseholdMember>> _groceryMembersAvailableOffline(
+  WidgetRef ref,
+) async {
+  final connection = ref.read(syncConnectionStateProvider);
+  if (connection == SyncConnectionState.offline ||
+      connection == SyncConnectionState.reconnecting) {
+    return const [];
+  }
+  try {
+    return await ref.read(remoteHouseholdMembersProvider.future);
+  } catch (error) {
+    // Assigning a grocery item is optional. A members lookup must never block
+    // the canonical entry form; when the network is the cause, also expose the
+    // shared offline state. The server still revalidates household membership
+    // when the queued intent is synchronized.
+    if (isNetworkFailure(error)) {
+      ref.read(syncConnectionStateProvider.notifier).state =
+          SyncConnectionState.offline;
+    }
+    return const [];
+  }
 }
 
 String _offlineUuid() {

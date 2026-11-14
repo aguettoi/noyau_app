@@ -18,5 +18,8 @@ void main() {
       expect(source, isNot(contains("table: '$sensitiveTable'")));
     }
     expect(source, contains("payload.newRecord['topic']"));
+    expect(source, isNot(contains('syncConnectionStateProvider')));
+    expect(source, isNot(contains('globalRefreshActionProvider')));
+    expect(source, isNot(contains('globalRefreshActionProvider)()')));
   });
 }

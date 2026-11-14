@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/network/network_failure.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
 import '../../organization/application/daily_life_provider.dart';
@@ -14,9 +15,14 @@ abstract interface class OfflineDraftAdapter {
 }
 
 class OfflineSyncReport {
-  const OfflineSyncReport({required this.synced, required this.remaining});
+  const OfflineSyncReport({
+    required this.synced,
+    required this.remaining,
+    this.syncedKinds = const {},
+  });
   final int synced;
   final List<OfflineDraft> remaining;
+  final Set<String> syncedKinds;
 }
 
 enum OfflineSyncFailure { conflict, rejected, actionRequired }
@@ -47,6 +53,7 @@ class OfflineSyncCoordinator {
   Future<OfflineSyncReport> _synchronize() async {
     final drafts = await store.loadDrafts();
     final remaining = <OfflineDraft>[];
+    final syncedKinds = <String>{};
     var synced = 0;
     for (final draft in drafts) {
       final adapter = adapters[draft.actionKind];
@@ -59,6 +66,7 @@ class OfflineSyncCoordinator {
       try {
         await adapter.submit(draft.copyWith(state: OfflineDraftState.syncing));
         synced++;
+        syncedKinds.add(draft.actionKind);
       } on OfflineSyncException catch (error) {
         remaining.add(
           draft.copyWith(
@@ -70,12 +78,22 @@ class OfflineSyncCoordinator {
             },
           ),
         );
-      } catch (_) {
-        remaining.add(draft.copyWith(state: OfflineDraftState.actionRequired));
+      } catch (error) {
+        remaining.add(
+          draft.copyWith(
+            state: isNetworkFailure(error)
+                ? OfflineDraftState.pending
+                : OfflineDraftState.actionRequired,
+          ),
+        );
       }
     }
     await store.saveDrafts(remaining);
-    return OfflineSyncReport(synced: synced, remaining: remaining);
+    return OfflineSyncReport(
+      synced: synced,
+      remaining: remaining,
+      syncedKinds: Set.unmodifiable(syncedKinds),
+    );
   }
 }
 

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/localization/app_locale.dart';
 import '../../../core/localization/app_language_picker.dart';
 import '../../../core/theme/app_design_system.dart';
-import '../../finance/presentation/supabase_auth_page.dart';
+import '../../../app/app_routes.dart';
 import 'help_center_page.dart';
 
 enum DistributionStatus { available, comingSoon }
@@ -91,20 +92,18 @@ class LandingPage extends ConsumerWidget {
                     children: [
                       FilledButton.icon(
                         key: const Key('landing-login'),
-                        onPressed: () => _openAuth(context),
+                        onPressed: () => context.go(AppRoutes.login),
                         icon: const Icon(Icons.login),
                         label: Text(words.text('login')),
                       ),
                       OutlinedButton(
                         key: const Key('landing-signup'),
-                        onPressed: () =>
-                            _openAuth(context, createAccount: true),
+                        onPressed: () => context.go(AppRoutes.signup),
                         child: Text(words.text('signup')),
                       ),
                       OutlinedButton.icon(
                         key: const Key('landing-invitation'),
-                        onPressed: () =>
-                            _openAuth(context, invitationIntent: true),
+                        onPressed: () => context.go(AppRoutes.invitation),
                         icon: const Icon(Icons.mail_outline),
                         label: Text(words.text('invitation')),
                       ),
@@ -147,19 +146,6 @@ class LandingPage extends ConsumerWidget {
       ),
     );
   }
-
-  void _openAuth(
-    BuildContext context, {
-    bool createAccount = false,
-    bool invitationIntent = false,
-  }) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => SupabaseAuthPage(
-        createAccount: createAccount,
-        invitationIntent: invitationIntent,
-      ),
-    ),
-  );
 }
 
 class _ModuleGrid extends StatelessWidget {

@@ -380,7 +380,7 @@ void main() {
     );
   });
 
-  testWidgets('un refus RPC reste visible et affiche une erreur', (
+  testWidgets('un refus RPC reste visible sans exposer le diagnostic', (
     tester,
   ) async {
     final actions = _FakeOrganizationActions(
@@ -430,7 +430,11 @@ void main() {
     await tester.tap(find.text('Plus tard aujourd’hui'));
     await tester.pumpAndSettle();
     expect(find.text('TEST SNOOZE'), findsOneWidget);
-    expect(find.textContaining('Impossible de reporter'), findsOneWidget);
+    expect(
+      find.text('Impossible de charger les données pour le moment. Réessayez.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('refus serveur'), findsNothing);
   });
 }
 

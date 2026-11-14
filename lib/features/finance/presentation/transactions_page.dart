@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/money/money.dart';
 import '../../../core/localization/transactions_locale.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/providers/remote_account_balances_provider.dart';
@@ -241,15 +242,9 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
       ),
       body: transactions.when(
         loading: () => Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: AppSpacing.page,
-            child: Text(
-              TransactionsWords.of(
-                context,
-              ).format('transactions.load_error', {'error': error}),
-            ),
-          ),
+        error: (error, _) => UserSafeErrorState(
+          error: error,
+          onRetry: () => ref.invalidate(remoteTransactionsProvider),
         ),
         data: (items) => _TransactionList(
           items: items,
@@ -586,13 +581,7 @@ class _TransactionListState extends ConsumerState<_TransactionList> {
         const SizedBox(height: AppSpacing.lg),
         ...filtered.when(
           loading: () => [Center(child: CircularProgressIndicator())],
-          error: (e, _) => [
-            Text(
-              TransactionsWords.of(
-                context,
-              ).format('transactions.search_error', {'error': e}),
-            ),
-          ],
+          error: (error, _) => [UserSafeErrorState(error: error)],
           data: (items) => [
             if (items.isEmpty)
               Card(
@@ -1972,13 +1961,7 @@ class _TransactionDetailDialogState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              TransactionsWords.of(
-                context,
-              ).format('transactions.reversal_error', {'error': e}),
-            ),
-          ),
+          SnackBar(content: Text(userSafeErrorMessage(context, e))),
         );
       }
     } finally {
@@ -2032,13 +2015,7 @@ class _TransactionDetailDialogState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              TransactionsWords.of(
-                context,
-              ).format('transactions.attachment_add_error', {'error': e}),
-            ),
-          ),
+          SnackBar(content: Text(userSafeErrorMessage(context, e))),
         );
       }
     } finally {

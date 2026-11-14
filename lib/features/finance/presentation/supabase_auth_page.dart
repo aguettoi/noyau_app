@@ -60,11 +60,13 @@ class _SupabaseAuthPageState extends ConsumerState<SupabaseAuthPage> {
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
+      // The centralized router observes the restored Supabase session and
+      // resumes the validated return path. No imperative stack surgery here.
+      // Standalone test/legacy hosts may still present this page on a local
+      // Navigator; close that stack without changing the canonical URL flow.
       if (!mounted) return;
       final navigator = Navigator.of(context);
-      if (navigator.canPop()) {
-        navigator.popUntil((route) => route.isFirst);
-      }
+      if (navigator.canPop()) navigator.popUntil((route) => route.isFirst);
     } catch (error) {
       _debugAuthFailure(error);
       if (!mounted) {

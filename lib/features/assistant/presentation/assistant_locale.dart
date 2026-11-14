@@ -163,7 +163,7 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
     'assistant.kind.uncertainty': 'عدم يقين',
   },
   AppLanguage.darija: {
-    'assistant.title': 'المساعد الحتمي',
+    'assistant.title': 'المساعد ديال FINANCIEL PILOTE',
     'assistant.subtitle':
         'نصائح مفهومة مبنية غير على المعطيات المسموح ليك تشوف.',
     'assistant.loading': 'كنحللو المصادر المسموح بها…',
@@ -192,7 +192,7 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
     'assistant.priorities.next': 'حقيقة: كاينة أولوية جاية.',
     'assistant.priorities.none': 'ما متأكدينش: ما كايناش أولوية جاية صالحة.',
     'assistant.organization.summary':
-        'حقيقة: كاينين {tasks} مهام محلولين ومسموح بهم.',
+        'حقيقة: كاينين {tasks} شغايل محلولين ومسموح بهم.',
     'assistant.shopping.compatible':
         'قاعدة: المتاح المسموح به كيخلي دراسة الشرا ممكنة بلا ما نبينو الرصيد.',
     'assistant.shopping.unknown': 'ما متأكدينش: المتاح المسموح به ما كافيش.',

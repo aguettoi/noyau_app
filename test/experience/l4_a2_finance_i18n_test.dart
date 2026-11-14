@@ -276,7 +276,7 @@ void main() {
 
   test('A2 KPI and reporting catalog is complete and unique', () {
     final reference = KpiReportingWords.keysFor(AppLanguage.french);
-    expect(reference.length, 68);
+    expect(reference.length, 82);
     for (final language in AppLanguage.values) {
       final keys = KpiReportingWords.keysFor(language);
       expect(keys, reference);
@@ -530,7 +530,7 @@ void main() {
     (AppLanguage.french, 'Transactions', TextDirection.ltr),
     (AppLanguage.english, 'Transactions', TextDirection.ltr),
     (AppLanguage.arabic, 'المعاملات', TextDirection.rtl),
-    (AppLanguage.darija, 'المعاملات', TextDirection.rtl),
+    (AppLanguage.darija, 'العمليات', TextDirection.rtl),
   ]) {
     testWidgets('Transactions consultation renders ${entry.$1.storageCode}', (
       tester,

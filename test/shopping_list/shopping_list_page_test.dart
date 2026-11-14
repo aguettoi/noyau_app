@@ -22,6 +22,35 @@ void main() {
     child: const MaterialApp(home: Scaffold(body: ShoppingListPage())),
   );
 
+  testWidgets('une panne réseau ne révèle aucun diagnostic Supabase', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          shoppingItemsProvider.overrideWith(
+            (ref) async => throw Exception(
+              'ClientException: Failed to fetch, '
+              'uri=https://project.supabase.co/rest/v1/'
+              'household_grocery_items?household_id=secret',
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          locale: Locale('fr'),
+          home: Scaffold(body: ShoppingListPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.refresh), findsOneWidget);
+    expect(find.textContaining('ClientException'), findsNothing);
+    expect(find.textContaining('supabase.co'), findsNothing);
+    expect(find.textContaining('/rest/v1/'), findsNothing);
+    expect(find.textContaining('household_grocery_items'), findsNothing);
+  });
+
   testWidgets('le dialogue de création rend tous ses champs sans exception', (
     tester,
   ) async {

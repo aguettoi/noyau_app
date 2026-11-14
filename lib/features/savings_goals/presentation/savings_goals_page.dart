@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/money/money.dart';
 import '../../../core/localization/savings_goals_locale.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../financial_availability/application/providers/financial_availability_provider.dart';
@@ -79,11 +80,9 @@ class SavingsGoalsPage extends ConsumerWidget {
     return SafeArea(
       child: goals.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: AppSpacing.page,
-            child: Text(w.format('read_error', {'error': error})),
-          ),
+        error: (error, _) => UserSafeErrorState(
+          error: error,
+          onRetry: () => ref.invalidate(savingsGoalsProvider),
         ),
         data: (items) => DesktopPageContainer(
           child: ListView(
@@ -195,8 +194,10 @@ class SavingsGoalDetailPage extends ConsumerWidget {
       appBar: AppBar(title: Text(w.text('detail'))),
       body: goals.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) =>
-            Center(child: Text(w.format('goal_read_error', {'error': error}))),
+        error: (error, _) => UserSafeErrorState(
+          error: error,
+          onRetry: () => ref.invalidate(savingsGoalsProvider),
+        ),
         data: (items) {
           final matches = items.where((item) => item.goal.id == goalId);
           if (matches.isEmpty) {
@@ -294,8 +295,11 @@ class SavingsGoalDetailPage extends ConsumerWidget {
                       padding: EdgeInsets.all(AppSpacing.md),
                       child: CircularProgressIndicator(),
                     ),
-                    error: (error, _) =>
-                        Text(w.format('history_error', {'error': error})),
+                    error: (error, _) => UserSafeErrorState(
+                      error: error,
+                      onRetry: () =>
+                          ref.invalidate(savingsGoalHistoryProvider(goalId)),
+                    ),
                     data: (entries) => entries.isEmpty
                         ? Text(w.text('history_empty'))
                         : Column(
@@ -1012,11 +1016,7 @@ String _typeLabel(SavingsGoalsWords w, SavingsGoalType type) => switch (type) {
 };
 
 void _showError(BuildContext context, Object error) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(
-        SavingsGoalsWords.of(context).format('action_error', {'error': error}),
-      ),
-    ),
-  );
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(userSafeErrorMessage(context, error))));
 }

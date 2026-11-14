@@ -458,6 +458,41 @@ void main() {
       }
     }
   });
+  test('dashboard registers independent reads before awaiting the waterfall', () {
+    final financial = File(
+      'lib/features/dashboard/application/providers/remote_financial_dashboard_provider.dart',
+    ).readAsStringSync();
+    final firstAwait = financial.indexOf('final accounts = await');
+    for (final future in [
+      'accountsFuture =',
+      'balancesFuture =',
+      'envelopesFuture =',
+      'debtsFuture =',
+      'receivablesFuture =',
+      'goalsFuture =',
+      'prioritiesFuture =',
+      'periodsFuture =',
+      'transactionRowsFuture =',
+      'reconciliationsFuture =',
+      'availabilityFuture =',
+      'reportFuture =',
+    ]) {
+      expect(financial.indexOf(future), inInclusiveRange(0, firstAwait - 1));
+    }
+
+    final home = File(
+      'lib/features/dashboard/application/providers/dashboard_home_provider.dart',
+    ).readAsStringSync();
+    final homeAwait = home.indexOf('final snapshot = await');
+    for (final future in [
+      'snapshotFuture =',
+      'alertsFuture =',
+      'calendarFuture =',
+      'membersFuture =',
+    ]) {
+      expect(home.indexOf(future), inInclusiveRange(0, homeAwait - 1));
+    }
+  });
   for (final width in [390.0, 1280.0]) {
     testWidgets('dashboard empty and populated responsive $width', (
       tester,

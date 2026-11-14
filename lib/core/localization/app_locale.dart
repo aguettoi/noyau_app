@@ -56,6 +56,22 @@ extension AppLanguageX on AppLanguage {
   }
 }
 
+/// Keeps a numeric value and its unit visually together in both LTR and RTL.
+String isolateNumericUnit(String value) => '\u2066$value\u2069';
+
+String localizedPercent(AppLanguage language, num value) {
+  return switch (language) {
+    AppLanguage.french => '$value %',
+    AppLanguage.english => '$value%',
+    // LRM is intentional here: U+066A has bidi class ET and can otherwise be
+    // pulled in front of the digits by a surrounding RTL sentence. Keeping
+    // the complete numeric token in an explicit LTR run preserves `86٪`.
+    AppLanguage.arabic || AppLanguage.darija => '\u200E$value٪\u200E',
+  };
+}
+
+String localizedMad(num value) => isolateNumericUnit('$value MAD');
+
 class AppLocaleController extends StateNotifier<AppLanguage>
     with WidgetsBindingObserver {
   AppLocaleController({
@@ -235,11 +251,26 @@ class AppWords {
           'Tâche enregistrée en attente. Elle sera synchronisée au retour du réseau.',
       'offline.grocery_queued':
           'Article enregistré en attente. Il sera synchronisé au retour du réseau.',
+      'offline.cached_at':
+          'Hors ligne — dernières données enregistrées le {date}.',
+      'offline.pending_item': 'En attente de synchronisation',
+      'offline.syncing_item': 'Synchronisation en cours',
+      'offline.rejected_item': 'Synchronisation refusée',
+      'offline.conflict_item': 'Conflit à résoudre',
+      'offline.action_required_item': 'Action requise',
+      'offline.action_unavailable':
+          'Cette action nécessite une connexion au serveur.',
       'shell.refresh.success': 'Données actualisées.',
       'shell.refresh.error':
           'Actualisation impossible. Vérifiez votre connexion puis réessayez.',
       'shell.refresh.in_progress': 'Actualisation en cours',
       'shell.refresh.action': 'Actualiser',
+      'error.load.title': 'Données indisponibles',
+      'error.network':
+          'Connexion indisponible. Vérifiez votre réseau puis réessayez.',
+      'error.load':
+          'Impossible de charger les données pour le moment. Réessayez.',
+      'error.retry': 'Réessayer',
       'shell.help_configuration': 'Aide et configuration',
       'shell.profile_settings': 'Profil et paramètres',
       'shell.quick.ctrl_k': 'Actions rapides (Ctrl+K)',
@@ -275,6 +306,10 @@ class AppWords {
           'Saisissez votre adresse e-mail avant de demander un nouveau mot de passe.',
       'auth.reset_sent':
           'Si cette adresse existe, un e-mail de réinitialisation a été envoyé.',
+      'auth.recovery.title': 'Choisir un nouveau mot de passe',
+      'auth.recovery.submit': 'Enregistrer le nouveau mot de passe',
+      'auth.recovery.expired': 'Ce lien a expiré ou a déjà été utilisé.',
+      'auth.recovery.error': 'Le mot de passe n’a pas pu être mis à jour.',
       'auth.error.reset':
           'Demande impossible pour le moment. Vérifiez votre connexion.',
       'auth.error.configuration':
@@ -413,11 +448,22 @@ class AppWords {
           'Task saved as pending. It will sync when the network returns.',
       'offline.grocery_queued':
           'Item saved as pending. It will sync when the network returns.',
+      'offline.cached_at': 'Offline — last saved data from {date}.',
+      'offline.pending_item': 'Waiting to sync',
+      'offline.syncing_item': 'Syncing',
+      'offline.rejected_item': 'Sync rejected',
+      'offline.conflict_item': 'Conflict to resolve',
+      'offline.action_required_item': 'Action required',
+      'offline.action_unavailable': 'This action requires a server connection.',
       'shell.refresh.success': 'Data refreshed.',
       'shell.refresh.error':
           'Refresh failed. Check your connection and try again.',
       'shell.refresh.in_progress': 'Refreshing',
       'shell.refresh.action': 'Refresh',
+      'error.load.title': 'Data unavailable',
+      'error.network': 'No connection. Check your network and try again.',
+      'error.load': 'Unable to load the data right now. Try again.',
+      'error.retry': 'Try again',
       'shell.help_configuration': 'Help and settings',
       'shell.profile_settings': 'Profile and settings',
       'shell.quick.ctrl_k': 'Quick actions (Ctrl+K)',
@@ -453,6 +499,10 @@ class AppWords {
           'Enter your email address before requesting a new password.',
       'auth.reset_sent':
           'If this address exists, a password reset email has been sent.',
+      'auth.recovery.title': 'Choose a new password',
+      'auth.recovery.submit': 'Save the new password',
+      'auth.recovery.expired': 'This link has expired or was already used.',
+      'auth.recovery.error': 'The password could not be updated.',
       'auth.error.reset':
           'The request is currently unavailable. Check your connection.',
       'auth.error.configuration':
@@ -584,10 +634,21 @@ class AppWords {
       'offline.task_queued': 'حُفظت المهمة بانتظار المزامنة عند عودة الاتصال.',
       'offline.grocery_queued':
           'حُفظ العنصر بانتظار المزامنة عند عودة الاتصال.',
+      'offline.cached_at': 'غير متصل — آخر بيانات محفوظة بتاريخ {date}.',
+      'offline.pending_item': 'بانتظار المزامنة',
+      'offline.syncing_item': 'جارٍ المزامنة',
+      'offline.rejected_item': 'رُفضت المزامنة',
+      'offline.conflict_item': 'تعارض يحتاج إلى حل',
+      'offline.action_required_item': 'إجراء مطلوب',
+      'offline.action_unavailable': 'يتطلب هذا الإجراء اتصالاً بالخادم.',
       'shell.refresh.success': 'تم تحديث البيانات.',
       'shell.refresh.error': 'تعذر التحديث. تحقق من اتصالك ثم حاول مجدداً.',
       'shell.refresh.in_progress': 'جارٍ التحديث',
       'shell.refresh.action': 'تحديث',
+      'error.load.title': 'البيانات غير متاحة',
+      'error.network': 'لا يوجد اتصال. تحقق من الشبكة ثم أعد المحاولة.',
+      'error.load': 'تعذر تحميل البيانات حالياً. أعد المحاولة.',
+      'error.retry': 'إعادة المحاولة',
       'shell.help_configuration': 'المساعدة والإعدادات',
       'shell.profile_settings': 'الملف الشخصي والإعدادات',
       'shell.quick.ctrl_k': 'إجراءات سريعة (Ctrl+K)',
@@ -621,6 +682,10 @@ class AppWords {
           'أدخل بريدك الإلكتروني قبل طلب كلمة مرور جديدة.',
       'auth.reset_sent':
           'إذا كان العنوان موجوداً، فقد تم إرسال رسالة إعادة التعيين.',
+      'auth.recovery.title': 'اختيار كلمة مرور جديدة',
+      'auth.recovery.submit': 'حفظ كلمة المرور الجديدة',
+      'auth.recovery.expired': 'انتهت صلاحية هذا الرابط أو سبق استعماله.',
+      'auth.recovery.error': 'تعذر تحديث كلمة المرور.',
       'auth.error.reset': 'تعذر الطلب حالياً. تحقق من اتصالك.',
       'auth.error.configuration':
           'إعداد الاتصال غير متاح. أعد تشغيل نسخة معدة من FINANCIEL PILOTE.',
@@ -711,7 +776,7 @@ class AppWords {
           'الحسابات والظروف والميزانية والتوقعات.',
       'landing.module.household.title': 'الدار',
       'landing.module.household.description':
-          'الأعضاء والمهام والقضيان والتقويم.',
+          'ناس الدار والشغايل والقضيان والروزة.',
       'landing.module.projects.title': 'المشاريع',
       'landing.module.projects.description': 'الأهداف والأولويات والممتلكات.',
       'landing.module.privacy.title': 'الخصوصية',
@@ -725,7 +790,7 @@ class AppWords {
       'nav.foundation': 'الأساس',
       'nav.envelopes': 'الظروف',
       'nav.goals': 'الأهداف',
-      'nav.shopping': 'الشريان',
+      'nav.shopping': 'القضيان',
       'nav.priorities': 'الأولويات',
       'nav.import': 'الاستيراد',
       'nav.search': 'القليب ونقل المعطيات',
@@ -745,10 +810,21 @@ class AppWords {
       'offline.pending_count': '{count} خدمة كتسنى المزامنة',
       'offline.task_queued': 'تسجلات المهمة وكتسنى المزامنة ملي يرجع الريزو.',
       'offline.grocery_queued': 'تسجل الغرض وكيستنى المزامنة ملي يرجع الريزو.',
+      'offline.cached_at': 'بلا ريزو — آخر معلومات تسجلات نهار {date}.',
+      'offline.pending_item': 'كيستنى المزامنة',
+      'offline.syncing_item': 'كتدار المزامنة',
+      'offline.rejected_item': 'المزامنة ترفضات',
+      'offline.conflict_item': 'كاين تعارض خاصو يتحل',
+      'offline.action_required_item': 'خاص تدخل منك',
+      'offline.action_unavailable': 'هاد الخدمة خاصها الاتصال بالسيرفر.',
       'shell.refresh.success': 'تحدّثات المعطيات.',
       'shell.refresh.error': 'ما قدرناش نحدّثو. شوف الريزو وعاود جرّب.',
       'shell.refresh.in_progress': 'كنحدّثو دابا',
       'shell.refresh.action': 'حدّث',
+      'error.load.title': 'المعلومات ما متوفراش',
+      'error.network': 'ما كاينش الاتصال. شوف الريزو وعاود جرّب.',
+      'error.load': 'ما قدرناش نجيبو المعلومات دابا. عاود جرّب.',
+      'error.retry': 'عاود جرّب',
       'shell.help_configuration': 'المساعدة والإعدادات',
       'shell.profile_settings': 'البروفايل والإعدادات',
       'shell.quick.ctrl_k': 'خدمات سريعة (Ctrl+K)',
@@ -781,6 +857,10 @@ class AppWords {
       'auth.validation.reset_email': 'دخل الإيميل قبل ما تطلب كلمة سر جديدة.',
       'auth.reset_sent':
           'إلا كان هاد الإيميل موجود، راه تصيفط ليه إيميل ديال التبديل.',
+      'auth.recovery.title': 'اختار كلمة سر جديدة',
+      'auth.recovery.submit': 'سجّل كلمة السر الجديدة',
+      'auth.recovery.expired': 'هاد الرابط سالا ولا تستعمل من قبل.',
+      'auth.recovery.error': 'ما قدرناش نبدلو كلمة السر.',
       'auth.error.reset': 'الطلب ما خدمش دابا. شوف الكونيكسيون.',
       'auth.error.configuration':
           'إعدادات الدخول ما موجوداش. عاود خدّم نسخة موجّدة ديال FINANCIEL PILOTE.',
@@ -810,7 +890,7 @@ class AppWords {
       'onboarding.household.title': 'داركم',
       'onboarding.household.description':
           'صايب داركم ولا دخل ليها بخدمات الدخول لي كاينين.',
-      'onboarding.members.title': 'الأعضاء',
+      'onboarding.members.title': 'ناس الدار',
       'onboarding.members.description':
           'زيد عضو ولا جوج ولا كتر على حساب الوضع ديالكم.',
       'onboarding.finance.title': 'الفلوس',
@@ -818,7 +898,7 @@ class AppWords {
           'تقدر توجّد الحسابات والظروف والميزانية دابا ولا من بعد.',
       'onboarding.organization.title': 'التنظيم',
       'onboarding.organization.description':
-          'خدّم المهام والقضيان والتقويم والتذكيرات بالشوية عليك.',
+          'وجّد الشغايل والقضيان والروزة والتذكيرات بالشوية عليك.',
       'onboarding.privacy.title': 'الخصوصية',
       'onboarding.privacy.description':
           'شوف شكون يقدر يشوف كل معلومة حساسة ولا مالية.',

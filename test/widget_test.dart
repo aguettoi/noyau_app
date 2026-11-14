@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noyau_app/app/noyau_app.dart';
 import 'package:noyau_app/app/fp_adaptive_navigation.dart';
+import 'package:noyau_app/app/finance_shell_navigation.dart';
 import 'package:noyau_app/app/global_refresh_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/active_household_provider.dart';
 import 'package:noyau_app/features/finance/application/providers/remote_accounts_provider.dart';
@@ -23,11 +24,15 @@ import 'package:noyau_app/features/dashboard/application/dashboard_metrics.dart'
 import 'package:noyau_app/features/dashboard/application/providers/remote_financial_dashboard_provider.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/core/localization/app_locale.dart';
+import 'package:noyau_app/core/theme/app_design_system.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   Future<void> pumpApp(
     WidgetTester tester, {
     GlobalRefreshAction? refreshAction,
+    SupabaseAuthGateway? authGateway,
+    VoidCallback? onInactiveSurfaceRead,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -37,9 +42,12 @@ void main() {
               environmentLocales: () => const [Locale('fr')],
             ),
           ),
-          supabaseUserIdProvider.overrideWith(
-            (ref) => Stream.value('test-user'),
-          ),
+          if (authGateway == null)
+            supabaseUserIdProvider.overrideWith(
+              (ref) => Stream.value('test-user'),
+            )
+          else
+            supabaseAuthGatewayProvider.overrideWithValue(authGateway),
           activeHouseholdProvider.overrideWith(
             (ref) async => const ActiveHouseholdState(
               status: ActiveHouseholdStatus.singleHousehold,
@@ -47,24 +55,37 @@ void main() {
               householdIds: ['household-test'],
             ),
           ),
-          remoteAccountsProvider.overrideWith(
-            (ref) async => const <FinancialAccount>[],
-          ),
+          remoteAccountsProvider.overrideWith((ref) async {
+            onInactiveSurfaceRead?.call();
+            return const <FinancialAccount>[];
+          }),
           remoteHouseholdMembersProvider.overrideWith(
             (ref) async => const <HouseholdMember>[],
           ),
-          remoteTransactionsProvider.overrideWith(
-            (ref) async => const <TransactionHistoryItem>[],
-          ),
-          remoteEnvelopeBalancesProvider.overrideWith(
-            (ref) async => const <RemoteEnvelopeBalance>[],
-          ),
-          remoteEnvelopeHistoryProvider.overrideWith(
-            (ref) async => const <RemoteEnvelopeBalance>[],
-          ),
-          savingsGoalsProvider.overrideWith((ref) async => const []),
-          shoppingItemsProvider.overrideWith((ref) async => const []),
-          priorityPlansProvider.overrideWith((ref) async => const []),
+          remoteTransactionsProvider.overrideWith((ref) async {
+            onInactiveSurfaceRead?.call();
+            return const <TransactionHistoryItem>[];
+          }),
+          remoteEnvelopeBalancesProvider.overrideWith((ref) async {
+            onInactiveSurfaceRead?.call();
+            return const <RemoteEnvelopeBalance>[];
+          }),
+          remoteEnvelopeHistoryProvider.overrideWith((ref) async {
+            onInactiveSurfaceRead?.call();
+            return const <RemoteEnvelopeBalance>[];
+          }),
+          savingsGoalsProvider.overrideWith((ref) async {
+            onInactiveSurfaceRead?.call();
+            return const [];
+          }),
+          shoppingItemsProvider.overrideWith((ref) async {
+            onInactiveSurfaceRead?.call();
+            return const [];
+          }),
+          priorityPlansProvider.overrideWith((ref) async {
+            onInactiveSurfaceRead?.call();
+            return const [];
+          }),
           financialDashboardProvider.overrideWith(
             (ref) async => const FinancialDashboardSnapshot(
               accounts: [],
@@ -96,6 +117,16 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('Accueil ne charge pas les surfaces métier inactives', (
+    tester,
+  ) async {
+    var inactiveReads = 0;
+    await pumpApp(tester, onInactiveSurfaceRead: () => inactiveReads += 1);
+
+    expect(inactiveReads, 0);
+    expect(find.byKey(const Key('financial-dashboard-page')), findsOneWidget);
+  });
 
   testWidgets('Actualiser coordonne un seul refresh et confirme le succès', (
     tester,
@@ -344,6 +375,37 @@ void main() {
             .selected,
         FpUniverse.more,
       );
+    },
+  );
+
+  testWidgets(
+    'Plus expose le logout canonique, purge le privé et revient vers Auth',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'l4.onboarding.progress': '{}',
+        'l4.offline.drafts': '[]',
+        'l5.assistant.audit.v1': '[]',
+        'l4.language': 'fr',
+      });
+      final gateway = _TestAuthGateway();
+      await pumpApp(tester, authGateway: gateway);
+
+      await tester.tap(find.text('Plus').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Se déconnecter'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Se déconnecter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Se déconnecter'));
+      await tester.pumpAndSettle();
+
+      expect(gateway.signOutCalls, 1);
+      expect(find.byKey(const Key('auth-sign-in-button')), findsOneWidget);
+      final preferences = await SharedPreferences.getInstance();
+      expect(preferences.containsKey('l4.onboarding.progress'), isFalse);
+      expect(preferences.containsKey('l4.offline.drafts'), isFalse);
+      expect(preferences.containsKey('l5.assistant.audit.v1'), isFalse);
+      expect(preferences.getString('l4.language'), 'fr');
     },
   );
 
@@ -882,4 +944,117 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<NavigationRail>(rail).selectedIndex, 0);
   });
+
+  for (final width in <double>[
+    390,
+    430,
+    720,
+    900,
+    1199,
+    1200,
+    1280,
+    1439,
+    1440,
+  ]) {
+    testWidgets('shell responsive sans collision à $width px', (tester) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpApp(tester);
+
+      if (width < AppLayout.expandedBreakpoint) {
+        final actions = find.byKey(const Key('shell-mobile-actions'));
+        final greeting = find.text('Bonjour');
+        expect(actions, findsOneWidget);
+        expect(greeting, findsOneWidget);
+        expect(
+          tester.getBottomLeft(actions).dy,
+          lessThanOrEqualTo(tester.getTopLeft(greeting).dy),
+        );
+        expect(find.byType(FloatingActionButton), findsOneWidget);
+      } else {
+        expect(find.byKey(const Key('shell-mobile-actions')), findsNothing);
+        if (width < AppLayout.largeBreakpoint) {
+          expect(
+            find.byKey(const Key('universal-add-rail-compact')),
+            findsOneWidget,
+          );
+          expect(find.text('Ajouter'), findsNothing);
+        } else {
+          expect(
+            find.byKey(const Key('universal-add-rail-labeled')),
+            findsOneWidget,
+          );
+        }
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final width in <double>[390, 430]) {
+    testWidgets('Comptes sépare ajout local et Universal Add à $width px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await pumpApp(tester);
+
+      final shell = FinanceShellNavigation.of(
+        tester.element(find.byType(FinanceShellNavigation)),
+      );
+      shell.selectDestination(FinanceShellNavigation.accountsIndex);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(find.byKey(const Key('add-account-fab')), findsNothing);
+      expect(find.byKey(const Key('add-account-compact')), findsOneWidget);
+      expect(find.byTooltip('Ajouter un compte'), findsOneWidget);
+      final list = tester.widget<ListView>(
+        find.byKey(const Key('accounts-list')),
+      );
+      expect((list.padding! as EdgeInsets).bottom, greaterThanOrEqualTo(96));
+      expect(tester.takeException(), isNull);
+    });
+  }
+}
+
+class _TestAuthGateway implements SupabaseAuthGateway {
+  final _changes = StreamController<String?>.broadcast();
+  String? _userId = 'test-user';
+  int signOutCalls = 0;
+
+  @override
+  String? get currentUserId => _userId;
+
+  @override
+  Stream<String?> get userIdChanges => _changes.stream;
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls += 1;
+    _userId = null;
+    _changes.add(null);
+  }
+
+  @override
+  Future<void> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<bool> signUp({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+  }) async => true;
+
+  @override
+  Future<void> sendPasswordReset(String email) async {}
 }

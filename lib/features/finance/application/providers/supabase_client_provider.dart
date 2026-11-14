@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../app/app_routes.dart';
 import '../../../../core/platform/platform_link_contract.dart';
 
 /// Exposes the Supabase client initialized once at application startup.
@@ -74,6 +76,10 @@ class SupabaseClientAuthGateway implements SupabaseAuthGateway {
     final response = await _client.auth.signUp(
       email: email.trim(),
       password: password,
+      emailRedirectTo: _authRedirect(
+        webPath: AppRoutes.callback,
+        nativeUri: PlatformLinkContract.authCallback,
+      ),
       data: {
         'first_name': firstName.trim(),
         'last_name': lastName.trim(),
@@ -87,8 +93,20 @@ class SupabaseClientAuthGateway implements SupabaseAuthGateway {
   Future<void> sendPasswordReset(String email) =>
       _client.auth.resetPasswordForEmail(
         email.trim(),
-        redirectTo: PlatformLinkContract.passwordReset.toString(),
+        redirectTo: _authRedirect(
+          webPath: AppRoutes.resetPassword,
+          nativeUri: PlatformLinkContract.passwordReset,
+        ),
       );
+
+  String _authRedirect({required String webPath, required Uri nativeUri}) =>
+      kIsWeb
+      ? AppRoutes.webAuthRedirect(
+          currentBase: Uri.base,
+          path: webPath,
+          configuredOrigin: const String.fromEnvironment('WEB_APP_ORIGIN'),
+        )
+      : nativeUri.toString();
 
   @override
   Future<void> signOut() => _client.auth.signOut();

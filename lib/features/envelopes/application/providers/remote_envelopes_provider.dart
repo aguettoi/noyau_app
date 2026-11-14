@@ -3,6 +3,9 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/money/money.dart';
+import '../../../../core/network/network_failure.dart';
+import '../../../experience/application/experience_provider.dart';
+import '../../../experience/application/offline_connectivity.dart';
 import '../../../finance/application/providers/active_household_provider.dart';
 import '../../../finance/application/providers/supabase_client_provider.dart';
 
@@ -51,6 +54,50 @@ class RemoteEnvelopeBalance {
           ? 'unconfigured'
           : 'single_account');
 }
+
+Map<String, Object?> _envelopeSnapshotRow(RemoteEnvelopeBalance value) => {
+  'id': value.id,
+  'name': value.name,
+  'inflows_minor': value.inflows.minorUnits,
+  'outflows_minor': value.outflows.minorUnits,
+  'balance_minor': value.balance.minorUnits,
+  'is_system': value.isSystem,
+  'is_archived': value.isArchived,
+  'notes': value.notes,
+  'system_code': value.systemCode,
+  'last_movement_at': value.lastMovementAt?.toUtc().toIso8601String(),
+  'recommended_account_id': value.recommendedAccountId,
+  'recommended_payment_method_id': value.recommendedPaymentMethodId,
+  'recommendation_kind': value.recommendationKind,
+  'recommendation_definition': value.recommendationDefinition,
+  'economic_rule': value.economicRule,
+  'economic_member_name': value.economicMemberName,
+};
+
+RemoteEnvelopeBalance _envelopeFromSnapshot(Map<String, Object?> row) =>
+    RemoteEnvelopeBalance(
+      id: row['id']! as String,
+      name: row['name']! as String,
+      inflows: Money.fromMinorUnits(row['inflows_minor']! as int),
+      outflows: Money.fromMinorUnits(row['outflows_minor']! as int),
+      balance: Money.fromMinorUnits(row['balance_minor']! as int),
+      isSystem: row['is_system'] == true,
+      isArchived: row['is_archived'] == true,
+      notes: row['notes'] as String?,
+      systemCode: row['system_code'] as String?,
+      lastMovementAt: row['last_movement_at'] is String
+          ? DateTime.tryParse(row['last_movement_at']! as String)
+          : null,
+      recommendedAccountId: row['recommended_account_id'] as String?,
+      recommendedPaymentMethodId:
+          row['recommended_payment_method_id'] as String?,
+      recommendationKind: row['recommendation_kind'] as String?,
+      recommendationDefinition: row['recommendation_definition'] is Map
+          ? Map<String, Object?>.from(row['recommendation_definition']! as Map)
+          : const {},
+      economicRule: row['economic_rule'] as String? ?? 'unconfigured',
+      economicMemberName: row['economic_member_name'] as String?,
+    );
 
 class RemoteEnvelopeMovement {
   const RemoteEnvelopeMovement({
@@ -340,89 +387,125 @@ final remoteEnvelopeHistoryProvider = FutureProvider<List<RemoteEnvelopeBalance>
   if (!household.hasActiveHousehold || householdId == null) {
     throw StateError('Aucun foyer actif sans ambiguïté.');
   }
-  final client = ref.watch(supabaseClientProvider);
-  final envelopeRows = await client.rpc(
-    'list_household_envelopes_safe',
-    params: {'p_household_id': householdId},
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) throw StateError('Session indisponible.');
+  final store = ref.watch(experienceStoreProvider);
+  final cached = await store.loadReadSnapshot(
+    kind: 'envelopes',
+    householdId: householdId,
+    userId: userId,
   );
-  final rows = await client
-      .from('envelope_ledger_balances')
-      .select(
-        'envelope_id, envelope_name, inflows, outflows, balance, is_system, system_code, last_movement_at',
-      )
-      .eq('household_id', householdId)
-      .order('envelope_name', ascending: true);
-  final scenarioStepRows = await client
-      .from('budget_scenario_steps')
-      .select('envelope_id,contribution_key,member_user_id,group_name')
-      .eq('household_id', householdId)
-      .eq('active', true);
-  final memberIds = (scenarioStepRows as List<dynamic>)
-      .map((raw) => (raw as Map)['member_user_id']?.toString())
-      .whereType<String>()
-      .toSet();
-  final profileRows = memberIds.isEmpty
-      ? const <dynamic>[]
-      : await client
-            .from('profiles')
-            .select('id,display_name')
-            .inFilter('id', memberIds.toList());
-  final memberNames = <String, String>{
-    for (final raw in profileRows)
-      (raw as Map)['id'].toString(): (raw['display_name'] ?? 'Membre')
-          .toString(),
-  };
-  final stepsByEnvelope = <String, List<Map<String, Object?>>>{};
-  for (final raw in scenarioStepRows) {
-    final row = Map<String, Object?>.from(raw as Map);
-    final envelopeId = row['envelope_id']?.toString();
-    if (envelopeId != null) {
-      stepsByEnvelope.putIfAbsent(envelopeId, () => []).add(row);
+  try {
+    final client = ref.watch(supabaseClientProvider);
+    final envelopeRows = await client.rpc(
+      'list_household_envelopes_safe',
+      params: {'p_household_id': householdId},
+    );
+    final rows = await client
+        .from('envelope_ledger_balances')
+        .select(
+          'envelope_id, envelope_name, inflows, outflows, balance, is_system, system_code, last_movement_at',
+        )
+        .eq('household_id', householdId)
+        .order('envelope_name', ascending: true);
+    final scenarioStepRows = await client
+        .from('budget_scenario_steps')
+        .select('envelope_id,contribution_key,member_user_id,group_name')
+        .eq('household_id', householdId)
+        .eq('active', true);
+    final memberIds = (scenarioStepRows as List<dynamic>)
+        .map((raw) => (raw as Map)['member_user_id']?.toString())
+        .whereType<String>()
+        .toSet();
+    final profileRows = memberIds.isEmpty
+        ? const <dynamic>[]
+        : await client
+              .from('profiles')
+              .select('id,display_name')
+              .inFilter('id', memberIds.toList());
+    final memberNames = <String, String>{
+      for (final raw in profileRows)
+        (raw as Map)['id'].toString(): (raw['display_name'] ?? 'Membre')
+            .toString(),
+    };
+    final stepsByEnvelope = <String, List<Map<String, Object?>>>{};
+    for (final raw in scenarioStepRows) {
+      final row = Map<String, Object?>.from(raw as Map);
+      final envelopeId = row['envelope_id']?.toString();
+      if (envelopeId != null) {
+        stepsByEnvelope.putIfAbsent(envelopeId, () => []).add(row);
+      }
     }
+    final balanceRowsByEnvelopeId = <String, Map<String, Object?>>{
+      for (final raw in rows as List<dynamic>)
+        (raw as Map)['envelope_id'] as String: Map<String, Object?>.from(raw),
+    };
+    final result = List<RemoteEnvelopeBalance>.unmodifiable(
+      (envelopeRows as List<dynamic>).map((raw) {
+        final envelope = Map<String, Object?>.from(raw as Map);
+        final id = envelope['id'] as String;
+        final balance = balanceRowsByEnvelopeId[id];
+        final kind = envelope['recommendation_kind'] as String?;
+        final economic = deriveEnvelopeEconomicRule(
+          recommendationKind: kind,
+          isSystem: envelope['is_system'] == true,
+          scenarioSteps: stepsByEnvelope[id] ?? const [],
+          memberNames: memberNames,
+        );
+        return RemoteEnvelopeBalance(
+          id: id,
+          name: envelope['name'] as String,
+          inflows: _money(balance?['inflows'] ?? 0),
+          outflows: _money(balance?['outflows'] ?? 0),
+          balance: _money(balance?['balance'] ?? 0),
+          isSystem: envelope['is_system'] == true,
+          systemCode: envelope['system_code'] as String?,
+          isArchived: envelope['archived_at'] != null,
+          notes: envelope['notes'] as String?,
+          recommendedAccountId: envelope['recommended_account_id'] as String?,
+          recommendedPaymentMethodId:
+              envelope['recommended_payment_method_id'] as String?,
+          recommendationKind: kind,
+          recommendationDefinition: envelope['recommendation_definition'] is Map
+              ? Map<String, Object?>.from(
+                  envelope['recommendation_definition']! as Map,
+                )
+              : const {},
+          economicRule: economic.rule,
+          economicMemberName: economic.memberName,
+          lastMovementAt: balance?['last_movement_at'] is String
+              ? DateTime.tryParse(balance!['last_movement_at'] as String)
+              : null,
+        );
+      }),
+    );
+    final capturedAt = DateTime.now().toUtc();
+    await store.saveReadSnapshot(
+      kind: 'envelopes',
+      householdId: householdId,
+      userId: userId,
+      rows: result.map(_envelopeSnapshotRow).toList(growable: false),
+      capturedAt: capturedAt,
+    );
+    setOfflineSnapshotStatus(
+      ref,
+      'envelopes',
+      OfflineSnapshotStatus(capturedAt: capturedAt, stale: false),
+    );
+    return result;
+  } catch (error) {
+    if (!isNetworkFailure(error)) rethrow;
+    reportOfflineFailure(ref);
+    if (cached == null) rethrow;
+    setOfflineSnapshotStatus(
+      ref,
+      'envelopes',
+      OfflineSnapshotStatus(capturedAt: cached.capturedAt, stale: true),
+    );
+    return List<RemoteEnvelopeBalance>.unmodifiable(
+      cached.rows.map(_envelopeFromSnapshot),
+    );
   }
-  final balanceRowsByEnvelopeId = <String, Map<String, Object?>>{
-    for (final raw in rows as List<dynamic>)
-      (raw as Map)['envelope_id'] as String: Map<String, Object?>.from(raw),
-  };
-  return List.unmodifiable(
-    (envelopeRows as List<dynamic>).map((raw) {
-      final envelope = Map<String, Object?>.from(raw as Map);
-      final id = envelope['id'] as String;
-      final balance = balanceRowsByEnvelopeId[id];
-      final kind = envelope['recommendation_kind'] as String?;
-      final economic = deriveEnvelopeEconomicRule(
-        recommendationKind: kind,
-        isSystem: envelope['is_system'] == true,
-        scenarioSteps: stepsByEnvelope[id] ?? const [],
-        memberNames: memberNames,
-      );
-      return RemoteEnvelopeBalance(
-        id: id,
-        name: envelope['name'] as String,
-        inflows: _money(balance?['inflows'] ?? 0),
-        outflows: _money(balance?['outflows'] ?? 0),
-        balance: _money(balance?['balance'] ?? 0),
-        isSystem: envelope['is_system'] == true,
-        systemCode: envelope['system_code'] as String?,
-        isArchived: envelope['archived_at'] != null,
-        notes: envelope['notes'] as String?,
-        recommendedAccountId: envelope['recommended_account_id'] as String?,
-        recommendedPaymentMethodId:
-            envelope['recommended_payment_method_id'] as String?,
-        recommendationKind: kind,
-        recommendationDefinition: envelope['recommendation_definition'] is Map
-            ? Map<String, Object?>.from(
-                envelope['recommendation_definition']! as Map,
-              )
-            : const {},
-        economicRule: economic.rule,
-        economicMemberName: economic.memberName,
-        lastMovementAt: balance?['last_movement_at'] is String
-            ? DateTime.tryParse(balance!['last_movement_at'] as String)
-            : null,
-      );
-    }),
-  );
 });
 
 ({String rule, String? memberName}) deriveEnvelopeEconomicRule({

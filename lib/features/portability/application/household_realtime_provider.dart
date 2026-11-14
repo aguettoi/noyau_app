@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../app/global_refresh_provider.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
@@ -20,12 +19,6 @@ import '../../organization/application/daily_life_provider.dart';
 import '../../wealth/application/providers/wealth_provider.dart';
 import '../../monthly_close/application/monthly_close_provider.dart';
 import '../../recurring_finance/application/recurring_finance_provider.dart';
-
-enum SyncConnectionState { connecting, synchronized, reconnecting, offline }
-
-final syncConnectionStateProvider = StateProvider<SyncConnectionState>(
-  (ref) => SyncConnectionState.connecting,
-);
 
 final householdRealtimeProvider = Provider<void>((ref) {
   final household = ref.watch(activeHouseholdProvider).valueOrNull;
@@ -51,17 +44,14 @@ final householdRealtimeProvider = Provider<void>((ref) {
       }
     },
   );
-  channel.subscribe((status, _) {
-    ref.read(syncConnectionStateProvider.notifier).state = switch (status) {
-      RealtimeSubscribeStatus.subscribed => SyncConnectionState.synchronized,
-      RealtimeSubscribeStatus.timedOut ||
-      RealtimeSubscribeStatus.channelError => SyncConnectionState.reconnecting,
-      RealtimeSubscribeStatus.closed => SyncConnectionState.offline,
-    };
-    if (status == RealtimeSubscribeStatus.subscribed) {
-      ref.read(globalRefreshActionProvider)();
-    }
-  });
+  // Realtime is an invalidation transport, not a connectivity oracle. A
+  // browser may suspend or reconnect its WebSocket while REST/Auth remain
+  // healthy (for example after visibility or timing changes). Treating a
+  // channel close as a global outage caused false offline banners and, on each
+  // resubscribe, a concurrent refresh of every financial read model. The
+  // shared REST probe owns online/offline state; this channel only invalidates
+  // the table announced by the server.
+  channel.subscribe();
   // Unsubscribe this household without tearing down the shared socket: a
   // household switch may subscribe the replacement channel immediately.
   ref.onDispose(() => unawaited(channel.unsubscribe()));

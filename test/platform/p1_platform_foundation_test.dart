@@ -3,8 +3,25 @@ import 'package:noyau_app/core/platform/native_notification_contract.dart';
 import 'package:noyau_app/core/platform/native_notification_adapter.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:noyau_app/core/platform/platform_link_contract.dart';
+import 'package:noyau_app/core/theme/app_design_system.dart';
+import 'dart:io';
 
 void main() {
+  test('web entry point enables semantics for assistive technologies', () {
+    final source = File('lib/main.dart').readAsStringSync();
+    expect(source, contains('SemanticsBinding.instance.ensureSemantics()'));
+    expect(source, contains('if (kIsWeb)'));
+  });
+
+  test('web layout contracts cover every P1-B width boundary', () {
+    expect(AppLayout.isDesktop(719), isFalse);
+    expect(AppLayout.isDesktop(720), isFalse);
+    expect(AppLayout.isDesktop(1199), isFalse);
+    expect(AppLayout.isDesktop(1200), isTrue);
+    expect(AppLayout.isLarge(1439), isFalse);
+    expect(AppLayout.isLarge(1440), isTrue);
+  });
+
   test('native timezone accepts Android GMT and keeps named zones', () {
     tz_data.initializeTimeZones();
     expect(resolveNativeTimezone('GMT').name, 'UTC');

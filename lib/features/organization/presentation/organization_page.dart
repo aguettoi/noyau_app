@@ -6,14 +6,15 @@ import 'package:intl/intl.dart';
 
 import '../../../core/localization/app_locale.dart';
 import '../../../core/localization/household_locale.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../cashflow_projection/presentation/cashflow_projection_page.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
 import '../../experience/application/experience_provider.dart';
+import '../../experience/application/offline_connectivity.dart';
 import '../../experience/domain/offline_draft.dart';
-import '../../portability/application/household_realtime_provider.dart';
 import '../../recurring_finance/presentation/recurring_finance_page.dart';
 import '../application/organization_provider.dart';
 import '../domain/organization_models.dart';
@@ -1236,7 +1237,7 @@ Future<void> _actOnAlert(
   } catch (error) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Impossible de reporter le rappel : $error')),
+      SnackBar(content: Text(userSafeErrorMessage(context, error))),
     );
   }
 }

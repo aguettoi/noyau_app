@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/money/money.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
@@ -178,11 +179,9 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
     return SafeArea(
       child: items.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: AppSpacing.page,
-            child: Text('Impossible de lire la Shopping List : $error'),
-          ),
+        error: (error, _) => UserSafeErrorState(
+          error: error,
+          onRetry: () => ref.invalidate(shoppingItemsProvider),
         ),
         data: (data) {
           final filtered = data
@@ -456,7 +455,10 @@ class _ShoppingHistoryDialog extends ConsumerWidget {
         width: 500,
         child: history.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Text('Historique indisponible : $error'),
+          error: (error, _) => UserSafeErrorState(
+            error: error,
+            onRetry: () => ref.invalidate(shoppingItemHistoryProvider(itemId)),
+          ),
           data: (entries) => entries.isEmpty
               ? const Text('Aucun changement métier enregistré.')
               : ListView(
@@ -961,7 +963,6 @@ String _historyLabel(String action) => switch (action) {
   'purchased' => 'Achat réel rattaché',
   _ => 'Modification',
 };
-void _error(BuildContext context, Object error) =>
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
-    );
+void _error(BuildContext context, Object error) => ScaffoldMessenger.of(
+  context,
+).showSnackBar(SnackBar(content: Text(userSafeErrorMessage(context, error))));

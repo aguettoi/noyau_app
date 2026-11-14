@@ -16,9 +16,14 @@ import 'financing_comparison_dialog.dart';
 import 'home_auto_panels.dart';
 
 class WealthPage extends ConsumerWidget {
-  const WealthPage({super.key, this.initialTab = 0});
+  const WealthPage({
+    super.key,
+    this.initialTab = 0,
+    this.financingComparisonInitialDate,
+  });
 
   final int initialTab;
+  final DateTime? financingComparisonInitialDate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -51,7 +56,10 @@ class WealthPage extends ConsumerWidget {
                       children: [
                         _WealthOverview(data, ref),
                         _Investments(data, ref),
-                        _Financings(data),
+                        _Financings(
+                          data,
+                          initialStartDate: financingComparisonInitialDate,
+                        ),
                         HomePanel(wealth: data),
                         VehiclePanel(wealth: data),
                         _HistoryReportingHub(data),
@@ -776,8 +784,9 @@ class _Investments extends StatelessWidget {
 }
 
 class _Financings extends StatelessWidget {
-  const _Financings(this.data);
+  const _Financings(this.data, {this.initialStartDate});
   final WealthData data;
+  final DateTime? initialStartDate;
   @override
   Widget build(BuildContext context) {
     final w = WealthWords.of(context);
@@ -805,8 +814,10 @@ class _Financings extends StatelessWidget {
             key: const Key('open-financing-comparison'),
             onPressed: () => showDialog<void>(
               context: context,
-              builder: (_) =>
-                  FinancingComparisonDialog(availability: data.availability),
+              builder: (_) => FinancingComparisonDialog(
+                availability: data.availability,
+                initialStartDate: initialStartDate,
+              ),
             ),
             icon: const Icon(Icons.compare_arrows),
             label: Text(w.text('compare')),

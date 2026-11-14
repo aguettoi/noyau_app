@@ -66,12 +66,18 @@ class DashboardAlert {
     required this.detail,
     required this.severity,
     this.destination = DashboardDestination.accounts,
+    this.titleKey,
+    this.detailKey,
+    this.values = const <String, Object>{},
   });
 
   final String title;
   final String detail;
   final DashboardAlertSeverity severity;
   final DashboardDestination destination;
+  final String? titleKey;
+  final String? detailKey;
+  final Map<String, Object> values;
 }
 
 enum DashboardPeriod {

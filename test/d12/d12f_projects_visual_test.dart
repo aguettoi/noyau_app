@@ -141,7 +141,10 @@ Widget _page(_Surface surface) => switch (surface) {
   _Surface.priorities => const Scaffold(body: PrioritiesPage()),
   _Surface.wealth => const WealthPage(),
   _Surface.investments => const WealthPage(initialTab: 1),
-  _Surface.financing || _Surface.comparison => const WealthPage(initialTab: 2),
+  _Surface.financing || _Surface.comparison => WealthPage(
+    initialTab: 2,
+    financingComparisonInitialDate: DateTime(2026, 11, 4),
+  ),
   _Surface.schedule => const WealthPage(initialTab: 5),
 };
 

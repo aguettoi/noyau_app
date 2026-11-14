@@ -163,19 +163,47 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
   final now = ref.watch(dashboardClockProvider);
   final selectedPeriod = ref.watch(dashboardPeriodProvider);
   final bounds = selectedPeriod.bounds(now);
-  final accounts = await ref.watch(remoteAccountsProvider.future);
-  final balances = await ref.watch(remoteAccountBalancesProvider.future);
-  final envelopes = await ref.watch(remoteEnvelopeHistoryProvider.future);
-  final debts = await ref.watch(remoteDebtBalancesProvider.future);
-  final receivables = await ref.watch(remoteReceivableBalancesProvider.future);
-  final goals = await ref.watch(savingsGoalsProvider.future);
-  final priorities = await ref.watch(priorityPlansProvider.future);
-  final periods = await ref.watch(remoteBudgetPeriodsProvider.future);
-  final transactionRows = await ref.watch(dashboardHistoryProvider.future);
-  final reconciliations = await ref.watch(
+  // Every source below is an independent read model for the same household.
+  // Register all dependencies before awaiting them so Supabase can serve the
+  // dashboard waterfall concurrently instead of serially.
+  final accountsFuture = ref.watch(remoteAccountsProvider.future);
+  final balancesFuture = ref.watch(remoteAccountBalancesProvider.future);
+  final envelopesFuture = ref.watch(remoteEnvelopeHistoryProvider.future);
+  final debtsFuture = ref.watch(remoteDebtBalancesProvider.future);
+  final receivablesFuture = ref.watch(remoteReceivableBalancesProvider.future);
+  final goalsFuture = ref.watch(savingsGoalsProvider.future);
+  final prioritiesFuture = ref.watch(priorityPlansProvider.future);
+  final periodsFuture = ref.watch(remoteBudgetPeriodsProvider.future);
+  final transactionRowsFuture = ref.watch(dashboardHistoryProvider.future);
+  final reconciliationsFuture = ref.watch(
     dashboardReconciliationsProvider.future,
   );
-  final availability = await ref.watch(financialAvailabilityProvider.future);
+  final availabilityFuture = ref.watch(financialAvailabilityProvider.future);
+  final reportFuture = ref.watch(
+    remoteBudgetReportingProvider((
+      horizon: BudgetHorizon.monthly,
+      period: RemoteBudgetPeriod(
+        id: 'dashboard-range',
+        householdId: householdId,
+        startsOn: bounds.start,
+        endsOn: DateTime(bounds.end.year, bounds.end.month, bounds.end.day - 1),
+        status: 'projection',
+      ),
+    )).future,
+  );
+
+  final accounts = await accountsFuture;
+  final balances = await balancesFuture;
+  final envelopes = await envelopesFuture;
+  final debts = await debtsFuture;
+  final receivables = await receivablesFuture;
+  final goals = await goalsFuture;
+  final priorities = await prioritiesFuture;
+  final periods = await periodsFuture;
+  final transactionRows = await transactionRowsFuture;
+  final reconciliations = await reconciliationsFuture;
+  final availability = await availabilityFuture;
+  final report = await reportFuture;
 
   final accountBalances = <DashboardAccountBalance>[];
   for (final account in accounts.where(
@@ -203,18 +231,6 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
     );
     return starts.isBefore(bounds.end) && ends.isAfter(bounds.start);
   }).firstOrNull;
-  final report = await ref.watch(
-    remoteBudgetReportingProvider((
-      horizon: BudgetHorizon.monthly,
-      period: RemoteBudgetPeriod(
-        id: 'dashboard-range',
-        householdId: householdId,
-        startsOn: bounds.start,
-        endsOn: DateTime(bounds.end.year, bounds.end.month, bounds.end.day - 1),
-        status: 'projection',
-      ),
-    )).future,
-  );
   final budget = DashboardBudgetSummary(
     period: currentPeriod,
     planned: _sum(report.map((item) => item.plannedCents)),
@@ -340,6 +356,9 @@ List<DashboardAlert> buildDashboardAlerts({
         DashboardAlert(
           title: 'Compte négatif',
           detail: '${account.account.name} est négatif.',
+          titleKey: 'alert.negative_account',
+          detailKey: 'alert.negative_account_detail',
+          values: {'account': account.account.name},
           severity: DashboardAlertSeverity.warning,
           destination: DashboardDestination.accounts,
         ),
@@ -354,6 +373,9 @@ List<DashboardAlert> buildDashboardAlerts({
         DashboardAlert(
           title: 'Écart de rapprochement',
           detail: '${account.account.name} : $open dossier(s) ouvert(s).',
+          titleKey: 'alert.reconciliation_gap',
+          detailKey: 'alert.reconciliation_gap_detail',
+          values: {'account': account.account.name, 'count': open},
           severity: DashboardAlertSeverity.warning,
         ),
       );
@@ -369,6 +391,13 @@ List<DashboardAlert> buildDashboardAlerts({
               : 'Compte à rapprocher',
           detail:
               '${account.account.name} : ${dates.isEmpty ? "aucun constat" : "constat ancien ou historique non figé"}.',
+          titleKey: account.account.type == FinancialAccountType.cash
+              ? 'alert.cash_to_check'
+              : 'alert.account_to_reconcile',
+          detailKey: dates.isEmpty
+              ? 'alert.no_observation_detail'
+              : 'alert.old_observation_detail',
+          values: {'account': account.account.name},
           severity: DashboardAlertSeverity.attention,
         ),
       );
@@ -380,6 +409,9 @@ List<DashboardAlert> buildDashboardAlerts({
         DashboardAlert(
           title: 'Enveloppe négative',
           detail: '${envelope.name} est à découvert.',
+          titleKey: 'alert.negative_envelope',
+          detailKey: 'alert.negative_envelope_detail',
+          values: {'envelope': envelope.name},
           severity: DashboardAlertSeverity.warning,
           destination: DashboardDestination.envelopes,
         ),
@@ -401,6 +433,17 @@ List<DashboardAlert> buildDashboardAlerts({
             : 'Budget proche de sa limite',
         detail:
             '$name : ${(row.actualCents / 100).toStringAsFixed(2)} / ${(row.plannedCents / 100).toStringAsFixed(2)} MAD ; reste ${((row.plannedCents - row.actualCents) / 100).toStringAsFixed(2)} MAD.',
+        titleKey: row.actualCents > row.plannedCents
+            ? 'alert.budget_exceeded'
+            : 'alert.budget_near_limit',
+        detailKey: 'alert.budget_detail',
+        values: {
+          'envelope': name,
+          'actual': (row.actualCents / 100).toStringAsFixed(2),
+          'planned': (row.plannedCents / 100).toStringAsFixed(2),
+          'remaining': ((row.plannedCents - row.actualCents) / 100)
+              .toStringAsFixed(2),
+        },
         severity: row.actualCents > row.plannedCents
             ? DashboardAlertSeverity.critical
             : DashboardAlertSeverity.warning,
@@ -413,6 +456,8 @@ List<DashboardAlert> buildDashboardAlerts({
       const DashboardAlert(
         title: 'Fonds à répartir',
         detail: 'Une partie des fonds attend encore une affectation.',
+        titleKey: 'alert.funds_to_allocate',
+        detailKey: 'alert.funds_to_allocate_detail',
         severity: DashboardAlertSeverity.attention,
         destination: DashboardDestination.envelopes,
       ),
@@ -429,6 +474,15 @@ List<DashboardAlert> buildDashboardAlerts({
               : 'Dette à échéance proche',
           detail:
               '${obligation.description} : ${obligation.remainingAmount.dirhams.toStringAsFixed(2)} MAD restant.',
+          titleKey:
+              obligation.dueAt!.isBefore(DateTime(now.year, now.month, now.day))
+              ? 'alert.debt_overdue'
+              : 'alert.debt_due_soon',
+          detailKey: 'alert.debt_detail',
+          values: {
+            'description': obligation.description,
+            'amount': obligation.remainingAmount.dirhams.toStringAsFixed(2),
+          },
           severity: DashboardAlertSeverity.warning,
           destination: DashboardDestination.debts,
         ),
@@ -442,6 +496,12 @@ List<DashboardAlert> buildDashboardAlerts({
           title: 'Créance à suivre',
           detail:
               '${obligation.description} : ${obligation.remainingAmount.dirhams.toStringAsFixed(2)} MAD à recevoir.',
+          titleKey: 'alert.receivable_to_follow',
+          detailKey: 'alert.receivable_detail',
+          values: {
+            'description': obligation.description,
+            'amount': obligation.remainingAmount.dirhams.toStringAsFixed(2),
+          },
           severity: DashboardAlertSeverity.attention,
           destination: DashboardDestination.receivables,
         ),
@@ -453,6 +513,9 @@ List<DashboardAlert> buildDashboardAlerts({
       DashboardAlert(
         title: 'Recovery restant',
         detail: '${recoveryReceivables.length} remboursement(s) à suivre.',
+        titleKey: 'alert.recovery_remaining',
+        detailKey: 'alert.recovery_detail',
+        values: {'count': recoveryReceivables.length},
         severity: DashboardAlertSeverity.attention,
         destination: DashboardDestination.receivables,
       ),
@@ -469,6 +532,7 @@ List<DashboardAlert> buildDashboardAlerts({
         DashboardAlert(
           title: 'Objectif en retard',
           detail: goal.goal.name,
+          titleKey: 'alert.goal_overdue',
           severity: DashboardAlertSeverity.warning,
           destination: DashboardDestination.goals,
         ),
@@ -479,6 +543,7 @@ List<DashboardAlert> buildDashboardAlerts({
         DashboardAlert(
           title: 'Objectif sans financement sécurisé',
           detail: goal.goal.name,
+          titleKey: 'alert.goal_unsecured',
           severity: DashboardAlertSeverity.attention,
           destination: DashboardDestination.goals,
         ),
@@ -498,6 +563,9 @@ List<DashboardAlert> buildDashboardAlerts({
           title: 'Projection PRIOS à vérifier',
           detail:
               'Capacité ou données insuffisantes pour ${activePlan.plan.name}.',
+          titleKey: 'alert.prios_to_check',
+          detailKey: 'alert.prios_detail',
+          values: {'plan': activePlan.plan.name},
           severity: DashboardAlertSeverity.warning,
           destination: DashboardDestination.priorities,
         ),
@@ -515,6 +583,7 @@ List<DashboardAlert> buildDashboardAlerts({
           DashboardAlert(
             title: 'Priorité au-delà de la date cible',
             detail: item.source.label,
+            titleKey: 'alert.priority_late',
             severity: DashboardAlertSeverity.warning,
             destination: DashboardDestination.priorities,
           ),

@@ -26,6 +26,7 @@ class DashboardV2Panels extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = DashboardV2Words.of(context);
     final s = snapshot;
+    final period = w.text('period.${s.period.name}');
     final report = [...s.report]
       ..sort((a, b) {
         final amount = b.actualCents.compareTo(a.actualCents);
@@ -104,12 +105,12 @@ class DashboardV2Panels extends StatelessWidget {
       (
         title: w.text('income'),
         value: chartMoney(s.monthlyFlow.income.minorUnits),
-        detail: s.period.label,
+        detail: period,
       ),
       (
         title: w.text('expenses'),
         value: chartMoney(s.monthlyFlow.expense.minorUnits),
-        detail: s.period.label,
+        detail: period,
       ),
       (
         title: w.text('budget_remaining'),
@@ -185,12 +186,14 @@ class DashboardV2Panels extends StatelessWidget {
                           : AppColors.primary,
                     ),
                     title: Text(
-                      a.title,
+                      a.titleKey == null ? a.title : w.text(a.titleKey!),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(
-                      a.detail,
+                      a.detailKey == null
+                          ? a.detail
+                          : w.format(a.detailKey!, a.values),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -207,7 +210,7 @@ class DashboardV2Panels extends StatelessWidget {
     );
     final envelope = _Panel(
       title: w.text('envelope_expenses'),
-      subtitle: w.format('envelope_subtitle', {'period': s.period.label}),
+      subtitle: w.format('envelope_subtitle', {'period': period}),
       height: 350,
       action: action(
         'dashboard-open-envelopes',
@@ -235,7 +238,7 @@ class DashboardV2Panels extends StatelessWidget {
     );
     final donut = _Panel(
       title: w.text('expense_breakdown'),
-      subtitle: w.format('breakdown_subtitle', {'period': s.period.label}),
+      subtitle: w.format('breakdown_subtitle', {'period': period}),
       height: 350,
       child: ExpenseDonut(
         key: const Key('dashboard-chart-donut'),
@@ -244,7 +247,7 @@ class DashboardV2Panels extends StatelessWidget {
     );
     final budget = _Panel(
       title: w.text('budget_actual'),
-      subtitle: s.period.label,
+      subtitle: period,
       height: 370,
       action: action(
         'dashboard-open-month-preparation',

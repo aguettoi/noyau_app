@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:http/http.dart' as http;
 import 'package:noyau_app/app/noyau_app.dart';
 import 'package:noyau_app/core/localization/app_locale.dart';
 import 'package:noyau_app/features/experience/domain/offline_draft.dart';
@@ -131,6 +132,13 @@ void main() {
       'offline.pending_count',
       'offline.task_queued',
       'offline.grocery_queued',
+      'offline.cached_at',
+      'offline.pending_item',
+      'offline.syncing_item',
+      'offline.rejected_item',
+      'offline.conflict_item',
+      'offline.action_required_item',
+      'offline.action_unavailable',
     };
     for (final language in AppLanguage.values) {
       for (final key in keys) {
@@ -340,6 +348,37 @@ void main() {
     expect(report.remaining.single.state, OfflineDraftState.rejected);
   });
 
+  test(
+    'network loss keeps a draft pending and reports synced kinds later',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = ExperienceStore();
+      final draft = OfflineDraft(
+        idempotencyKey: '00000000-0000-4000-8000-000000000005',
+        actionKind: 'task',
+        updatedAt: DateTime.utc(2026, 11, 13),
+        state: OfflineDraftState.pending,
+        householdId: 'household-a',
+        memberId: 'member-a',
+        payload: const {'title': 'Test'},
+      );
+      await store.enqueueDraft(draft);
+      final adapter = _NetworkThenSuccessAdapter();
+      final coordinator = OfflineSyncCoordinator(store, {'task': adapter});
+
+      final offline = await coordinator.synchronize();
+      expect(offline.synced, 0);
+      expect(offline.syncedKinds, isEmpty);
+      expect(offline.remaining.single.state, OfflineDraftState.pending);
+
+      final online = await coordinator.synchronize();
+      expect(online.synced, 1);
+      expect(online.syncedKinds, {'task'});
+      expect(online.remaining, isEmpty);
+      expect(adapter.calls, 2);
+    },
+  );
+
   testWidgets(
     'landing exposes auth, invitation, help and distribution states',
     (tester) async {
@@ -497,6 +536,21 @@ class _RejectedAdapter implements OfflineDraftAdapter {
   @override
   Future<void> submit(OfflineDraft draft) =>
       throw const OfflineSyncException(OfflineSyncFailure.rejected);
+}
+
+class _NetworkThenSuccessAdapter implements OfflineDraftAdapter {
+  var calls = 0;
+
+  @override
+  String get actionKind => 'task';
+
+  @override
+  Future<void> submit(OfflineDraft draft) async {
+    calls++;
+    if (calls == 1) {
+      throw http.ClientException('Failed to fetch');
+    }
+  }
 }
 
 class _LocalizedHarness extends ConsumerWidget {

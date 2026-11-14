@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_design_system.dart';
 import '../../../core/localization/programmable_budget_locale.dart';
+import '../../../core/presentation/user_safe_error.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../../finance/application/providers/remote_household_members_provider.dart';
 import '../../finance/domain/household_member.dart';
@@ -888,9 +889,9 @@ class _ProgramVersionEditorState extends ConsumerState<_ProgramVersionEditor> {
       ref.invalidate(budgetScenarioStepsProvider(version.id));
     } on StateError catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userSafeErrorMessage(context, error))),
+      );
     }
   }
 
@@ -1425,9 +1426,7 @@ class _BudgetAllocationBatchEditorState
     } catch (error) {
       ref.invalidate(budgetScenarioStepsProvider(widget.versionId));
       if (mounted) {
-        setState(
-          () => _error = _pf(context, 'program.save_error', {'error': error}),
-        );
+        setState(() => _error = userSafeErrorMessage(context, error));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

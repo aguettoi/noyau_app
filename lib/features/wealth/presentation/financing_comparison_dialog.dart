@@ -7,9 +7,14 @@ import '../domain/financing_simulation.dart';
 import '../domain/wealth_models.dart';
 
 class FinancingComparisonDialog extends StatefulWidget {
-  const FinancingComparisonDialog({required this.availability, super.key});
+  const FinancingComparisonDialog({
+    required this.availability,
+    this.initialStartDate,
+    super.key,
+  });
 
   final FinancialAvailabilitySnapshot availability;
+  final DateTime? initialStartDate;
 
   @override
   State<FinancingComparisonDialog> createState() =>
@@ -51,7 +56,7 @@ class _FinancingComparisonDialogState extends State<FinancingComparisonDialog> {
   var _labelsInitialized = false;
   FinancingComparison? _comparison;
   String? _error;
-  late DateTime _startDate = DateTime.now();
+  late DateTime _startDate = widget.initialStartDate ?? DateTime.now();
 
   @override
   void dispose() {

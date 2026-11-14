@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/localization/app_locale.dart';
 import '../../../core/money/money.dart';
 import '../../../core/localization/monthly_close_locale.dart';
 import '../../../core/theme/app_design_system.dart';
@@ -2093,7 +2094,9 @@ class _Kpis extends StatelessWidget {
     final w = MonthlyCloseWords.of(context);
     final value = kpis;
     if (value == null) return const SizedBox.shrink();
-    String percent(int count) => '${(value.ratio(count) * 100).round()} %';
+    final language = AppLanguageX.fromLocale(Localizations.localeOf(context));
+    String percent(int count) =>
+        localizedPercent(language, (value.ratio(count) * 100).round());
     return FpCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2156,7 +2159,10 @@ class _Health extends StatelessWidget {
               ),
               Text(
                 // i18n-dynamic-only
-                '${snapshot.healthPercent} %',
+                localizedPercent(
+                  AppLanguageX.fromLocale(Localizations.localeOf(context)),
+                  snapshot.healthPercent,
+                ),
                 key: const Key('month-health-percent'),
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
@@ -2179,7 +2185,10 @@ class _Health extends StatelessWidget {
                 Text(
                   w.format('health_metric', {
                     'label': _healthLabel(entry.key, w),
-                    'value': entry.value,
+                    'percent': localizedPercent(
+                      AppLanguageX.fromLocale(Localizations.localeOf(context)),
+                      entry.value,
+                    ),
                   }),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -2205,6 +2214,40 @@ String _healthLabel(String key, MonthlyCloseWords w) => switch (key) {
   'compensations' => w.text('compensations'),
   _ => w.text('regularization'),
 };
+
+String _localizedIssueLabel(CloseIssue issue, MonthlyCloseWords words) {
+  if (issue.code == 'compensations') {
+    return issue.label == 'Compensations'
+        ? words.text('compensations')
+        : words.text('issue.compensations');
+  }
+  final separator = issue.label.indexOf('—');
+  if (separator < 0) {
+    return switch (issue.code) {
+      'reconciliations' => words.text('reconciliations'),
+      'cash' => words.text('cash_inventory'),
+      'receipts' => words.text('receipts'),
+      _ => issue.label,
+    };
+  }
+  final dynamicValue = issue.label.substring(separator + 1).trim();
+  return switch (issue.code) {
+    'reconciliations' => words.format('issue.reconciliations', {
+      'name': dynamicValue,
+    }),
+    'cash' => words.format('issue.cash', {'name': dynamicValue}),
+    'receipts' => words.format('issue.receipts', {'name': dynamicValue}),
+    _ => issue.label,
+  };
+}
+
+String _localizedIssueDestination(CloseIssue issue, MonthlyCloseWords words) =>
+    switch (issue.code) {
+      'reconciliations' || 'cash' => words.text('issue.destination.accounts'),
+      'receipts' => words.text('issue.destination.transactions'),
+      'compensations' => words.text('issue.destination.compensations'),
+      _ => issue.destination,
+    };
 
 class _Workflow extends ConsumerWidget {
   const _Workflow(this.snapshot);
@@ -2340,11 +2383,11 @@ class _Todo extends ConsumerWidget {
                     ? AppColors.danger
                     : AppColors.warning,
               ),
-              title: Text(issue.label),
+              title: Text(_localizedIssueLabel(issue, w)),
               subtitle: Text(
                 w.format('issue_count', {
                   'count': issue.count,
-                  'destination': issue.destination,
+                  'destination': _localizedIssueDestination(issue, w),
                 }),
               ),
               trailing: const Icon(Icons.chevron_right),

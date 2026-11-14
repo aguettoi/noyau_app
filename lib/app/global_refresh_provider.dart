@@ -19,6 +19,7 @@ import '../features/shopping_list/application/providers/remote_shopping_list_pro
 import '../features/wealth/application/providers/wealth_provider.dart';
 import '../features/wealth/application/providers/home_auto_provider.dart';
 import '../features/organization/application/organization_provider.dart';
+import '../features/organization/application/daily_life_provider.dart';
 import '../features/recurring_finance/application/recurring_finance_provider.dart';
 
 typedef GlobalRefreshAction = Future<void> Function();
@@ -62,6 +63,8 @@ final globalRefreshActionProvider = Provider<GlobalRefreshAction>((ref) {
     ref.invalidate(organizationCalendarProvider);
     ref.invalidate(organizationAlertsProvider);
     ref.invalidate(notificationPreferencesProvider);
+    ref.invalidate(groceryItemsProvider);
+    ref.invalidate(homeRecordsProvider);
     ref.invalidate(recurringIntentionsProvider);
     ref.invalidate(expectedOccurrencesProvider);
     ref.invalidate(actualRecurringCandidatesProvider);
@@ -77,6 +80,7 @@ final globalRefreshActionProvider = Provider<GlobalRefreshAction>((ref) {
       ref.read(remoteBudgetPeriodsProvider.future),
       ref.read(remoteBudgetScenariosProvider.future),
       ref.read(financialDashboardProvider.future),
+      ref.read(groceryItemsProvider.future),
     ]);
   };
 });

@@ -42,6 +42,27 @@ class KpiReportingWords {
       'kpi.explanation_title': 'Comment ces indicateurs sont calculés',
       'kpi.explanation_meta':
           '{reason}\nSource : {source}\nPériode : {period} • Données : {completeness}',
+      'kpi.completeness.complet': 'complet',
+      'kpi.completeness.partiel': 'partiel',
+      'kpi.explanation.punctuality.rule': 'Ponctualité de saisie',
+      'kpi.explanation.punctuality.source':
+          'FinancialEvent : date économique et date de création',
+      'kpi.explanation.punctuality.reason':
+          'Une saisie est dans le délai attendu à J+{days}.',
+      'kpi.explanation.attribution.rule': 'Attribution économique explicite',
+      'kpi.explanation.attribution.source': 'Responsabilité métier documentée',
+      'kpi.explanation.attribution.reason':
+          'L’acteur technique n’est jamais utilisé comme responsable économique.',
+      'kpi.explanation.receipts.rule': 'Complétude des justificatifs',
+      'kpi.explanation.receipts.source':
+          'FinancialEvent et métadonnées des justificatifs autorisés',
+      'kpi.explanation.receipts.reason':
+          'Les dépenses réalisées exigent un justificatif dans la règle V1.',
+      'kpi.explanation.cash_inventory.rule': 'Qualité des inventaires espèces',
+      'kpi.explanation.cash_inventory.source':
+          'Observations de solde et rapprochements autorisés',
+      'kpi.explanation.cash_inventory.reason':
+          'L’auteur du comptage, le détenteur déclaré et le responsable économique restent trois concepts distincts.',
       'kpi.punctuality': 'Ponctualité',
       'kpi.delay_detail': 'médiane {median} j • moyenne {mean} j',
       'kpi.receipts': 'Justificatifs',
@@ -59,7 +80,7 @@ class KpiReportingWords {
       'kpi.last_inventory': 'Dernier : {date}',
       'kpi.cash_differences': 'Écarts espèces',
       'kpi.cash_difference_detail':
-          'Ouverts : {open} • Régularisés : {regularized} • {rate} %',
+          'Ouverts : {open} • Régularisés : {regularized} • {rate}',
       'kpi.unassigned_cash': 'Espèces non attribuées',
       'kpi.counter_not_responsible': 'Auteur du comptage ≠ responsable',
       'report.previous_month': 'Mois précédent',
@@ -119,6 +140,28 @@ class KpiReportingWords {
       'kpi.explanation_title': 'How these indicators are calculated',
       'kpi.explanation_meta':
           '{reason}\nSource: {source}\nPeriod: {period} • Data: {completeness}',
+      'kpi.completeness.complet': 'complete',
+      'kpi.completeness.partiel': 'partial',
+      'kpi.explanation.punctuality.rule': 'Entry timeliness',
+      'kpi.explanation.punctuality.source':
+          'FinancialEvent: economic date and creation date',
+      'kpi.explanation.punctuality.reason':
+          'An entry is on time when recorded by D+{days}.',
+      'kpi.explanation.attribution.rule': 'Explicit economic attribution',
+      'kpi.explanation.attribution.source':
+          'Documented business responsibility',
+      'kpi.explanation.attribution.reason':
+          'The technical actor is never treated as the economically responsible person.',
+      'kpi.explanation.receipts.rule': 'Receipt completeness',
+      'kpi.explanation.receipts.source':
+          'FinancialEvent and authorized receipt metadata',
+      'kpi.explanation.receipts.reason':
+          'Recorded expenses require a receipt under the V1 rule.',
+      'kpi.explanation.cash_inventory.rule': 'Cash inventory quality',
+      'kpi.explanation.cash_inventory.source':
+          'Balance observations and authorized reconciliations',
+      'kpi.explanation.cash_inventory.reason':
+          'The counter, declared holder and economically responsible person remain separate concepts.',
       'kpi.punctuality': 'Timeliness',
       'kpi.delay_detail': 'median {median} d • average {mean} d',
       'kpi.receipts': 'Receipts',
@@ -136,7 +179,7 @@ class KpiReportingWords {
       'kpi.last_inventory': 'Latest: {date}',
       'kpi.cash_differences': 'Cash differences',
       'kpi.cash_difference_detail':
-          'Open: {open} • Regularized: {regularized} • {rate}%',
+          'Open: {open} • Regularized: {regularized} • {rate}',
       'kpi.unassigned_cash': 'Unassigned cash',
       'kpi.counter_not_responsible': 'Counter ≠ responsible person',
       'report.previous_month': 'Previous month',
@@ -195,6 +238,27 @@ class KpiReportingWords {
       'kpi.explanation_title': 'كيفية حساب هذه المؤشرات',
       'kpi.explanation_meta':
           '{reason}\nالمصدر: {source}\nالفترة: {period} • البيانات: {completeness}',
+      'kpi.completeness.complet': 'كاملة',
+      'kpi.completeness.partiel': 'جزئية',
+      'kpi.explanation.punctuality.rule': 'الالتزام بوقت الإدخال',
+      'kpi.explanation.punctuality.source':
+          'FinancialEvent: التاريخ الاقتصادي وتاريخ الإنشاء',
+      'kpi.explanation.punctuality.reason':
+          'يُعد الإدخال في الوقت المتوقع إذا تم قبل يوم+{days}.',
+      'kpi.explanation.attribution.rule': 'إسناد اقتصادي صريح',
+      'kpi.explanation.attribution.source': 'مسؤولية مهنية موثقة',
+      'kpi.explanation.attribution.reason':
+          'لا يُستخدم المنفذ التقني أبداً بصفته المسؤول الاقتصادي.',
+      'kpi.explanation.receipts.rule': 'اكتمال المبررات',
+      'kpi.explanation.receipts.source':
+          'FinancialEvent وبيانات المبررات المسموح بها',
+      'kpi.explanation.receipts.reason':
+          'تتطلب المصاريف المحققة مبرراً وفق قاعدة V1.',
+      'kpi.explanation.cash_inventory.rule': 'جودة جرد النقد',
+      'kpi.explanation.cash_inventory.source':
+          'معاينات الأرصدة والمطابقات المسموح بها',
+      'kpi.explanation.cash_inventory.reason':
+          'يبقى منفذ الجرد والحائز المصرح به والمسؤول الاقتصادي ثلاثة مفاهيم مستقلة.',
       'kpi.punctuality': 'الالتزام بالمواعيد',
       'kpi.delay_detail': 'الوسيط {median} يوم • المتوسط {mean} يوم',
       'kpi.receipts': 'الإيصالات',
@@ -212,7 +276,7 @@ class KpiReportingWords {
       'kpi.last_inventory': 'الأخير: {date}',
       'kpi.cash_differences': 'فروقات النقد',
       'kpi.cash_difference_detail':
-          'المفتوح: {open} • المسوّى: {regularized} • {rate}٪',
+          'المفتوح: {open} • المسوّى: {regularized} • {rate}',
       'kpi.unassigned_cash': 'نقد غير مسند',
       'kpi.counter_not_responsible': 'من قام بالجرد ≠ المسؤول',
       'report.previous_month': 'الشهر السابق',
@@ -271,6 +335,27 @@ class KpiReportingWords {
       'kpi.explanation_title': 'كيفاش كيتحسبو هاد المؤشرات',
       'kpi.explanation_meta':
           '{reason}\nالمصدر: {source}\nالفترة: {period} • المعطيات: {completeness}',
+      'kpi.completeness.complet': 'كاملة',
+      'kpi.completeness.partiel': 'ناقصة شوية',
+      'kpi.explanation.punctuality.rule': 'واش التسجيل تدار فالوقت',
+      'kpi.explanation.punctuality.source':
+          'FinancialEvent: التاريخ المحاسبي وتاريخ التسجيل',
+      'kpi.explanation.punctuality.reason':
+          'التسجيل كيتحسب فالوقت إلا تدار قبل نهار+{days}.',
+      'kpi.explanation.attribution.rule': 'شكون مسؤول على العملية',
+      'kpi.explanation.attribution.source': 'المسؤولية المالية الموثقة',
+      'kpi.explanation.attribution.reason':
+          'اللي دخل المعلومة تقنياً ما كنعتابروهش تلقائياً هو المسؤول المالي.',
+      'kpi.explanation.receipts.rule': 'واش التبريرات كاملين',
+      'kpi.explanation.receipts.source':
+          'FinancialEvent والمعطيات المسموح بها ديال التبريرات',
+      'kpi.explanation.receipts.reason':
+          'المصاريف اللي تدارت خاصها تبرير حسب قاعدة V1.',
+      'kpi.explanation.cash_inventory.rule': 'جودة جرد الكاش',
+      'kpi.explanation.cash_inventory.source':
+          'معاينات الرصيد والمطابقات المسموح بها',
+      'kpi.explanation.cash_inventory.reason':
+          'اللي عد الكاش، واللي شادو، والمسؤول المالي عليه كيبقاو ثلاثة حوايج مختلفين.',
       'kpi.punctuality': 'الالتزام بالوقت',
       'kpi.delay_detail': 'الوسيط {median} نهار • المتوسط {mean} نهار',
       'kpi.receipts': 'التوصيلات',
@@ -288,7 +373,7 @@ class KpiReportingWords {
       'kpi.last_inventory': 'آخر واحد: {date}',
       'kpi.cash_differences': 'فروقات الكاش',
       'kpi.cash_difference_detail':
-          'المحلول: {open} • اللي تسوى: {regularized} • {rate}٪',
+          'المحلول: {open} • اللي تسوى: {regularized} • {rate}',
       'kpi.unassigned_cash': 'كاش ما تعينش',
       'kpi.counter_not_responsible': 'اللي دار الجرد ≠ المسؤول',
       'report.previous_month': 'الشهر اللي فات',

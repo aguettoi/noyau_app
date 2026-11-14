@@ -32,6 +32,7 @@ class ExperienceStore {
   static const _progressKey = 'l4.onboarding.progress';
   static const _draftsKey = 'l4.offline.drafts';
   static const _assistantAuditKey = 'l5.assistant.audit.v1';
+  static const _snapshotPrefix = 'l4.offline.snapshot.';
 
   Future<OnboardingProgress> loadProgress() async {
     final preferences = await SharedPreferences.getInstance();
@@ -97,6 +98,61 @@ class ExperienceStore {
     await saveDrafts(next);
   }
 
+  Future<void> saveReadSnapshot({
+    required String kind,
+    required String householdId,
+    required String userId,
+    required List<Map<String, Object?>> rows,
+    DateTime? capturedAt,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      '$_snapshotPrefix$kind',
+      jsonEncode({
+        'household_id': householdId,
+        'user_id': userId,
+        'captured_at': (capturedAt ?? DateTime.now().toUtc()).toIso8601String(),
+        'rows': rows,
+      }),
+    );
+  }
+
+  Future<OfflineReadSnapshot?> loadReadSnapshot({
+    required String kind,
+    required String householdId,
+    required String userId,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    final key = '$_snapshotPrefix$kind';
+    final raw = preferences.getString(key);
+    if (raw == null) return null;
+    try {
+      final json = Map<String, Object?>.from(jsonDecode(raw) as Map);
+      if (json['household_id'] != householdId || json['user_id'] != userId) {
+        await preferences.remove(key);
+        return null;
+      }
+      return OfflineReadSnapshot(
+        capturedAt: DateTime.parse(json['captured_at']! as String),
+        rows: (json['rows']! as List)
+            .map((row) => Map<String, Object?>.from(row as Map))
+            .toList(growable: false),
+      );
+    } catch (_) {
+      await preferences.remove(key);
+      return null;
+    }
+  }
+
+  Future<void> purgeReadSnapshots() async {
+    final preferences = await SharedPreferences.getInstance();
+    for (final key in preferences.getKeys().where(
+      (key) => key.startsWith(_snapshotPrefix),
+    )) {
+      await preferences.remove(key);
+    }
+  }
+
   /// Privacy boundary: local household/member state is removed on logout or
   /// revocation. Language remains a device preference.
   Future<void> purgePrivateState() async {
@@ -104,7 +160,36 @@ class ExperienceStore {
     await preferences.remove(_progressKey);
     await preferences.remove(_draftsKey);
     await preferences.remove(_assistantAuditKey);
+    await purgeReadSnapshots();
   }
+}
+
+class OfflineReadSnapshot {
+  const OfflineReadSnapshot({required this.capturedAt, required this.rows});
+
+  final DateTime capturedAt;
+  final List<Map<String, Object?>> rows;
+}
+
+class OfflineSnapshotStatus {
+  const OfflineSnapshotStatus({required this.capturedAt, required this.stale});
+
+  final DateTime capturedAt;
+  final bool stale;
+}
+
+final offlineSnapshotStatusProvider =
+    StateProvider<Map<String, OfflineSnapshotStatus>>((ref) => const {});
+
+void setOfflineSnapshotStatus(
+  Ref ref,
+  String kind,
+  OfflineSnapshotStatus status,
+) {
+  ref.read(offlineSnapshotStatusProvider.notifier).state = {
+    ...ref.read(offlineSnapshotStatusProvider),
+    kind: status,
+  };
 }
 
 final experienceStoreProvider = Provider((ref) => ExperienceStore());
