@@ -11,7 +11,16 @@ void main() {
     test('router consumes the browser initial location', () {
       final source = File('lib/app/noyau_app.dart').readAsStringSync();
       expect(source, contains('MaterialApp.router('));
-      expect(source, isNot(contains('initialLocation: AppRoutes.home')));
+      expect(
+        source,
+        contains('initialLocation: _initialLocationFor(widget.initialLink)'),
+      );
+      expect(
+        source,
+        contains(
+          'overridePlatformDefaultLocation: !kIsWeb && widget.initialLink != null',
+        ),
+      );
       expect(
         source,
         contains('GoRouter.optionURLReflectsImperativeAPIs = true'),
@@ -43,13 +52,25 @@ void main() {
       );
     });
 
-    test('Web focus changes do not trigger a global data reload', () {
-      final source = File('lib/app/noyau_app.dart').readAsStringSync();
-      expect(
-        source,
-        contains('if (!kIsWeb && state == AppLifecycleState.resumed)'),
-      );
-    });
+    test(
+      'Web and desktop focus changes do not trigger a global data reload',
+      () {
+        final source = File('lib/app/noyau_app.dart').readAsStringSync();
+        expect(source, contains('final refreshAfterResume ='));
+        expect(source, contains('!kIsWeb &&'));
+        expect(
+          source,
+          contains('defaultTargetPlatform == TargetPlatform.android'),
+        );
+        expect(source, contains('defaultTargetPlatform == TargetPlatform.iOS'));
+        expect(
+          source,
+          contains(
+            'if (refreshAfterResume && state == AppLifecycleState.resumed)',
+          ),
+        );
+      },
+    );
 
     testWidgets(
       'money hub-and-spoke history restores every real UI visit exactly',

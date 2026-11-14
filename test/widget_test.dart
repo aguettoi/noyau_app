@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,7 @@ import 'package:noyau_app/features/dashboard/application/dashboard_metrics.dart'
 import 'package:noyau_app/features/dashboard/application/providers/remote_financial_dashboard_provider.dart';
 import 'package:noyau_app/core/money/money.dart';
 import 'package:noyau_app/core/localization/app_locale.dart';
+import 'package:noyau_app/core/platform/platform_link_contract.dart';
 import 'package:noyau_app/core/theme/app_design_system.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,6 +35,7 @@ void main() {
     GlobalRefreshAction? refreshAction,
     SupabaseAuthGateway? authGateway,
     VoidCallback? onInactiveSurfaceRead,
+    PlatformLinkIntent? initialLink,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -112,7 +115,7 @@ void main() {
           if (refreshAction != null)
             globalRefreshActionProvider.overrideWithValue(refreshAction),
         ],
-        child: const NoyauApp(),
+        child: NoyauApp(initialLink: initialLink),
       ),
     );
     await tester.pumpAndSettle();
@@ -192,6 +195,31 @@ void main() {
     expect(calls, 1);
     expect(find.text('Données actualisées.'), findsNothing);
   });
+
+  testWidgets(
+    'un changement de focus Windows ne déclenche pas de refresh global',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        var calls = 0;
+        await pumpApp(tester, refreshAction: () async => calls += 1);
+
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpAndSettle();
+
+        expect(calls, 0);
+        expect(find.text('Données actualisées.'), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
 
   testWidgets('navigation relie chaque destination a sa page', (tester) async {
     await pumpApp(tester);
@@ -408,6 +436,56 @@ void main() {
       expect(preferences.getString('l4.language'), 'fr');
     },
   );
+
+  testWidgets(
+    'un lien invitation à froid affiche son contexte au premier rendu',
+    (tester) async {
+      final gateway = _TestAuthGateway(null);
+      await pumpApp(
+        tester,
+        authGateway: gateway,
+        initialLink: const PlatformLinkIntent(
+          PlatformLinkKind.invitation,
+          value: 'P1C-RUNTIME-CHECK',
+        ),
+      );
+
+      expect(find.byKey(const Key('auth-sign-in-button')), findsOneWidget);
+      expect(
+        find.text(
+          'Connectez-vous ou créez le compte correspondant à l’adresse qui a reçu '
+          'l’invitation. Vous pourrez ensuite la consulter et l’accepter.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('l’intention invitation survit à une erreur de restauration Auth', (
+    tester,
+  ) async {
+    final gateway = _TestAuthGateway(
+      null,
+      Stream<String?>.error(StateError('session restoration failed')),
+    );
+    await pumpApp(
+      tester,
+      authGateway: gateway,
+      initialLink: const PlatformLinkIntent(
+        PlatformLinkKind.invitation,
+        value: 'P1C-RUNTIME-CHECK',
+      ),
+    );
+
+    expect(find.byKey(const Key('auth-sign-in-button')), findsOneWidget);
+    expect(
+      find.text(
+        'Connectez-vous ou créez le compte correspondant à l’adresse qui a reçu '
+        'l’invitation. Vous pourrez ensuite la consulter et l’accepter.',
+      ),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('le changement de breakpoint conserve un univers valide', (
     tester,
@@ -1024,15 +1102,18 @@ void main() {
 }
 
 class _TestAuthGateway implements SupabaseAuthGateway {
+  _TestAuthGateway([this._userId = 'test-user', this._changesOverride]);
+
   final _changes = StreamController<String?>.broadcast();
-  String? _userId = 'test-user';
+  String? _userId;
+  final Stream<String?>? _changesOverride;
   int signOutCalls = 0;
 
   @override
   String? get currentUserId => _userId;
 
   @override
-  Stream<String?> get userIdChanges => _changes.stream;
+  Stream<String?> get userIdChanges => _changesOverride ?? _changes.stream;
 
   @override
   Future<void> signOut() async {

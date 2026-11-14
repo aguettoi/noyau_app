@@ -3,10 +3,61 @@ import 'package:noyau_app/core/platform/native_notification_contract.dart';
 import 'package:noyau_app/core/platform/native_notification_adapter.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:noyau_app/core/platform/platform_link_contract.dart';
+import 'package:noyau_app/core/platform/platform_link_adapter.dart';
 import 'package:noyau_app/core/theme/app_design_system.dart';
 import 'dart:io';
 
 void main() {
+  group('cold-start platform links', () {
+    test('parses the canonical URI from Windows Dart arguments', () {
+      final intent = PlatformLinkAdapter.parseCommandLineArguments([
+        '--engine-argument',
+        'com.financielpilote.app://invite?code=opaque_code-123',
+      ]);
+
+      expect(intent?.kind, PlatformLinkKind.invitation);
+      expect(intent?.value, 'opaque_code-123');
+      expect(
+        PlatformLinkAdapter.parseCommandLineArguments([
+          'com.financielpilote.app://open?destination=private-account',
+        ]),
+        isNull,
+      );
+    });
+
+    test('retains one initial intent until the router subscribes', () async {
+      final relay = PlatformLinkIntentRelay();
+      addTearDown(relay.close);
+      final invitation = PlatformLinkIntent(
+        PlatformLinkKind.invitation,
+        value: 'opaque_code-123',
+      );
+
+      relay.add(invitation);
+
+      expect(relay.takePending(), same(invitation));
+      expect(relay.takePending(), isNull);
+    });
+
+    test('delivers links directly once the router is listening', () async {
+      final relay = PlatformLinkIntentRelay();
+      addTearDown(relay.close);
+      final received = <PlatformLinkIntent>[];
+      final subscription = relay.intents.listen(received.add);
+      addTearDown(subscription.cancel);
+      final destination = PlatformLinkIntent(
+        PlatformLinkKind.destination,
+        value: 'imports',
+      );
+
+      relay.add(destination);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(received, [same(destination)]);
+      expect(relay.takePending(), isNull);
+    });
+  });
+
   test('web entry point enables semantics for assistive technologies', () {
     final source = File('lib/main.dart').readAsStringSync();
     expect(source, contains('SemanticsBinding.instance.ensureSemantics()'));

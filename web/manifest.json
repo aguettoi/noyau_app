@@ -4,9 +4,8 @@
     "description": "Pilotez. Planifiez. Épargnez. Prospérez.",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F7F8F5",
+    "theme_color": "#163A5F",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

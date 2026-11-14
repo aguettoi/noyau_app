@@ -66,7 +66,9 @@ class _AuthRouterRefresh extends ChangeNotifier {
 }
 
 class NoyauApp extends ConsumerStatefulWidget {
-  const NoyauApp({super.key});
+  const NoyauApp({super.key, this.initialLink});
+
+  final PlatformLinkIntent? initialLink;
 
   @override
   ConsumerState<NoyauApp> createState() => _NoyauAppState();
@@ -77,10 +79,13 @@ class _NoyauAppState extends ConsumerState<NoyauApp> {
   late final ProviderSubscription<AsyncValue<String?>> _authSubscription;
   late final GoRouter _router;
   StreamSubscription<PlatformLinkIntent>? _linkSubscription;
+  late final bool _pendingInvitationIntent;
 
   @override
   void initState() {
     super.initState();
+    _pendingInvitationIntent =
+        widget.initialLink?.kind == PlatformLinkKind.invitation;
     // Shell destinations are real, deep-linkable pages. User-initiated
     // navigation uses push so browser Back/Forward can replay each visit; this
     // opt-in keeps the Web URL aligned with the top imperative route. Technical
@@ -93,6 +98,8 @@ class _NoyauAppState extends ConsumerState<NoyauApp> {
       (_, _) => _authRefresh.refresh(),
     );
     _router = GoRouter(
+      initialLocation: _initialLocationFor(widget.initialLink),
+      overridePlatformDefaultLocation: !kIsWeb && widget.initialLink != null,
       refreshListenable: _authRefresh,
       redirect: (context, state) => AppRoutes.authRedirect(
         location: state.uri,
@@ -108,16 +115,34 @@ class _NoyauAppState extends ConsumerState<NoyauApp> {
             builder: (context, state) => _AuthenticationGate(
               location: state.uri.path,
               returnTo: state.uri.queryParameters['returnTo'],
+              invitationIntent: _pendingInvitationIntent,
             ),
           ),
       ],
-      errorBuilder: (context, state) =>
-          const _AuthenticationGate(location: AppRoutes.home),
+      errorBuilder: (context, state) => _AuthenticationGate(
+        location: AppRoutes.home,
+        invitationIntent: _pendingInvitationIntent,
+      ),
     );
     _linkSubscription = PlatformLinkAdapter.instance.intents.listen(
       _handlePlatformLink,
     );
   }
+
+  String _initialLocationFor(PlatformLinkIntent? intent) =>
+      switch (intent?.kind) {
+        PlatformLinkKind.passwordReset => AppRoutes.resetPassword,
+        PlatformLinkKind.invitation => AppRoutes.invitation,
+        PlatformLinkKind.destination => switch (intent?.value) {
+          'money' => AppRoutes.money,
+          'household' => AppRoutes.household,
+          'projects' => AppRoutes.projects,
+          'more' => AppRoutes.more,
+          'imports' => AppRoutes.imports,
+          _ => AppRoutes.home,
+        },
+        _ => AppRoutes.home,
+      };
 
   @override
   void dispose() {
@@ -180,10 +205,15 @@ class _NoyauAppState extends ConsumerState<NoyauApp> {
 }
 
 class _AuthenticationGate extends ConsumerWidget {
-  const _AuthenticationGate({required this.location, this.returnTo});
+  const _AuthenticationGate({
+    required this.location,
+    this.returnTo,
+    this.invitationIntent = false,
+  });
 
   final String location;
   final String? returnTo;
+  final bool invitationIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -191,15 +221,16 @@ class _AuthenticationGate extends ConsumerWidget {
     return userId.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (_, _) => const SupabaseAuthPage(),
+      error: (_, _) => SupabaseAuthPage(invitationIntent: invitationIntent),
       data: (id) {
         if (location == AppRoutes.resetPassword) {
           return const PasswordRecoveryPage();
         }
         if (id == null) {
           return switch (location) {
-            AppRoutes.login ||
-            AppRoutes.forgotPassword => const SupabaseAuthPage(),
+            AppRoutes.login || AppRoutes.forgotPassword => SupabaseAuthPage(
+              invitationIntent: invitationIntent,
+            ),
             AppRoutes.signup => const SupabaseAuthPage(createAccount: true),
             AppRoutes.invitation => const SupabaseAuthPage(
               invitationIntent: true,
@@ -308,10 +339,15 @@ class _FinanceShellState extends ConsumerState<FinanceShell>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Browser focus/visibility changes are frequent (opening DevTools, changing
-    // tabs, resizing). Realtime invalidations and the reconnect monitor already
-    // refresh Web data; a full refresh here would refetch every finance model.
-    if (!kIsWeb && state == AppLifecycleState.resumed) {
+    // Browser and desktop focus changes are frequent and do not represent an
+    // application resume. Realtime invalidations and the reconnect monitor
+    // already refresh their data; a full refresh here would refetch every
+    // finance model and replace cached content with a blocking bootstrap.
+    final refreshAfterResume =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    if (refreshAfterResume && state == AppLifecycleState.resumed) {
       _refreshAll(silentSuccess: true);
     }
   }
