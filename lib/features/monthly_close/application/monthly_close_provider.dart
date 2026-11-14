@@ -154,6 +154,50 @@ class MonthlyCloseGateway {
         );
   }
 
+  Future<SavingsSweepPreview> savingsSweepPreview(DateTime value) async {
+    final household = await ref.read(activeHouseholdProvider.future);
+    final householdId = household.householdId;
+    if (householdId == null) throw StateError('Aucun foyer actif.');
+    final month = DateTime(value.year, value.month);
+    final raw = Map<String, dynamic>.from(
+      await ref
+              .read(supabaseClientProvider)
+              .rpc(
+                'monthly_savings_sweep_preview',
+                params: {
+                  'p_household_id': householdId,
+                  'p_month_start': month.toIso8601String().substring(0, 10),
+                },
+              )
+          as Map,
+    );
+    return SavingsSweepPreview(
+      items: List.unmodifiable([
+        for (final item in (raw['items'] as List? ?? const []).cast<Map>())
+          SavingsSweepPreviewItem(
+            sourceEnvelopeId: item['source_envelope_id'].toString(),
+            sourceName: item['source_name'].toString(),
+            destinationEnvelopeId: item['destination_envelope_id'].toString(),
+            destinationName: item['destination_name'].toString(),
+            beforeAmount: Money.fromDirhams(
+              num.parse(item['before_amount'].toString()),
+            ),
+            proposedAmount: Money.fromDirhams(
+              num.parse(item['proposed_amount'].toString()),
+            ),
+            afterAmount: Money.fromDirhams(
+              num.parse(item['after_amount'].toString()),
+            ),
+            reason: item['reason'].toString(),
+            scope: item['scope']?.toString() ?? 'household',
+          ),
+      ]),
+      total: Money.fromDirhams(num.parse((raw['total'] ?? 0).toString())),
+      createsBankTransfer: raw['creates_bank_transfer'] == true,
+      createsGl: raw['creates_gl'] == true,
+    );
+  }
+
   Future<void> reopen(String periodId, String reason) => ref
       .read(supabaseClientProvider)
       .rpc(
@@ -592,6 +636,11 @@ final monthlyCloseProvider = FutureProvider<MonthlyCloseSnapshot>(
   (ref) => ref
       .watch(monthlyCloseGatewayProvider)
       .fetch(ref.watch(selectedCloseMonthProvider)),
+);
+final savingsSweepPreviewProvider = FutureProvider<SavingsSweepPreview>(
+  (ref) => ref
+      .watch(monthlyCloseGatewayProvider)
+      .savingsSweepPreview(ref.watch(selectedCloseMonthProvider)),
 );
 final monthlyCloseTargetsProvider =
     FutureProvider<List<MonthlyEnvelopeAccountTarget>>(

@@ -2876,21 +2876,82 @@ class _CloseAction extends ConsumerWidget {
     final w = MonthlyCloseWords.of(context);
     final reason = TextEditingController();
     final override = snapshot.warnings > 0;
+    SavingsSweepPreview preview;
+    try {
+      preview = await ref.read(savingsSweepPreviewProvider.future);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(w.text('sweep_preview_unavailable'))),
+      );
+      return;
+    }
+    if (!context.mounted) return;
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
           override ? w.text('closing_override') : w.text('confirm_closing'),
         ),
-        content: override
-            ? TextField(
-                key: const Key('close-override-reason'),
-                controller: reason,
-                decoration: InputDecoration(
-                  labelText: w.text('mandatory_reason'),
+        content: SizedBox(
+          width: 680,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(w.text('close_notice')),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  w.text('analytical_movements'),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
-              )
-            : Text(w.text('close_notice')),
+                if (preview.items.isEmpty)
+                  Text(w.text('no_sweep_movement'))
+                else
+                  for (final item in preview.items)
+                    ListTile(
+                      key: Key('sweep-preview-${item.sourceEnvelopeId}'),
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        w.format('sweep_route', {
+                          'source': item.sourceName,
+                          'destination': item.destinationName,
+                        }),
+                      ),
+                      subtitle: Text(
+                        w.format('sweep_preview_detail', {
+                          'before': item.beforeAmount.dirhams.toStringAsFixed(
+                            2,
+                          ),
+                          'amount': item.proposedAmount.dirhams.toStringAsFixed(
+                            2,
+                          ),
+                          'after': item.afterAmount.dirhams.toStringAsFixed(2),
+                          'reason': item.reason,
+                        }),
+                      ),
+                    ),
+                const Divider(),
+                Text(
+                  w.text('physical_movements'),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                Text(w.text('sweep_no_physical_transfer')),
+                if (override) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    key: const Key('close-override-reason'),
+                    controller: reason,
+                    decoration: InputDecoration(
+                      labelText: w.text('mandatory_reason'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

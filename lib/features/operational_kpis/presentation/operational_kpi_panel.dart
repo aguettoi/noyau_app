@@ -44,6 +44,8 @@ class _OperationalKpiPanelState extends ConsumerState<OperationalKpiPanel> {
               const SizedBox(height: AppSpacing.xs),
               SecondaryInfoText(words.text('kpi.description')),
               const SizedBox(height: AppSpacing.sm),
+              SecondaryInfoText(words.text('kpi.member_scope_is_entry_author')),
+              const SizedBox(height: AppSpacing.xs),
               Wrap(
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
@@ -204,6 +206,19 @@ class _QualityGrid extends StatelessWidget {
           ),
           _metric(
             width,
+            words.text('kpi.reconciliation_resolution'),
+            localizedPercent(
+              language,
+              (quality.reconciliation.resolutionRate * 100).round(),
+            ),
+            words.format('kpi.reconciliation_amount_detail', {
+              'amount': quality.reconciliation.unresolvedAmount.dirhams
+                  .toStringAsFixed(2),
+              'days': quality.reconciliation.oldestOpenDays,
+            }),
+          ),
+          _metric(
+            width,
             words.text('kpi.to_complete'),
             '${quality.unassigned + quality.missingEnvelope}',
             words.format('kpi.completion_detail', {
@@ -239,6 +254,12 @@ class _QualityGrid extends StatelessWidget {
                 (cash.regularizationRate * 100).round(),
               ),
             }),
+          ),
+          _metric(
+            width,
+            words.text('kpi.cash_difference_amount'),
+            cash.unresolvedDifferenceAmount.dirhams.toStringAsFixed(2),
+            words.text('kpi.amount_mad'),
           ),
           _metric(
             width,

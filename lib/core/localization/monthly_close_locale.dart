@@ -700,6 +700,16 @@ class MonthlyCloseWords {
       'confirm_closing': 'Confirmer la clôture',
       'close_notice':
           'La clôture sera historisée et une réouverture exigera un motif.',
+      'sweep_preview_unavailable':
+          'La prévisualisation des mouvements d’épargne est indisponible.',
+      'analytical_movements': 'Mouvements analytiques — enveloppe à enveloppe',
+      'physical_movements': 'Mouvements physiques éventuellement recommandés',
+      'no_sweep_movement': 'Aucun reliquat positif à déplacer.',
+      'sweep_route': '{source} → {destination}',
+      'sweep_preview_detail':
+          'Avant : {before} MAD • proposé : {amount} MAD • après : {after} MAD\nRaison : {reason}',
+      'sweep_no_physical_transfer':
+          'Le sweep ne crée aucun transfert bancaire, retrait, dépôt ni écriture GL.',
       'history': 'Historique',
     },
     AppLanguage.english: {
@@ -788,6 +798,16 @@ class MonthlyCloseWords {
       'confirm_closing': 'Confirm closing',
       'close_notice':
           'The closing will be recorded and reopening will require a reason.',
+      'sweep_preview_unavailable':
+          'The savings movement preview is unavailable.',
+      'analytical_movements': 'Analytical movements — envelope to envelope',
+      'physical_movements': 'Potentially recommended physical movements',
+      'no_sweep_movement': 'No positive remainder to move.',
+      'sweep_route': '{source} → {destination}',
+      'sweep_preview_detail':
+          'Before: {before} MAD • proposed: {amount} MAD • after: {after} MAD\nReason: {reason}',
+      'sweep_no_physical_transfer':
+          'The sweep creates no bank transfer, withdrawal, deposit or GL entry.',
       'history': 'History',
     },
     AppLanguage.arabic: {
@@ -872,6 +892,15 @@ class MonthlyCloseWords {
       'closing_override': 'استثناء الإغلاق',
       'confirm_closing': 'تأكيد الإغلاق',
       'close_notice': 'سيتم حفظ الإغلاق وستتطلب إعادة الفتح سبباً.',
+      'sweep_preview_unavailable': 'معاينة حركات الادخار غير متاحة.',
+      'analytical_movements': 'حركات تحليلية — من ظرف إلى ظرف',
+      'physical_movements': 'حركات فعلية قد تكون مقترحة',
+      'no_sweep_movement': 'لا يوجد فائض موجب لنقله.',
+      'sweep_route': '{source} → {destination}',
+      'sweep_preview_detail':
+          'قبل: {before} MAD • المقترح: {amount} MAD • بعد: {after} MAD\nالسبب: {reason}',
+      'sweep_no_physical_transfer':
+          'لا ينشئ التحويل التحليلي تحويلاً بنكياً أو سحباً أو إيداعاً أو قيد GL.',
       'history': 'السجل',
     },
     AppLanguage.darija: {
@@ -958,6 +987,15 @@ class MonthlyCloseWords {
       'closing_override': 'استثناء السد',
       'confirm_closing': 'أكد السد',
       'close_notice': 'السد غادي يتسجل وإعادة الفتح خاصها سبب.',
+      'sweep_preview_unavailable': 'المعاينة ديال حركات الادخار ما متوفراش.',
+      'analytical_movements': 'حركات تحليلية — من ظرف لظرف',
+      'physical_movements': 'حركات حقيقية يقدرو يتقترحو',
+      'no_sweep_movement': 'ما كاين حتى باقي موجب باش يتحرك.',
+      'sweep_route': '{source} → {destination}',
+      'sweep_preview_detail':
+          'قبل: {before} MAD • المقترح: {amount} MAD • من بعد: {after} MAD\nالسبب: {reason}',
+      'sweep_no_physical_transfer':
+          'هاد الحركة التحليلية ما كتدير لا تحويل بنكي لا سحب لا إيداع لا قيد GL.',
       'history': 'التاريخ',
     },
   };

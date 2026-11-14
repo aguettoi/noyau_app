@@ -150,6 +150,67 @@ void main() {
     );
   });
 
+  testWidgets(
+    'la confirmation de clôture affiche le sweep analytique sans transfert physique',
+    (tester) async {
+      final ready = MonthlyCloseSnapshot(
+        month: DateTime(2026, 10),
+        status: MonthlyCloseStatus.ready,
+        issues: const [],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            monthlyCloseProvider.overrideWith((ref) async => ready),
+            savingsSweepPreviewProvider.overrideWith(
+              (ref) async => SavingsSweepPreview(
+                items: [
+                  SavingsSweepPreviewItem(
+                    sourceEnvelopeId: 'source-id',
+                    sourceName: 'Source renommée',
+                    destinationEnvelopeId: 'destination-id',
+                    destinationName: 'Destination renommée',
+                    beforeAmount: Money.fromDirhams(125),
+                    proposedAmount: Money.fromDirhams(125),
+                    afterAmount: Money.fromMinorUnits(0),
+                    reason: 'Reliquat positif configuré',
+                    scope: 'household',
+                  ),
+                ],
+                total: Money.fromDirhams(125),
+                createsBankTransfer: false,
+                createsGl: false,
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            locale: Locale('fr'),
+            supportedLocales: [Locale('fr')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: MonthlyClosePage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('close-month-button')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(find.byKey(const Key('close-month-button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('close-month-button')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Source renommée → Destination renommée'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('aucun transfert bancaire'), findsOneWidget);
+      expect(find.byKey(const Key('sweep-preview-source-id')), findsOneWidget);
+      await tester.tap(find.text('Annuler'));
+    },
+  );
+
   testWidgets('OWNER réouvre avec motif et conserve l’audit', (tester) async {
     var calls = 0;
     String? capturedReason;

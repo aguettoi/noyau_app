@@ -151,6 +151,103 @@ void main() {
     expect(result.unassigned, 1);
     expect(result.denominationInconsistencies, 1);
     expect(result.authorIsNeverResponsibleByDefault, isTrue);
+    expect(result.unresolvedDifferenceAmount, Money.fromDirhams(10));
+  });
+
+  test('reconciliation exposes amount, age, grouping and exact drill-down', () {
+    final result = analyzeOperationalQuality(
+      periodStart: start,
+      periodEndExclusive: end,
+      evaluatedAt: DateTime(2026, 11),
+      expectedNotMaterialized: 0,
+      entries: const [],
+      reconciliations: [
+        ReconciliationDatum(
+          id: 'r-open',
+          accountId: 'a1',
+          accountType: 'bank',
+          openedAt: DateTime(2026, 9, 1),
+          resolved: false,
+          remaining: Money.fromDirhams(-125),
+        ),
+        ReconciliationDatum(
+          id: 'r-done',
+          accountId: 'a1',
+          accountType: 'bank',
+          openedAt: DateTime(2026, 10, 1),
+          resolved: true,
+          remaining: Money.fromMinorUnits(0),
+        ),
+      ],
+    );
+    expect(result.reconciliation.open, 1);
+    expect(result.reconciliation.resolved, 1);
+    expect(result.reconciliation.resolutionRate, .5);
+    expect(result.reconciliation.unresolvedAmount, Money.fromDirhams(125));
+    expect(result.reconciliation.oldestOpenDays, 61);
+    expect(result.reconciliationByAccount['a1']?.open, 1);
+    expect(result.reconciliationByAccountType['bank']?.resolved, 1);
+    expect(result.drillDownIds['openReconciliations'], ['r-open']);
+  });
+
+  test('entry author scope never changes economic responsibility', () {
+    final entry = OperationalEntry(
+      id: 'shared-responsibility',
+      economicDate: start,
+      enteredAt: start,
+      actorUserId: 'author',
+      responsibility: EconomicResponsibility.member,
+      economicMemberIds: const ['m1', 'm2'],
+      requiresEnvelope: false,
+      hasEnvelope: false,
+      requiresReceipt: false,
+      hasReceipt: false,
+    );
+    final byAuthor = analyzeOperationalQuality(
+      periodStart: start,
+      periodEndExclusive: end,
+      expectedNotMaterialized: 0,
+      entries: [entry],
+      reconciliations: const [],
+      memberId: 'author',
+      attributionDimension: EntryAttributionDimension.entryAuthor,
+    );
+    final byResponsibility = analyzeOperationalQuality(
+      periodStart: start,
+      periodEndExclusive: end,
+      expectedNotMaterialized: 0,
+      entries: [entry],
+      reconciliations: const [],
+      memberId: 'm2',
+    );
+    expect(byAuthor.entries, 1);
+    expect(byResponsibility.entries, 1);
+    expect(byResponsibility.memberId, 'm2');
+  });
+
+  test('trend builder returns deterministic 3/6/12-compatible buckets', () {
+    final trends = buildOperationalTrends(
+      endExclusive: DateTime(2026, 11),
+      months: 3,
+      entries: [
+        OperationalEntry(
+          id: 'october',
+          economicDate: DateTime(2026, 10, 1),
+          enteredAt: DateTime(2026, 10, 3),
+          actorUserId: 'author',
+          responsibility: EconomicResponsibility.household,
+          requiresEnvelope: false,
+          hasEnvelope: false,
+          requiresReceipt: false,
+          hasReceipt: false,
+        ),
+      ],
+      reconciliations: const [],
+      inventories: const [],
+    );
+    expect(trends, hasLength(3));
+    expect(trends.last.periodStart, DateTime(2026, 10));
+    expect(trends.last.entryDelayDays, 2);
   });
 
   test('one, two and N member profiles use only explicit attribution', () {

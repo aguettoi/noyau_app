@@ -36,6 +36,9 @@ class KpiReportingWords {
       'kpi.description':
           'Indicateurs descriptifs : ils ne classent pas les membres. L’auteur d’une saisie n’est pas considéré comme son responsable économique.',
       'kpi.household': 'Foyer',
+      'kpi.entered_by': 'Saisi par {member}',
+      'kpi.member_scope_is_entry_author':
+          'Le filtre membre signifie « saisi par » ; il ne désigne pas la responsabilité économique.',
       'kpi.open_transactions': 'Voir les opérations',
       'kpi.open_reconciliations': 'Voir les rapprochements',
       'kpi.prepare_month_end': 'Préparer la fin de mois',
@@ -70,6 +73,9 @@ class KpiReportingWords {
       'kpi.reconciliations': 'Rapprochements',
       'kpi.reconciliation_detail':
           'Ouverts : {open} • Anciens : {stale} • Résolus : {resolved}',
+      'kpi.reconciliation_resolution': 'Résolution des rapprochements',
+      'kpi.reconciliation_amount_detail':
+          'Non résolu : {amount} MAD • plus ancien : {days} j',
       'kpi.to_complete': 'À compléter',
       'kpi.completion_detail':
           'Non attribués : {unassigned} • Sans enveloppe : {withoutEnvelope}',
@@ -79,6 +85,8 @@ class KpiReportingWords {
       'kpi.no_inventory': 'Aucun inventaire sur la période',
       'kpi.last_inventory': 'Dernier : {date}',
       'kpi.cash_differences': 'Écarts espèces',
+      'kpi.cash_difference_amount': 'Montant des écarts ouverts',
+      'kpi.amount_mad': 'Montant visible en MAD',
       'kpi.cash_difference_detail':
           'Ouverts : {open} • Régularisés : {regularized} • {rate}',
       'kpi.unassigned_cash': 'Espèces non attribuées',
@@ -134,6 +142,9 @@ class KpiReportingWords {
       'kpi.description':
           'These indicators are descriptive and do not rank members. The person entering data is not considered financially responsible for it.',
       'kpi.household': 'Household',
+      'kpi.entered_by': 'Entered by {member}',
+      'kpi.member_scope_is_entry_author':
+          'The member filter means “entered by”; it does not indicate economic responsibility.',
       'kpi.open_transactions': 'View transactions',
       'kpi.open_reconciliations': 'View reconciliations',
       'kpi.prepare_month_end': 'Prepare month end',
@@ -169,6 +180,9 @@ class KpiReportingWords {
       'kpi.reconciliations': 'Reconciliations',
       'kpi.reconciliation_detail':
           'Open: {open} • Stale: {stale} • Resolved: {resolved}',
+      'kpi.reconciliation_resolution': 'Reconciliation resolution',
+      'kpi.reconciliation_amount_detail':
+          'Unresolved: {amount} MAD • oldest: {days} d',
       'kpi.to_complete': 'To complete',
       'kpi.completion_detail':
           'Unassigned: {unassigned} • Without an envelope: {withoutEnvelope}',
@@ -178,6 +192,8 @@ class KpiReportingWords {
       'kpi.no_inventory': 'No inventory during this period',
       'kpi.last_inventory': 'Latest: {date}',
       'kpi.cash_differences': 'Cash differences',
+      'kpi.cash_difference_amount': 'Open cash difference amount',
+      'kpi.amount_mad': 'Visible amount in MAD',
       'kpi.cash_difference_detail':
           'Open: {open} • Regularized: {regularized} • {rate}',
       'kpi.unassigned_cash': 'Unassigned cash',
@@ -232,6 +248,9 @@ class KpiReportingWords {
       'kpi.description':
           'هذه مؤشرات وصفية ولا ترتب الأعضاء. الشخص الذي يُدخل البيانات لا يُعتبر المسؤول المالي عنها.',
       'kpi.household': 'الأسرة',
+      'kpi.entered_by': 'أدخله {member}',
+      'kpi.member_scope_is_entry_author':
+          'مرشح العضو يعني «أدخله» ولا يدل على المسؤولية الاقتصادية.',
       'kpi.open_transactions': 'عرض العمليات',
       'kpi.open_reconciliations': 'عرض المطابقات',
       'kpi.prepare_month_end': 'تحضير نهاية الشهر',
@@ -266,6 +285,9 @@ class KpiReportingWords {
       'kpi.reconciliations': 'المطابقات',
       'kpi.reconciliation_detail':
           'المفتوح: {open} • القديم: {stale} • المحلول: {resolved}',
+      'kpi.reconciliation_resolution': 'تسوية المطابقات',
+      'kpi.reconciliation_amount_detail':
+          'غير مسوّى: {amount} MAD • الأقدم: {days} يوم',
       'kpi.to_complete': 'يحتاج إلى إكمال',
       'kpi.completion_detail':
           'غير المسند: {unassigned} • دون ظرف: {withoutEnvelope}',
@@ -275,6 +297,8 @@ class KpiReportingWords {
       'kpi.no_inventory': 'لا يوجد جرد خلال هذه الفترة',
       'kpi.last_inventory': 'الأخير: {date}',
       'kpi.cash_differences': 'فروقات النقد',
+      'kpi.cash_difference_amount': 'مبلغ فروقات النقد المفتوحة',
+      'kpi.amount_mad': 'المبلغ الظاهر بالدرهم',
       'kpi.cash_difference_detail':
           'المفتوح: {open} • المسوّى: {regularized} • {rate}',
       'kpi.unassigned_cash': 'نقد غير مسند',
@@ -329,6 +353,9 @@ class KpiReportingWords {
       'kpi.description':
           'هاد المؤشرات غير وصفية وما كيرتبو حتى عضو. اللي دخل المعلومة ما كيعنيش بالضرورة هو المسؤول المالي عليها.',
       'kpi.household': 'الدار',
+      'kpi.entered_by': 'دخلها {member}',
+      'kpi.member_scope_is_entry_author':
+          'فلتر العضو كيعني «دخلها» وما كيعنيش المسؤولية المالية.',
       'kpi.open_transactions': 'شوف العمليات',
       'kpi.open_reconciliations': 'شوف المطابقات',
       'kpi.prepare_month_end': 'وجد نهاية الشهر',
@@ -363,6 +390,9 @@ class KpiReportingWords {
       'kpi.reconciliations': 'المطابقات',
       'kpi.reconciliation_detail':
           'المحلول: {open} • القديم: {stale} • اللي تسالى: {resolved}',
+      'kpi.reconciliation_resolution': 'تسوية المطابقات',
+      'kpi.reconciliation_amount_detail':
+          'باقي ما تسواش: {amount} MAD • الأقدم: {days} نهار',
       'kpi.to_complete': 'خاصو يكمل',
       'kpi.completion_detail':
           'اللي ما تعينش: {unassigned} • بلا ظرف: {withoutEnvelope}',
@@ -372,6 +402,8 @@ class KpiReportingWords {
       'kpi.no_inventory': 'ما كاين حتى جرد فهاد الفترة',
       'kpi.last_inventory': 'آخر واحد: {date}',
       'kpi.cash_differences': 'فروقات الكاش',
+      'kpi.cash_difference_amount': 'مبلغ فروقات الكاش اللي باقيين',
+      'kpi.amount_mad': 'المبلغ اللي باين بالدرهم',
       'kpi.cash_difference_detail':
           'المحلول: {open} • اللي تسوى: {regularized} • {rate}',
       'kpi.unassigned_cash': 'كاش ما تعينش',

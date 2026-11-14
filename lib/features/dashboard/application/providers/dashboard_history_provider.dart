@@ -15,12 +15,13 @@ final dashboardThresholdsProvider = Provider<DashboardThresholds>(
 
 class DashboardReconciliation {
   const DashboardReconciliation({
+    this.observationId = '',
     required this.accountId,
     required this.status,
     required this.observedAt,
     required this.remaining,
   });
-  final String accountId;
+  final String observationId, accountId;
   final String status;
   final DateTime observedAt;
   final Money? remaining;
@@ -31,6 +32,8 @@ class DashboardReconciliation {
   ].contains(status);
   factory DashboardReconciliation.fromRow(Map<String, Object?> row) =>
       DashboardReconciliation(
+        observationId:
+            row['observation_id']?.toString() ?? row['account_id'].toString(),
         accountId: row['account_id'] as String,
         status: row['status'] as String,
         observedAt: DateTime.parse(row['observed_at'] as String),

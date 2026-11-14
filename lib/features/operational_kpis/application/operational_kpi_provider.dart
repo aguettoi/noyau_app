@@ -20,12 +20,16 @@ class OperationalKpiBundle {
     required this.byMember,
     required this.cash,
     required this.memberNames,
+    this.trends3 = const [],
+    this.trends6 = const [],
+    this.trends12 = const [],
   });
 
   final OperationalQualitySnapshot global;
   final Map<String, OperationalQualitySnapshot> byMember;
   final CashQualitySnapshot cash;
   final Map<String, String> memberNames;
+  final List<OperationalTrendPoint> trends3, trends6, trends12;
 }
 
 abstract interface class CashQualityGateway {
@@ -71,13 +75,40 @@ class SupabaseCashQualityGateway implements CashQualityGateway {
     final casesByObservation = {
       for (final row in cases) row['observation_id'].toString(): row,
     };
+    final responsibilityRows = ids.isEmpty
+        ? const <dynamic>[]
+        : await client
+              .from('economic_responsibility_assignments')
+              .select('subject_id,responsibility_kind,member_user_id')
+              .eq('household_id', householdId)
+              .eq('subject_kind', 'reconciliation_observation')
+              .inFilter('subject_id', ids);
+    final responsibilities = <String, List<String>>{};
+    for (final raw in responsibilityRows) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final subject = row['subject_id'].toString();
+      final value = row['responsibility_kind'] == 'household'
+          ? 'household'
+          : row['member_user_id']?.toString();
+      if (value != null) {
+        responsibilities.putIfAbsent(subject, () => []).add(value);
+      }
+    }
     return List.unmodifiable([
       for (final row in rows)
-        _cashDatum(row, casesByObservation[row['id'].toString()]),
+        _cashDatum(
+          row,
+          casesByObservation[row['id'].toString()],
+          responsibilities[row['id'].toString()] ?? const [],
+        ),
     ]);
   }
 
-  CashInventoryDatum _cashDatum(dynamic raw, dynamic caseRaw) {
+  CashInventoryDatum _cashDatum(
+    dynamic raw,
+    dynamic caseRaw,
+    List<String> responsibilityIds,
+  ) {
     final row = Map<String, dynamic>.from(raw as Map);
     final caseRow = caseRaw == null
         ? null
@@ -122,6 +153,7 @@ class SupabaseCashQualityGateway implements CashQualityGateway {
       resolvedAt: resolved && caseRow?['updated_at'] != null
           ? DateTime.parse(caseRow!['updated_at'].toString()).toLocal()
           : null,
+      explicitResponsibleIds: List.unmodifiable(responsibilityIds),
       // No current canonical field declares a cash custodian or economic
       // responsibility. They deliberately remain unknown instead of being
       // inferred from the recorder or account holder.
@@ -167,13 +199,56 @@ final operationalKpiProvider = FutureProvider<OperationalKpiBundle>((
   final occurrences = values[2] as List<ExpectedFinancialOccurrence>;
   final members = values[3] as List<dynamic>;
   final accounts = values[4] as List<FinancialAccount>;
-  final entries = transactions.map(_entry).toList(growable: false);
+  final eventIds = transactions
+      .map((item) => item.financialEventId)
+      .whereType<String>()
+      .toSet();
+  final responsibilityRows = eventIds.isEmpty
+      ? const <dynamic>[]
+      : await ref
+            .read(supabaseClientProvider)
+            .from('economic_responsibility_assignments')
+            .select('subject_id,responsibility_kind,member_user_id')
+            .eq('household_id', householdId)
+            .eq('subject_kind', 'financial_event')
+            .inFilter('subject_id', eventIds.toList());
+  final responsibilities = <String, List<String>>{};
+  final householdResponsibilities = <String>{};
+  for (final raw in responsibilityRows) {
+    final row = Map<String, dynamic>.from(raw as Map);
+    final subject = row['subject_id'].toString();
+    if (row['responsibility_kind'] == 'household') {
+      householdResponsibilities.add(subject);
+    } else if (row['member_user_id'] != null) {
+      responsibilities
+          .putIfAbsent(subject, () => [])
+          .add(row['member_user_id'].toString());
+    }
+  }
+  final entries = transactions
+      .map(
+        (item) => _entry(
+          item,
+          economicMemberIds:
+              responsibilities[item.financialEventId] ?? const [],
+          householdResponsible: householdResponsibilities.contains(
+            item.financialEventId,
+          ),
+        ),
+      )
+      .toList(growable: false);
   final reconciliationData = [
-    for (var index = 0; index < reconciliations.length; index++)
+    for (final reconciliation in reconciliations)
       ReconciliationDatum(
-        id: '${reconciliations[index].accountId}:$index',
-        openedAt: reconciliations[index].observedAt,
-        resolved: !reconciliations[index].isOpen,
+        id: reconciliation.observationId,
+        accountId: reconciliation.accountId,
+        accountType: accounts
+            .where((account) => account.id == reconciliation.accountId)
+            .map((account) => account.type.name)
+            .firstOrNull,
+        openedAt: reconciliation.observedAt,
+        resolved: !reconciliation.isOpen,
+        remaining: reconciliation.remaining,
       ),
   ];
   final openOccurrences = occurrences
@@ -196,6 +271,9 @@ final operationalKpiProvider = FutureProvider<OperationalKpiBundle>((
             : openOccurrences.where((item) => item.memberId == memberId).length,
         evaluatedAt: now,
         memberId: memberId,
+        attributionDimension: memberId == null
+            ? EntryAttributionDimension.economicResponsibility
+            : EntryAttributionDimension.entryAuthor,
       );
   final cash = await ref
       .watch(cashQualityGatewayProvider)
@@ -225,10 +303,35 @@ final operationalKpiProvider = FutureProvider<OperationalKpiBundle>((
       for (final member in members)
         member.id.toString(): member.displayName.toString(),
     }),
+    trends3: buildOperationalTrends(
+      endExclusive: bounds.end,
+      months: 3,
+      entries: entries,
+      reconciliations: reconciliationData,
+      inventories: cash,
+    ),
+    trends6: buildOperationalTrends(
+      endExclusive: bounds.end,
+      months: 6,
+      entries: entries,
+      reconciliations: reconciliationData,
+      inventories: cash,
+    ),
+    trends12: buildOperationalTrends(
+      endExclusive: bounds.end,
+      months: 12,
+      entries: entries,
+      reconciliations: reconciliationData,
+      inventories: cash,
+    ),
   );
 });
 
-OperationalEntry _entry(TransactionHistoryItem item) {
+OperationalEntry _entry(
+  TransactionHistoryItem item, {
+  List<String> economicMemberIds = const [],
+  bool householdResponsible = false,
+}) {
   final expense = const {
     LedgerTransactionType.expense,
     LedgerTransactionType.debtExpense,
@@ -238,8 +341,13 @@ OperationalEntry _entry(TransactionHistoryItem item) {
     economicDate: item.occurredAt.toLocal(),
     enteredAt: item.createdAt.toLocal(),
     actorUserId: item.actorId ?? 'unknown',
-    responsibility: EconomicResponsibility.unassigned,
+    responsibility: householdResponsible
+        ? EconomicResponsibility.household
+        : economicMemberIds.isNotEmpty
+        ? EconomicResponsibility.member
+        : EconomicResponsibility.unassigned,
     economicMemberId: null,
+    economicMemberIds: List.unmodifiable(economicMemberIds),
     categorized: item.type != LedgerTransactionType.unknown,
     requiresEnvelope: expense,
     hasEnvelope: item.envelopes.isNotEmpty,

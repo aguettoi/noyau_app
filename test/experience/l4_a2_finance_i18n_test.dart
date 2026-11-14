@@ -276,7 +276,7 @@ void main() {
 
   test('A2 KPI and reporting catalog is complete and unique', () {
     final reference = KpiReportingWords.keysFor(AppLanguage.french);
-    expect(reference.length, 82);
+    expect(reference.length, 88);
     for (final language in AppLanguage.values) {
       final keys = KpiReportingWords.keysFor(language);
       expect(keys, reference);

@@ -703,6 +703,37 @@ class MonthlyCloseSnapshot {
   };
 }
 
+class SavingsSweepPreviewItem {
+  const SavingsSweepPreviewItem({
+    required this.sourceEnvelopeId,
+    required this.sourceName,
+    required this.destinationEnvelopeId,
+    required this.destinationName,
+    required this.beforeAmount,
+    required this.proposedAmount,
+    required this.afterAmount,
+    required this.reason,
+    required this.scope,
+  });
+  final String sourceEnvelopeId, sourceName;
+  final String destinationEnvelopeId, destinationName;
+  final Money beforeAmount, proposedAmount, afterAmount;
+  final String reason, scope;
+}
+
+class SavingsSweepPreview {
+  const SavingsSweepPreview({
+    required this.items,
+    required this.total,
+    required this.createsBankTransfer,
+    required this.createsGl,
+  });
+  final List<SavingsSweepPreviewItem> items;
+  final Money total;
+  final bool createsBankTransfer, createsGl;
+  bool get analyticalOnly => !createsBankTransfer && !createsGl;
+}
+
 String _healthCategory(String code) => switch (code) {
   'receipts' => 'receipts',
   'reconciliations' => 'reconciliations',

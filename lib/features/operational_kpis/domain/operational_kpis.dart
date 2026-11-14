@@ -33,12 +33,17 @@ class OperationalEntry {
     required this.hasReceipt,
     this.categorized = true,
     this.economicMemberId,
+    this.economicMemberIds = const [],
   });
 
   final String id, actorUserId;
   final DateTime economicDate, enteredAt;
   final EconomicResponsibility responsibility;
   final String? economicMemberId;
+
+  /// Explicit responsibilities only. Multiple members are supported; an empty
+  /// list means that no individual responsibility was recorded.
+  final List<String> economicMemberIds;
   final bool requiresEnvelope, hasEnvelope, requiresReceipt, hasReceipt;
   final bool categorized;
 
@@ -54,15 +59,37 @@ class OperationalEntry {
   }
 }
 
+enum EntryAttributionDimension { economicResponsibility, entryAuthor }
+
 class ReconciliationDatum {
   const ReconciliationDatum({
     required this.id,
     required this.openedAt,
     required this.resolved,
+    this.accountId,
+    this.accountType,
+    this.remaining,
+    this.resolvedAt,
   });
   final String id;
   final DateTime openedAt;
   final bool resolved;
+  final String? accountId, accountType;
+  final Money? remaining;
+  final DateTime? resolvedAt;
+}
+
+class ReconciliationBreakdown {
+  const ReconciliationBreakdown({
+    required this.open,
+    required this.resolved,
+    required this.unresolvedAmount,
+    required this.oldestOpenDays,
+  });
+  final int open, resolved, oldestOpenDays;
+  final Money unresolvedAmount;
+  double get resolutionRate =>
+      open + resolved == 0 ? 1 : resolved / (open + resolved);
 }
 
 class EntryDelayDistribution {
@@ -99,6 +126,9 @@ class OperationalQualitySnapshot {
     required this.expectedNotMaterialized,
     required this.explanations,
     required this.drillDownIds,
+    required this.reconciliation,
+    required this.reconciliationByAccount,
+    required this.reconciliationByAccountType,
     this.memberId,
   });
 
@@ -114,6 +144,9 @@ class OperationalQualitySnapshot {
   final int unassigned, expectedNotMaterialized;
   final List<KpiExplanation> explanations;
   final Map<String, List<String>> drillDownIds;
+  final ReconciliationBreakdown reconciliation;
+  final Map<String, ReconciliationBreakdown> reconciliationByAccount;
+  final Map<String, ReconciliationBreakdown> reconciliationByAccountType;
 
   double get expectedDelayRate =>
       entries == 0 ? 1 : withinExpectedDelay / entries;
@@ -132,6 +165,8 @@ OperationalQualitySnapshot analyzeOperationalQuality({
   DateTime? evaluatedAt,
   String? memberId,
   int expectedDelayDays = 1,
+  EntryAttributionDimension attributionDimension =
+      EntryAttributionDimension.economicResponsibility,
 }) {
   final now = evaluatedAt ?? periodEndExclusive;
   bool inPeriod(DateTime value) =>
@@ -142,8 +177,12 @@ OperationalQualitySnapshot analyzeOperationalQuality({
         if (memberId == null) return true;
         // The actor is deliberately ignored here. Only an explicit economic
         // member can attribute an entry to a member profile.
+        if (attributionDimension == EntryAttributionDimension.entryAuthor) {
+          return item.actorUserId == memberId;
+        }
         return item.responsibility == EconomicResponsibility.member &&
-            item.economicMemberId == memberId;
+            (item.economicMemberIds.contains(memberId) ||
+                item.economicMemberId == memberId);
       })
       .toList(growable: false);
   final delayValues = scoped.map((item) => item.entryDelayDays).toList()
@@ -165,6 +204,44 @@ OperationalQualitySnapshot analyzeOperationalQuality({
       .where((item) => item.requiresReceipt)
       .toList();
   final open = reconciliations.where((item) => !item.resolved).toList();
+  ReconciliationBreakdown reconciliationBreakdown(
+    Iterable<ReconciliationDatum> values,
+  ) {
+    final list = values.toList(growable: false);
+    final openItems = list.where((item) => !item.resolved).toList();
+    final unresolvedMinor = openItems.fold<int>(
+      0,
+      (sum, item) => sum + (item.remaining?.minorUnits.abs() ?? 0),
+    );
+    final oldest = openItems.isEmpty
+        ? 0
+        : openItems
+              .map(
+                (item) => now.difference(item.openedAt).inDays.clamp(0, 100000),
+              )
+              .reduce((a, b) => a > b ? a : b);
+    return ReconciliationBreakdown(
+      open: openItems.length,
+      resolved: list.where((item) => item.resolved).length,
+      unresolvedAmount: Money.fromMinorUnits(unresolvedMinor),
+      oldestOpenDays: oldest,
+    );
+  }
+
+  Map<String, ReconciliationBreakdown> groupedBreakdown(
+    String? Function(ReconciliationDatum) keyOf,
+  ) {
+    final groups = <String, List<ReconciliationDatum>>{};
+    for (final item in reconciliations) {
+      final key = keyOf(item);
+      if (key != null) groups.putIfAbsent(key, () => []).add(item);
+    }
+    return Map.unmodifiable({
+      for (final entry in groups.entries)
+        entry.key: reconciliationBreakdown(entry.value),
+    });
+  }
+
   final period =
       '${periodStart.toIso8601String().substring(0, 10)} → '
       '${periodEndExclusive.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10)}';
@@ -256,7 +333,13 @@ OperationalQualitySnapshot analyzeOperationalQuality({
       'unassigned': ids(
         (item) => item.responsibility == EconomicResponsibility.unassigned,
       ),
+      'openReconciliations': open
+          .map((item) => item.id)
+          .toList(growable: false),
     }),
+    reconciliation: reconciliationBreakdown(reconciliations),
+    reconciliationByAccount: groupedBreakdown((item) => item.accountId),
+    reconciliationByAccountType: groupedBreakdown((item) => item.accountType),
   );
 }
 
@@ -271,6 +354,7 @@ class CashInventoryDatum {
     required this.resolved,
     this.declaredHolderId,
     this.explicitResponsibleId,
+    this.explicitResponsibleIds = const [],
     this.observed,
     this.theoretical,
     this.remainingDifference,
@@ -279,6 +363,7 @@ class CashInventoryDatum {
 
   final String id, accountId, actorUserId;
   final String? declaredHolderId, explicitResponsibleId;
+  final List<String> explicitResponsibleIds;
   final DateTime observedAt, recordedAt;
   final DateTime? resolvedAt;
   final Money? observed, theoretical, remainingDifference;
@@ -302,6 +387,8 @@ class CashQualitySnapshot {
     required this.authorIsNeverResponsibleByDefault,
     required this.explanation,
     required this.drillDownIds,
+    required this.unresolvedDifferenceAmount,
+    required this.totalDifferenceAmount,
   });
 
   final DateTime periodStart, periodEndExclusive;
@@ -313,6 +400,7 @@ class CashQualitySnapshot {
   final bool authorIsNeverResponsibleByDefault;
   final KpiExplanation explanation;
   final List<String> drillDownIds;
+  final Money unresolvedDifferenceAmount, totalDifferenceAmount;
 
   double get regularizationRate =>
       differences == 0 ? 1 : regularizedDifferences / differences;
@@ -376,7 +464,11 @@ CashQualitySnapshot analyzeCashQuality({
         : resolvedDurations.reduce((a, b) => a + b) / resolvedDurations.length,
     localized: scoped.where((item) => item.declaredHolderId != null).length,
     unassigned: scoped
-        .where((item) => item.explicitResponsibleId == null)
+        .where(
+          (item) =>
+              item.explicitResponsibleId == null &&
+              item.explicitResponsibleIds.isEmpty,
+        )
         .length,
     denominationInconsistencies: scoped
         .where((item) => !item.denominationConsistent)
@@ -389,7 +481,12 @@ CashQualitySnapshot analyzeCashQuality({
       period: period,
       reason:
           'L’auteur du comptage, le détenteur déclaré et le responsable économique restent trois concepts distincts.',
-      completeness: scoped.any((item) => item.explicitResponsibleId == null)
+      completeness:
+          scoped.any(
+            (item) =>
+                item.explicitResponsibleId == null &&
+                item.explicitResponsibleIds.isEmpty,
+          )
           ? 'partiel'
           : 'complet',
       limitations: const [
@@ -397,5 +494,77 @@ CashQualitySnapshot analyzeCashQuality({
       ],
     ),
     drillDownIds: List.unmodifiable(withDifference.map((item) => item.id)),
+    unresolvedDifferenceAmount: Money.fromMinorUnits(
+      withDifference
+          .where((item) => !item.resolved)
+          .fold(
+            0,
+            (sum, item) =>
+                sum + (item.remainingDifference?.minorUnits.abs() ?? 0),
+          ),
+    ),
+    totalDifferenceAmount: Money.fromMinorUnits(
+      withDifference.fold(
+        0,
+        (sum, item) => sum + (item.remainingDifference?.minorUnits.abs() ?? 0),
+      ),
+    ),
   );
 }
+
+class OperationalTrendPoint {
+  const OperationalTrendPoint({
+    required this.periodStart,
+    required this.entryDelayDays,
+    required this.reconciliationResolutionRate,
+    required this.unresolvedAmount,
+    required this.cashFreshnessDays,
+    required this.cashDifferenceAmount,
+  });
+  final DateTime periodStart;
+  final double entryDelayDays, reconciliationResolutionRate;
+  final Money unresolvedAmount, cashDifferenceAmount;
+  final double? cashFreshnessDays;
+}
+
+List<OperationalTrendPoint> buildOperationalTrends({
+  required DateTime endExclusive,
+  required int months,
+  required List<OperationalEntry> entries,
+  required List<ReconciliationDatum> reconciliations,
+  required List<CashInventoryDatum> inventories,
+}) => List.unmodifiable([
+  for (var offset = months - 1; offset >= 0; offset--)
+    (() {
+      final start = DateTime(
+        endExclusive.year,
+        endExclusive.month - offset - 1,
+      );
+      final end = DateTime(start.year, start.month + 1);
+      final quality = analyzeOperationalQuality(
+        periodStart: start,
+        periodEndExclusive: end,
+        entries: entries,
+        reconciliations: reconciliations
+            .where((item) => item.openedAt.isBefore(end))
+            .toList(growable: false),
+        expectedNotMaterialized: 0,
+        evaluatedAt: end,
+      );
+      final cash = analyzeCashQuality(
+        periodStart: start,
+        periodEndExclusive: end,
+        inventories: inventories,
+      );
+      return OperationalTrendPoint(
+        periodStart: start,
+        entryDelayDays: quality.meanDelayDays,
+        reconciliationResolutionRate: quality.reconciliation.resolutionRate,
+        unresolvedAmount: quality.reconciliation.unresolvedAmount,
+        cashFreshnessDays: cash.lastInventoryAt == null
+            ? null
+            : end.difference(cash.lastInventoryAt!).inDays.toDouble(),
+        cashDifferenceAmount: cash.totalDifferenceAmount,
+      );
+    })(),
+]);
