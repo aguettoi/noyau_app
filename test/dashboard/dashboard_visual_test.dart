@@ -15,6 +15,59 @@ import 'package:noyau_app/features/priorities/domain/priority_plan.dart';
 import 'dashboard_v2_test.dart' as fixtures;
 
 void main() {
+  testWidgets('account analytics renders a hidden balance without a number', (
+    tester,
+  ) async {
+    final base = fixtures.snapshot();
+    final hidden = fixtures.account(
+      id: 'hidden',
+      balance: 0,
+      balanceVisible: false,
+    );
+    final data = FinancialDashboardSnapshot(
+      accounts: [hidden],
+      ordinaryEnvelopes: const [],
+      toAllocate: null,
+      budget: base.budget,
+      monthlyFlow: base.monthlyFlow,
+      debts: const [],
+      incomeReceivables: const [],
+      recoveryReceivables: const [],
+      activeGoals: const [],
+      nextPriority: null,
+      alerts: const [],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('fr'),
+        supportedLocales: const [Locale('fr')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: DashboardV2Panels(snapshot: data, open: (_) {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final hiddenRow = find.widgetWithText(ListTile, 'Compte hidden');
+    await tester.ensureVisible(hiddenRow);
+    await tester.pumpAndSettle();
+    expect(hiddenRow, findsOneWidget);
+    expect(
+      find.descendant(of: hiddenRow, matching: find.text('Solde masqué')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: hiddenRow, matching: find.textContaining('MAD')),
+      findsNothing,
+    );
+  });
+
   testWidgets('long donut legend remains bounded on mobile', (tester) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;

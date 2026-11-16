@@ -9,11 +9,13 @@ import '../../../core/presentation/user_safe_error.dart';
 import '../../../core/theme/app_design_system.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../application/providers/remote_account_balances_provider.dart';
+import '../application/providers/account_privacy_provider.dart';
 import '../application/providers/account_balance_observation_provider.dart';
 import '../domain/cash_inventory.dart';
 import '../application/providers/remote_accounts_provider.dart';
 import '../application/providers/remote_household_members_provider.dart';
 import '../application/providers/remote_transactions_provider.dart';
+import '../application/providers/supabase_client_provider.dart';
 import '../domain/account_ownership.dart';
 import '../domain/household_member.dart';
 import '../domain/financial_account.dart';
@@ -146,13 +148,11 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
               ordered.length == 1) {
             _initialOpened = true;
             final account = ordered.single;
-            final balance = _visibleBalance(account, balancesAsync.valueOrNull);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) =>
-                        _AccountDetailPage(account: account, balance: balance),
+                    builder: (_) => _AccountDetailPage(accountId: account.id),
                   ),
                 );
               }
@@ -351,7 +351,7 @@ class _AccountRow extends StatelessWidget {
     ),
     onTap: () => Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _AccountDetailPage(account: account, balance: balance),
+        builder: (_) => _AccountDetailPage(accountId: account.id),
       ),
     ),
   );
@@ -365,28 +365,57 @@ IconData _accountIcon(FinancialAccountType type) => switch (type) {
 };
 
 class _AccountDetailPage extends ConsumerWidget {
-  const _AccountDetailPage({required this.account, required this.balance});
-  final FinancialAccount account;
-  final Money? balance;
+  const _AccountDetailPage({required this.accountId});
+  final String accountId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final visibleBalance = balance;
+    final accountsAsync = ref.watch(remoteAccountsProvider);
+    final balancesAsync = ref.watch(remoteAccountBalancesProvider);
+    if (accountsAsync.isRefreshing || balancesAsync.isRefreshing) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    FinancialAccount? account;
+    for (final candidate in accountsAsync.valueOrNull ?? const []) {
+      if (candidate.id == accountId) {
+        account = candidate;
+        break;
+      }
+    }
+    if (account == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: Center(
+          child: Text(AccountsWords.of(context).text('accounts.read_error')),
+        ),
+      );
+    }
+    final effectiveAccount = account;
+    final visibleBalance = _visibleBalance(
+      effectiveAccount,
+      balancesAsync.valueOrNull,
+    );
     final history = visibleBalance == null
         ? null
-        : ref.watch(accountTransactionHistoryProvider(account.id));
+        : ref.watch(accountTransactionHistoryProvider(effectiveAccount.id));
     final observation = visibleBalance == null
         ? null
-        : ref.watch(latestAccountBalanceObservationProvider(account.id));
+        : ref.watch(
+            latestAccountBalanceObservationProvider(effectiveAccount.id),
+          );
     final canReconcile =
-        account.type == FinancialAccountType.bank ||
-        account.type == FinancialAccountType.cash;
+        effectiveAccount.type == FinancialAccountType.bank ||
+        effectiveAccount.type == FinancialAccountType.cash;
+    final currentUserId = ref.watch(currentUserIdProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(account.name)),
+      appBar: AppBar(title: Text(effectiveAccount.name)),
       body: ListView(
         padding: AppSpacing.page,
         children: [
-          Text(account.name, style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            effectiveAccount.name,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
           Text(
             visibleBalance == null
                 ? AccountsWords.of(context).text('accounts.hidden_balance')
@@ -395,16 +424,26 @@ class _AccountDetailPage extends ConsumerWidget {
                         '${visibleBalance.dirhams.toStringAsFixed(2)} MAD',
                   }),
           ),
+          if (currentUserId != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            _AccountPrivacyCard(account: effectiveAccount),
+          ],
           if (canReconcile &&
               visibleBalance != null &&
               observation != null) ...[
             const SizedBox(height: AppSpacing.md),
             _AccountReconciliationCard(
-              account: account,
+              account: effectiveAccount,
               theoreticalBalance: visibleBalance,
               observation: observation,
-              onRecord: () => _openObservationDialog(context, ref),
-              onHistory: () => _openReconciliationHistory(context, ref),
+              onRecord: () => _openObservationDialog(
+                context,
+                ref,
+                effectiveAccount,
+                visibleBalance,
+              ),
+              onHistory: () =>
+                  _openReconciliationHistory(context, effectiveAccount),
             ),
           ],
           if (history != null) ...[
@@ -441,7 +480,7 @@ class _AccountDetailPage extends ConsumerWidget {
                             ),
                             trailing: Text(
                               // i18n-dynamic-only: sign, amount and canonical currency
-                              '${item.sourceAccountId == account.id ? '−' : '+'}${item.amount.dirhams.abs().toStringAsFixed(2)} MAD',
+                              '${item.sourceAccountId == effectiveAccount.id ? '−' : '+'}${item.amount.dirhams.abs().toStringAsFixed(2)} MAD',
                             ),
                           ),
                         )
@@ -456,9 +495,9 @@ class _AccountDetailPage extends ConsumerWidget {
   Future<void> _openObservationDialog(
     BuildContext context,
     WidgetRef ref,
+    FinancialAccount account,
+    Money visibleBalance,
   ) async {
-    final visibleBalance = balance;
-    if (visibleBalance == null) return;
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => _RecordAccountBalanceDialog(
@@ -503,7 +542,7 @@ class _AccountDetailPage extends ConsumerWidget {
 
   Future<void> _openReconciliationHistory(
     BuildContext context,
-    WidgetRef ref,
+    FinancialAccount account,
   ) => showDialog<void>(
     context: context,
     builder: (_) => _ReconciliationHistoryDialog(account: account),
@@ -761,6 +800,244 @@ class _ReconciliationHistoryDialog extends ConsumerWidget {
     );
   }
 }
+
+class _AccountPrivacyCard extends ConsumerStatefulWidget {
+  const _AccountPrivacyCard({required this.account});
+
+  final FinancialAccount account;
+
+  @override
+  ConsumerState<_AccountPrivacyCard> createState() =>
+      _AccountPrivacyCardState();
+}
+
+class _AccountPrivacyCardState extends ConsumerState<_AccountPrivacyCard> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final words = AccountsWords.of(context);
+    final userId = ref.watch(currentUserIdProvider);
+    final account = widget.account;
+    final isHolder =
+        userId != null &&
+        account.holders.any((holder) => holder.userId == userId);
+    final requests = isHolder
+        ? ref.watch(accountPrivacyRequestsProvider)
+        : const AsyncData<List<AccountPrivacyRequest>>([]);
+    AccountPrivacyRequest? pending;
+    for (final request in requests.valueOrNull ?? const []) {
+      if (request.accountId == widget.account.id) {
+        pending = request;
+        break;
+      }
+    }
+    final currentMode = _privacyModeLabel(words, account.visibility);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.privacy_tip_outlined),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    words.text('accounts.privacy.title'),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              words.format('accounts.privacy.current', {'mode': currentMode}),
+            ),
+            Text(
+              words.text('accounts.privacy.description.${account.visibility}'),
+            ),
+            if (account.ownershipType == AccountOwnershipType.household) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(words.text('accounts.privacy.household_locked')),
+            ] else if (isHolder && pending != null) ...[
+              Builder(
+                builder: (context) {
+                  final activeRequest = pending!;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        words.text('accounts.privacy.pending'),
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      Text(
+                        words.format('accounts.privacy.requested_mode', {
+                          'mode': _privacyModeLabel(
+                            words,
+                            activeRequest.requestedVisibility,
+                          ),
+                        }),
+                      ),
+                      Text(
+                        words.format('accounts.privacy.pending_progress', {
+                          'approved': activeRequest.approvalCount,
+                          'total': account.holders.length,
+                        }),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          if (!activeRequest.hasDecision(userId)) ...[
+                            FilledButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _decide(activeRequest.id, 'approve'),
+                              child: Text(
+                                words.text('accounts.privacy.approve'),
+                              ),
+                            ),
+                            OutlinedButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _decide(activeRequest.id, 'reject'),
+                              child: Text(
+                                words.text('accounts.privacy.reject'),
+                              ),
+                            ),
+                          ],
+                          if (activeRequest.requestedBy == userId)
+                            TextButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _cancel(activeRequest.id),
+                              child: Text(
+                                words.text('accounts.privacy.cancel_request'),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ] else if (isHolder) ...[
+              const SizedBox(height: AppSpacing.md),
+              FilledButton.tonalIcon(
+                onPressed: _busy ? null : () => _request(account.visibility),
+                icon: const Icon(Icons.tune),
+                label: Text(words.text('accounts.privacy.manage')),
+              ),
+            ],
+            if (requests.isLoading) ...[
+              const SizedBox(height: AppSpacing.sm),
+              const LinearProgressIndicator(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _request(String effectiveVisibility) async {
+    final visibility = await _accountPrivacyDialog(
+      context,
+      effectiveVisibility,
+    );
+    if (visibility == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(accountPrivacyActionsProvider)
+          .request(widget.account.id, visibility),
+      'accounts.privacy.success_requested',
+    );
+  }
+
+  Future<void> _decide(String requestId, String decision) => _run(
+    () => ref.read(accountPrivacyActionsProvider).decide(requestId, decision),
+    decision == 'approve'
+        ? 'accounts.privacy.success_approved'
+        : 'accounts.privacy.success_rejected',
+  );
+
+  Future<void> _cancel(String requestId) => _run(
+    () => ref.read(accountPrivacyActionsProvider).cancel(requestId),
+    'accounts.privacy.success_cancelled',
+  );
+
+  Future<void> _run(Future<void> Function() action, String successKey) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AccountsWords.of(context).text(successKey))),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userSafeErrorMessage(context, error))),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+}
+
+Future<String?> _accountPrivacyDialog(
+  BuildContext context,
+  String current,
+) async {
+  var selected = current;
+  final words = AccountsWords.of(context);
+  return showDialog<String>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(words.text('accounts.privacy.dialog_title')),
+        content: RadioGroup<String>(
+          groupValue: selected,
+          onChanged: (value) {
+            if (value != null) setState(() => selected = value);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final mode in const ['visible', 'balance_hidden', 'private'])
+                RadioListTile<String>(
+                  value: mode,
+                  title: Text(_privacyModeLabel(words, mode)),
+                  subtitle: Text(
+                    words.text('accounts.privacy.description.$mode'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(words.text('accounts.cancel')),
+          ),
+          FilledButton(
+            onPressed: selected == current
+                ? null
+                : () => Navigator.pop(context, selected),
+            child: Text(words.text('accounts.privacy.submit')),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+String _privacyModeLabel(AccountsWords words, String mode) =>
+    words.text('accounts.privacy.mode.$mode');
 
 class _ReconciliationCaseTile extends ConsumerWidget {
   const _ReconciliationCaseTile({required this.account, required this.item});

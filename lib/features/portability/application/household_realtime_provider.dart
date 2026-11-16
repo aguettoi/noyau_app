@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
 import '../../finance/application/providers/remote_accounts_provider.dart';
+import '../../finance/application/providers/account_privacy_provider.dart';
 import '../../finance/application/providers/remote_account_balances_provider.dart';
 import '../../finance/application/providers/remote_transactions_provider.dart';
 import '../../finance/application/providers/remote_debts_provider.dart';
@@ -63,6 +64,19 @@ void _invalidateTable(Ref ref, String table) {
       ref.invalidate(remoteAccountsProvider);
       ref.invalidate(remoteAccountBalancesProvider);
       break;
+    case 'account_privacy_settings':
+      ref.invalidate(remoteAccountsProvider);
+      ref.invalidate(remoteAccountBalancesProvider);
+      ref.invalidate(accountPrivacyRequestsProvider);
+      break;
+    case 'account_privacy_requests':
+      // A single-holder request can be created, consented and applied in one
+      // server transaction. Treat its lifecycle as a security-boundary
+      // invalidation so a formerly readable balance is purged immediately.
+      ref.invalidate(remoteAccountsProvider);
+      ref.invalidate(remoteAccountBalancesProvider);
+      ref.invalidate(accountPrivacyRequestsProvider);
+      break;
     case 'envelopes':
       ref.invalidate(remoteEnvelopeHistoryProvider);
       ref.invalidate(remoteEnvelopeBalancesProvider);
@@ -98,6 +112,12 @@ void _invalidateTable(Ref ref, String table) {
     case 'household_home_records':
       ref.invalidate(homeRecordsProvider);
       ref.invalidate(organizationCalendarProvider);
+      break;
+    case 'member_cycle_events':
+    case 'member_cycle_calendar_shares':
+      ref.invalidate(cycleEventsProvider);
+      ref.invalidate(ownCycleEventsProvider);
+      ref.invalidate(ownCycleSharesProvider);
       break;
     case 'wealth_assets':
       ref.invalidate(wealthDataProvider);

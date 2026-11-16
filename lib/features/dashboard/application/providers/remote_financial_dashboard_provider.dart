@@ -25,10 +25,12 @@ class DashboardAccountBalance {
     required this.balance,
     this.balanceVisible = true,
     this.observation,
-  });
+  }) : assert(balanceVisible || balance == null);
 
   final FinancialAccount account;
-  final Money balance;
+
+  /// Null is a security boundary: a hidden balance is never represented as 0.
+  final Money? balance;
   final bool balanceVisible;
   final AccountBalanceObservation? observation;
 
@@ -36,7 +38,7 @@ class DashboardAccountBalance {
       ? null
       : observation!.remainingDifference ??
             observation!.differenceSnapshot ??
-            observation!.actualBalance - balance;
+            (balance == null ? null : observation!.actualBalance - balance!);
 }
 
 class DashboardBudgetSummary {
@@ -110,16 +112,21 @@ class FinancialDashboardSnapshot {
       (toAllocate?.balance ?? const Money.fromMinorUnits(0));
   Money get savingsAccounts => _total(
     accounts
-        .where((a) => a.account.type == FinancialAccountType.savings)
-        .map((a) => a.balance),
+        .where(
+          (a) =>
+              a.balanceVisible &&
+              a.balance != null &&
+              a.account.type == FinancialAccountType.savings,
+        )
+        .map((a) => a.balance!),
   );
   Money get netObligations =>
       incomeReceivableRemaining + recoveryRemaining - debtRemaining;
 
   Money get cashTotal => Money.fromMinorUnits(
     accounts
-        .where((item) => item.balanceVisible)
-        .fold(0, (sum, item) => sum + item.balance.minorUnits),
+        .where((item) => item.balanceVisible && item.balance != null)
+        .fold(0, (sum, item) => sum + item.balance!.minorUnits),
   );
 
   bool get hasHiddenAccountBalances =>
@@ -130,9 +137,10 @@ class FinancialDashboardSnapshot {
         .where(
           (item) =>
               item.balanceVisible &&
+              item.balance != null &&
               item.account.type == FinancialAccountType.cash,
         )
-        .fold(0, (sum, item) => sum + item.balance.minorUnits),
+        .fold(0, (sum, item) => sum + item.balance!.minorUnits),
   );
 
   Money get ordinaryEnvelopeTotal => Money.fromMinorUnits(
@@ -212,7 +220,9 @@ final financialDashboardProvider = FutureProvider<FinancialDashboardSnapshot>((
     accountBalances.add(
       DashboardAccountBalance(
         account: account,
-        balance: balances[account.id] ?? const Money.fromMinorUnits(0),
+        balance: account.canReadBalance
+            ? balances[account.id] ?? account.openingBalance
+            : null,
         balanceVisible: account.canReadBalance,
       ),
     );
@@ -351,7 +361,8 @@ List<DashboardAlert> buildDashboardAlerts({
     if (!account.balanceVisible) {
       continue;
     }
-    if (account.balance.minorUnits < 0) {
+    final balance = account.balance;
+    if (balance != null && balance.minorUnits < 0) {
       alerts.add(
         DashboardAlert(
           title: 'Compte négatif',

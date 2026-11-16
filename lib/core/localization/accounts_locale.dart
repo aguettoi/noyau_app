@@ -190,6 +190,36 @@ class AccountsWords {
       'accounts.household_member': 'Membre du foyer',
       'accounts.denominations_total': 'Total des coupures : {amount}',
       'accounts.date_time': 'Date et heure : {date}',
+      'accounts.privacy.title': 'Confidentialité du compte',
+      'accounts.privacy.current': 'Mode actuel : {mode}',
+      'accounts.privacy.mode.visible': 'Compte et solde visibles',
+      'accounts.privacy.mode.balance_hidden': 'Compte visible, solde masqué',
+      'accounts.privacy.mode.private': 'Compte privé',
+      'accounts.privacy.description.visible':
+          'Les membres du foyer voient le compte et son solde.',
+      'accounts.privacy.description.balance_hidden':
+          'Les membres voient le compte, mais pas son solde.',
+      'accounts.privacy.description.private':
+          'Seuls les titulaires voient ce compte et son solde.',
+      'accounts.privacy.manage': 'Modifier la confidentialité',
+      'accounts.privacy.household_locked':
+          'La confidentialité personnelle ne s’applique pas aux comptes communs.',
+      'accounts.privacy.pending': 'Demande en attente',
+      'accounts.privacy.pending_progress':
+          '{approved} approbation(s) sur {total}',
+      'accounts.privacy.requested_mode': 'Mode demandé : {mode}',
+      'accounts.privacy.approve': 'Approuver',
+      'accounts.privacy.reject': 'Refuser',
+      'accounts.privacy.cancel_request': 'Annuler la demande',
+      'accounts.privacy.submit': 'Envoyer la demande',
+      'accounts.privacy.dialog_title': 'Choisir la confidentialité',
+      'accounts.privacy.success_requested':
+          'Demande de confidentialité enregistrée.',
+      'accounts.privacy.success_approved': 'Demande approuvée.',
+      'accounts.privacy.success_rejected': 'Demande refusée.',
+      'accounts.privacy.success_cancelled': 'Demande annulée.',
+      'accounts.privacy.error':
+          'La confidentialité du compte n’a pas pu être modifiée.',
     },
     AppLanguage.english: {
       'accounts.title': 'Accounts',
@@ -353,6 +383,34 @@ class AccountsWords {
       'accounts.household_member': 'Household member',
       'accounts.denominations_total': 'Denominations total: {amount}',
       'accounts.date_time': 'Date and time: {date}',
+      'accounts.privacy.title': 'Account privacy',
+      'accounts.privacy.current': 'Current mode: {mode}',
+      'accounts.privacy.mode.visible': 'Account and balance visible',
+      'accounts.privacy.mode.balance_hidden': 'Account visible, balance hidden',
+      'accounts.privacy.mode.private': 'Private account',
+      'accounts.privacy.description.visible':
+          'Household members can see the account and its balance.',
+      'accounts.privacy.description.balance_hidden':
+          'Members can see the account, but not its balance.',
+      'accounts.privacy.description.private':
+          'Only account holders can see this account and its balance.',
+      'accounts.privacy.manage': 'Change privacy',
+      'accounts.privacy.household_locked':
+          'Personal privacy does not apply to household accounts.',
+      'accounts.privacy.pending': 'Request pending',
+      'accounts.privacy.pending_progress':
+          '{approved} approval(s) out of {total}',
+      'accounts.privacy.requested_mode': 'Requested mode: {mode}',
+      'accounts.privacy.approve': 'Approve',
+      'accounts.privacy.reject': 'Reject',
+      'accounts.privacy.cancel_request': 'Cancel request',
+      'accounts.privacy.submit': 'Send request',
+      'accounts.privacy.dialog_title': 'Choose privacy',
+      'accounts.privacy.success_requested': 'Privacy request recorded.',
+      'accounts.privacy.success_approved': 'Request approved.',
+      'accounts.privacy.success_rejected': 'Request rejected.',
+      'accounts.privacy.success_cancelled': 'Request cancelled.',
+      'accounts.privacy.error': 'Account privacy could not be changed.',
     },
     AppLanguage.arabic: {
       'accounts.title': 'الحسابات',
@@ -509,6 +567,33 @@ class AccountsWords {
       'accounts.household_member': 'فرد من الأسرة',
       'accounts.denominations_total': 'مجموع الفئات النقدية: {amount}',
       'accounts.date_time': 'التاريخ والوقت: {date}',
+      'accounts.privacy.title': 'خصوصية الحساب',
+      'accounts.privacy.current': 'الوضع الحالي: {mode}',
+      'accounts.privacy.mode.visible': 'الحساب والرصيد ظاهران',
+      'accounts.privacy.mode.balance_hidden': 'الحساب ظاهر والرصيد مخفي',
+      'accounts.privacy.mode.private': 'حساب خاص',
+      'accounts.privacy.description.visible':
+          'يمكن لأفراد الأسرة رؤية الحساب ورصيده.',
+      'accounts.privacy.description.balance_hidden':
+          'يمكن للأفراد رؤية الحساب دون رصيده.',
+      'accounts.privacy.description.private':
+          'لا يرى الحساب ورصيده إلا أصحابه.',
+      'accounts.privacy.manage': 'تغيير الخصوصية',
+      'accounts.privacy.household_locked':
+          'لا تنطبق الخصوصية الشخصية على حسابات الأسرة.',
+      'accounts.privacy.pending': 'طلب قيد الانتظار',
+      'accounts.privacy.pending_progress': '{approved} موافقة من أصل {total}',
+      'accounts.privacy.requested_mode': 'الوضع المطلوب: {mode}',
+      'accounts.privacy.approve': 'موافقة',
+      'accounts.privacy.reject': 'رفض',
+      'accounts.privacy.cancel_request': 'إلغاء الطلب',
+      'accounts.privacy.submit': 'إرسال الطلب',
+      'accounts.privacy.dialog_title': 'اختيار الخصوصية',
+      'accounts.privacy.success_requested': 'تم تسجيل طلب الخصوصية.',
+      'accounts.privacy.success_approved': 'تمت الموافقة على الطلب.',
+      'accounts.privacy.success_rejected': 'تم رفض الطلب.',
+      'accounts.privacy.success_cancelled': 'تم إلغاء الطلب.',
+      'accounts.privacy.error': 'تعذر تغيير خصوصية الحساب.',
     },
     AppLanguage.darija: {
       'accounts.title': 'الحسابات',
@@ -666,6 +751,33 @@ class AccountsWords {
       'accounts.household_member': 'واحد من الدار',
       'accounts.denominations_total': 'مجموع الوراق والقطع: {amount}',
       'accounts.date_time': 'النهار والوقت: {date}',
+      'accounts.privacy.title': 'خصوصية الحساب',
+      'accounts.privacy.current': 'الوضع دابا: {mode}',
+      'accounts.privacy.mode.visible': 'الحساب والرصيد باينين',
+      'accounts.privacy.mode.balance_hidden': 'الحساب باين والرصيد مخبي',
+      'accounts.privacy.mode.private': 'حساب خاص',
+      'accounts.privacy.description.visible':
+          'ناس الدار يقدرو يشوفو الحساب والرصيد ديالو.',
+      'accounts.privacy.description.balance_hidden':
+          'ناس الدار كيشوفو الحساب بلا الرصيد ديالو.',
+      'accounts.privacy.description.private':
+          'غير صحاب الحساب كيشوفوه وكيشوفو الرصيد ديالو.',
+      'accounts.privacy.manage': 'بدّل الخصوصية',
+      'accounts.privacy.household_locked':
+          'الخصوصية الشخصية ما كتطبقش على حسابات الدار.',
+      'accounts.privacy.pending': 'الطلب باقي كيتسنى',
+      'accounts.privacy.pending_progress': '{approved} موافقة من {total}',
+      'accounts.privacy.requested_mode': 'الوضع المطلوب: {mode}',
+      'accounts.privacy.approve': 'وافق',
+      'accounts.privacy.reject': 'رفض',
+      'accounts.privacy.cancel_request': 'لغي الطلب',
+      'accounts.privacy.submit': 'صيفط الطلب',
+      'accounts.privacy.dialog_title': 'اختار الخصوصية',
+      'accounts.privacy.success_requested': 'تسجل طلب الخصوصية.',
+      'accounts.privacy.success_approved': 'تقبل الطلب.',
+      'accounts.privacy.success_rejected': 'ترفض الطلب.',
+      'accounts.privacy.success_cancelled': 'تلغى الطلب.',
+      'accounts.privacy.error': 'ما قدرناش نبدلو خصوصية الحساب.',
     },
   };
 }

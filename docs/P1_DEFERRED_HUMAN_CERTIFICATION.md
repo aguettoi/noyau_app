@@ -122,10 +122,11 @@ Audit V1 des autres surfaces :
 
 ## CERT-L1H — confidentialité des comptes et anti-inférence
 
-**Statut : `DEFERRED / HUMAN CERTIFICATION REQUIRED`. Ne pas démarrer dans
-P1-B et ne pas modifier le gate L1 avant cette certification.**
+**Statut : `READY / CLOSED LE 2026-11-16`. Certification hostile multi-session
+achevée sur les surfaces existantes. Les preuves détaillées sont conservées dans
+`docs/CERT_L1H_CLOSURE_2026-11-16.md`.**
 
-La certification devra être exécutée dans cet ordre :
+La certification a été exécutée dans cet ordre :
 
 1. certification hostile L1 ;
 2. validation des protections anti-inférence ;
@@ -149,3 +150,57 @@ Contraintes de sortie :
   besoin exige une décision produit séparée après audit ;
 - la V1 ne peut pas être déclarée terminée si les modes L1 certifiés restent
   uniquement backend sans UX utilisateur fonctionnelle.
+
+## Reliquat Cycle après CERT-L1H et avant Design Freeze
+
+**Statut : `FUNCTIONAL FOLLOW-UP REQUIRED / NOT PART OF CURRENT CERT-L1H
+MUTATION SCOPE`.**
+
+- La projection Cycle partagée existe aujourd'hui dans **Foyer → Mon espace →
+  Dates et phases partagées avec vous**. Elle est alimentée par
+  `read_shared_cycle_calendar` et reste limitée aux dates et phases après
+  consentement explicite.
+- Il n'existe pas encore de surface autonome clairement nommée « calendrier
+  partagé » ni de raccordement des projections Cycle au calendrier canonique
+  utilisé par Accueil. Le contrôle CERT-L1H d'un calendrier partagé transverse
+  est donc `NON TESTABLE / SURFACE ABSENTE`; l'absence ne vaut pas PASS.
+- La ROADMAP historique place le calendrier partagé dans le **Lot 3 / gate L3**
+  et le Cycle dans **L3B / R6-02 / CYC-X1**. Le contrat D1.2-B exclut
+  explicitement le Cycle de la source calendrier du Dashboard actuel.
+- Avant Design Freeze et finalisation V1, auditer puis décider le raccordement
+  du Dashboard et du calendrier canonique selon ce contrat :
+  - propriétaire : informations Cycle utiles autorisées sur son Dashboard ;
+  - destinataire explicitement autorisé : dates et phases uniquement ;
+  - membre non autorisé ou autre foyer : aucune information Cycle ;
+  - symptômes, notes, flux, libido, pertes, contraception, rapports sexuels,
+    protection, température, poids et autres observations intimes : toujours
+    absents, y compris des KPI, résumés, Assistant, alertes, graphiques,
+    recommandations, exports et caches ;
+  - après révocation : disparition immédiate de toutes les projections
+    destinataires sans réapparition depuis cache ou Realtime.
+- Ce reliquat ne doit créer ni second moteur Cycle, ni projection parallèle, ni
+  exposition avant certification hostile des contrats de lecture et
+  d'anti-inférence.
+
+## Reliquat Assistant conversationnel avant Design Freeze
+
+**Statut : `V1 REQUIRED / NON TESTABLE — CONVERSATIONAL SURFACE ABSENT`.**
+
+- L'Assistant déterministe L5 existant reste une fonction distincte, fiable et
+  explicable. Il ne doit être ni supprimé ni présenté comme un assistant
+  conversationnel libre.
+- Le besoin conversationnel est déjà couvert par les identifiants historiques
+  `AI-X2`, `R6-03` et `AI-X3`; aucun nouvel identifiant fonctionnel n'est créé.
+  Leur preuve actuelle couvre le socle déterministe/provider-ready et les
+  propositions contrôlées, mais pas une conversation IA libre en production.
+- Avant Design Freeze et finalisation V1, livrer puis certifier l'architecture
+  hybride suivante : question naturelle → contexte minimal autorisé → moteurs
+  déterministes canoniques → réponse explicable. Toute action réelle reste une
+  proposition explicitement confirmée et revalidée.
+- Le contexte transmis doit appliquer les contrats L1 avant tout appel à un
+  modèle : `visible` selon l'audience, `balance_hidden` sans montant ni
+  reconstruction possible, `private` sans existence pour un non-titulaire, et
+  données personnelles sensibles uniquement selon leur consentement propre.
+- Le contrôle conversationnel CERT-L1H courant est donc `NON TESTABLE /
+  SURFACE ABSENTE`; cette absence ne vaut pas PASS et ne bloque pas la poursuite
+  des contrôles hostiles sur les surfaces réellement existantes.

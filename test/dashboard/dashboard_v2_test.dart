@@ -70,7 +70,7 @@ DashboardAccountBalance account({
     type: type,
     openingBalance: zero,
   ),
-  balance: Money.fromMinorUnits(balance),
+  balance: balanceVisible ? Money.fromMinorUnits(balance) : null,
   balanceVisible: balanceVisible,
 );
 SavingsGoalProgress goal() => SavingsGoalProgress(
@@ -177,6 +177,22 @@ void main() {
       expect(value.hasHiddenAccountBalances, isTrue);
     },
   );
+
+  test('a hidden dashboard balance cannot carry a numeric value', () {
+    expect(
+      () => DashboardAccountBalance(
+        account: FinancialAccount(
+          id: 'hidden',
+          name: 'Compte masqué',
+          type: FinancialAccountType.bank,
+          openingBalance: zero,
+        ),
+        balance: const Money.fromMinorUnits(0),
+        balanceVisible: false,
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
 
   test(
     'period boundaries include year transition without invented history',

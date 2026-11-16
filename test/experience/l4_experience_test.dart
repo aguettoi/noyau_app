@@ -225,22 +225,25 @@ void main() {
     },
   );
 
-  test('automatic selects Darija only for an actual ary locale', () async {
-    SharedPreferences.setMockInitialValues({});
-    final arabic = AppLocaleController(
-      environmentLocales: () => const [Locale('ar', 'MA')],
-    );
-    await _settleLocaleRestore();
-    expect(arabic.state, AppLanguage.arabic);
-    arabic.dispose();
+  test(
+    'automatic selects Darija for ary and Moroccan Arabic locales',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final arabic = AppLocaleController(
+        environmentLocales: () => const [Locale('ar', 'MA')],
+      );
+      await _settleLocaleRestore();
+      expect(arabic.state, AppLanguage.darija);
+      arabic.dispose();
 
-    final darija = AppLocaleController(
-      environmentLocales: () => const [Locale('ary', 'MA')],
-    );
-    await _settleLocaleRestore();
-    expect(darija.state, AppLanguage.darija);
-    darija.dispose();
-  });
+      final darija = AppLocaleController(
+        environmentLocales: () => const [Locale('ary', 'MA')],
+      );
+      await _settleLocaleRestore();
+      expect(darija.state, AppLanguage.darija);
+      darija.dispose();
+    },
+  );
 
   test(
     'offline synchronization retries with one stable idempotency key',

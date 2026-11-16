@@ -42,7 +42,9 @@ void main() {
     final pdf = await encodeHouseholdPdf(data);
     expect(ascii.decode(pdf.take(4).toList()), '%PDF');
     final zip = encodeHouseholdArchive(data, utf8.encode('header\n'));
-    final archive = ZipDecoder().decodeBytes(zip);
+    // Strict verification checks the CRC of every entry, including README.txt
+    // whose accented UTF-8 characters previously exposed a size mismatch.
+    final archive = ZipDecoder().decodeBytes(zip, verify: true);
     expect(
       archive.files.map((f) => f.name),
       containsAll([
@@ -60,5 +62,9 @@ void main() {
             )
             as Map<String, dynamic>;
     expect(manifest['restore_eligible'], isFalse);
+    expect(
+      utf8.decode(archive.findFile('README.txt')!.content as List<int>),
+      'Export lisible FINANCIEL PILOTE. Justificatifs privés: métadonnées uniquement.',
+    );
   });
 }

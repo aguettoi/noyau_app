@@ -53,8 +53,28 @@ void main() {
     const _Proof('21_one_member', false, 0, Size(900, 760)),
     const _Proof('22_five_members', false, 1, Size(1100, 760)),
     const _Proof('23_dark', false, 0, Size(900, 760), dark: true),
-    const _Proof('24_rtl_arabic', true, 2, Size(900, 760), arabic: true),
+    const _Proof(
+      '24_rtl_arabic',
+      true,
+      2,
+      Size(900, 760),
+      language: AppLanguage.arabic,
+    ),
     const _Proof('25_empty', true, 0, Size(390, 844), empty: true),
+    const _Proof(
+      '26_cycle_entry_english',
+      true,
+      2,
+      Size(900, 760),
+      language: AppLanguage.english,
+    ),
+    const _Proof(
+      '27_cycle_entry_darija',
+      true,
+      2,
+      Size(900, 760),
+      language: AppLanguage.darija,
+    ),
   ];
 
   for (final proof in proofs) {
@@ -75,7 +95,7 @@ Future<void> _pumpProof(WidgetTester tester, _Proof proof) async {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
   });
-  final language = proof.arabic ? AppLanguage.arabic : AppLanguage.french;
+  final language = proof.language;
   final now = DateTime(2026, 11, 3, 10);
   final task = HouseholdTask(
     id: 'task-1',
@@ -168,7 +188,12 @@ Future<void> _pumpProof(WidgetTester tester, _Proof proof) async {
     ],
     child: MaterialApp(
       locale: language.locale,
-      supportedLocales: const [Locale('fr'), Locale('en'), Locale('ar')],
+      supportedLocales: const [
+        Locale('fr'),
+        Locale('en'),
+        Locale('ar'),
+        Locale('ar', 'MA'),
+      ],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: ThemeData(fontFamily: 'D12EArabic'),
       darkTheme: ThemeData.dark().copyWith(
@@ -192,7 +217,10 @@ Future<void> _pumpProof(WidgetTester tester, _Proof proof) async {
     await tester.tap(find.byKey(const Key('add-household-task')));
     await tester.pumpAndSettle();
   }
-  if (proof.name == '08_add_grocery' || proof.name == '18_cycle_entry') {
+  if (proof.name == '08_add_grocery' ||
+      proof.name == '18_cycle_entry' ||
+      proof.name == '26_cycle_entry_english' ||
+      proof.name == '27_cycle_entry_darija') {
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
   }
@@ -205,7 +233,7 @@ class _Proof {
     this.tab,
     this.size, {
     this.dark = false,
-    this.arabic = false,
+    this.language = AppLanguage.french,
     this.empty = false,
   });
 
@@ -214,6 +242,6 @@ class _Proof {
   final int tab;
   final Size size;
   final bool dark;
-  final bool arabic;
+  final AppLanguage language;
   final bool empty;
 }

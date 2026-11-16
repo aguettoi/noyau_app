@@ -6,6 +6,7 @@ import '../../experience/application/offline_connectivity.dart';
 import '../../experience/domain/offline_draft.dart';
 import '../../finance/application/providers/active_household_provider.dart';
 import '../../finance/application/providers/supabase_client_provider.dart';
+import '../domain/cycle_tracking.dart';
 import '../domain/organization_models.dart';
 
 Map<String, Object?> _map(dynamic value) =>
@@ -175,6 +176,39 @@ final ownCycleSharesProvider = FutureProvider<Set<String>>((ref) async {
   };
 });
 
+final ownCyclePrivateEntriesProvider =
+    FutureProvider<List<Map<String, Object?>>>((ref) async {
+      final h = await ref.watch(activeHouseholdProvider.future);
+      final user = ref.watch(currentUserIdProvider);
+      if (h.householdId == null || user == null) return const [];
+      final rows = await ref
+          .watch(supabaseClientProvider)
+          .from('member_cycle_private_entries')
+          .select()
+          .eq('household_id', h.householdId!)
+          .eq('owner_user_id', user)
+          .isFilter('archived_at', null)
+          .order('occurred_on', ascending: false);
+      return [for (final row in rows as List<dynamic>) _map(row)];
+    });
+
+final ownCycleForecastProvider = Provider<AsyncValue<CycleForecast>>((ref) {
+  return ref.watch(ownCycleEventsProvider).whenData((rows) {
+    final periods = rows
+        .where((row) => row['phase'] == 'period')
+        .map(
+          (row) => CyclePeriod(
+            startsOn: DateTime.parse(row['starts_on'] as String),
+            endsOn: row['ends_on'] == null
+                ? null
+                : DateTime.parse(row['ends_on'] as String),
+          ),
+        )
+        .toList();
+    return CycleForecastEngine.estimate(periods);
+  });
+});
+
 final businessCategoriesProvider = FutureProvider<List<Map<String, Object?>>>((
   ref,
 ) async {
@@ -261,6 +295,21 @@ class DailyLifeActions {
     ref.invalidate(ownCycleSharesProvider);
   }
 
+  Future<void> updateCycleEvent(String id, Map<String, Object?> values) async {
+    final (_, u) = await _context();
+    await ref
+        .read(supabaseClientProvider)
+        .from('member_cycle_events')
+        .update({
+          ...values,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', id)
+        .eq('owner_user_id', u);
+    ref.invalidate(ownCycleEventsProvider);
+    ref.invalidate(cycleEventsProvider);
+  }
+
   Future<void> setCycleShare(String recipient, bool shared) async {
     final (h, u) = await _context();
     final table = ref
@@ -279,6 +328,28 @@ class DailyLifeActions {
           .eq('owner_user_id', u)
           .eq('recipient_user_id', recipient);
     }
+    ref.invalidate(ownCycleSharesProvider);
+    ref.invalidate(cycleEventsProvider);
+  }
+
+  Future<void> addCyclePrivateEntry(Map<String, Object?> values) async {
+    final (h, u) = await _context();
+    await ref
+        .read(supabaseClientProvider)
+        .from('member_cycle_private_entries')
+        .insert({...values, 'household_id': h, 'owner_user_id': u});
+    ref.invalidate(ownCyclePrivateEntriesProvider);
+  }
+
+  Future<void> archiveCycleEvent(String id) async {
+    final (_, u) = await _context();
+    await ref
+        .read(supabaseClientProvider)
+        .from('member_cycle_events')
+        .update({'archived_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', id)
+        .eq('owner_user_id', u);
+    ref.invalidate(ownCycleEventsProvider);
     ref.invalidate(cycleEventsProvider);
   }
 

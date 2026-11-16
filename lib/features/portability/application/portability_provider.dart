@@ -293,6 +293,9 @@ List<int> encodeHouseholdArchive(
   Map<String, List<Map<String, Object?>>> data,
   List<int> transactionsCsv,
 ) {
+  final readme = utf8.encode(
+    'Export lisible FINANCIEL PILOTE. Justificatifs privés: métadonnées uniquement.',
+  );
   final manifest = utf8.encode(
     const JsonEncoder.withIndent('  ').convert({
       'format': 'financiel-pilote-user-export',
@@ -303,12 +306,10 @@ List<int> encodeHouseholdArchive(
     }),
   );
   final archive = Archive()
-    ..addFile(
-      ArchiveFile.string(
-        'README.txt',
-        'Export lisible FINANCIEL PILOTE. Justificatifs privés: métadonnées uniquement.',
-      ),
-    )
+    // ArchiveFile.string uses the UTF-16 character count as the ZIP entry
+    // size. For non-ASCII text that differs from the UTF-8 byte count and can
+    // produce a CRC-invalid entry. Always archive explicit bytes and lengths.
+    ..addFile(ArchiveFile('README.txt', readme.length, readme))
     ..addFile(
       ArchiveFile('transactions.csv', transactionsCsv.length, transactionsCsv),
     )

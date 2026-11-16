@@ -23,7 +23,9 @@ do $$ begin
   end if;
   if has_function_privilege('anon','public.list_account_privacy_summaries_v2(uuid)','EXECUTE')
     or not has_function_privilege('authenticated','public.list_account_privacy_summaries_v2(uuid)','EXECUTE')
-    or has_function_privilege('authenticated','public.request_account_privacy_change(uuid,text)','EXECUTE')
+    or not has_function_privilege('authenticated','public.request_account_privacy_change(uuid,text)','EXECUTE')
+    or not has_function_privilege('authenticated','public.decide_account_privacy_change(uuid,text)','EXECUTE')
+    or not has_function_privilege('authenticated','public.cancel_account_privacy_change(uuid)','EXECUTE')
     or has_function_privilege('service_role','public.request_account_privacy_change(uuid,text)','EXECUTE') then
     raise exception 'L1: RPC grants or privacy activation gate changed';
   end if;

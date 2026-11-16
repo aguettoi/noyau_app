@@ -17,6 +17,7 @@ import '../../experience/application/offline_connectivity.dart';
 import '../../experience/domain/offline_draft.dart';
 import '../application/daily_life_provider.dart';
 import '../application/organization_provider.dart';
+import '../domain/cycle_tracking.dart';
 
 class DailyLifePage extends ConsumerWidget {
   const DailyLifePage({super.key});
@@ -165,14 +166,57 @@ class _HomeTab extends ConsumerWidget {
   }
 }
 
-class _CycleTab extends ConsumerWidget {
+class _CycleTab extends ConsumerStatefulWidget {
   const _CycleTab();
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CycleTab> createState() => _CycleTabState();
+}
+
+class _CycleTabState extends ConsumerState<_CycleTab> {
+  final _pendingRecipients = <String>{};
+
+  Future<void> _setShare(
+    String recipient,
+    bool shared,
+    HouseholdWords words,
+  ) async {
+    if (_pendingRecipients.contains(recipient)) return;
+    setState(() => _pendingRecipients.add(recipient));
+    try {
+      await ref.read(dailyLifeActionsProvider).setCycleShare(recipient, shared);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            words.text(shared ? 'cycle.share_success' : 'cycle.revoke_success'),
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userSafeErrorMessage(context, error))),
+      );
+    } finally {
+      if (mounted) setState(() => _pendingRecipients.remove(recipient));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final members =
         ref.watch(remoteHouseholdMembersProvider).valueOrNull ?? const [];
     final currentUser = ref.watch(currentUserIdProvider);
     final shares = ref.watch(ownCycleSharesProvider).valueOrNull ?? const {};
+    final forecast = ref.watch(ownCycleForecastProvider).valueOrNull;
+    final privateEntries =
+        ref.watch(ownCyclePrivateEntriesProvider).valueOrNull ?? const [];
+    final sharedEvents =
+        ref.watch(cycleEventsProvider).valueOrNull?.where((row) {
+          return row['owner_user_id'] != currentUser;
+        }).toList() ??
+        const [];
     final words = HouseholdWords(ref.watch(appLocaleProvider));
     return Column(
       children: [
@@ -184,16 +228,65 @@ class _CycleTab extends ConsumerWidget {
           ),
           actions: const [SizedBox.shrink()],
         ),
+        _CycleForecastCard(forecast: forecast, words: words),
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: ListTile(
+            leading: const Icon(Icons.enhanced_encryption_outlined),
+            title: Text(words.text('cycle.private_journal')),
+            subtitle: Text(
+              privateEntries.isEmpty
+                  ? words.text('cycle.private_empty')
+                  : '${privateEntries.length}',
+            ),
+            trailing: IconButton(
+              tooltip: words.text('cycle.add_private'),
+              icon: const Icon(Icons.add),
+              onPressed: () => _cyclePrivateEntryDialog(context, ref),
+            ),
+          ),
+        ),
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: ExpansionTile(
+            leading: const Icon(Icons.calendar_month_outlined),
+            title: Text(words.text('cycle.shared_calendar')),
+            children: sharedEvents.isEmpty
+                ? [ListTile(title: Text(words.text('cycle.shared_empty')))]
+                : [
+                    for (final row in sharedEvents)
+                      ListTile(
+                        title: Text(
+                          '${_cyclePhaseLabel(words, row['phase'])} — '
+                          '${row['starts_on']}',
+                        ),
+                        subtitle: row['ends_on'] == null
+                            ? null
+                            : Text('${row['starts_on']} – ${row['ends_on']}'),
+                      ),
+                  ],
+          ),
+        ),
         Expanded(
           child: _AsyncList(
             value: ref.watch(ownCycleEventsProvider),
             empty: words.text('cycle.empty'),
             tile: (row) => ListTile(
               leading: const Icon(Icons.favorite_border),
-              title: Text('${row['phase']} — ${row['starts_on']}'),
+              title: Text(
+                '${_cyclePhaseLabel(words, row['phase'])} — ${row['starts_on']}',
+              ),
               subtitle: row['notes'] == null
                   ? null
-                  : const Text('Notes privées enregistrées'),
+                  : Text(words.text('cycle.notes_recorded')),
+              onTap: () => _cycleDialog(context, ref, initial: row),
+              trailing: IconButton(
+                tooltip: words.text('cycle.archive'),
+                icon: const Icon(Icons.archive_outlined),
+                onPressed: () => ref
+                    .read(dailyLifeActionsProvider)
+                    .archiveCycleEvent(row['id'] as String),
+              ),
             ),
             onAdd: () => _cycleDialog(context, ref),
           ),
@@ -212,9 +305,9 @@ class _CycleTab extends ConsumerWidget {
                   FilterChip(
                     label: Text(member.displayName),
                     selected: shares.contains(member.id),
-                    onSelected: (value) => ref
-                        .read(dailyLifeActionsProvider)
-                        .setCycleShare(member.id, value),
+                    onSelected: _pendingRecipients.contains(member.id)
+                        ? null
+                        : (value) => _setShare(member.id, value, words),
                   ),
               ],
             ),
@@ -222,6 +315,67 @@ class _CycleTab extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _CycleForecastCard extends StatelessWidget {
+  const _CycleForecastCard({required this.forecast, required this.words});
+
+  final CycleForecast? forecast;
+  final HouseholdWords words;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = forecast;
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    String range(DateTime? from, DateTime? to) {
+      if (from == null || to == null) return words.text('cycle.insufficient');
+      final format = DateFormat.yMMMd(locale);
+      return '${format.format(from)} – ${format.format(to)}';
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              words.text('cycle.forecast'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            if (value == null || !value.hasEstimate)
+              Text(words.text('cycle.insufficient'))
+            else ...[
+              Text(
+                '${words.text('cycle.next_period')} : '
+                '${range(value.nextPeriodFrom, value.nextPeriodTo)}',
+              ),
+              Text(
+                '${words.text('cycle.ovulation')} : '
+                '${range(value.estimatedOvulationFrom, value.estimatedOvulationTo)}',
+              ),
+              Text(words.text('cycle.uncertainty')),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              words.text('cycle.fertility_warning'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _cyclePhaseLabel(HouseholdWords words, Object? phase) {
+  final value = phase?.toString() ?? 'other';
+  const supported = {'period', 'follicular', 'ovulation', 'luteal', 'other'};
+  return words.text(
+    'cycle.phase.${supported.contains(value) ? value : 'other'}',
+  );
 }
 
 class _CategoriesTab extends ConsumerWidget {
@@ -610,38 +764,56 @@ Future<void> _homeDialog(BuildContext context, WidgetRef ref) async {
   label.dispose();
 }
 
-Future<void> _cycleDialog(BuildContext context, WidgetRef ref) async {
-  var start = ref.read(organizationClockProvider);
-  DateTime? end;
-  var phase = 'period';
-  String? flow;
-  final notes = TextEditingController();
-  final symptoms = TextEditingController();
+Future<void> _cycleDialog(
+  BuildContext context,
+  WidgetRef ref, {
+  Map<String, Object?>? initial,
+}) async {
+  final words = HouseholdWords(ref.read(appLocaleProvider));
+  var start = initial == null
+      ? ref.read(organizationClockProvider)
+      : DateTime.parse(initial['starts_on'] as String);
+  DateTime? end = initial?['ends_on'] == null
+      ? null
+      : DateTime.parse(initial!['ends_on'] as String);
+  var phase = initial?['phase'] as String? ?? 'period';
+  String? flow = initial?['flow'] as String?;
+  final notes = TextEditingController(text: initial?['notes'] as String? ?? '');
+  final symptoms = TextEditingController(
+    text: ((initial?['symptoms'] as List?) ?? const []).join(', '),
+  );
   final save = await showDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: const Text('Événement personnel'),
+        title: Text(words.text('cycle.event_title')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField(
               initialValue: phase,
-              decoration: const InputDecoration(labelText: 'Phase'),
-              items: const [
-                DropdownMenuItem(value: 'period', child: Text('Règles')),
-                DropdownMenuItem(
-                  value: 'follicular',
-                  child: Text('Folliculaire'),
-                ),
-                DropdownMenuItem(value: 'ovulation', child: Text('Ovulation')),
-                DropdownMenuItem(value: 'luteal', child: Text('Lutéale')),
-                DropdownMenuItem(value: 'other', child: Text('Autre')),
+              decoration: InputDecoration(labelText: words.text('cycle.phase')),
+              items: [
+                for (final item in const [
+                  'period',
+                  'follicular',
+                  'ovulation',
+                  'luteal',
+                  'other',
+                ])
+                  DropdownMenuItem(
+                    value: item,
+                    child: Text(words.text('cycle.phase.$item')),
+                  ),
               ],
               onChanged: (v) => setState(() => phase = v!),
             ),
             ListTile(
-              title: Text(DateFormat.yMd('fr').format(start)),
+              title: Text(
+                DateFormat.yMd(
+                  Localizations.localeOf(context).toLanguageTag(),
+                ).format(start),
+              ),
               onTap: () async {
                 final d = await showDatePicker(
                   context: context,
@@ -655,8 +827,10 @@ Future<void> _cycleDialog(BuildContext context, WidgetRef ref) async {
             ListTile(
               title: Text(
                 end == null
-                    ? 'Ajouter une date de fin'
-                    : DateFormat.yMd('fr').format(end!),
+                    ? words.text('cycle.end_date')
+                    : DateFormat.yMd(
+                        Localizations.localeOf(context).toLanguageTag(),
+                      ).format(end!),
               ),
               onTap: () async {
                 final d = await showDatePicker(
@@ -670,42 +844,51 @@ Future<void> _cycleDialog(BuildContext context, WidgetRef ref) async {
             ),
             DropdownButtonFormField<String?>(
               initialValue: flow,
-              decoration: const InputDecoration(labelText: 'Flux (privé)'),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('Non précisé')),
-                DropdownMenuItem(value: 'light', child: Text('Léger')),
-                DropdownMenuItem(value: 'medium', child: Text('Moyen')),
-                DropdownMenuItem(value: 'heavy', child: Text('Abondant')),
+              decoration: InputDecoration(
+                labelText: words.text('cycle.flow_private'),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: null,
+                  child: Text(words.text('cycle.flow.unspecified')),
+                ),
+                for (final item in const ['light', 'medium', 'heavy'])
+                  DropdownMenuItem(
+                    value: item,
+                    child: Text(words.text('cycle.flow.$item')),
+                  ),
               ],
               onChanged: (value) => setState(() => flow = value),
             ),
             TextField(
               controller: symptoms,
-              decoration: const InputDecoration(
-                labelText: 'Symptômes privés (séparés par des virgules)',
+              decoration: InputDecoration(
+                labelText: words.text('cycle.symptoms_private'),
               ),
             ),
             TextField(
               controller: notes,
-              decoration: const InputDecoration(labelText: 'Notes privées'),
+              decoration: InputDecoration(
+                labelText: words.text('cycle.private_notes'),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            child: Text(words.text('cycle.cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Enregistrer'),
+            child: Text(words.text('cycle.save')),
           ),
         ],
       ),
     ),
   );
   if (save == true) {
-    await ref.read(dailyLifeActionsProvider).addCycleEvent({
+    final values = <String, Object?>{
       'starts_on': DateFormat('yyyy-MM-dd').format(start),
       'ends_on': end == null ? null : DateFormat('yyyy-MM-dd').format(end!),
       'phase': phase,
@@ -716,8 +899,109 @@ Future<void> _cycleDialog(BuildContext context, WidgetRef ref) async {
           .where((value) => value.isNotEmpty)
           .toList(),
       'notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
-    });
+    };
+    if (initial == null) {
+      await ref.read(dailyLifeActionsProvider).addCycleEvent(values);
+    } else {
+      await ref
+          .read(dailyLifeActionsProvider)
+          .updateCycleEvent(initial['id'] as String, values);
+    }
   }
   notes.dispose();
   symptoms.dispose();
+}
+
+Future<void> _cyclePrivateEntryDialog(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final words = HouseholdWords(ref.read(appLocaleProvider));
+  var category = 'symptom';
+  var occurredOn = ref.read(organizationClockProvider);
+  final value = TextEditingController();
+  final notes = TextEditingController();
+  final save = await showDialog<bool>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(words.text('cycle.add_private')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: category,
+                decoration: InputDecoration(
+                  labelText: words.text('cycle.private_category'),
+                ),
+                items: [
+                  for (final item in const [
+                    'symptom',
+                    'spotting',
+                    'contraception',
+                    'intimacy',
+                    'temperature',
+                  ])
+                    DropdownMenuItem(
+                      value: item,
+                      child: Text(words.text('cycle.category.$item')),
+                    ),
+                ],
+                onChanged: (next) => setState(() => category = next!),
+              ),
+              ListTile(
+                title: Text(
+                  DateFormat.yMd(
+                    Localizations.localeOf(context).toLanguageTag(),
+                  ).format(occurredOn),
+                ),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                    initialDate: occurredOn,
+                  );
+                  if (picked != null) setState(() => occurredOn = picked);
+                },
+              ),
+              TextField(
+                controller: value,
+                decoration: InputDecoration(
+                  labelText: words.text('cycle.private_value'),
+                ),
+              ),
+              TextField(
+                controller: notes,
+                decoration: InputDecoration(
+                  labelText: words.text('cycle.private_notes'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(words.text('cycle.cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(words.text('cycle.save')),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (save == true) {
+    await ref.read(dailyLifeActionsProvider).addCyclePrivateEntry({
+      'occurred_on': DateFormat('yyyy-MM-dd').format(occurredOn),
+      'category': category,
+      'payload': {'value': value.text.trim()},
+      'notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+    });
+  }
+  value.dispose();
+  notes.dispose();
 }

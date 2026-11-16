@@ -63,13 +63,16 @@ class DashboardV2Panels extends StatelessWidget {
         .toList();
     final accounts = [...s.accounts]
       ..sort((a, b) {
-        final balance = b.balance.minorUnits.compareTo(a.balance.minorUnits);
+        final balance = (b.balance?.minorUnits ?? 0).compareTo(
+          a.balance?.minorUnits ?? 0,
+        );
         return balance != 0 ? balance : a.account.id.compareTo(b.account.id);
       });
     final maxAccount = accounts.fold<int>(
       1,
-      (max, e) =>
-          e.balance.minorUnits.abs() > max ? e.balance.minorUnits.abs() : max,
+      (max, e) => (e.balance?.minorUnits.abs() ?? 0) > max
+          ? e.balance!.minorUnits.abs()
+          : max,
     );
     final openCases = s.reconciliations.where((e) => e.isOpen).toList();
     final observed = s.reconciliations.map((e) => e.accountId).toSet();
@@ -484,11 +487,19 @@ class DashboardV2Panels extends StatelessWidget {
           : ListView(
               children: [
                 for (final a in accounts)
-                  ValueBar(
-                    label: a.account.name,
-                    cents: a.balance.minorUnits,
-                    maximum: maxAccount,
-                  ),
+                  if (a.balanceVisible && a.balance != null)
+                    ValueBar(
+                      label: a.account.name,
+                      cents: a.balance!.minorUnits,
+                      maximum: maxAccount,
+                    )
+                  else
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(a.account.name),
+                      trailing: Text(w.text('hidden_balance')),
+                    ),
               ],
             ),
     );

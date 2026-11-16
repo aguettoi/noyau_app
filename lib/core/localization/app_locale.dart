@@ -47,7 +47,10 @@ extension AppLanguageX on AppLanguage {
   static AppLanguage fromEnvironmentLocales(Iterable<Locale> locales) {
     for (final locale in locales) {
       final code = locale.languageCode.toLowerCase();
-      if (code == 'ary') return AppLanguage.darija;
+      if (code == 'ary' ||
+          (code == 'ar' && locale.countryCode?.toUpperCase() == 'MA')) {
+        return AppLanguage.darija;
+      }
       if (code == 'fr') return AppLanguage.french;
       if (code == 'en') return AppLanguage.english;
       if (code == 'ar') return AppLanguage.arabic;
