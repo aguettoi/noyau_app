@@ -2,6 +2,22 @@
 
 Base immuable de lecture : [audit historique](FINANCIEL_PILOTE_HISTORICAL_SCOPE_AUDIT.md), commit `9a370788784fa37b0a7e7db5a191cc09bcce1e29`. Ce document **n'altère pas** les constats historiques : la colonne « actuel » est la classification courante issue des arbitrages, tandis que l'audit lié conserve chaque statut d'origine. Aucun statut A nouveau n'est accordé par la seule décision produit.
 
+## Décision roadmap du 23 novembre 2026 — F1 génératif
+
+`F1 GENERATIVE = DEFERRED POST-FIRST-REVENUE`. L'architecture et les preuves
+automatisées F1 sont préservées, mais le runtime génératif n'est ni certifié,
+ni fonctionnellement clos, ni production-ready. Il ne bloque plus la V1
+commerciale. L'assistant déterministe reste dans la V1 et la partie générative
+est désactivée par défaut. Toute réactivation dépend du gate
+**AI PROD DATA-RESIDENCY & PRIVACY DECISION**. Source canonique :
+`F1_GENERATIVE_AI_DEFERRED_POST_REVENUE_2026-11-23.md`.
+
+Après cette décision, l'avancement fonctionnel V1 est estimé à **96 %** et la
+readiness Production à **68 %**, sans créditer de certification fictive. Les
+gates bloquants restent notamment : Design Freeze/UI-UX, Developer Readiness
+et audit architecture, audit sécurité/production, régression finale
+multiplateforme et cutover.
+
 ## Décisions gelées et garde-fous
 
 1. Confidentialité financière **obligatoire V1** : compte et solde visibles, compte visible/solde masqué, compte privé; filtrage et calculs autorisés côté serveur, jamais sécurité par seul masque Flutter. Aucun montant privé inférable par totaux, différences, projections, budget, enveloppes, capacité, scénario, objectifs, PRIOS, Shopping, clôture, rapprochement, recherche, export, notification, Realtime, erreur, règle ou IA. Les réponses de capacité permises sont bornées (oui/non), avec protection contre les requêtes-oracles.

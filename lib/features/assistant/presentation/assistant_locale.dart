@@ -2,9 +2,25 @@ import '../../../core/localization/app_locale.dart';
 
 const _assistantTranslations = <AppLanguage, Map<String, String>>{
   AppLanguage.french: {
-    'assistant.title': 'Assistant déterministe',
+    'assistant.title': 'Assistant FINANCIEL',
     'assistant.subtitle':
-        'Conseils explicables fondés uniquement sur vos données autorisées.',
+        'Posez librement votre question. Les calculs restent ceux des moteurs FINANCIEL et seuls les éléments autorisés sont utilisés.',
+    'assistant.deterministic_title': 'Assistant déterministe',
+    'assistant.deterministic_description':
+        'Consultez des synthèses locales fondées uniquement sur les moteurs FINANCIEL. L’assistant conversationnel génératif sera activé après certification d’un fournisseur adapté.',
+    'assistant.question': 'Votre question',
+    'assistant.question_hint': 'Ex. Puis-je encore épargner ce mois-ci ?',
+    'assistant.send': 'Envoyer',
+    'assistant.clear': 'Effacer la conversation',
+    'assistant.conversation_welcome':
+        'Je peux combiner plusieurs domaines et distinguer faits, calculs, hypothèses et recommandations. Aucune action sensible n’est exécutée sans confirmation.',
+    'assistant.fallback_notice':
+        'Les synthèses déterministes locales restent disponibles ci-dessous.',
+    'assistant.status.providerUnavailable':
+        'Assistant conversationnel indisponible.',
+    'assistant.status.offline': 'Vous êtes hors ligne.',
+    'assistant.status.timeout': 'Le fournisseur met trop de temps à répondre.',
+    'assistant.status.failed': 'La réponse n’a pas pu être produite.',
     'assistant.loading': 'Analyse des sources autorisées…',
     'assistant.error':
         'Le contexte autorisé est indisponible. Aucune conclusion n’a été inventée.',
@@ -51,6 +67,8 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
     'assistant.action.open_priorities': 'Ouvrir les PRIOS',
     'assistant.action.review_priorities':
         'Vérifier le classement canonique sans le modifier.',
+    'assistant.action.open_help': 'Ouvrir l’aide',
+    'assistant.action.review_help': 'Consulter le parcours d’aide approprié.',
     'assistant.confirm': 'Confirmer',
     'assistant.reject': 'Refuser',
     'assistant.proposal': 'Action proposée — aucune modification automatique',
@@ -60,9 +78,25 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
     'assistant.kind.uncertainty': 'INCERTITUDE',
   },
   AppLanguage.english: {
-    'assistant.title': 'Deterministic assistant',
+    'assistant.title': 'FINANCIEL assistant',
     'assistant.subtitle':
-        'Explainable advice based only on data you are allowed to access.',
+        'Ask freely. Calculations remain authoritative FINANCIEL results and only authorized information is used.',
+    'assistant.deterministic_title': 'Deterministic assistant',
+    'assistant.deterministic_description':
+        'View local summaries based only on FINANCIEL engines. The generative conversational assistant will be enabled after a suitable provider is certified.',
+    'assistant.question': 'Your question',
+    'assistant.question_hint': 'E.g. Can I still save this month?',
+    'assistant.send': 'Send',
+    'assistant.clear': 'Clear conversation',
+    'assistant.conversation_welcome':
+        'I can combine several domains and distinguish facts, calculations, assumptions and recommendations. No sensitive action runs without confirmation.',
+    'assistant.fallback_notice':
+        'Local deterministic summaries remain available below.',
+    'assistant.status.providerUnavailable':
+        'Conversational assistant unavailable.',
+    'assistant.status.offline': 'You are offline.',
+    'assistant.status.timeout': 'The provider is taking too long to respond.',
+    'assistant.status.failed': 'The answer could not be produced.',
     'assistant.loading': 'Analyzing authorized sources…',
     'assistant.error':
         'The authorized context is unavailable. No conclusion was invented.',
@@ -107,6 +141,8 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
     'assistant.action.open_priorities': 'Open PRIOS',
     'assistant.action.review_priorities':
         'Review canonical ranking without changing it.',
+    'assistant.action.open_help': 'Open help',
+    'assistant.action.review_help': 'Review the relevant help workflow.',
     'assistant.confirm': 'Confirm',
     'assistant.reject': 'Reject',
     'assistant.proposal': 'Proposed action — no automatic change',
@@ -116,9 +152,23 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
     'assistant.kind.uncertainty': 'UNCERTAINTY',
   },
   AppLanguage.arabic: {
-    'assistant.title': 'المساعد الحتمي',
+    'assistant.title': 'مساعد FINANCIEL',
     'assistant.subtitle':
-        'نصائح قابلة للتفسير مبنية فقط على بياناتك المصرح بها.',
+        'اطرح سؤالك بحرية. تبقى حسابات FINANCIEL هي المرجع ولا تُستخدم إلا المعلومات المصرح بها.',
+    'assistant.deterministic_title': 'المساعد الحتمي',
+    'assistant.deterministic_description':
+        'اطّلع على ملخصات محلية مبنية فقط على محركات FINANCIEL. سيُفعّل المساعد الحواري التوليدي بعد اعتماد مزوّد مناسب.',
+    'assistant.question': 'سؤالك',
+    'assistant.question_hint': 'مثال: هل يمكنني الادخار أكثر هذا الشهر؟',
+    'assistant.send': 'إرسال',
+    'assistant.clear': 'مسح المحادثة',
+    'assistant.conversation_welcome':
+        'يمكنني الجمع بين عدة مجالات وشرح الحقائق والحسابات والافتراضات والتوصيات. لا يُنفذ أي إجراء حساس دون تأكيد.',
+    'assistant.fallback_notice': 'تبقى الملخصات الحتمية المحلية متاحة أدناه.',
+    'assistant.status.providerUnavailable': 'المساعد الحواري غير متاح.',
+    'assistant.status.offline': 'أنت غير متصل بالإنترنت.',
+    'assistant.status.timeout': 'تأخر المزود في الإجابة.',
+    'assistant.status.failed': 'تعذر إنتاج الإجابة.',
     'assistant.loading': 'جارٍ تحليل المصادر المصرح بها…',
     'assistant.error': 'السياق المصرح به غير متاح. لم يتم اختلاق أي نتيجة.',
     'assistant.insufficient': 'البيانات المصرح بها غير كافية لنتيجة موثوقة.',
@@ -154,6 +204,8 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
     'assistant.action.review_budget': 'راجع المصدر الأصلي قبل القرار.',
     'assistant.action.open_priorities': 'فتح الأولويات',
     'assistant.action.review_priorities': 'راجع الترتيب الأصلي دون تغييره.',
+    'assistant.action.open_help': 'فتح المساعدة',
+    'assistant.action.review_help': 'راجع مسار المساعدة المناسب.',
     'assistant.confirm': 'تأكيد',
     'assistant.reject': 'رفض',
     'assistant.proposal': 'إجراء مقترح — لا تعديل تلقائي',
@@ -165,7 +217,21 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
   AppLanguage.darija: {
     'assistant.title': 'المساعد ديال FINANCIEL PILOTE',
     'assistant.subtitle':
-        'نصائح مفهومة مبنية غير على المعطيات المسموح ليك تشوف.',
+        'سول بحرية. الحسابات ديال FINANCIEL كتبقى هي المرجع وكنستعملو غير المعطيات المسموح بها.',
+    'assistant.deterministic_title': 'المساعد المضمون',
+    'assistant.deterministic_description':
+        'شوف خلاصات محلية مبنية غير على محركات FINANCIEL. المساعد ديال المحادثة التوليدية غادي يتفعل من بعد ما يتصادق على مزود مناسب.',
+    'assistant.question': 'السؤال ديالك',
+    'assistant.question_hint': 'مثلا: واش نقدر نزيد نوفر هاد الشهر؟',
+    'assistant.send': 'صيفط',
+    'assistant.clear': 'مسح المحادثة',
+    'assistant.conversation_welcome':
+        'نقدر نجمع كثر من مجال ونوضح الحقائق والحسابات والافتراضات والنصيحة. حتى خدمة حساسة ما كتدار بلا تأكيد.',
+    'assistant.fallback_notice': 'الخلاصات المحلية المضمونة باقية متوفرة لتحت.',
+    'assistant.status.providerUnavailable': 'المساعد ديال المحادثة ما متوفرش.',
+    'assistant.status.offline': 'راك بلا نت.',
+    'assistant.status.timeout': 'المزوّد طول فالجواب.',
+    'assistant.status.failed': 'ما قدرناش نوجدو الجواب.',
     'assistant.loading': 'كنحللو المصادر المسموح بها…',
     'assistant.error': 'المعطيات المسموح بها ما متوفراش. ما اخترعنا حتى نتيجة.',
     'assistant.insufficient':
@@ -203,6 +269,8 @@ const _assistantTranslations = <AppLanguage, Map<String, String>>{
     'assistant.action.review_budget': 'راجع المصدر الأصلي قبل القرار.',
     'assistant.action.open_priorities': 'حل الأولويات',
     'assistant.action.review_priorities': 'راجع الترتيب الأصلي بلا ما تبدلو.',
+    'assistant.action.open_help': 'حل المساعدة',
+    'assistant.action.review_help': 'شوف مسار المساعدة المناسب.',
     'assistant.confirm': 'أكد',
     'assistant.reject': 'رفض',
     'assistant.proposal': 'خدمة مقترحة — ما كاين حتى تبديل بوحدو',
