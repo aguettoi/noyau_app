@@ -196,6 +196,7 @@ IconData _sourceIcon(CalendarSource source) => switch (source) {
   CalendarSource.shopping => Icons.shopping_cart_outlined,
   CalendarSource.homeAuto => Icons.home_repair_service_outlined,
   CalendarSource.recurringFinance => Icons.event_repeat,
+  CalendarSource.cycle => Icons.favorite_border,
   _ => Icons.event_outlined,
 };
 
@@ -662,10 +663,13 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
                             final e = entries[i];
                             return ListTile(
                               key: Key('calendar-entry-${e.key}'),
-                              leading: const Icon(Icons.event_outlined),
+                              leading: Icon(_entryIcon(e)),
                               title: Text(e.title),
                               subtitle: Text(
-                                '${DateFormat.yMMMd('fr').format(e.date)} • ${_sourceLabel(e.source)}',
+                                [
+                                  '${DateFormat.yMMMd('fr').format(e.date)} • ${_sourceLabel(e.source)}',
+                                  if (e.detail != null) e.detail!,
+                                ].join('\n'),
                               ),
                               onTap: () => _openEntry(context, e, all),
                             );
@@ -823,8 +827,14 @@ class _MonthAgenda extends StatelessWidget {
           for (final entry in selectedEntries)
             ListTile(
               key: Key('month-entry-${entry.key}'),
+              leading: Icon(_entryIcon(entry)),
               title: Text(entry.title),
-              subtitle: Text(_sourceLabel(entry.source)),
+              subtitle: Text(
+                [
+                  _sourceLabel(entry.source),
+                  if (entry.detail != null) entry.detail!,
+                ].join('\n'),
+              ),
               onTap: () => onOpen(entry),
             ),
         ],
@@ -1140,6 +1150,13 @@ String _sourceLabel(CalendarSource source) => switch (source) {
   CalendarSource.recurringFinance => 'Opérations attendues',
   CalendarSource.monthlyClose => 'Fin de mois',
   CalendarSource.cashflowProjection => 'Prévisions de trésorerie',
+  CalendarSource.cycle => 'Cycle',
+};
+
+IconData _entryIcon(CalendarEntry entry) => switch (entry.kind) {
+  CalendarEntryKind.observation => Icons.favorite_border,
+  CalendarEntryKind.estimate => Icons.auto_awesome_outlined,
+  CalendarEntryKind.standard => _sourceIcon(entry.source),
 };
 
 Future<void> _actOnAlert(

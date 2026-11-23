@@ -18,6 +18,7 @@ class DashboardHomeModel {
     required this.now,
     this.memberName,
     this.partial = false,
+    this.cycleHighlights = const [],
   });
 
   final FinancialDashboardSnapshot snapshot;
@@ -27,6 +28,7 @@ class DashboardHomeModel {
   final DateTime now;
   final String? memberName;
   final bool partial;
+  final List<CalendarEntry> cycleHighlights;
 }
 
 final dashboardHomeProvider = FutureProvider<DashboardHomeModel>((ref) async {
@@ -143,7 +145,26 @@ DashboardHomeModel composeDashboardHome({
     now: now,
     memberName: memberName?.trim().isEmpty == true ? null : memberName?.trim(),
     partial: partial,
+    cycleHighlights: _cycleHighlights(calendar, day),
   );
+}
+
+List<CalendarEntry> _cycleHighlights(
+  Iterable<CalendarEntry> calendar,
+  DateTime day,
+) {
+  final horizon = day.add(const Duration(days: 30));
+  final items =
+      calendar
+          .where((entry) => entry.source == CalendarSource.cycle)
+          .where(
+            (entry) =>
+                !entry.date.isBefore(day) && !entry.date.isAfter(horizon) ||
+                (entry.endDate != null && !entry.endDate!.isBefore(day)),
+          )
+          .toList()
+        ..sort((a, b) => a.date.compareTo(b.date));
+  return List.unmodifiable(items.take(2));
 }
 
 int _priority(AppAlert alert) => switch (alert.priority) {

@@ -29,7 +29,11 @@ class DailyLifePage extends ConsumerWidget {
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(words.text('daily.title')),
+          title: Text(
+            words.text('daily.title'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           bottom: TabBar(
             isScrollable: true,
             tabs: [
@@ -175,6 +179,7 @@ class _CycleTab extends ConsumerStatefulWidget {
 
 class _CycleTabState extends ConsumerState<_CycleTab> {
   final _pendingRecipients = <String>{};
+  final _pendingForecastRecipients = <String>{};
 
   Future<void> _setShare(
     String recipient,
@@ -203,20 +208,59 @@ class _CycleTabState extends ConsumerState<_CycleTab> {
     }
   }
 
+  Future<void> _setForecastShare(
+    String recipient,
+    bool shared,
+    HouseholdWords words,
+  ) async {
+    if (_pendingForecastRecipients.contains(recipient)) return;
+    setState(() => _pendingForecastRecipients.add(recipient));
+    try {
+      await ref
+          .read(dailyLifeActionsProvider)
+          .setCycleForecastShare(recipient, shared);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            words.text(
+              shared
+                  ? 'cycle.forecast_share_success'
+                  : 'cycle.forecast_revoke_success',
+            ),
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userSafeErrorMessage(context, error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _pendingForecastRecipients.remove(recipient));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final members =
         ref.watch(remoteHouseholdMembersProvider).valueOrNull ?? const [];
     final currentUser = ref.watch(currentUserIdProvider);
     final shares = ref.watch(ownCycleSharesProvider).valueOrNull ?? const {};
+    final forecastShares =
+        ref.watch(ownCycleForecastSharesProvider).valueOrNull ?? const {};
     final forecast = ref.watch(ownCycleForecastProvider).valueOrNull;
     final privateEntries =
         ref.watch(ownCyclePrivateEntriesProvider).valueOrNull ?? const [];
     final sharedEvents =
-        ref.watch(cycleEventsProvider).valueOrNull?.where((row) {
-          return row['owner_user_id'] != currentUser;
-        }).toList() ??
-        const [];
+        ref
+            .watch(authorizedCycleTimelineProvider)
+            .valueOrNull
+            ?.where((item) => item.ownerUserId != currentUser)
+            .toList() ??
+        const <AuthorizedCycleProjection>[];
     final words = HouseholdWords(ref.watch(appLocaleProvider));
     return Column(
       children: [
@@ -231,19 +275,32 @@ class _CycleTabState extends ConsumerState<_CycleTab> {
         _CycleForecastCard(forecast: forecast, words: words),
         Card(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: ListTile(
-            leading: const Icon(Icons.enhanced_encryption_outlined),
-            title: Text(words.text('cycle.private_journal')),
-            subtitle: Text(
-              privateEntries.isEmpty
-                  ? words.text('cycle.private_empty')
-                  : '${privateEntries.length}',
-            ),
-            trailing: IconButton(
-              tooltip: words.text('cycle.add_private'),
-              icon: const Icon(Icons.add),
-              onPressed: () => _cyclePrivateEntryDialog(context, ref),
-            ),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.enhanced_encryption_outlined),
+                title: Text(words.text('cycle.private_journal')),
+                subtitle: Text(
+                  privateEntries.isEmpty
+                      ? words.text('cycle.private_empty')
+                      : '${privateEntries.length}',
+                ),
+                trailing: IconButton(
+                  tooltip: words.text('cycle.add_private'),
+                  icon: const Icon(Icons.add),
+                  onPressed: () => _cyclePrivateEntryDialog(context, ref),
+                ),
+              ),
+              for (final entry in privateEntries.take(5))
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.lock_outline, size: 18),
+                  title: Text(
+                    words.text('cycle.category.${entry['category']}'),
+                  ),
+                  subtitle: Text('${entry['occurred_on']}'),
+                ),
+            ],
           ),
         ),
         Card(
@@ -254,15 +311,26 @@ class _CycleTabState extends ConsumerState<_CycleTab> {
             children: sharedEvents.isEmpty
                 ? [ListTile(title: Text(words.text('cycle.shared_empty')))]
                 : [
-                    for (final row in sharedEvents)
+                    for (final item in sharedEvents)
                       ListTile(
-                        title: Text(
-                          '${_cyclePhaseLabel(words, row['phase'])} — '
-                          '${row['starts_on']}',
+                        leading: Icon(
+                          item.isEstimate
+                              ? Icons.auto_awesome_outlined
+                              : Icons.favorite_border,
                         ),
-                        subtitle: row['ends_on'] == null
+                        title: Text(
+                          '${words.text(item.isEstimate ? 'cycle.estimate' : 'cycle.observation')} — '
+                          '${_cyclePhaseLabel(words, item.phase)} — '
+                          '${item.startsOn.toIso8601String().split('T').first}',
+                        ),
+                        subtitle: item.isEstimate
+                            ? Text(words.text('cycle.uncertainty'))
+                            : item.endsOn == null
                             ? null
-                            : Text('${row['starts_on']} – ${row['ends_on']}'),
+                            : Text(
+                                '${item.startsOn.toIso8601String().split('T').first} – '
+                                '${item.endsOn!.toIso8601String().split('T').first}',
+                              ),
                       ),
                   ],
           ),
@@ -294,21 +362,52 @@ class _CycleTabState extends ConsumerState<_CycleTab> {
         if (members.isNotEmpty)
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 8,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(words.text('cycle.share_title')),
                 Text(words.text('cycle.share_allowed')),
                 Text(words.text('cycle.share_private')),
                 Text(words.text('cycle.revoke')),
-                for (final member in members.where((m) => m.id != currentUser))
-                  FilterChip(
-                    label: Text(member.displayName),
-                    selected: shares.contains(member.id),
-                    onSelected: _pendingRecipients.contains(member.id)
-                        ? null
-                        : (value) => _setShare(member.id, value, words),
-                  ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final member in members.where(
+                      (member) => member.id != currentUser,
+                    ))
+                      FilterChip(
+                        key: Key('cycle-dates-share-${member.id}'),
+                        label: Text(member.displayName),
+                        selected: shares.contains(member.id),
+                        onSelected: _pendingRecipients.contains(member.id)
+                            ? null
+                            : (value) => _setShare(member.id, value, words),
+                      ),
+                  ],
+                ),
+                const Divider(height: 24),
+                Text(words.text('cycle.forecast_share_title')),
+                Text(words.text('cycle.forecast_share_allowed')),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final member in members.where(
+                      (member) => member.id != currentUser,
+                    ))
+                      FilterChip(
+                        key: Key('cycle-forecast-share-${member.id}'),
+                        label: Text(member.displayName),
+                        selected: forecastShares.contains(member.id),
+                        onSelected:
+                            _pendingForecastRecipients.contains(member.id)
+                            ? null
+                            : (value) =>
+                                  _setForecastShare(member.id, value, words),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -346,7 +445,7 @@ class _CycleForecastCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             if (value == null || !value.hasEstimate)
-              Text(words.text('cycle.insufficient'))
+              Text(words.text('cycle.abstention'))
             else ...[
               Text(
                 '${words.text('cycle.next_period')} : '
@@ -355,6 +454,20 @@ class _CycleForecastCard extends StatelessWidget {
               Text(
                 '${words.text('cycle.ovulation')} : '
                 '${range(value.estimatedOvulationFrom, value.estimatedOvulationTo)}',
+              ),
+              Text(
+                '${words.text('cycle.fertile_window')} : '
+                '${range(value.estimatedFertileWindowFrom, value.estimatedFertileWindowTo)}',
+              ),
+              Text(
+                words
+                    .text('cycle.quality')
+                    .replaceAll('{history}', '${value.historyCount}')
+                    .replaceAll(
+                      '{variability}',
+                      '${value.variabilityDays ?? '—'}',
+                    ),
+                style: Theme.of(context).textTheme.bodySmall,
               ),
               Text(words.text('cycle.uncertainty')),
             ],
@@ -372,6 +485,7 @@ class _CycleForecastCard extends StatelessWidget {
 
 String _cyclePhaseLabel(HouseholdWords words, Object? phase) {
   final value = phase?.toString() ?? 'other';
+  if (value == 'fertile_window') return words.text('cycle.fertile_window');
   const supported = {'period', 'follicular', 'ovulation', 'luteal', 'other'};
   return words.text(
     'cycle.phase.${supported.contains(value) ? value : 'other'}',
@@ -919,8 +1033,11 @@ Future<void> _cyclePrivateEntryDialog(
   final words = HouseholdWords(ref.read(appLocaleProvider));
   var category = 'symptom';
   var occurredOn = ref.read(organizationClockProvider);
+  var observedTime = TimeOfDay.fromDateTime(occurredOn);
   final value = TextEditingController();
   final notes = TextEditingController();
+  var lhResult = 'negative';
+  var bbtUnit = 'celsius';
   final save = await showDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
@@ -941,7 +1058,8 @@ Future<void> _cyclePrivateEntryDialog(
                     'spotting',
                     'contraception',
                     'intimacy',
-                    'temperature',
+                    'basal_temperature',
+                    'lh_test',
                   ])
                     DropdownMenuItem(
                       value: item,
@@ -951,10 +1069,16 @@ Future<void> _cyclePrivateEntryDialog(
                 onChanged: (next) => setState(() => category = next!),
               ),
               ListTile(
+                subtitle:
+                    category == 'lh_test' || category == 'basal_temperature'
+                    ? Text(words.text('cycle.observed_at'))
+                    : null,
                 title: Text(
-                  DateFormat.yMd(
-                    Localizations.localeOf(context).toLanguageTag(),
-                  ).format(occurredOn),
+                  category == 'lh_test' || category == 'basal_temperature'
+                      ? '${DateFormat.yMd(Localizations.localeOf(context).toLanguageTag()).format(occurredOn)} · ${observedTime.format(context)}'
+                      : DateFormat.yMd(
+                          Localizations.localeOf(context).toLanguageTag(),
+                        ).format(occurredOn),
                 ),
                 onTap: () async {
                   final picked = await showDatePicker(
@@ -963,15 +1087,75 @@ Future<void> _cyclePrivateEntryDialog(
                     lastDate: DateTime(2100),
                     initialDate: occurredOn,
                   );
-                  if (picked != null) setState(() => occurredOn = picked);
+                  if (picked == null) return;
+                  if (category == 'lh_test' ||
+                      category == 'basal_temperature') {
+                    if (!context.mounted) return;
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: observedTime,
+                    );
+                    if (time == null) return;
+                    setState(() {
+                      occurredOn = picked;
+                      observedTime = time;
+                    });
+                  } else {
+                    setState(() => occurredOn = picked);
+                  }
                 },
               ),
-              TextField(
-                controller: value,
-                decoration: InputDecoration(
-                  labelText: words.text('cycle.private_value'),
+              if (category == 'lh_test')
+                DropdownButtonFormField<String>(
+                  initialValue: lhResult,
+                  decoration: InputDecoration(
+                    labelText: words.text('cycle.lh_result'),
+                  ),
+                  items: [
+                    for (final result in const ['negative', 'positive'])
+                      DropdownMenuItem(
+                        value: result,
+                        child: Text(words.text('cycle.lh.$result')),
+                      ),
+                  ],
+                  onChanged: (next) => setState(() => lhResult = next!),
+                )
+              else ...[
+                TextField(
+                  controller: value,
+                  keyboardType: category == 'basal_temperature'
+                      ? const TextInputType.numberWithOptions(decimal: true)
+                      : null,
+                  decoration: InputDecoration(
+                    labelText: words.text(
+                      category == 'basal_temperature'
+                          ? 'cycle.bbt_value'
+                          : 'cycle.private_value',
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
-              ),
+                if (category == 'basal_temperature')
+                  DropdownButtonFormField<String>(
+                    initialValue: bbtUnit,
+                    decoration: InputDecoration(
+                      labelText: words.text('cycle.bbt_unit'),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'celsius', child: Text('°C')),
+                      DropdownMenuItem(value: 'fahrenheit', child: Text('°F')),
+                    ],
+                    onChanged: (next) => setState(() => bbtUnit = next!),
+                  ),
+              ],
+              if (category == 'lh_test' || category == 'basal_temperature')
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    words.text('cycle.measurement_warning'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
               TextField(
                 controller: notes,
                 decoration: InputDecoration(
@@ -987,7 +1171,12 @@ Future<void> _cyclePrivateEntryDialog(
             child: Text(words.text('cycle.cancel')),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed:
+                category == 'basal_temperature' &&
+                    double.tryParse(value.text.trim().replaceAll(',', '.')) ==
+                        null
+                ? null
+                : () => Navigator.pop(context, true),
             child: Text(words.text('cycle.save')),
           ),
         ],
@@ -995,10 +1184,28 @@ Future<void> _cyclePrivateEntryDialog(
     ),
   );
   if (save == true) {
+    final measurement = double.tryParse(value.text.trim().replaceAll(',', '.'));
+    final observedAt = DateTime(
+      occurredOn.year,
+      occurredOn.month,
+      occurredOn.day,
+      observedTime.hour,
+      observedTime.minute,
+    );
     await ref.read(dailyLifeActionsProvider).addCyclePrivateEntry({
       'occurred_on': DateFormat('yyyy-MM-dd').format(occurredOn),
       'category': category,
-      'payload': {'value': value.text.trim()},
+      'payload': category == 'lh_test' || category == 'basal_temperature'
+          ? <String, Object?>{}
+          : {'value': value.text.trim()},
+      if (category == 'lh_test') 'test_result': lhResult,
+      if (category == 'lh_test')
+        'observed_at': observedAt.toUtc().toIso8601String(),
+      if (category == 'basal_temperature') ...{
+        'observed_at': observedAt.toUtc().toIso8601String(),
+        'measurement_value': measurement,
+        'measurement_unit': bbtUnit,
+      },
       'notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
     });
   }

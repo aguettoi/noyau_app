@@ -49,6 +49,7 @@ class FinancialDashboardPage extends ConsumerWidget {
                 );
                 final today = DashboardTodayCard(
                   entries: home.today,
+                  cycleHighlights: home.cycleHighlights,
                   onOpen: (entry) => _openCalendarEntry(context, entry),
                   onOpenAll: () => _push(context, const OrganizationPage()),
                 );

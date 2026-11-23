@@ -86,7 +86,10 @@ enum CalendarSource {
   recurringFinance,
   monthlyClose,
   cashflowProjection,
+  cycle,
 }
+
+enum CalendarEntryKind { standard, observation, estimate }
 
 enum CalendarEntryStatus { active, resolved, cancelled }
 
@@ -102,6 +105,8 @@ class CalendarEntry {
     this.sourceId,
     this.detail,
     this.status = CalendarEntryStatus.active,
+    this.kind = CalendarEntryKind.standard,
+    this.endDate,
   });
   final String key;
   final String title;
@@ -111,6 +116,8 @@ class CalendarEntry {
   final String? sourceId;
   final String? detail;
   final CalendarEntryStatus status;
+  final CalendarEntryKind kind;
+  final DateTime? endDate;
 }
 
 class AppAlert {

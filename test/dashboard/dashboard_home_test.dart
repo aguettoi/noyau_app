@@ -53,10 +53,7 @@ void main() {
       expect(model.actions, hasLength(1));
       expect(model.actions.single.detail, 'Signal prioritaire');
       expect(model.today.map((item) => item.title), ['Faire les courses']);
-      expect(
-        CalendarSource.values.map((item) => item.name),
-        isNot(contains('cycle')),
-      );
+      expect(model.cycleHighlights, isEmpty);
     },
   );
 
@@ -65,6 +62,34 @@ void main() {
     for (final language in AppLanguage.values) {
       expect(DashboardHomeWords.keysFor(language), expected);
     }
+  });
+
+  test('authorized Cycle projections stay distinct on Dashboard', () {
+    final model = composeDashboardHome(
+      snapshot: fixtures.snapshot(populated: true),
+      now: fixtures.now,
+      alerts: const [],
+      calendar: [
+        CalendarEntry(
+          key: 'cycle:observation',
+          title: 'Observation — Règles',
+          date: fixtures.now,
+          source: CalendarSource.cycle,
+          kind: CalendarEntryKind.observation,
+        ),
+        CalendarEntry(
+          key: 'cycle:forecast',
+          title: 'Estimation — Règles',
+          date: fixtures.now.add(const Duration(days: 8)),
+          endDate: fixtures.now.add(const Duration(days: 12)),
+          source: CalendarSource.cycle,
+          kind: CalendarEntryKind.estimate,
+        ),
+      ],
+    );
+    expect(model.today.single.kind, CalendarEntryKind.observation);
+    expect(model.cycleHighlights, hasLength(2));
+    expect(model.cycleHighlights.last.kind, CalendarEntryKind.estimate);
   });
 
   for (final count in [1, 2, 5]) {

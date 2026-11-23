@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/localization/app_locale.dart';
+import '../../../core/localization/household_locale.dart';
 import '../../dashboard/application/providers/remote_financial_dashboard_provider.dart';
 import '../../budget_intelligence/application/providers/remote_budget_provider.dart';
 import '../../finance/application/providers/active_household_provider.dart';
@@ -16,6 +18,7 @@ import '../../wealth/application/providers/home_auto_provider.dart';
 import '../../cashflow_projection/application/cashflow_projection_provider.dart';
 import '../../envelopes/application/providers/remote_envelopes_provider.dart';
 import '../domain/organization_models.dart';
+import '../domain/cycle_tracking.dart';
 import '../domain/reminder_snooze_policy.dart';
 import 'daily_life_provider.dart';
 
@@ -320,6 +323,8 @@ final organizationCalendarProvider = FutureProvider<List<CalendarEntry>>((
   final goals = await ref.watch(savingsGoalsProvider.future);
   final shopping = await ref.watch(shoppingItemsProvider.future);
   final homeRecords = await ref.watch(homeRecordsProvider.future);
+  final cycle = await ref.watch(authorizedCycleTimelineProvider.future);
+  final words = HouseholdWords(ref.watch(appLocaleProvider));
   final entries = <CalendarEntry>[
     for (final task in tasks)
       if (task.dueDate != null)
@@ -380,9 +385,35 @@ final organizationCalendarProvider = FutureProvider<List<CalendarEntry>>((
           sourceId: item.item.id,
         ),
     ...homeRecordCalendarEntries(homeRecords),
+    for (final item in cycle) _cycleCalendarEntry(item, words),
   ]..sort((a, b) => a.date.compareTo(b.date));
   return List.unmodifiable(entries);
 });
+
+CalendarEntry _cycleCalendarEntry(
+  AuthorizedCycleProjection item,
+  HouseholdWords words,
+) {
+  final phase = item.phase == 'fertile_window'
+      ? words.text('cycle.fertile_window')
+      : words.text('cycle.phase.${item.phase}');
+  final kind = item.isEstimate
+      ? words.text('cycle.estimate')
+      : words.text('cycle.observation');
+  return CalendarEntry(
+    key: 'cycle:${item.key}',
+    title: '$kind — $phase',
+    date: item.startsOn,
+    source: CalendarSource.cycle,
+    assigneeUserId: item.ownerUserId,
+    sourceId: item.key,
+    detail: item.isEstimate ? words.text('cycle.uncertainty') : null,
+    endDate: item.endsOn,
+    kind: item.isEstimate
+        ? CalendarEntryKind.estimate
+        : CalendarEntryKind.observation,
+  );
+}
 
 final organizationAlertsProvider = FutureProvider<List<AppAlert>>((ref) async {
   final household = await ref.watch(activeHouseholdProvider.future);

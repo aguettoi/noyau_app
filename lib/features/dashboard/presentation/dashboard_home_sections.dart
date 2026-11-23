@@ -162,10 +162,12 @@ class DashboardTodayCard extends StatelessWidget {
     required this.entries,
     required this.onOpen,
     required this.onOpenAll,
+    this.cycleHighlights = const [],
   });
   final List<CalendarEntry> entries;
   final ValueChanged<CalendarEntry> onOpen;
   final VoidCallback onOpenAll;
+  final List<CalendarEntry> cycleHighlights;
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +176,7 @@ class DashboardTodayCard extends StatelessWidget {
       key: const Key('dashboard-today'),
       title: words.text('today'),
       icon: Icons.today_outlined,
-      child: entries.isEmpty
+      child: entries.isEmpty && cycleHighlights.isEmpty
           ? _PositiveEmpty(
               icon: Icons.event_available_outlined,
               text: words.text('today.empty'),
@@ -197,6 +199,26 @@ class DashboardTodayCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => onOpen(entry),
+                  ),
+                if (cycleHighlights.isNotEmpty && entries.isNotEmpty)
+                  const Divider(),
+                for (final entry in cycleHighlights)
+                  ListTile(
+                    key: Key('dashboard-cycle-${entry.key}'),
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      entry.kind == CalendarEntryKind.estimate
+                          ? Icons.auto_awesome_outlined
+                          : Icons.favorite_border,
+                    ),
+                    title: Text(
+                      entry.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: entry.detail == null ? null : Text(entry.detail!),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => onOpen(entry),
                   ),
@@ -472,5 +494,6 @@ IconData _calendarIcon(CalendarSource source) => switch (source) {
   CalendarSource.shopping => Icons.shopping_cart_outlined,
   CalendarSource.homeAuto => Icons.home_repair_service_outlined,
   CalendarSource.obligation => Icons.event_busy_outlined,
+  CalendarSource.cycle => Icons.favorite_border,
   _ => Icons.event_outlined,
 };

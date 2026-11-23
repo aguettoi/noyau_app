@@ -176,6 +176,70 @@ final ownCycleSharesProvider = FutureProvider<Set<String>>((ref) async {
   };
 });
 
+final ownCycleForecastSharesProvider = FutureProvider<Set<String>>((ref) async {
+  final h = await ref.watch(activeHouseholdProvider.future);
+  final user = ref.watch(currentUserIdProvider);
+  if (h.householdId == null || user == null) return const {};
+  final rows = await ref
+      .watch(supabaseClientProvider)
+      .from('member_cycle_forecast_shares')
+      .select('recipient_user_id')
+      .eq('household_id', h.householdId!)
+      .eq('owner_user_id', user);
+  return {
+    for (final row in rows as List<dynamic>)
+      (row as Map)['recipient_user_id'] as String,
+  };
+});
+
+final authorizedCycleTimelineProvider =
+    FutureProvider<List<AuthorizedCycleProjection>>((ref) async {
+      final h = await ref.watch(activeHouseholdProvider.future);
+      if (h.householdId == null) return const [];
+      final rows = await ref
+          .watch(supabaseClientProvider)
+          .rpc(
+            'read_authorized_cycle_timeline_v2',
+            params: {'p_household_id': h.householdId},
+          );
+      return [
+        for (final value in rows as List<dynamic>)
+          _cycleProjection(_map(value)),
+      ];
+    });
+
+AuthorizedCycleProjection _cycleProjection(Map<String, Object?> row) {
+  final rawConfidence = row['confidence'] as String?;
+  return AuthorizedCycleProjection(
+    key: row['event_key'] as String,
+    ownerUserId: row['owner_user_id'] as String,
+    startsOn: DateTime.parse(row['starts_on'] as String),
+    endsOn: row['ends_on'] == null
+        ? null
+        : DateTime.parse(row['ends_on'] as String),
+    phase: row['phase'] as String,
+    kind: row['projection_kind'] == 'forecast'
+        ? CycleProjectionKind.forecast
+        : CycleProjectionKind.observation,
+    confidence: rawConfidence == null
+        ? null
+        : CycleConfidence.values.firstWhere(
+            (value) => value.name == rawConfidence,
+            orElse: () => CycleConfidence.insufficient,
+          ),
+    engineVersion: row['engine_version'] as String?,
+    sampleSize: row['sample_size'] as int?,
+    variabilityDays: row['variability_days'] as int?,
+    uncertaintyDays: row['uncertainty_days'] as int?,
+    regularity: row['regularity'] == null
+        ? null
+        : CycleRegularity.values.firstWhere(
+            (value) => value.name == row['regularity'],
+            orElse: () => CycleRegularity.insufficient,
+          ),
+  );
+}
+
 final ownCyclePrivateEntriesProvider =
     FutureProvider<List<Map<String, Object?>>>((ref) async {
       final h = await ref.watch(activeHouseholdProvider.future);
@@ -293,6 +357,7 @@ class DailyLifeActions {
     ref.invalidate(ownCycleEventsProvider);
     ref.invalidate(cycleEventsProvider);
     ref.invalidate(ownCycleSharesProvider);
+    ref.invalidate(authorizedCycleTimelineProvider);
   }
 
   Future<void> updateCycleEvent(String id, Map<String, Object?> values) async {
@@ -308,6 +373,7 @@ class DailyLifeActions {
         .eq('owner_user_id', u);
     ref.invalidate(ownCycleEventsProvider);
     ref.invalidate(cycleEventsProvider);
+    ref.invalidate(authorizedCycleTimelineProvider);
   }
 
   Future<void> setCycleShare(String recipient, bool shared) async {
@@ -330,6 +396,29 @@ class DailyLifeActions {
     }
     ref.invalidate(ownCycleSharesProvider);
     ref.invalidate(cycleEventsProvider);
+    ref.invalidate(authorizedCycleTimelineProvider);
+  }
+
+  Future<void> setCycleForecastShare(String recipient, bool shared) async {
+    final (h, u) = await _context();
+    final table = ref
+        .read(supabaseClientProvider)
+        .from('member_cycle_forecast_shares');
+    if (shared) {
+      await table.insert({
+        'household_id': h,
+        'owner_user_id': u,
+        'recipient_user_id': recipient,
+      });
+    } else {
+      await table
+          .delete()
+          .eq('household_id', h)
+          .eq('owner_user_id', u)
+          .eq('recipient_user_id', recipient);
+    }
+    ref.invalidate(ownCycleForecastSharesProvider);
+    ref.invalidate(authorizedCycleTimelineProvider);
   }
 
   Future<void> addCyclePrivateEntry(Map<String, Object?> values) async {
@@ -351,6 +440,7 @@ class DailyLifeActions {
         .eq('owner_user_id', u);
     ref.invalidate(ownCycleEventsProvider);
     ref.invalidate(cycleEventsProvider);
+    ref.invalidate(authorizedCycleTimelineProvider);
   }
 
   Future<void> addCategory(String name) async {

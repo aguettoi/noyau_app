@@ -10,6 +10,7 @@ import '../../recurring_finance/presentation/recurring_finance_page.dart';
 import '../../monthly_close/presentation/monthly_close_page.dart';
 import '../../cashflow_projection/presentation/cashflow_projection_page.dart';
 import '../domain/organization_models.dart';
+import 'daily_life_page.dart';
 
 class CalendarSourceNavigator {
   const CalendarSourceNavigator();
@@ -28,6 +29,7 @@ class CalendarSourceNavigator {
       CalendarSource.recurringFinance => const RecurringFinancePage(),
       CalendarSource.monthlyClose => const MonthlyClosePage(),
       CalendarSource.cashflowProjection => const CashflowProjectionPage(),
+      CalendarSource.cycle => const DailyLifePage(),
       CalendarSource.task || CalendarSource.reconciliation => null,
     };
   }

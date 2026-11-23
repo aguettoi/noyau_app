@@ -20,6 +20,7 @@ import '../../organization/application/daily_life_provider.dart';
 import '../../wealth/application/providers/wealth_provider.dart';
 import '../../monthly_close/application/monthly_close_provider.dart';
 import '../../recurring_finance/application/recurring_finance_provider.dart';
+import '../../assistant/application/assistant_authorization_revision.dart';
 
 final householdRealtimeProvider = Provider<void>((ref) {
   final household = ref.watch(activeHouseholdProvider).valueOrNull;
@@ -59,6 +60,22 @@ final householdRealtimeProvider = Provider<void>((ref) {
 });
 
 void _invalidateTable(Ref ref, String table) {
+  if (const {
+    'accounts',
+    'account_privacy_settings',
+    'account_privacy_requests',
+    'financial_events',
+    'obligations',
+    'budget_goals',
+    'priority_plans',
+    'household_tasks',
+    'member_cycle_events',
+    'member_cycle_calendar_shares',
+    'member_cycle_forecast_shares',
+    'wealth_assets',
+  }.contains(table)) {
+    invalidateAssistantAuthorization(ref);
+  }
   switch (table) {
     case 'accounts':
       ref.invalidate(remoteAccountsProvider);
@@ -115,9 +132,13 @@ void _invalidateTable(Ref ref, String table) {
       break;
     case 'member_cycle_events':
     case 'member_cycle_calendar_shares':
+    case 'member_cycle_forecast_shares':
       ref.invalidate(cycleEventsProvider);
       ref.invalidate(ownCycleEventsProvider);
       ref.invalidate(ownCycleSharesProvider);
+      ref.invalidate(ownCycleForecastSharesProvider);
+      ref.invalidate(authorizedCycleTimelineProvider);
+      ref.invalidate(organizationCalendarProvider);
       break;
     case 'wealth_assets':
       ref.invalidate(wealthDataProvider);
