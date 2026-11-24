@@ -11,7 +11,7 @@ abstract final class NoyauTheme {
     final scheme = ColorScheme(
       brightness: brightness,
       primary: isDark ? AppColors.darkPrimary : AppColors.primary,
-      onPrimary: AppColors.surfaceSecondary,
+      onPrimary: isDark ? AppColors.darkBackground : AppColors.surfaceSecondary,
       primaryContainer: isDark
           ? AppColors.darkPrimaryContainer
           : AppColors.primaryContainer,
@@ -36,15 +36,17 @@ abstract final class NoyauTheme {
       onTertiaryContainer: isDark
           ? AppColors.darkTextPrimary
           : AppColors.accentContainerText,
-      error: AppColors.danger,
-      onError: AppColors.surfaceSecondary,
+      error: isDark
+          ? AppColors.darkFinancialNegative
+          : AppColors.financialNegative,
+      onError: isDark ? AppColors.darkBackground : AppColors.surfaceSecondary,
       errorContainer: isDark
           ? AppColors.darkDangerContainer
           : AppColors.dangerContainer,
       onErrorContainer: isDark
           ? AppColors.darkDangerContainerText
           : AppColors.dangerContainerText,
-      surface: isDark ? AppColors.darkSurface : AppColors.surface,
+      surface: isDark ? AppColors.darkSurface : AppColors.surfaceSecondary,
       onSurface: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
       surfaceContainerHighest: isDark
           ? AppColors.darkSurfaceSecondary
@@ -70,7 +72,7 @@ abstract final class NoyauTheme {
     );
     final outline = OutlineInputBorder(
       borderRadius: AppRadius.input,
-      borderSide: BorderSide(color: scheme.outline),
+      borderSide: AppBorders.standard(scheme),
     );
     return ThemeData(
       useMaterial3: true,
@@ -90,7 +92,7 @@ abstract final class NoyauTheme {
         titleTextStyle: textTheme.titleLarge,
       ),
       cardTheme: CardThemeData(
-        elevation: 1,
+        elevation: 0,
         margin: EdgeInsets.zero,
         color: isDark
             ? AppColors.darkSurfaceSecondary
@@ -98,7 +100,7 @@ abstract final class NoyauTheme {
         shadowColor: AppColors.shadow.withValues(alpha: .08),
         shape: RoundedRectangleBorder(
           borderRadius: AppRadius.card,
-          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .75)),
+          side: AppBorders.subtle(scheme),
         ),
         clipBehavior: Clip.antiAlias,
       ),
@@ -107,6 +109,7 @@ abstract final class NoyauTheme {
             ? AppColors.darkSurfaceSecondary
             : AppColors.surfaceSecondary,
         shape: RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        elevation: 8,
         titleTextStyle: textTheme.titleLarge,
         contentTextStyle: textTheme.bodyMedium,
       ),
@@ -140,14 +143,10 @@ abstract final class NoyauTheme {
         ),
         border: outline,
         enabledBorder: outline,
-        focusedBorder: outline.copyWith(
-          borderSide: BorderSide(color: scheme.primary, width: 2),
-        ),
-        errorBorder: outline.copyWith(
-          borderSide: BorderSide(color: scheme.error),
-        ),
+        focusedBorder: outline.copyWith(borderSide: AppBorders.focus(scheme)),
+        errorBorder: outline.copyWith(borderSide: AppBorders.error(scheme)),
         focusedErrorBorder: outline.copyWith(
-          borderSide: BorderSide(color: scheme.error, width: 2),
+          borderSide: AppBorders.error(scheme).copyWith(width: 2),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -221,7 +220,7 @@ abstract final class NoyauTheme {
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surfaceContainerHighest,
         selectedColor: scheme.primaryContainer,
-        side: BorderSide(color: scheme.outlineVariant),
+        side: AppBorders.subtle(scheme),
         shape: const RoundedRectangleBorder(borderRadius: AppRadius.button),
         labelStyle: textTheme.labelMedium,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),

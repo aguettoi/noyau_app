@@ -253,22 +253,22 @@ class FpOfflineBanner extends StatelessWidget {
       FpOfflineVisualState.offline => (
         Icons.cloud_off_outlined,
         'offline',
-        AppColors.warning,
+        AppColors.warningFor(Theme.of(context).brightness),
       ),
       FpOfflineVisualState.reconnecting => (
         Icons.sync,
         'reconnecting',
-        AppColors.info,
+        AppColors.informationFor(Theme.of(context).brightness),
       ),
       FpOfflineVisualState.actionRequired => (
         Icons.error_outline,
         'actionRequired',
-        AppColors.danger,
+        AppColors.financialNegativeFor(Theme.of(context).brightness),
       ),
       FpOfflineVisualState.online => (
         Icons.cloud_done_outlined,
         'pending',
-        AppColors.info,
+        AppColors.informationFor(Theme.of(context).brightness),
       ),
     };
     final label = key == 'pending'

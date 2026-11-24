@@ -3,27 +3,61 @@ import 'package:flutter/material.dart';
 /// Tokens visuels partagés de Noyau. Les écrans ne doivent pas créer leur
 /// propre palette ni leurs propres métriques d'espacement.
 abstract final class AppColors {
-  static const primary = Color(0xFF163A5F);
-  static const secondary = Color(0xFF4F6F52);
-  static const accent = Color(0xFFC89B3C);
-  static const background = Color(0xFFF7F8F5);
-  static const surface = Color(0xFFEEF1F4);
+  // Brand colors come from the official FINANCIEL PILOTE identity. They are
+  // deliberately distinct from business-state colors below.
+  static const brandNavy = Color(0xFF12385B);
+  static const brandSage = Color(0xFF66785B);
+  static const brandGold = Color(0xFFD0A451);
+
+  // Financial and product semantics. A brand color must never be used as a
+  // substitute for one of these roles merely because it looks similar.
+  static const financialPositive = Color(0xFF087443);
+  static const financialNegative = Color(0xFFB4233C);
+  static const information = Color(0xFF175C9E);
+  static const warning = Color(0xFF8A4B00);
+  static const specializedPurple = Color(0xFF5B3DB5);
+
+  // Design Freeze functional palette. These roles are intentionally explicit:
+  // charts, KPI and privacy surfaces must not infer them from brand colors.
+  static const revenue = Color(0xFF2563EB);
+  static const spending = Color(0xFFE54864);
+  static const savingsFunctional = Color(0xFF16A34A);
+  static const investments = Color(0xFF7C3AED);
+  static const creditsAndDebts = Color(0xFFDC3545);
+  static const accountsAndLiquidity = Color(0xFF175C9E);
+  static const cycleObserved = Color(0xFFD9467D);
+  static const cycleEstimated = Color(0xFF8B5CF6);
+  static const privacyVisible = Color(0xFF16A34A);
+  static const privacyBalanceHidden = Color(0xFFC2410C);
+  static const privacyPrivate = Color(0xFFDC3545);
+
+  // Cold, quiet neutrals used by the validated light visual language.
+  static const background = Color(0xFFF7F9FC);
+  static const surface = Color(0xFFF1F5F9);
   static const surfaceSecondary = Color(0xFFFFFFFF);
-  static const textPrimary = Color(0xFF1E2329);
-  static const textSecondary = Color(0xFF68707A);
-  static const divider = Color(0xFFD9DEE4);
-  static const border = Color(0xFFD0D6DC);
-  static const success = Color(0xFF2E7D32);
-  static const warning = Color(0xFFF59E0B);
-  static const danger = Color(0xFFD32F2F);
-  static const info = Color(0xFF2C7FB8);
-  static const income = Color(0xFF2E7D32);
-  static const expense = Color(0xFFB5473C);
-  static const transfer = Color(0xFF2C7FB8);
-  static const savings = Color(0xFF4F6F52);
-  static const investment = Color(0xFF6B5B95);
-  static const debt = Color(0xFF9A5B35);
-  static const receivable = Color(0xFF397A78);
+  static const surfaceElevated = Color(0xFFFFFFFF);
+  static const textPrimary = Color(0xFF101828);
+  static const textSecondary = Color(0xFF475467);
+  static const textMuted = Color(0xFF667085);
+  static const textDisabled = Color(0xFF98A2B3);
+  static const divider = Color(0xFFE7ECF2);
+  static const borderSubtle = Color(0xFFE3E9F0);
+  static const border = Color(0xFFD0D9E4);
+
+  // Compatibility aliases keep existing pages source-compatible during Lot 0.
+  static const primary = brandNavy;
+  static const secondary = brandSage;
+  static const accent = brandGold;
+  static const success = financialPositive;
+  static const danger = financialNegative;
+  static const info = information;
+  static const income = revenue;
+  static const expense = spending;
+  static const transfer = information;
+  static const savings = savingsFunctional;
+  static const investment = investments;
+  static const debt = creditsAndDebts;
+  static const receivable = Color(0xFF176B68);
   // Les surfaces de contenu restent neutres : le bleu pétrole structure la
   // navigation et les CTA, sans créer de grands aplats bleu pastel.
   static const primaryContainer = Color(0xFFEEF1F4);
@@ -32,24 +66,97 @@ abstract final class AppColors {
   static const accentContainerText = Color(0xFF5B430E);
   static const dangerContainer = Color(0xFFFBE9E8);
   static const dangerContainerText = Color(0xFF7D1B1B);
-  static const shadow = Color(0xFF000000);
+  static const shadow = Color(0xFF0B1F33);
   static const transparent = Color(0x00000000);
 
-  static const darkBackground = Color(0xFF111418);
-  static const darkSurface = Color(0xFF1A1F24);
-  static const darkSurfaceSecondary = Color(0xFF232931);
-  static const darkPrimary = Color(0xFF2C5C88);
-  static const darkSecondary = Color(0xFF6E9C74);
-  static const darkAccent = Color(0xFFD7AE52);
-  static const darkTextPrimary = Color(0xFFF3F5F7);
-  static const darkTextSecondary = Color(0xFFAEB8C3);
-  static const darkDivider = Color(0xFF2D333A);
-  static const darkBorder = Color(0xFF343A42);
-  static const darkPrimaryContainer = Color(0xFF1F3F5B);
-  static const darkSecondaryContainer = Color(0xFF263B2B);
-  static const darkAccentContainer = Color(0xFF453817);
-  static const darkDangerContainer = Color(0xFF4A2525);
-  static const darkDangerContainerText = Color(0xFFFFDAD6);
+  // Dark mode is independently calibrated rather than derived by inversion.
+  static const darkBackground = Color(0xFF09111B);
+  static const darkSurface = Color(0xFF111C29);
+  static const darkSurfaceSecondary = Color(0xFF182636);
+  static const darkSurfaceElevated = Color(0xFF203247);
+  static const darkPrimary = Color(0xFF79A9D2);
+  static const darkSecondary = Color(0xFF9AAE8C);
+  static const darkAccent = Color(0xFFE3BB64);
+  static const darkFinancialPositive = Color(0xFF5DDB91);
+  static const darkFinancialNegative = Color(0xFFFF8AA0);
+  static const darkInformation = Color(0xFF75C0FF);
+  static const darkWarning = Color(0xFFFFD080);
+  static const darkSpecializedPurple = Color(0xFFB8A1FF);
+  static const darkRevenue = Color(0xFF60A5FA);
+  static const darkSpending = Color(0xFFFF8FA3);
+  static const darkSavingsFunctional = Color(0xFF4ADE80);
+  static const darkInvestments = Color(0xFFC4B5FD);
+  static const darkCreditsAndDebts = Color(0xFFFF8A95);
+  static const darkAccountsAndLiquidity = Color(0xFF75C0FF);
+  static const darkCycleObserved = Color(0xFFF472B6);
+  static const darkCycleEstimated = Color(0xFFC4B5FD);
+  static const darkPrivacyVisible = Color(0xFF4ADE80);
+  static const darkPrivacyBalanceHidden = Color(0xFFFDBA74);
+  static const darkPrivacyPrivate = Color(0xFFFF8A95);
+  static const darkTextPrimary = Color(0xFFF6F8FB);
+  static const darkTextSecondary = Color(0xFFC3CEDA);
+  static const darkTextMuted = Color(0xFF93A4B7);
+  static const darkTextDisabled = Color(0xFF697B8F);
+  static const darkDivider = Color(0xFF26384A);
+  static const darkBorderSubtle = Color(0xFF2B3D50);
+  static const darkBorder = Color(0xFF3B5066);
+  static const darkPrimaryContainer = Color(0xFF183A58);
+  static const darkSecondaryContainer = Color(0xFF293B2C);
+  static const darkAccentContainer = Color(0xFF493A17);
+  static const darkDangerContainer = Color(0xFF4A202B);
+  static const darkDangerContainerText = Color(0xFFFFD9E0);
+
+  static Color financialPositiveFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkFinancialPositive : financialPositive;
+
+  static Color financialNegativeFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkFinancialNegative : financialNegative;
+
+  static Color informationFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkInformation : information;
+
+  static Color warningFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkWarning : warning;
+
+  static Color specializedPurpleFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkSpecializedPurple : specializedPurple;
+
+  static Color revenueFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkRevenue : revenue;
+
+  static Color spendingFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkSpending : spending;
+
+  static Color savingsFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkSavingsFunctional : savingsFunctional;
+
+  static Color investmentsFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkInvestments : investments;
+
+  static Color creditsAndDebtsFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkCreditsAndDebts : creditsAndDebts;
+
+  static Color accountsAndLiquidityFor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? darkAccountsAndLiquidity
+      : accountsAndLiquidity;
+
+  static Color cycleObservedFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkCycleObserved : cycleObserved;
+
+  static Color cycleEstimatedFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkCycleEstimated : cycleEstimated;
+
+  static Color privacyVisibleFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkPrivacyVisible : privacyVisible;
+
+  static Color privacyBalanceHiddenFor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? darkPrivacyBalanceHidden
+      : privacyBalanceHidden;
+
+  static Color privacyPrivateFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkPrivacyPrivate : privacyPrivate;
 }
 
 abstract final class AppSpacing {
@@ -64,12 +171,19 @@ abstract final class AppSpacing {
   static const page = EdgeInsets.all(lg);
   static const card = EdgeInsets.all(md);
   static const dialog = EdgeInsets.all(lg);
+  static const compactPage = EdgeInsets.symmetric(horizontal: md, vertical: sm);
+  static const sectionGap = lg;
+  static const contentGap = md;
+  static const inlineGap = xs;
 }
 
 abstract final class AppControlSize {
   static const minimumTouchTarget = 48.0;
-  static const buttonHeight = 48.0;
-  static const inputHeight = 48.0;
+  static const compactVisual = 40.0;
+  static const standard = 48.0;
+  static const large = 56.0;
+  static const buttonHeight = standard;
+  static const inputHeight = standard;
   static const iconSmall = 18.0;
   static const icon = 24.0;
   static const iconLarge = 32.0;
@@ -282,10 +396,10 @@ class FpStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final color = switch (status) {
-      FpStatus.success => AppColors.success,
-      FpStatus.warning => AppColors.warning,
+      FpStatus.success => AppColors.financialPositiveFor(scheme.brightness),
+      FpStatus.warning => AppColors.warningFor(scheme.brightness),
       FpStatus.error => scheme.error,
-      FpStatus.info => AppColors.info,
+      FpStatus.info => AppColors.informationFor(scheme.brightness),
       FpStatus.neutral => scheme.onSurfaceVariant,
     };
     return Semantics(
@@ -583,22 +697,73 @@ class SecondaryInfoText extends StatelessWidget {
 
 abstract final class AppRadius {
   static const small = BorderRadius.all(Radius.circular(8));
-  static const button = BorderRadius.all(Radius.circular(12));
-  static const input = BorderRadius.all(Radius.circular(12));
+  static const control = BorderRadius.all(Radius.circular(12));
+  static const button = control;
+  static const input = control;
   static const card = BorderRadius.all(Radius.circular(16));
-  static const dialog = BorderRadius.all(Radius.circular(20));
+  static const largeCard = BorderRadius.all(Radius.circular(20));
+  static const modal = largeCard;
+  static const dialog = modal;
   static const navigation = BorderRadius.all(Radius.circular(16));
 }
 
 abstract final class AppShadows {
+  static const none = <BoxShadow>[];
   static const subtle = <BoxShadow>[
-    BoxShadow(color: Color(0x120E1823), blurRadius: 18, offset: Offset(0, 6)),
+    BoxShadow(color: Color(0x0A0B1F33), blurRadius: 12, offset: Offset(0, 3)),
+  ];
+  static const card = <BoxShadow>[
+    BoxShadow(color: Color(0x0F0B1F33), blurRadius: 18, offset: Offset(0, 6)),
+  ];
+  static const elevated = <BoxShadow>[
+    BoxShadow(color: Color(0x160B1F33), blurRadius: 24, offset: Offset(0, 10)),
+  ];
+  static const modal = <BoxShadow>[
+    BoxShadow(color: Color(0x240B1F33), blurRadius: 36, offset: Offset(0, 16)),
+  ];
+  static const darkSubtle = <BoxShadow>[
+    BoxShadow(color: Color(0x3D000000), blurRadius: 12, offset: Offset(0, 3)),
+  ];
+  static const darkCard = <BoxShadow>[
+    BoxShadow(color: Color(0x52000000), blurRadius: 20, offset: Offset(0, 7)),
+  ];
+  static const darkElevated = <BoxShadow>[
+    BoxShadow(color: Color(0x66000000), blurRadius: 28, offset: Offset(0, 12)),
+  ];
+  static const darkModal = <BoxShadow>[
+    BoxShadow(color: Color(0x7A000000), blurRadius: 40, offset: Offset(0, 18)),
   ];
 }
 
 abstract final class AppAnimations {
+  static const instant = Duration.zero;
+  static const fast = Duration(milliseconds: 120);
   static const standardDuration = Duration(milliseconds: 220);
+  static const standard = standardDuration;
+  static const slow = Duration(milliseconds: 320);
   static const standardCurve = Curves.easeInOut;
+
+  static Duration resolve(BuildContext context, Duration duration) {
+    final media = MediaQuery.maybeOf(context);
+    if (media?.disableAnimations == true ||
+        media?.accessibleNavigation == true) {
+      return instant;
+    }
+    return duration;
+  }
+}
+
+abstract final class AppBorders {
+  static BorderSide subtle(ColorScheme scheme) =>
+      BorderSide(color: scheme.outlineVariant.withValues(alpha: .82));
+  static BorderSide standard(ColorScheme scheme) =>
+      BorderSide(color: scheme.outline);
+  static BorderSide selected(ColorScheme scheme) =>
+      BorderSide(color: scheme.primary, width: 1.5);
+  static BorderSide focus(ColorScheme scheme) =>
+      BorderSide(color: scheme.primary, width: 2);
+  static BorderSide error(ColorScheme scheme) =>
+      BorderSide(color: scheme.error, width: 1.5);
 }
 
 abstract final class AppIcons {
@@ -618,6 +783,8 @@ abstract final class AppAssets {
 abstract final class AppTypography {
   static const fontFamily = 'Inter';
 
+  static const financialFigures = <FontFeature>[FontFeature.tabularFigures()];
+
   static TextTheme textTheme(TextTheme base, ColorScheme colors) => base
       .apply(
         fontFamily: fontFamily,
@@ -625,6 +792,31 @@ abstract final class AppTypography {
         displayColor: colors.onSurface,
       )
       .copyWith(
+        displaySmall: TextStyle(
+          fontFamily: fontFamily,
+          fontWeight: FontWeight.w700,
+          fontSize: 40,
+          height: 1.08,
+          letterSpacing: -1,
+          color: colors.onSurface,
+          fontFeatures: financialFigures,
+        ),
+        headlineLarge: TextStyle(
+          fontFamily: fontFamily,
+          fontWeight: FontWeight.w700,
+          fontSize: 32,
+          height: 1.15,
+          letterSpacing: -0.7,
+          color: colors.onSurface,
+        ),
+        headlineMedium: TextStyle(
+          fontFamily: fontFamily,
+          fontWeight: FontWeight.w700,
+          fontSize: 28,
+          height: 1.18,
+          letterSpacing: -0.5,
+          color: colors.onSurface,
+        ),
         headlineSmall: TextStyle(
           fontFamily: fontFamily,
           fontWeight: FontWeight.w700,
@@ -672,5 +864,59 @@ abstract final class AppTypography {
           height: 1.2,
           color: colors.onSurface,
         ),
+        labelMedium: TextStyle(
+          fontFamily: fontFamily,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+          height: 1.25,
+          color: colors.onSurfaceVariant,
+        ),
       );
+
+  static TextStyle displayFinancial(ColorScheme colors) => TextStyle(
+    fontFamily: fontFamily,
+    fontWeight: FontWeight.w700,
+    fontSize: 40,
+    height: 1.08,
+    letterSpacing: -1,
+    color: colors.onSurface,
+    fontFeatures: financialFigures,
+  );
+
+  static TextStyle financialAmountLarge(ColorScheme colors) => TextStyle(
+    fontFamily: fontFamily,
+    fontWeight: FontWeight.w700,
+    fontSize: 32,
+    height: 1.12,
+    letterSpacing: -0.6,
+    color: colors.onSurface,
+    fontFeatures: financialFigures,
+  );
+
+  static TextStyle financialAmountMedium(ColorScheme colors) => TextStyle(
+    fontFamily: fontFamily,
+    fontWeight: FontWeight.w700,
+    fontSize: 24,
+    height: 1.16,
+    letterSpacing: -0.3,
+    color: colors.onSurface,
+    fontFeatures: financialFigures,
+  );
+
+  static TextStyle financialAmountSmall(ColorScheme colors) => TextStyle(
+    fontFamily: fontFamily,
+    fontWeight: FontWeight.w700,
+    fontSize: 18,
+    height: 1.2,
+    color: colors.onSurface,
+    fontFeatures: financialFigures,
+  );
+
+  static TextStyle caption(ColorScheme colors) => TextStyle(
+    fontFamily: fontFamily,
+    fontWeight: FontWeight.w400,
+    fontSize: 11,
+    height: 1.35,
+    color: colors.onSurfaceVariant,
+  );
 }
